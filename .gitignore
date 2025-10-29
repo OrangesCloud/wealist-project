@@ -41,3 +41,9 @@ Thumbs.db
 
 # Log files
 *.log
+
+# Frontend
+frontend/node_modules/
+frontend/build/
+frontend/.pnp
+frontend/.pnp.js
