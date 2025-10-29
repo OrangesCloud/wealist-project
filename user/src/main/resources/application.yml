@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: ${APP_NAME}
+
+  main:
+    allow-circular-references: true
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL}
+    properties:
+      hibernate:
+        format_sql: ${JPA_FORMAT_SQL}
+    database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+    disable-swagger-default-url: true
+
+server:
+  port: ${USER_SERVICE_PORT}
+  error:
+    whitelabel.enabled: false
+    include-exception: true
+
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration-ms: ${JWT_EXPIRATION_MS}
+  refresh-token-expiration-ms: ${JWT_ACCESS_MS}
+
+logging:
+  level:
+    OrangeCloud: DEBUG # 애플리케이션 패키지 로깅 레벨
+    org.springframework.security: DEBUG
