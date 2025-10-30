@@ -201,11 +201,12 @@ git push origin feature/...
 - **`.claude/token-optimization.md`** - 🔥 **토큰 절약 가이드** - Claude Code 사용 시 효율적인 토큰 사용 전략 (반드시 참조!)
 - **`.claude/context.md`** - Current project state, completed features, database schema
 - **`.claude/branches.md`** - Branch status, cleanup targets, git workflows
+- **`.claude/api-user-documentation.md`** - User Service API 문서 (최신화 필요)
+- **`.claude/api-kanban-documentation.md`** - Kanban Service API 문서 (최신화 필요)
+- **`.claude/api-kanban-test-guide.md`** - Kanban Service 테스트 가이드 (최신화 필요)
 - **`docker-compose.yaml`** - Service orchestration (root level)
 - **`.env`** - Environment variables for all services (root level, git-ignored)
-- **`user/API_DOCUMENTATION.md`** - User Service API 문서
-- **`kanban-service/API_DOCUMENTATION.md`** - Kanban Service API 문서
-- **`kanban-service/API_TEST_GUIDE.md`** - Kanban Service 테스트 가이드
+- **`README.md`** - 프로젝트 실행 가이드 (root level)
 
 ## Project Structure
 
@@ -221,7 +222,6 @@ wealist/                                  # Monorepo root (Single Git repository
 │   │   ├── config/                      # Configuration classes
 │   │   └── util/                        # Utilities (JWT)
 │   ├── build.gradle                     # Gradle build config
-│   ├── API_DOCUMENTATION.md             # User Service API docs
 │   └── Dockerfile
 ├── kanban-service/                       # Kanban Service (FastAPI/Python)
 │   ├── app/
@@ -234,8 +234,6 @@ wealist/                                  # Monorepo root (Single Git repository
 │   ├── alembic/                         # Database migrations
 │   ├── scripts/                         # Utilities (generate_test_token.py)
 │   ├── tests/                           # Pytest tests
-│   ├── API_DOCUMENTATION.md             # Kanban Service API docs
-│   ├── API_TEST_GUIDE.md                # API testing guide
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/                             # Frontend (React/TypeScript)
@@ -252,18 +250,22 @@ wealist/                                  # Monorepo root (Single Git repository
 ├── .env                                  # Shared environment variables (git-ignored)
 ├── .env.example                          # Environment template
 ├── init-db.sh                            # PostgreSQL init script
+├── README.md                             # Setup and execution guide
 ├── CLAUDE.md                             # This file - Claude Code guide
-└── .claude/                              # Claude Code context files
+└── .claude/                              # Claude Code context files (git-ignored)
     ├── context.md                        # Project status
-    └── branches.md                       # Branch management
+    ├── branches.md                       # Branch management
+    ├── api-user-documentation.md         # User Service API docs
+    ├── api-kanban-documentation.md       # Kanban Service API docs
+    └── api-kanban-test-guide.md          # Kanban Service testing guide
 ```
 
 ## Kanban Service API Structure
 
 All endpoints require JWT authentication via `Authorization: Bearer <token>` header.
 
-**상세 문서**: `kanban-service/API_DOCUMENTATION.md`
-**테스트 가이드**: `kanban-service/API_TEST_GUIDE.md`
+**상세 문서**: `.claude/api-kanban-documentation.md` (최신화 필요)
+**테스트 가이드**: `.claude/api-kanban-test-guide.md` (최신화 필요)
 
 **Workspaces:** `/api/workspaces/`
 - POST, GET (list), GET /{id}, PATCH /{id}, DELETE /{id}
