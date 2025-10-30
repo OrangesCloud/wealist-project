@@ -51,3 +51,4 @@ frontend/.pnp.js
 # Claude Code
 .claude/
 .claudeignore
+CLAUDE.md
