@@ -2,6 +2,9 @@
 FROM gradle:8.5.0-jdk17 AS builder
 WORKDIR /home/gradle/src
 
+# 캐시 무효화를 위한 ARG 추가
+ARG CACHEBUST=1
+
 # Use Gradle Wrapper for consistent builds
 # Copy wrapper files
 COPY --chown=gradle:gradle gradlew build.gradle settings.gradle ./
@@ -12,6 +15,7 @@ RUN ./gradlew dependencies --no-daemon
 
 # Copy source code and build the application
 COPY --chown=gradle:gradle src ./src
+RUN echo "Cache bust: ${CACHEBUST}"
 RUN ./gradlew bootJar --no-daemon
 
 # Runtime stage

@@ -27,11 +27,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest httpRequest, HttpServletResponse httpResponse, FilterChain chain)
+            throws IOException, ServletException {
 
-        String jwt = getJwtFromRequest(request);
+        String jwt = getJwtFromRequest(httpRequest);
 
         // 토큰이 존재하고, Security Context에 이미 인증 정보가 없는 경우
         if (StringUtils.hasText(jwt) && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -46,7 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // Authentication 객체 생성 (권한은 빈 리스트로 설정)
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userId, null, new ArrayList<>());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(httpRequest));
 
                 // Security Context에 인증 정보 설정
                 SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -54,7 +53,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // 다음 필터로 요청 전달
-        filterChain.doFilter(request, response);
+        chain.doFilter(httpRequest, httpResponse);
     }
 
     /**
