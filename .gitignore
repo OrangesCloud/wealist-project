@@ -47,3 +47,8 @@ frontend/node_modules/
 frontend/build/
 frontend/.pnp
 frontend/.pnp.js
+
+# Claude Code
+.claude/
+.claudeignore
+CLAUDE.md
