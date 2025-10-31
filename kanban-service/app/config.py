@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str
     SECRET_KEY: str = "change-this-in-production"
-    ALGORITHM: str = "HS256"
+    ALGORITHM: str = "HS512"  # User Service와 동일한 알고리즘 사용
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     ENV: str = "development"
     DEBUG: bool = True

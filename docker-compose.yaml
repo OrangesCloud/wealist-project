@@ -48,22 +48,15 @@ services:
   kanban-service:
     build: ./kanban-service
     container_name: wealist-kanban-service
-    command:
-      [
-        "python",
-        "-m",
-        "uvicorn",
-        "app.main:app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-      ]
     env_file: ./.env
     environment:
       - DATABASE_URL=postgresql://${KANBAN_DB_USER}:${KANBAN_DB_PASSWORD}@postgres:5432/${KANBAN_DB_NAME}
+      - KANBAN_DB_USER=${KANBAN_DB_USER}
+      - KANBAN_DB_PASSWORD=${KANBAN_DB_PASSWORD}
+      - KANBAN_DB_NAME=${KANBAN_DB_NAME}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
       - SECRET_KEY=${JWT_SECRET}
+      - ALGORITHM=${ALGORITHM:-HS512}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080}
     ports:
       - "8000:8000"

@@ -11,7 +11,7 @@ FROM python:3.11-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache libpq curl
+RUN apk add --no-cache libpq curl postgresql-client
 
 # 비루트 사용자 생성
 RUN adduser -D appuser
@@ -25,11 +25,14 @@ RUN chown -R appuser:appuser /home/appuser/.local
 # PATH를 appuser의 로컬 bin으로 설정
 ENV PATH=/home/appuser/.local/bin:$PATH
 
-# 사용자 전환
-USER appuser
-
 # 애플리케이션 코드 복사
 COPY . .
+
+# entrypoint.sh 실행 권한 부여
+RUN chmod +x entrypoint.sh
+
+# 사용자 전환
+USER appuser
 
 # 환경변수 기본값
 ENV PYTHONUNBUFFERED=1 \
@@ -39,6 +42,9 @@ HEALTHCHECK --interval=30s --timeout=3s \
   CMD curl -f http://localhost:8000/health || exit 1
 
 EXPOSE 8000
+
+# Entrypoint for migrations
+ENTRYPOINT ["./entrypoint.sh"]
 
 # Production mode
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
