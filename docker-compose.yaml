@@ -1,7 +1,7 @@
 services:
   #--- weAlist-User Service ---
   user-service:
-    build: ./user
+    build: ./user-service
     container_name: wealist-user-service
     env_file: ./.env
     environment:
@@ -46,9 +46,19 @@ services:
 
   #--- Kanban Service ---
   kanban-service:
-    build: ./board/services/kanban
+    build: ./kanban-service
     container_name: wealist-kanban-service
-    command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
     env_file: ./.env
     environment:
       - DATABASE_URL=postgresql://${KANBAN_DB_USER}:${KANBAN_DB_PASSWORD}@postgres:5432/${KANBAN_DB_NAME}
@@ -116,7 +126,25 @@ services:
       timeout: 3s
       retries: 5
     restart: unless-stopped
-
+  #--- Frontend 임시!! ---
+  frontend-service: # React 프론트엔드
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: wealist-frontend
+    ports:
+      - "3000:3000" # 로컬 개발 서버 포트
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # node_modules는 컨테이너 내부 것을 사용하도록 설정
+    environment:
+      - WATCHPACK_POLLING=true # Docker에서 Hot Reloading을 위한 설정
+    networks:
+      - wealist-net
+    depends_on: # 백엔드 서비스들이 시작된 후 실행
+      - kanban-service
+      - user-service
+    restart: unless-stopped
 #--- Networks and Volumes ---
 networks:
   wealist-net:

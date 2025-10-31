@@ -50,7 +50,11 @@ public class SecurityConfig {
                         // 테스트 엔드포인트 허용
                         .requestMatchers("/test").permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers("/health").permitAll()
+                        .requestMatchers("/").permitAll()
+                        .requestMatchers("/actuator/health").permitAll()
+                        // ************ 나중에 아래 전체 허용 해제 필수 **********
+
+                        .requestMatchers("/**").permitAll()
                         // 나머지는 인증 필요
                         .anyRequest().authenticated()
                 )

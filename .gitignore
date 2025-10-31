@@ -9,6 +9,7 @@ redis-data/
 # Java / Gradle
 .gradle
 build/
+BOOT-INF/
 !gradle/wrapper/gradle-wrapper.jar
 out/
 
