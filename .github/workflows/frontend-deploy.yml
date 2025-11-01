@@ -14,11 +14,9 @@ jobs:
       BUILD_DIR: frontend/build # wealist-project/frontend 아래에 있으므로 경로 조정
 
     steps:
-      # 1. 소스코드 체크아웃
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. Node.js 환경 설정
       - name: ⚙️ Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -26,7 +24,6 @@ jobs:
           cache: "npm" # 의존성 설치 속도 향상을 위한 캐싱
           cache-dependency-path: "frontend/package-lock.json"
 
-      # 3. 종속성 설치 및 빌드
       - name: 📦 Install Dependencies & Build
         # 사용자 프로젝트 경로가 wealist-project/frontend 아래이므로 해당 경로로 이동합니다.
         run: |
@@ -35,7 +32,6 @@ jobs:
           npm run build
         # 💡 프로젝트에 맞게 'npm install', 'npm run build' 명령을 수정하세요.
 
-      # 4. AWS 인증 정보 설정 (Secrets 이름 변경 적용)
       - name: 🔑 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -44,7 +40,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.FRONTEND_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.FRONTEND_AWS_REGION }} # AWS_REGION도 FRONTEND_ 접두사를 붙였다면 사용
 
-      # 5. S3에 빌드 결과 업로드 (동기화)
       - name: ⬆️ Deploy to S3
         run: |
           aws s3 sync \
@@ -52,7 +47,6 @@ jobs:
             s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }}/ \ # 변경된 Secrets 이름을 사용합니다.
             --delete
 
-      # 6. CloudFront 캐시 무효화
       - name: 🌐 Invalidate CloudFront Cache
         run: |
           aws cloudfront create-invalidation \
