@@ -3,10 +3,7 @@ import { Menu, User, ChevronDown, Plus, MoreVertical, X, Search } from 'lucide-r
 import { useTheme } from '../contexts/ThemeContext';
 import UserProfileModal from '../components/modals/UserProfileModal';
 import TaskDetailModal from '../components/modals/TaskDetailModal';
-import { UserProfile } from '../types';
-// 💡 Mock API를 사용하므로, 실제 서비스 임포트는 주석 처리합니다.
-// import workspaceService from '../services/workspaceService';
-// import healthService from '../services/healthTest';
+import { Column, Task, UserProfile } from '../types';
 
 // --- 1. API 스펙에 맞춘 Mock 데이터 타입 정의 ---
 interface WorkspaceResponse {
@@ -14,21 +11,17 @@ interface WorkspaceResponse {
   name: string;
   created_by: string;
 }
+// 💡 API 스펙에 맞게 목록 응답 타입을 정의합니다.
+interface ListResponse<T> {
+  total: number;
+  items: T[];
+  limit: number;
+  offset: number;
+}
 interface ProjectResponse {
   id: string;
   name: string;
   workspace_id: string;
-}
-interface Task {
-  id: string;
-  title: string;
-  assignee_id: string | null;
-  status: string;
-}
-interface Column {
-  id: string;
-  title: string;
-  tasks: Task[];
 }
 // -------------------------------------------------
 
@@ -39,11 +32,17 @@ interface MainDashboardProps {
 }
 
 // --- 2. Mock API 함수 정의 (백엔드 대체) ---
-const mockFetchWorkspaces = async (_token: string): Promise<{ items: WorkspaceResponse[] }> => {
+
+// 🚧 Mock: 조직(Workspace) 목록 조회 (반환 타입 수정)
+const mockFetchWorkspaces = async (_token: string): Promise<ListResponse<WorkspaceResponse>> => {
   console.log('[Mock] API: 조직(Workspace) 목록 조회');
   await new Promise((resolve) => setTimeout(resolve, 300));
   return {
+    total: 3,
+    limit: 20,
+    offset: 0,
     items: [
+      // 💡 items 속성에 배열을 담습니다.
       { id: 'ws-mock-111', name: 'Wealist 개발팀 (Mock)', created_by: 'user-1' },
       { id: 'ws-mock-222', name: 'Orange Cloud 디자인팀 (Mock)', created_by: 'user-2' },
       { id: 'ws-mock-333', name: '개인 스터디 (Mock)', created_by: 'user-1' },
@@ -51,86 +50,104 @@ const mockFetchWorkspaces = async (_token: string): Promise<{ items: WorkspaceRe
   };
 };
 
+// 🚧 Mock: 프로젝트 목록 조회 (반환 타입 수정)
 const mockFetchProjects = async (
   workspaceId: string,
   _token: string,
-): Promise<{ items: ProjectResponse[] }> => {
+): Promise<ListResponse<ProjectResponse>> => {
   console.log(`[Mock] API: 프로젝트 목록 조회 (Workspace: ${workspaceId})`);
   await new Promise((resolve) => setTimeout(resolve, 200));
+
+  let projects: ProjectResponse[] = [];
   if (workspaceId === 'ws-mock-222') {
-    return {
-      items: [
-        { id: 'prj-mock-design-A', name: '랜딩페이지 디자인', workspace_id: workspaceId },
-        { id: 'prj-mock-design-B', name: 'BI/CI 리뉴얼', workspace_id: workspaceId },
-      ],
-    };
+    projects = [
+      { id: 'prj-mock-design-A', name: '랜딩페이지 디자인', workspace_id: workspaceId },
+      { id: 'prj-mock-design-B', name: 'BI/CI 리뉴얼', workspace_id: workspaceId },
+    ];
+  } else {
+    projects = [
+      { id: 'prj-mock-samsung', name: '삼성물산 백오피스 (Mock)', workspace_id: workspaceId },
+      { id: 'prj-mock-cj', name: 'CJ 어드민 페이지 (Mock)', workspace_id: workspaceId },
+      { id: 'prj-mock-internal', name: '자체 서비스 (Wealist)', workspace_id: workspaceId },
+    ];
   }
-  return {
-    items: [
-      { id: 'prj-mock-dev-A', name: '백엔드 API 개발', workspace_id: workspaceId },
-      { id: 'prj-mock-dev-B', name: '프론트엔드 UI/UX', workspace_id: workspaceId },
-      { id: 'prj-mock-dev-C', name: '인프라 구축 (K8s)', workspace_id: workspaceId },
-    ],
-  };
+
+  return { total: projects.length, limit: 20, offset: 0, items: projects }; // 💡 items 속성에 배열을 담습니다.
 };
 
 const mockFetchKanbanBoard = async (projectId: string, _token: string): Promise<Column[]> => {
   console.log(`[Mock] API: 칸반 보드 로드 (Project: ${projectId})`);
   await new Promise((resolve) => setTimeout(resolve, 400));
+
   const baseTasks: Task[] = [
     {
       id: 't-1',
-      title: `[${projectId.slice(0, 5)}] UI 디자인`,
+      title: `[${projectId.slice(0, 5)}] 인증 API 개발`,
       assignee_id: 'user-1',
-      status: 'TODO',
+      status: 'BACKEND',
+      assignee: '김개발',
     },
     {
       id: 't-2',
-      title: `[${projectId.slice(0, 5)}] API 문서 작성`,
+      title: `[${projectId.slice(0, 5)}] JWT 시큐리티 적용`,
       assignee_id: 'user-2',
-      status: 'TODO',
+      status: 'BACKEND',
+      assignee: '박보안',
     },
     {
       id: 't-3',
-      title: `[${projectId.slice(0, 5)}] 로그인 기능 구현`,
+      title: `[${projectId.slice(0, 5)}] 로그인 페이지 UI`,
       assignee_id: 'user-3',
-      status: 'IN_PROGRESS',
+      status: 'FRONTEND',
+      assignee: '이디자인',
     },
     {
       id: 't-4',
-      title: `[${projectId.slice(0, 5)}] DB 스키마 설계`,
+      title: `[${projectId.slice(0, 5)}] EKS 클러스터 구성`,
       assignee_id: 'user-4',
-      status: 'IN_PROGRESS',
+      status: 'DEVOPS',
+      assignee: '최데브옵스',
     },
     {
       id: 't-5',
-      title: `[${projectId.slice(0, 5)}] 코드 리뷰 요청`,
+      title: `[${projectId.slice(0, 5)}] API 배포 완료`,
       assignee_id: 'user-1',
-      status: 'REVIEW',
+      status: 'DONE',
+      assignee: '김개발',
     },
     {
       id: 't-6',
-      title: `[${projectId.slice(0, 5)}] 1차 배포 완료`,
+      title: `[${projectId.slice(0, 5)}] UI QA 피드백`,
       assignee_id: 'user-3',
-      status: 'DONE',
+      status: 'FRONTEND',
+      assignee: '이디자인',
     },
   ];
+
   return [
-    { id: 'TODO', title: '할 일', tasks: baseTasks.filter((t) => t.status === 'TODO') },
     {
-      id: 'IN_PROGRESS',
-      title: '진행 중',
-      tasks: baseTasks.filter((t) => t.status === 'IN_PROGRESS'),
+      id: 'BACKEND',
+      title: '백엔드 (Backend)',
+      tasks: baseTasks.filter((t) => t.status === 'BACKEND'),
     },
-    { id: 'REVIEW', title: '검토 중', tasks: baseTasks.filter((t) => t.status === 'REVIEW') },
-    { id: 'DONE', title: '완료!', tasks: baseTasks.filter((t) => t.status === 'DONE') },
+    {
+      id: 'FRONTEND',
+      title: '프론트엔드 (Frontend)',
+      tasks: baseTasks.filter((t) => t.status === 'FRONTEND'),
+    },
+    {
+      id: 'DEVOPS',
+      title: '인프라 (DevOps)',
+      tasks: baseTasks.filter((t) => t.status === 'DEVOPS'),
+    },
+    { id: 'DONE', title: '완료 (Done)', tasks: baseTasks.filter((t) => t.status === 'DONE') },
   ];
 };
 // ----------------------------------------------------
 
 const MainDashboard: React.FC<MainDashboardProps> = ({
   onLogout,
-  // currentGroupId,
+  //  currentGroupId,
   accessToken,
 }) => {
   const { theme } = useTheme();
@@ -143,7 +160,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceResponse | null>(null);
   const [selectedProject, setSelectedProject] = useState<ProjectResponse | null>(null);
 
-  // 💡 _setUserProfile -> setUserProfile로 변경
   const [userProfile, setUserProfile] = useState<UserProfile>({
     name: 'Mock User',
     email: 'mock@wealist.com',
@@ -151,7 +167,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   });
 
   // UI 상태
-  // 💡 _isLoading -> isLoadingData로 변수명 통일
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -168,10 +183,14 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
     async (workspaceId: string) => {
       setIsLoadingData(true);
       try {
-        const projectList = await mockFetchProjects(workspaceId, accessToken);
-        setProjects(projectList.items || []);
-        if (projectList.items && projectList.items.length > 0) {
-          setSelectedProject(projectList.items[0]);
+        console.log(`[Phase 2] 🚀 프로젝트 로드 시작 (Workspace: ${workspaceId})`);
+        // 💡 수정됨: mockFetchProjects가 ListResponse를 반환하므로 .items에 접근합니다.
+        const projectListResponse = await mockFetchProjects(workspaceId, accessToken);
+        const projectList = projectListResponse.items || [];
+
+        setProjects(projectList);
+        if (projectList.length > 0) {
+          setSelectedProject(projectList[0]);
         } else {
           setSelectedProject(null);
         }
@@ -179,23 +198,23 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
         console.error('Project Load Failed:', err);
         setDataError('프로젝트 목록을 불러오지 못했습니다.');
       } finally {
-        setIsLoadingData(false); // 💡 isLoadingData 사용
+        setIsLoadingData(false);
       }
     },
     [accessToken],
   );
 
   const initDataFetch = useCallback(async () => {
-    setIsLoadingData(true); // 💡 isLoadingData 사용
+    setIsLoadingData(true);
     setDataError(null);
     try {
-      // 💡 setUserProfile 사용
       setUserProfile({
         name: 'Mock User',
         email: 'mock@wealist.com',
         avatar: 'P',
       });
 
+      // 💡 수정됨: mockFetchWorkspaces가 ListResponse를 반환하므로 .items에 접근합니다.
       const workspaceListResponse = await mockFetchWorkspaces(accessToken);
       const loadedWorkspaces = workspaceListResponse.items || [];
       setWorkspaces(loadedWorkspaces);
@@ -203,13 +222,15 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
       if (loadedWorkspaces.length > 0) {
         const defaultWorkspace = loadedWorkspaces[0];
         setSelectedWorkspace(defaultWorkspace);
-        await fetchProjectData(defaultWorkspace.id); // 프로젝트 로드 대기
+        // fetchProjectData는 selectedWorkspace의 변경을 통해 실행되거나, 직접 호출해야 합니다.
+        // 여기서는 명시적 호출 대신, useEffect의 의존성 체인에 의존합니다. (cleaner approach)
+        // 만약 바로 로드해야 한다면 await fetchProjectData(defaultWorkspace.id); 를 사용합니다.
       }
     } catch (err) {
       console.error('❌ API Data Fetch failed:', err);
       setDataError('초기 데이터 로드에 실패했습니다. (Kanban API Mock)');
     } finally {
-      setIsLoadingData(false); // 💡 isLoadingData 사용
+      setIsLoadingData(false);
     }
   }, [accessToken, fetchProjectData]);
 
@@ -220,9 +241,12 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   // Workspace 선택 변경 시 Project 데이터 다시 로드
   useEffect(() => {
     if (selectedWorkspace) {
-      fetchProjectData(selectedWorkspace.id);
+      // 현재 프로젝트가 선택된 Workspace의 ID와 다를 때만 fetchProjectData를 실행
+      if (!selectedProject || selectedProject.workspace_id !== selectedWorkspace.id) {
+        fetchProjectData(selectedWorkspace.id);
+      }
     }
-  }, [selectedWorkspace, fetchProjectData]);
+  }, [selectedWorkspace, fetchProjectData, selectedProject]); // selectedProject를 의존성에 추가
 
   // 프로젝트 변경 시 칸반 보드 리로드
   useEffect(() => {
@@ -231,13 +255,15 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
       return;
     }
 
-    setIsLoadingData(true); // 💡 isLoadingData 사용
+    console.log(`[Phase 3] 🔄 프로젝트 변경 감지: ${selectedProject.name}. 칸반 보드 로드 시작.`);
+
+    setIsLoadingData(true);
     mockFetchKanbanBoard(selectedProject.id, accessToken)
       .then((data) => {
         setColumns(data);
       })
       .catch((err) => console.error('칸반 보드 로드 실패', err))
-      .finally(() => setIsLoadingData(false)); // 💡 isLoadingData 사용
+      .finally(() => setIsLoadingData(false));
   }, [selectedProject, accessToken]);
 
   // --- 5. 드래그 앤 드롭 로직 (Mock 데이터 기준) ---
@@ -256,7 +282,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   const handleDrop = (targetColumnId: string): void => {
     if (!draggedTask || !draggedFromColumn || draggedFromColumn === targetColumnId) return;
 
-    const updatedTask = { ...draggedTask, status: targetColumnId };
+    const updatedTask: Task = {
+      ...draggedTask,
+      status: targetColumnId,
+      assignee: draggedTask.assignee,
+    };
 
     const newColumns = columns.map((col) => {
       if (col.id === draggedFromColumn) {
@@ -275,7 +305,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
     console.log(`[Mock] API: Task ${draggedTask.id} 상태를 ${targetColumnId}(으)로 변경 요청`);
   };
 
-  const columnColors = ['bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500'];
+  const columnColors = ['bg-blue-500', 'bg-yellow-500', 'bg-purple-500', 'bg-green-500'];
 
   // --- 6. Workspace 검색 필터링 로직 ---
   const filteredWorkspaces = workspaces.filter((ws) => {
@@ -287,8 +317,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   });
 
   // --- 로딩/에러 화면 ---
-  if (isLoadingData && projects.length === 0) {
-    // 💡 isLoadingData 사용
+  if (isLoadingData && columns.length === 0) {
     return (
       <div className={`min-h-screen ${theme.colors.background} flex items-center justify-center`}>
         <div className="p-8">
@@ -380,7 +409,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                         <button
                           key={workspace.id}
                           onClick={() => {
-                            setSelectedWorkspace(workspace);
+                            setSelectedWorkspace(workspace); // 💡 조직(Workspace) 변경
                             setShowWorkspaceMenu(false);
                             setWorkspaceSearchQuery('');
                           }}
@@ -491,7 +520,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                 <button
                   key={workspace.id}
                   onClick={() => {
-                    setSelectedWorkspace(workspace);
+                    setSelectedWorkspace(workspace); // 💡 조직(Workspace) 변경
                     setShowMobileMenu(false);
                   }}
                   className={`w-full px-3 py-2 text-left ${theme.effects.cardBorderWidth} ${
@@ -519,7 +548,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
             {projects.map((project) => (
               <div key={project.id} className="relative flex-shrink-0">
                 <button
-                  onClick={() => setSelectedProject(project)}
+                  onClick={() => setSelectedProject(project)} // 💡 프로젝트 변경
                   className={`relative px-2 sm:px-4 py-1 sm:py-2 ${theme.effects.cardBorderWidth} ${
                     theme.colors.border
                   } transition ${theme.font.size.xs} ${
@@ -541,6 +570,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
       {/* 칸반 보드 */}
       <div className="p-3 sm:p-6 relative z-10">
         <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 lg:overflow-x-auto pb-4">
+          {/* 💡 수정됨: API에서 로드된 columns를 사용 */}
           {columns.map((column, idx) => (
             <div
               key={column.id}
@@ -569,7 +599,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                       {column.tasks.length}
                     </span>
                   </h3>
-                  <button className={`${theme.colors.text} hover:${theme.colors.info}`}>
+                  <button className={`${theme.colors.text} hover:text-blue-500`}>
                     <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
                   </button>
                 </div>
@@ -580,7 +610,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                       <div
                         draggable
                         onDragStart={() => handleDragStart(task, column.id)}
-                        onClick={() => setSelectedTask(task as any)} // (임시 타입 변환)
+                        onClick={() => setSelectedTask(task)}
                         className={`relative ${theme.colors.card} p-3 sm:p-4 ${theme.effects.cardBorderWidth} ${theme.colors.border} hover:border-blue-500 transition cursor-pointer ${theme.effects.borderRadius}`}
                       >
                         <h4
@@ -595,7 +625,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
                             {task.assignee_id ? task.assignee_id[0].toUpperCase() : '?'}
                           </div>
                           <span className={`${theme.font.size.xs} truncate ${theme.colors.text}`}>
-                            {task.assignee_id || '미배정'}
+                            {task.assignee}
                           </span>
                         </div>
                       </div>
@@ -629,10 +659,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
         <UserProfileModal user={userProfile} onClose={() => setShowUserProfile(false)} />
       )}
       {selectedTask && (
-        <TaskDetailModal
-          task={selectedTask as any} // (임시 타입 변환)
-          onClose={() => setSelectedTask(null)}
-        />
+        <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
       )}
     </div>
   );

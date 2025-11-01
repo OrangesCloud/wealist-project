@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { X, Calendar, Tag, MessageSquare, Send } from "lucide-react";
-import { useTheme } from "../../contexts/ThemeContext";
-import { Task, TaskComment } from "../../types";
+import React, { useState } from 'react';
+import { X, Calendar, Tag, MessageSquare, Send } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Task, TaskComment } from '../../types';
 
 interface TaskDetailModalProps {
   task: Task;
@@ -11,10 +11,10 @@ interface TaskDetailModalProps {
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose }) => {
   const { theme } = useTheme();
   const [comments, setComments] = useState<TaskComment[]>([
-    { id: 1, author: "KIM", content: "Looking good!", timestamp: "2h ago" },
-    { id: 2, author: "LEE", content: "Need more details", timestamp: "1h ago" },
+    { id: 1, author: 'KIM', content: 'Looking good!', timestamp: '2h ago' },
+    { id: 2, author: 'LEE', content: 'Need more details', timestamp: '1h ago' },
   ]);
-  const [newComment, setNewComment] = useState("");
+  const [newComment, setNewComment] = useState('');
 
   const handleAddComment = () => {
     if (newComment.trim()) {
@@ -22,12 +22,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose }) => {
         ...comments,
         {
           id: comments.length + 1,
-          author: "PLAYER1",
+          author: 'PLAYER1',
           content: newComment,
-          timestamp: "Just now",
+          timestamp: 'Just now',
         },
       ]);
-      setNewComment("");
+      setNewComment('');
     }
   };
 
@@ -36,10 +36,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose }) => {
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto"
       onClick={onClose}
     >
-      <div
-        className="relative w-full max-w-2xl my-8"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative w-full max-w-2xl my-8" onClick={(e) => e.stopPropagation()}>
         <div
           className={`relative ${theme.colors.card} ${theme.effects.borderWidth} ${theme.colors.border} p-4 sm:p-6 max-h-[90vh] overflow-y-auto ${theme.effects.borderRadius} shadow-xl`}
         >
@@ -47,11 +44,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose }) => {
             className={`flex items-start justify-between mb-4 pb-4 ${theme.effects.borderWidth} ${theme.colors.border} border-t-0 border-l-0 border-r-0`}
           >
             <div className="flex-1 pr-4">
-              <h2
-                className={`${theme.font.size.base} font-bold mb-2 break-words`}
-              >
-                {task.title}
-              </h2>
+              <h2 className={`${theme.font.size.base} font-bold mb-2 break-words`}>{task.title}</h2>
               <div className="flex items-center gap-2 mt-3">
                 <div
                   className={`w-8 h-8 ${theme.colors.primary} ${theme.effects.cardBorderWidth} ${theme.colors.border} flex items-center justify-center text-white ${theme.font.size.xs} font-bold ${theme.effects.borderRadius}`}
@@ -99,9 +92,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose }) => {
             </div>
 
             <div>
-              <label
-                className={`${theme.font.size.xs} mb-2 ${theme.colors.textSecondary} block`}
-              >
+              <label className={`${theme.font.size.xs} mb-2 ${theme.colors.textSecondary} block`}>
                 설명:
               </label>
               <textarea
@@ -116,9 +107,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose }) => {
           >
             <div className="flex items-center gap-2 mb-4">
               <MessageSquare className="w-4 h-4" />
-              <h3 className={`${theme.font.size.xs} font-bold`}>
-                댓글 ({comments.length})
-              </h3>
+              <h3 className={`${theme.font.size.xs} font-bold`}>댓글 ({comments.length})</h3>
             </div>
 
             <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
@@ -135,18 +124,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose }) => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold">
-                          {comment.author}
-                        </span>
-                        <span
-                          className={`text-xs ${theme.colors.textSecondary}`}
-                        >
+                        <span className="text-xs font-bold">{comment.author}</span>
+                        <span className={`text-xs ${theme.colors.textSecondary}`}>
                           {comment.timestamp}
                         </span>
                       </div>
-                      <p className={`${theme.font.size.xs} break-words`}>
-                        {comment.content}
-                      </p>
+                      <p className={`${theme.font.size.xs} break-words`}>{comment.content}</p>
                     </div>
                   </div>
                 </div>
@@ -160,7 +143,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose }) => {
                 type="text"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleAddComment()}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
                 placeholder="ADD COMMENT..."
                 className={`flex-1 px-2 py-1 ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.font.size.xs} ${theme.effects.borderRadius} focus:outline-none focus:ring-2 focus:ring-blue-500`}
               />

@@ -1,10 +1,14 @@
 export interface Task {
-  id: number;
+  id: string;
   title: string;
-  assignee: string;
-  description?: string;
-  dueDate?: string;
-  priority?: string;
+  assignee_id: string | null;
+  status: string;
+  assignee: string; // 💡 전역 타입 호환성 유지
+}
+export interface Column {
+  id: string;
+  title: string;
+  tasks: Task[];
 }
 
 export interface TaskComment {
@@ -12,12 +16,6 @@ export interface TaskComment {
   author: string;
   content: string;
   timestamp: string;
-}
-
-export interface Column {
-  id: number;
-  title: string;
-  tasks: Task[];
 }
 
 export interface UserProfile {
@@ -56,14 +54,6 @@ export interface Project {
   updatedAt: string;
 }
 
-export interface Column {
-  id: number;
-  projectId: number;
-  title: string;
-  order: number;
-  // tasks?: Task[];
-}
-
 export interface Comment {
   id: number;
   taskId: number;
@@ -72,7 +62,6 @@ export interface Comment {
   createdAt: string;
   user?: User;
 }
-
 
 export interface Board {
   id: number;
