@@ -11,7 +11,7 @@ class ProjectBase(BaseModel):
     priority: Priority = Priority.MEDIUM
 
 class ProjectCreate(ProjectBase):
-    workspace_id: UUID = Field(..., gt=0)
+    workspace_id: UUID = Field(...)
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)

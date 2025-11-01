@@ -11,7 +11,7 @@ class TicketBase(BaseModel):
     priority: Priority = Priority.MEDIUM
 
 class TicketCreate(TicketBase):
-    project_id: UUID = Field(..., gt=0)
+    project_id: UUID = Field(...)
     assignee_id: Optional[UUID] = Field(None, description="담당자 ID")
 
 class TicketUpdate(BaseModel):

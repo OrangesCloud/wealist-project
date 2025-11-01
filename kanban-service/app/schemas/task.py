@@ -10,7 +10,7 @@ class TaskBase(BaseModel):
     status: TaskStatus = TaskStatus.TODO
 
 class TaskCreate(TaskBase):
-    ticket_id: UUID = Field(..., gt=0)
+    ticket_id: UUID = Field(...)
     assignee_id: Optional[UUID] = Field(None, description="담당자 ID")
 
 class TaskUpdate(BaseModel):

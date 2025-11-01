@@ -59,14 +59,8 @@ async def startup_event():
         }
     )
 
-    # 마이그레이션 사용을 위해 자동 테이블 생성 비활성화
-    logger.info("Skipping table creation (using Alembic migrations)")
-    # if settings.ENV == "development":
-    #     # 개발 환경에서만 자동 테이블 생성
-    #     logger.info("Creating database tables (development mode)")
-    #     Base.metadata.create_all(bind=engine)
-    # else:
-    #     logger.info("Skipping table creation (use Alembic for production)")
+    # Alembic migrations handle all database schema changes
+    logger.info("Database schema managed by Alembic migrations")
 
 
 @app.on_event("shutdown")
