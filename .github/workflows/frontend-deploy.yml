@@ -41,9 +41,10 @@ jobs:
 
       - name: ⬆️ Deploy to S3
         run: |
-          # 빌드 결과 폴더를 S3 버킷과 동기화
+          # 💡 명령어 시작 경로를 현재 작업 디렉토리(레포지토리 루트) 기준으로 수정
+          # ./frontend/build 가 되어야 하므로 ./frontend/를 제거합니다.
           aws s3 sync \
-            ./frontend/${{ env.BUILD_DIR }} \
+            ./${{ env.BUILD_DIR }} \  # 수정: ./frontend/ 제거
             s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }}/ \
             --delete
 
