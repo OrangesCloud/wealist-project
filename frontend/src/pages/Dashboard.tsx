@@ -24,9 +24,15 @@ interface Column {
 
 interface MainDashboardProps {
   onLogout: () => void;
+  currentGroupId: string; // 현재 선택된 조직(Group) ID
+  accessToken: string; // API 호출에 사용될 토큰
 }
 
-const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
+const MainDashboard: React.FC<MainDashboardProps> = ({
+  onLogout,
+  // currentGroupId,
+  // accessToken
+}) => {
   const { theme } = useTheme();
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>('조직1');
   const [selectedProject, setSelectedProject] = useState<string>('프로젝트1');
