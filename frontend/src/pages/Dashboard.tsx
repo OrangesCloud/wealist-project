@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from "react";
-import { Menu, User, ChevronDown, Plus, MoreVertical, X } from "lucide-react";
-import { useTheme } from "../contexts/ThemeContext";
-import UserProfileModal from "../components/modals/UserProfileModal";
-import TaskDetailModal from "../components/modals/TaskDetailModal";
-import { UserProfile } from "../types";
-import workspaceService from "../services/workspaceService";
-import healthService from "../services/healthTest";
+import React, { useEffect, useState } from 'react';
+import { Menu, User, ChevronDown, Plus, MoreVertical, X } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
+import UserProfileModal from '../components/modals/UserProfileModal';
+import TaskDetailModal from '../components/modals/TaskDetailModal';
+import { UserProfile } from '../types';
+import workspaceService from '../services/workspaceService';
+import healthService from '../services/healthTest';
 
 interface Task {
   id: number;
@@ -28,8 +28,8 @@ interface MainDashboardProps {
 
 const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   const { theme } = useTheme();
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>("조직1");
-  const [selectedProject, setSelectedProject] = useState<string>("프로젝트1");
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>('조직1');
+  const [selectedProject, setSelectedProject] = useState<string>('프로젝트1');
   const [showUserMenu, setShowUserMenu] = useState<boolean>(false);
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState<boolean>(false);
   const [showMobileMenu, setShowMobileMenu] = useState<boolean>(false);
@@ -37,57 +37,50 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const userProfile: UserProfile = {
-    name: "ACCOUNT1",
-    email: "ACCOUNT1@example.com",
-    avatar: "P",
+    name: 'ACCOUNT1',
+    email: 'ACCOUNT1@example.com',
+    avatar: 'P',
   };
 
   const [columns, setColumns] = useState<Column[]>([
     {
       id: 1,
-      title: "TODO ZONE",
+      title: 'TODO ZONE',
       tasks: [
-        { id: 1, title: "UI DESIGN", assignee: "KIM" },
-        { id: 2, title: "API DOCS", assignee: "PARK" },
+        { id: 1, title: 'UI DESIGN', assignee: 'KIM' },
+        { id: 2, title: 'API DOCS', assignee: 'PARK' },
       ],
     },
     {
       id: 2,
-      title: "BATTLE MODE",
+      title: 'BATTLE MODE',
       tasks: [
-        { id: 3, title: "LOGIN FUNC", assignee: "LEE" },
-        { id: 4, title: "DB SETUP", assignee: "CHOI" },
+        { id: 3, title: 'LOGIN FUNC', assignee: 'LEE' },
+        { id: 4, title: 'DB SETUP', assignee: 'CHOI' },
       ],
     },
     {
       id: 3,
-      title: "REVIEW STAGE",
-      tasks: [{ id: 5, title: "CODE CHECK", assignee: "JUNG" }],
+      title: 'REVIEW STAGE',
+      tasks: [{ id: 5, title: 'CODE CHECK', assignee: 'JUNG' }],
     },
     {
       id: 4,
-      title: "VICTORY!",
+      title: 'VICTORY!',
       tasks: [
-        { id: 6, title: "PROJECT INIT", assignee: "KIM" },
-        { id: 7, title: "REQUIREMENTS", assignee: "PARK" },
+        { id: 6, title: 'PROJECT INIT', assignee: 'KIM' },
+        { id: 7, title: 'REQUIREMENTS', assignee: 'PARK' },
       ],
     },
   ]);
 
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
-  const [draggedFromColumn, setDraggedFromColumn] = useState<number | null>(
-    null
-  );
+  const [draggedFromColumn, setDraggedFromColumn] = useState<number | null>(null);
 
-  const workspaces: string[] = ["조직1", "조직2", "조직3"];
-  const projects: string[] = ["프로젝트1", "프로젝트2", "프로젝트3"];
+  const workspaces: string[] = ['조직1', '조직2', '조직3'];
+  const projects: string[] = ['프로젝트1', '프로젝트2', '프로젝트3'];
 
-  const columnColors = [
-    "bg-red-500",
-    "bg-blue-500",
-    "bg-green-500",
-    "bg-purple-500",
-  ];
+  const columnColors = ['bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500'];
 
   const handleDragStart = (task: Task, columnId: number): void => {
     setDraggedTask(task);
@@ -126,17 +119,16 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     try {
       //health test
       const rs = await healthService.checkHealth();
-      console.log("✅ API Health Check:", rs);
+      console.log('✅ API Health Check:', rs);
       // Workspace ID 1번 조회
       const workspaceData = await workspaceService.listWorkspaces({
         limit: 20,
         offset: 0,
       });
-      console.log("Workspace:", workspaceData);
+      console.log('Workspace:', workspaceData);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Unknown error occurred";
-      console.error("❌ API Test failed:", errorMessage);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('❌ API Test failed:', errorMessage);
     }
   };
 
@@ -150,8 +142,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
         className="fixed inset-0 opacity-5"
         style={{
           backgroundImage:
-            "linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)",
-          backgroundSize: "20px 20px",
+            'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)',
+          backgroundSize: '20px 20px',
         }}
       ></div>
 
@@ -166,15 +158,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                 onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
                 className={`relative flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-2 ${theme.colors.secondary} ${theme.effects.cardBorderWidth} ${theme.colors.border} hover:bg-gray-100 transition ${theme.font.size.xs} ${theme.effects.borderRadius}`}
               >
-                <Menu
-                  className="w-3 h-3 sm:w-4 sm:h-4"
-                  style={{ strokeWidth: 3 }}
-                />
+                <Menu className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
                 <span className="hidden lg:inline">{selectedWorkspace}</span>
-                <ChevronDown
-                  className="w-3 h-3 sm:w-4 sm:h-4"
-                  style={{ strokeWidth: 3 }}
-                />
+                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
               </button>
               {showWorkspaceMenu && (
                 <div
@@ -199,20 +185,13 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                   <button
                     className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-left ${
                       theme.colors.primary
-                    } text-white ${
-                      theme.colors.primaryHover
-                    } transition flex items-center gap-2 ${
+                    } text-white ${theme.colors.primaryHover} transition flex items-center gap-2 ${
                       theme.font.size.xs
                     } ${theme.effects.borderRadius} ${
-                      theme.effects.borderRadius.includes("rounded-lg")
-                        ? "rounded-t-none"
-                        : ""
+                      theme.effects.borderRadius.includes('rounded-lg') ? 'rounded-t-none' : ''
                     }`}
                   >
-                    <Plus
-                      className="w-3 h-3 sm:w-4 sm:h-4"
-                      style={{ strokeWidth: 3 }}
-                    />
+                    <Plus className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
                     NEW WORLD
                   </button>
                 </div>
@@ -232,15 +211,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
               onClick={() => setShowUserMenu(!showUserMenu)}
               className={`relative flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-2 ${theme.colors.secondary} ${theme.effects.cardBorderWidth} ${theme.colors.border} hover:bg-gray-100 transition ${theme.font.size.xs} ${theme.effects.borderRadius}`}
             >
-              <User
-                className="w-4 h-4 sm:w-5 sm:h-5"
-                style={{ strokeWidth: 3 }}
-              />
+              <User className="w-4 h-4 sm:w-5 sm:h-5" style={{ strokeWidth: 3 }} />
               <span className="hidden sm:inline">사용자A</span>
-              <ChevronDown
-                className="w-3 h-3 sm:w-4 sm:h-4"
-                style={{ strokeWidth: 3 }}
-              />
+              <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
             </button>
             {showUserMenu && (
               <div
@@ -268,9 +241,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                   className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-left bg-red-500 hover:bg-red-600 transition text-white ${
                     theme.font.size.xs
                   } ${theme.effects.borderRadius} ${
-                    theme.effects.borderRadius.includes("rounded-lg")
-                      ? "rounded-t-none"
-                      : ""
+                    theme.effects.borderRadius.includes('rounded-lg') ? 'rounded-t-none' : ''
                   }`}
                   onClick={onLogout}
                 >
@@ -301,9 +272,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
               </button>
             </div>
             <div className="space-y-2">
-              <p className={`text-[8px] ${theme.colors.textSecondary} mb-2`}>
-                WORKSPACES:
-              </p>
+              <p className={`text-[8px] ${theme.colors.textSecondary} mb-2`}>WORKSPACES:</p>
               {workspaces.map((workspace) => (
                 <button
                   key={workspace}
@@ -311,11 +280,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                     setSelectedWorkspace(workspace);
                     setShowMobileMenu(false);
                   }}
-                  className={`w-full px-3 py-2 text-left ${
-                    theme.effects.cardBorderWidth
-                  } ${theme.colors.border} text-[8px] ${
-                    theme.effects.borderRadius
-                  } ${
+                  className={`w-full px-3 py-2 text-left ${theme.effects.cardBorderWidth} ${
+                    theme.colors.border
+                  } text-[8px] ${theme.effects.borderRadius} ${
                     selectedWorkspace === workspace
                       ? `${theme.colors.primary} text-white`
                       : `${theme.colors.secondary} hover:bg-gray-100`
@@ -338,9 +305,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
               <div key={project} className="relative flex-shrink-0">
                 <button
                   onClick={() => setSelectedProject(project)}
-                  className={`relative px-2 sm:px-4 py-1 sm:py-2 ${
-                    theme.effects.cardBorderWidth
-                  } ${theme.colors.border} transition ${theme.font.size.xs} ${
+                  className={`relative px-2 sm:px-4 py-1 sm:py-2 ${theme.effects.cardBorderWidth} ${
+                    theme.colors.border
+                  } transition ${theme.font.size.xs} ${
                     theme.effects.borderRadius
                   } whitespace-nowrap ${
                     selectedProject === project
@@ -384,13 +351,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                       {column.tasks.length}
                     </span>
                   </h3>
-                  <button
-                    className={`${theme.colors.text} ${theme.colors.primaryHover}`}
-                  >
-                    <MoreVertical
-                      className="w-3 h-3 sm:w-4 sm:h-4"
-                      style={{ strokeWidth: 3 }}
-                    />
+                  <button className={`${theme.colors.text} ${theme.colors.primaryHover}`}>
+                    <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
                   </button>
                 </div>
 
@@ -414,9 +376,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                           >
                             {task.assignee[0]}
                           </div>
-                          <span
-                            className={`${theme.font.size.xs} truncate ${theme.colors.text}`}
-                          >
+                          <span className={`${theme.font.size.xs} truncate ${theme.colors.text}`}>
                             {task.assignee}
                           </span>
                         </div>
@@ -427,10 +387,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                     <button
                       className={`relative w-full py-3 sm:py-4 ${theme.effects.cardBorderWidth} border-dashed ${theme.colors.border} ${theme.colors.card} hover:bg-orange-50 transition flex items-center justify-center gap-2 ${theme.font.size.xs} ${theme.effects.borderRadius}`}
                     >
-                      <Plus
-                        className="w-3 h-3 sm:w-4 sm:h-4"
-                        style={{ strokeWidth: 3 }}
-                      />
+                      <Plus className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
                       ADD TASK
                     </button>
                   </div>
@@ -442,10 +399,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
             <button
               className={`relative w-full h-24 sm:h-32 ${theme.effects.cardBorderWidth} border-dashed ${theme.colors.border} ${theme.colors.card} hover:bg-orange-50 transition flex items-center justify-center gap-2 ${theme.font.size.xs} ${theme.effects.borderRadius}`}
             >
-              <Plus
-                className="w-4 h-4 sm:w-5 sm:h-5"
-                style={{ strokeWidth: 3 }}
-              />
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" style={{ strokeWidth: 3 }} />
               NEW TICKET
             </button>
           </div>
@@ -453,16 +407,10 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
       </div>
 
       {showUserProfile && (
-        <UserProfileModal
-          user={userProfile}
-          onClose={() => setShowUserProfile(false)}
-        />
+        <UserProfileModal user={userProfile} onClose={() => setShowUserProfile(false)} />
       )}
       {selectedTask && (
-        <TaskDetailModal
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-        />
+        <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
       )}
     </div>
   );

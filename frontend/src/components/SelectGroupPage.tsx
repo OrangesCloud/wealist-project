@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 // 💡 실제 API 대신 Mock 함수를 사용합니다.
 import { GroupResponse } from '../api/userService';
+import { Search } from 'lucide-react';
 
 interface SelectGroupPageProps {
   userId: string;
@@ -25,11 +26,9 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
   const { theme } = useTheme();
 
   const [groups, setGroups] = useState<GroupResponse[] | null>(null);
-  const [filteredGroups, setFilteredGroups] = useState<GroupResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 💡 조직 선택 화면이 기본입니다.
   const [isCreatingNewGroup, setIsCreatingNewGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newCompany, setNewCompany] = useState('');
@@ -42,38 +41,32 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
       setError(null);
 
       setTimeout(() => {
-        // 🚧 [Mock] 미리 정의된 조직 목록을 반환합니다.
+        // 🚧 [Mock] 미리 정의된 조직 목록을 반환합니다. (사용자가 속한 그룹이 있다면 목록에 나타납니다.)
+        // 현재는 '처음 접속한 사용자' 시나리오에 맞게 빈 목록을 반환하는 대신,
+        // 선택할 수 있는 조직 목록을 Mock으로 제공합니다.
         setGroups(MOCK_GROUPS);
         setIsLoading(false);
       }, 500);
     };
 
     mockFetchGroups();
-
-    // 이펙트 클린업 (선택적)
-    return () => {
-      setError(null);
-    };
   }, [accessToken]);
 
-  // 2. 조직 검색 필터링 로직
-  useEffect(() => {
-    if (groups) {
-      const lowerCaseQuery = searchQuery.toLowerCase().trim();
-      if (!lowerCaseQuery) {
-        // 검색어가 없으면 목록을 비웁니다.
-        setFilteredGroups([]);
-        return;
-      }
+  // 2. 조직 검색 필터링 로직 (useMemo로 성능 최적화)
+  const availableGroups = useMemo(() => {
+    if (!groups) return [];
+    const query = searchQuery.toLowerCase().trim();
 
-      // 이름, 회사 이름, ID로 필터링합니다.
-      const results = groups.filter(
-        (group) =>
-          group.name.toLowerCase().includes(lowerCaseQuery) ||
-          group.companyName.toLowerCase().includes(lowerCaseQuery),
-      );
-      setFilteredGroups(results);
+    // 💡 변경된 로직: 검색어가 없으면 (false) groups 배열 전체를 반환합니다.
+    if (!query) {
+      return groups;
     }
+
+    // 이름, 회사 이름으로 필터링합니다.
+    return groups.filter(
+      (group) =>
+        group.name.toLowerCase().includes(query) || group.companyName.toLowerCase().includes(query),
+    );
   }, [searchQuery, groups]);
 
   // 3. 새로운 그룹 생성 및 등록 핸들러 (MOCK)
@@ -100,13 +93,13 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
     setError(null);
     setTimeout(() => {
       setIsLoading(false);
+      alert(`[Mock] 그룹 '${group.name}' 선택 완료!`);
       // 🚀 최종 핸들러 호출 -> Workspace 생성 단계로 이동
       onGroupSelected(group.groupId);
     }, 500);
   };
 
-  // --- 렌더링 시작 ---
-
+  // --- 로딩 화면 ---
   if (isLoading || groups === null) {
     return (
       <div
@@ -119,6 +112,7 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
     );
   }
 
+  // --- 메인 렌더링 ---
   return (
     <div className={`min-h-screen ${theme.colors.background} flex items-center justify-center p-4`}>
       <div
@@ -130,10 +124,9 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
           {isCreatingNewGroup ? '새로운 조직 만들기 🏗️' : '워크스페이스 조직 선택'}
         </h2>
 
-        {/* 💡 디자인 개선: 문구를 굵게, 서브 텍스트 활용 */}
-        <p className={`text-center mb-6 ${theme.font.size.sm}`}>
-          <span className={`${theme.colors.text} font-bold mr-1`}>소속된 조직에 참여하거나,</span>
-          <span className={`${theme.colors.subText}`}>새 조직을 생성하여 시작해 보세요.</span>
+        <p className={`text-center mb-6 ${theme.font.size.sm} ${theme.colors.subText}`}>
+          <span className={`${theme.colors.text} font-bold mr-1`}>소속된 조직에 참여하거나,</span>새
+          조직을 생성하여 시작해 보세요.
         </p>
 
         {error && (
@@ -182,62 +175,53 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
         ) : (
           /* ------------------- 조직 검색/선택 UI ------------------- */
           <div className="space-y-4">
-            {/* 1. 검색 입력 필드 및 Mock 표시 */}
+            {/* 1. 검색 입력 필드 */}
             <div className="relative">
               <input
                 type="text"
-                placeholder="조직 이름으로 검색 (Mock 활성화)"
+                placeholder="조직 이름 또는 코드로 검색"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={`w-full px-4 pl-10 py-3 ${theme.colors.secondary} ${theme.font.size.sm} rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition`}
                 disabled={isLoading}
               />
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                🔍
-              </span>
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             </div>
 
-            {/* 2. 필터링된 조직 목록 (Mock Select Box 역할) */}
-            <div className={`relative ${searchQuery.trim() ? '' : 'hidden'}`}>
-              <div
-                className={`absolute z-10 w-full bg-white border ${theme.colors.border} ${theme.effects.borderRadius} shadow-lg max-h-60 overflow-y-auto`}
-              >
-                {filteredGroups.length > 0 ? (
-                  filteredGroups.map((group) => (
-                    <button
-                      key={group.groupId}
-                      onClick={() => handleSelectExistingGroup(group)}
-                      className={`w-full text-left p-3 hover:bg-blue-50 border-b border-gray-100 ${theme.colors.text} ${theme.font.size.sm} transition flex justify-between items-center`}
-                      disabled={isLoading}
+            {/* 2. 조직 목록 표시 영역 */}
+            <div className={`max-h-60 overflow-y-auto border-2 ${theme.colors.border} rounded-lg`}>
+              {availableGroups.length > 0 ? (
+                availableGroups.map((group) => (
+                  <button
+                    key={group.groupId}
+                    onClick={() => handleSelectExistingGroup(group)}
+                    className={`w-full text-left p-3 hover:bg-blue-50 border-b border-gray-100 ${theme.colors.text} ${theme.font.size.sm} transition flex justify-between items-center last:border-b-0`}
+                    disabled={isLoading}
+                  >
+                    <div>
+                      <span className="font-semibold">{group.name}</span>
+                      <p className={`${theme.colors.subText} ${theme.font.size.xs}`}>
+                        {group.companyName}
+                      </p>
+                    </div>
+                    <span
+                      className={`${theme.colors.info} ${theme.font.size.xs} px-2 py-1 border border-blue-200 rounded`}
                     >
-                      <div>
-                        <span className="font-semibold">{group.name}</span>
-                        <p className={`${theme.colors.subText} ${theme.font.size.xs}`}>
-                          {group.companyName}
-                        </p>
-                      </div>
-                      <span
-                        className={`${theme.colors.subText} ${theme.font.size.xs} px-2 py-1 bg-gray-100 rounded`}
-                      >
-                        선택
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <p className={`p-3 text-center ${theme.colors.subText}`}>
-                    {searchQuery.trim()
-                      ? '검색 결과가 없습니다.'
-                      : '조직 이름을 입력하여 검색하세요.'}
-                  </p>
-                )}
-              </div>
+                      선택
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <p className={`p-4 text-center ${theme.colors.subText} ${theme.font.size.sm}`}>
+                  {searchQuery.trim()
+                    ? '검색 결과가 없습니다. 이름을 확인하거나 새로 생성해 보세요.'
+                    : '소속된 조직이 없습니다. 아래 버튼으로 새로 생성하거나, 이름을 검색하세요.'}
+                </p>
+              )}
             </div>
 
             {/* 3. + 새 조직 생성하기 버튼 (강조) */}
             <div className="mt-6 pt-4 border-t border-gray-100">
-              <p className={`text-center mb-3 ${theme.colors.subText} ${theme.font.size.sm}`}>
-                찾는 조직이 없으신가요?
-              </p>
               <button
                 onClick={() => setIsCreatingNewGroup(true)}
                 className={`w-full ${theme.colors.primary} text-white py-3 font-bold rounded-lg ${theme.colors.primaryHover} transition disabled:opacity-50 shadow-lg`}
