@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Edit, Trash2, Users, FileText, Upload, Plus } from 'lucide-react';
+import { X, Edit, Trash2, Users, FileText, Upload, Plus, Search } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Column } from '../../types';
 // 💡 Column 타입을 MainDashboard와 동일하게 사용
@@ -17,11 +17,14 @@ interface ColumnDetailModalProps {
   onUpdate: (updatedColumn: Column) => void;
 }
 
-// 🚧 Mock 데이터
-const MOCK_MEMBERS: ColumnMember[] = [
+// 🚧 Mock 데이터 (전체 조직 구성원 목록)
+const ALL_MOCK_MEMBERS: ColumnMember[] = [
   { id: 'user-1', name: '김개발', role: 'Owner' },
   { id: 'user-2', name: '박보안', role: 'Contributor' },
   { id: 'user-3', name: '이디자인', role: 'Viewer' },
+  { id: 'user-4', name: '최데브옵스', role: 'Contributor' },
+  { id: 'user-5', name: '정기획', role: 'Viewer' },
+  { id: 'user-6', name: '하인턴', role: 'Viewer' },
 ];
 
 const ColumnDetailModal: React.FC<ColumnDetailModalProps> = ({ column, onClose, onUpdate }) => {
@@ -32,15 +35,27 @@ const ColumnDetailModal: React.FC<ColumnDetailModalProps> = ({ column, onClose, 
   const [initialTitle] = useState(column.title);
 
   const [description, setDescription] = useState(
-    `[${column.title} 컬럼 목표] 이 컬럼은 작업 시작 전의 '대기열' 역할을 담당합니다. 이곳에 있는 태스크는 백로그 및 다음 스프린트의 후보입니다.\n\n[규칙] 담당자(Assignee)가 지정된 태스크만 이 컬럼에 추가될 수 있습니다.`,
+    `[${column.title} 목표] 이 컬럼은 작업 시작 전의 '대기열' 역할을 담당합니다. 이곳에 있는 태스크는 백로그 및 다음 스프린트의 후보입니다.\n\n[규칙] 담당자(Assignee)가 지정된 태스크만 이 컬럼에 추가될 수 있습니다.`,
   );
   const [initialDescription] = useState(description);
 
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [members, _setMembers] = useState<ColumnMember[]>(MOCK_MEMBERS); // 담당자 목록 Mock
 
-  // 컬럼 수정 처리 핸들러 (Mock)
+  // 💡 수정된 상태: 현재 멤버와 검색 상태
+  const [members, setMembers] = useState<ColumnMember[]>(ALL_MOCK_MEMBERS.slice(0, 3)); // 초기 멤버 (Mock)
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // --- Mock 검색 로직 ---
+  const filteredAvailableMembers = ALL_MOCK_MEMBERS.filter(
+    (member) =>
+      // 1. 검색어 필터링
+      member.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      // 2. 이미 추가된 멤버 제외
+      !members.some((m) => m.id === member.id),
+  );
+
+  // 수정 처리 핸들러 (Mock)
   const handleSave = () => {
     if (!title.trim()) return;
 
@@ -50,24 +65,23 @@ const ColumnDetailModal: React.FC<ColumnDetailModalProps> = ({ column, onClose, 
       const updatedColumn: Column = {
         ...column,
         title: title.trim(),
-        // description과 members는 상태에 없지만, API에 전송된다고 가정
       };
 
       onUpdate(updatedColumn);
-      alert(`[Mock] 컬럼 '${updatedColumn.title}' 수정 요청 완료!`);
+      alert(`[Mock] '${updatedColumn.title}' 수정 요청 완료!`);
       setIsLoading(false);
       setIsEditing(false); // 저장 후 편집 모드 해제
     }, 500);
   };
 
-  // 컬럼 삭제 처리 핸들러 (Mock)
+  // 삭제 처리 핸들러 (Mock)
   const handleDelete = () => {
     if (
       window.confirm(
-        `정말로 컬럼 "${column.title}"을(를) 삭제하시겠습니까? (이 컬럼의 ${column.tasks.length}개 태스크는 다음 컬럼으로 이동됩니다.)`,
+        `정말로 "${column.title}"을(를) 삭제하시겠습니까? (이 컬럼의 ${column.tasks.length}개 태스크는 다음 컬럼으로 이동됩니다.)`,
       )
     ) {
-      alert(`[Mock] 컬럼 '${column.title}' 삭제 처리 완료.`);
+      alert(`[Mock] '${column.title}' 삭제 처리 완료.`);
       onClose();
     }
   };
@@ -82,6 +96,18 @@ const ColumnDetailModal: React.FC<ColumnDetailModalProps> = ({ column, onClose, 
       }
     } else {
       setIsEditing(true);
+    }
+  };
+
+  // 담당자 추가/제거 핸들러 (Mock)
+  const handleAddMember = (member: ColumnMember) => {
+    setMembers((prev) => [...prev, member]);
+    setSearchQuery(''); // 추가 후 검색창 초기화
+  };
+
+  const handleRemoveMember = (memberId: string) => {
+    if (window.confirm('담당자를 목록에서 제외하시겠습니까?')) {
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
     }
   };
 
@@ -115,9 +141,6 @@ const ColumnDetailModal: React.FC<ColumnDetailModalProps> = ({ column, onClose, 
                 }`}
                 disabled={!isEditing || isLoading}
               />
-              <p className={`${theme.font.size.sm} ${theme.colors.subText} mt-1`}>
-                현재 태스크: {column.tasks.length}개 | ID: {column.id}
-              </p>
             </div>
             <button
               onClick={onClose}
@@ -148,7 +171,7 @@ const ColumnDetailModal: React.FC<ColumnDetailModalProps> = ({ column, onClose, 
             <div className="md:col-span-2 space-y-4">
               <h3 className={`${theme.font.size.base} font-bold flex items-center gap-2 mb-2`}>
                 <FileText className="w-5 h-5 text-gray-700" />
-                컬럼 목표 및 비전
+                목표 및 비전
               </h3>
               <textarea
                 value={description}
@@ -171,7 +194,7 @@ const ColumnDetailModal: React.FC<ColumnDetailModalProps> = ({ column, onClose, 
                   className={`${theme.font.size.sm} font-bold flex items-center gap-2 mb-3 ${theme.colors.text}`}
                 >
                   <Users className="w-4 h-4" />
-                  컬럼 담당자 ({members.length})
+                  담당자 ({members.length})
                 </h3>
                 <div className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-lg bg-gray-50">
                   {members.map((member) => (
@@ -184,25 +207,67 @@ const ColumnDetailModal: React.FC<ColumnDetailModalProps> = ({ column, onClose, 
                         </div>
                         <span>{member.name}</span>
                       </div>
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          member.role === 'Owner' ? 'bg-yellow-200' : 'bg-gray-200'
-                        }`}
-                      >
-                        {member.role}
-                      </span>
+                      {isEditing && (
+                        <button
+                          onClick={() => handleRemoveMember(member.id)}
+                          className="text-red-500 hover:text-red-700 transition"
+                          title="담당자 제외"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                      {!isEditing && (
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full ${
+                            member.role === 'Owner' ? 'bg-yellow-200' : 'bg-gray-200'
+                          }`}
+                        >
+                          {member.role}
+                        </span>
+                      )}
                     </div>
                   ))}
-                  {isEditing && (
-                    <button
-                      className={`w-full ${theme.colors.primary} text-white py-2 ${theme.font.size.xs} rounded-lg mt-2 flex items-center justify-center gap-1`}
-                    >
-                      <Plus className="w-3 h-3" />
-                      담당자 추가
-                    </button>
-                  )}
                 </div>
               </div>
+
+              {/* 💡 담당자 검색 및 추가 필드 (편집 모드 시 활성화) */}
+              {isEditing && (
+                <div className="border p-3 rounded-lg bg-white shadow-sm">
+                  <h4 className={`${theme.font.size.xs} font-bold mb-2`}>조직원 검색/추가</h4>
+                  <div className="relative mb-2">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="이름으로 검색..."
+                      className={`w-full px-3 py-2 pl-8 border ${theme.font.size.xs} rounded-md focus:border-blue-500`}
+                    />
+                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                  </div>
+
+                  {/* 검색 결과 목록 */}
+                  <div className="space-y-1 max-h-24 overflow-y-auto">
+                    {filteredAvailableMembers.length > 0 ? (
+                      filteredAvailableMembers.map((member) => (
+                        <button
+                          key={member.id}
+                          onClick={() => handleAddMember(member)}
+                          className={`w-full flex justify-between items-center p-1.5 text-left bg-gray-50 hover:bg-gray-100 rounded transition ${theme.font.size.xs}`}
+                        >
+                          <span>{member.name}</span>
+                          <Plus className="w-3 h-3 text-green-600" />
+                        </button>
+                      ))
+                    ) : (
+                      <p
+                        className={`text-center py-1 ${theme.font.size.xs} ${theme.colors.subText}`}
+                      >
+                        {searchQuery ? '결과 없음' : '검색어를 입력하세요.'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* 첨부 파일 (Mock) */}
               <div>
@@ -242,10 +307,10 @@ const ColumnDetailModal: React.FC<ColumnDetailModalProps> = ({ column, onClose, 
             <button
               onClick={handleDelete}
               className={`bg-red-500 text-white px-4 py-3 font-bold hover:bg-red-600 transition ${theme.font.size.sm} ${theme.effects.borderRadius} flex items-center gap-2`}
-              disabled={isLoading || isEditing} // 편집 중에는 삭제 버튼 비활성화
+              disabled={isLoading || isEditing}
             >
               <Trash2 className="w-4 h-4" />
-              컬럼 삭제
+              삭제
             </button>
           </div>
         </div>
