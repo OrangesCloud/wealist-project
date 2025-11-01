@@ -22,8 +22,9 @@ jobs:
       - name: ⚙️ Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm' # 의존성 설치 속도 향상을 위한 캐싱
+          node-version: "20"
+          cache: "npm" # 의존성 설치 속도 향상을 위한 캐싱
+          cache-dependency-path: "frontend/package-lock.json"
 
       # 3. 종속성 설치 및 빌드
       - name: 📦 Install Dependencies & Build
