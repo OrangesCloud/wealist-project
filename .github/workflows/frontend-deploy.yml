@@ -38,7 +38,7 @@ jobs:
           # 변경된 Secrets 이름을 사용합니다.
           aws-access-key-id: ${{ secrets.FRONTEND_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.FRONTEND_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.FRONTEND_AWS_REGION }} # AWS_REGION도 FRONTEND_ 접두사를 붙였다면 사용
+          aws-region: "ap-northeast-2"
 
       - name: ⬆️ Deploy to S3
         run: |
