@@ -228,7 +228,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
     } finally {
       setIsLoadingData(false);
     }
-  }, [accessToken, fetchProjectData]);
+  }, [accessToken]);
 
   useEffect(() => {
     initDataFetch();
