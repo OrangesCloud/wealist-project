@@ -1,9 +1,25 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Menu, User, ChevronDown, Plus, MoreVertical, X, Search } from 'lucide-react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import {
+  // Menu,
+  // User,
+  ChevronDown,
+  Plus,
+  MoreVertical,
+  X,
+  // Search,
+  Home,
+  Bell,
+  MessageSquare,
+  Briefcase,
+  Settings,
+  // Edit,
+  // AlignLeft,
+  File,
+} from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import UserProfileModal from '../components/modals/UserProfileModal';
 import TaskDetailModal from '../components/modals/TaskDetailModal';
-import ColumnDetailModal from '../components/modals/ColumnDetailModal'; // 💡 ColumnDetailModal import
+import ColumnDetailModal from '../components/modals/ColumnDetailModal';
 import { UserProfile } from '../types';
 
 // --- 1. API 스펙에 맞춘 Mock 데이터 타입 정의 ---
@@ -143,11 +159,7 @@ const mockFetchKanbanBoard = async (projectId: string, _token: string): Promise<
 };
 // ----------------------------------------------------
 
-const MainDashboard: React.FC<MainDashboardProps> = ({
-  onLogout,
-  // currentGroupId,
-  accessToken,
-}) => {
+const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout, accessToken }) => {
   const { theme } = useTheme();
 
   // --- 3. 상태 관리 (API 연동) ---
@@ -165,24 +177,25 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
   });
 
   // UI 상태
-  const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
-  const [dataError, setDataError] = useState<string | null>(null);
+  // const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+  // const [dataError, setDataError] = useState<string | null>(null);
 
   const [showUserMenu, setShowUserMenu] = useState<boolean>(false);
-  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState<boolean>(false);
-  const [showMobileMenu, setShowMobileMenu] = useState<boolean>(false);
+  const [showWorkspaceSelector, setShowWorkspaceSelector] = useState<boolean>(false);
+  const [showProjectSelector, setShowProjectSelector] = useState<boolean>(false);
   const [showUserProfile, setShowUserProfile] = useState<boolean>(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
-
-  // 💡 새 상태: 선택된 컬럼 모달
   const [selectedColumn, setSelectedColumn] = useState<Column | null>(null);
 
-  // --- 4. 데이터 연동 (useEffect 연쇄) ---
+  // Ref for Menu/Selector
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const workspaceSelectorRef = useRef<HTMLDivElement>(null);
+  const projectSelectorRef = useRef<HTMLDivElement>(null);
 
+  // --- 4. 데이터 연동 (useEffect 연쇄) ---
   const fetchProjectData = useCallback(
     async (workspaceId: string) => {
-      setIsLoadingData(true);
+      // setIsLoadingData(true);
       try {
         console.log(`[Phase 2] 🚀 프로젝트 로드 시작 (Workspace: ${workspaceId})`);
         const projectListResponse = await mockFetchProjects(workspaceId, accessToken);
@@ -196,17 +209,17 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
         }
       } catch (err) {
         console.error('Project Load Failed:', err);
-        setDataError('프로젝트 목록을 불러오지 못했습니다.');
+        // setDataError('프로젝트 목록을 불러오지 못했습니다.');
       } finally {
-        setIsLoadingData(false);
+        // setIsLoadingData(false);
       }
     },
     [accessToken],
   );
 
   const initDataFetch = useCallback(async () => {
-    setIsLoadingData(true);
-    setDataError(null);
+    // setIsLoadingData(true);
+    // setDataError(null);
     try {
       setUserProfile({
         name: 'Mock User',
@@ -224,9 +237,9 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
       }
     } catch (err) {
       console.error('❌ API Data Fetch failed:', err);
-      setDataError('초기 데이터 로드에 실패했습니다. (Kanban API Mock)');
+      // setDataError('초기 데이터 로드에 실패했습니다. (Kanban API Mock)');
     } finally {
-      setIsLoadingData(false);
+      // setIsLoadingData(false);
     }
   }, [accessToken]);
 
@@ -234,17 +247,14 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
     initDataFetch();
   }, [initDataFetch]);
 
-  // Workspace 선택 변경 시 Project 데이터 다시 로드
   useEffect(() => {
     if (selectedWorkspace) {
-      // 현재 프로젝트가 선택된 Workspace의 ID와 다를 때만 fetchProjectData를 실행
       if (!selectedProject || selectedProject.workspace_id !== selectedWorkspace.id) {
         fetchProjectData(selectedWorkspace.id);
       }
     }
-  }, [selectedWorkspace, selectedProject]); // 🔑 fetchProjectData를 제거했습니다.
+  }, [selectedWorkspace, selectedProject, fetchProjectData]);
 
-  // 프로젝트 변경 시 칸반 보드 리로드
   useEffect(() => {
     if (!selectedProject) {
       setColumns([]);
@@ -253,20 +263,19 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
 
     console.log(`[Phase 3] 🔄 프로젝트 변경 감지: ${selectedProject.name}. 칸반 보드 로드 시작.`);
 
-    setIsLoadingData(true);
+    // setIsLoadingData(true);
     mockFetchKanbanBoard(selectedProject.id, accessToken)
       .then((data) => {
         setColumns(data);
       })
       .catch((err) => console.error('칸반 보드 로드 실패', err))
-      .finally(() => setIsLoadingData(false));
+      .finally(() => {
+        // setIsLoadingData(false);
+      });
   }, [selectedProject, accessToken]);
 
-  // 💡 5. 컬럼 업데이트 핸들러 구현 (모달에서 호출됨)
   const handleColumnUpdate = (updatedColumn: Column) => {
-    // 💡 Mock: 서버에 저장하는 로직 없이, 로컬 상태만 즉시 갱신합니다.
     setColumns((prev) => prev.map((col) => (col.id === updatedColumn.id ? updatedColumn : col)));
-    // 💡 TODO: 실제 API 연동 시, 여기서 컬럼 업데이트 API (PATCH /api/projects/{id}/columns/{id}) 호출 필요
     console.log(`[Mock] 컬럼 제목 업데이트 완료: ${updatedColumn.title}`);
   };
 
@@ -311,57 +320,47 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
 
   const columnColors = ['bg-blue-500', 'bg-yellow-500', 'bg-purple-500', 'bg-green-500'];
 
-  // --- 7. Workspace 검색 필터링 로직 ---
-  const filteredWorkspaces = workspaces.filter((ws) => {
-    if (!workspaceSearchQuery.trim()) {
-      return true;
-    }
-    const query = workspaceSearchQuery.toLowerCase();
-    return ws.name.toLowerCase().includes(query) || ws.id.toLowerCase().includes(query);
-  });
+  // --- 외부 클릭 감지 (모달/메뉴 닫기) ---
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // User Menu
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+      // Workspace Selector
+      if (
+        showWorkspaceSelector &&
+        workspaceSelectorRef.current &&
+        !workspaceSelectorRef.current.contains(event.target as Node)
+      ) {
+        const workspaceLogoButton = document.getElementById('workspace-logo-button');
+        if (workspaceLogoButton && workspaceLogoButton.contains(event.target as Node)) {
+          return;
+        }
+        setShowWorkspaceSelector(false);
+      }
+      // Project Selector
+      if (
+        showProjectSelector &&
+        projectSelectorRef.current &&
+        !projectSelectorRef.current.contains(event.target as Node)
+      ) {
+        setShowProjectSelector(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showWorkspaceSelector, showProjectSelector]);
 
-  // --- 로딩/에러 화면 ---
-  if (isLoadingData && columns.length === 0) {
-    return (
-      <div className={`min-h-screen ${theme.colors.background} flex items-center justify-center`}>
-        <div className="p-8">
-          <p className={`${theme.font.size.xl} ${theme.colors.text}`}>
-            데이터를 로드하는 중입니다... 🚀
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (dataError) {
-    return (
-      <div
-        className={`min-h-screen ${theme.colors.background} flex items-center justify-center text-center p-8`}
-      >
-        <div className="p-8 rounded-lg shadow-lg border">
-          <h1 className={`${theme.font.size.xl} ${theme.colors.danger} mb-4`}>데이터 로드 실패</h1>
-          <p className={`${theme.colors.subText} mb-6`}>{dataError}</p>
-          <button
-            onClick={initDataFetch}
-            className={`bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition`}
-          >
-            다시 시도
-          </button>
-          <button
-            onClick={onLogout}
-            className={`bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 transition ml-2`}
-          >
-            로그아웃
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const currentWorkspaceInitial = selectedWorkspace?.name.slice(0, 1) || 'W';
+  const sidebarWidth = 'w-16 sm:w-20'; // 사이드바 너비 정의 (예: w-20 = 5rem = 80px)
 
   // --- 8. UI 렌더링 ---
   return (
-    <div className={`min-h-screen ${theme.colors.background}`}>
-      {/* 백그라운드 패턴 */}
+    <div className={`min-h-screen flex ${theme.colors.background} relative`}>
+      {/* 백그라운드 패턴 (전체 배경에 적용) */}
       <div
         className="fixed inset-0 opacity-5"
         style={{
@@ -371,304 +370,340 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
         }}
       ></div>
 
-      {/* 헤더 */}
-      <header
-        className={`${theme.colors.primary} ${theme.effects.borderWidth} ${theme.colors.border} border-t-0 border-l-0 border-r-0 px-3 sm:px-6 py-2 sm:py-4 relative z-20`}
-        style={{ boxShadow: theme.effects.headerShadow }}
+      {/* 1. 💡 왼쪽 사이드바 (Fixed Navigation) */}
+      <aside
+        className={`${sidebarWidth} fixed top-0 left-0 h-full flex flex-col justify-between ${theme.colors.primary} text-white shadow-xl z-50 flex-shrink-0`}
       >
-        <div className="flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-2 sm:gap-4">
-            {/* 조직(Workspace) 선택 드롭다운 */}
-            <div className="relative hidden md:block">
-              <button
-                onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
-                className={`relative flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-2 ${theme.colors.secondary} ${theme.effects.cardBorderWidth} ${theme.colors.border} hover:bg-gray-100 transition ${theme.font.size.xs} ${theme.effects.borderRadius}`}
-              >
-                <Menu className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
-                <span className="hidden lg:inline font-bold">
-                  {selectedWorkspace?.name || '조직 선택'}
-                </span>
-                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
-              </button>
-              {showWorkspaceMenu && (
-                <div
-                  className={`absolute top-full left-0 mt-2 w-64 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} z-50 ${theme.effects.borderRadius}`}
-                  style={{ boxShadow: theme.effects.shadow }}
-                >
-                  <div className="p-2 border-b">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="조직(Workspace) 검색..."
-                        value={workspaceSearchQuery}
-                        onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
-                        className={`w-full px-3 py-2 pl-8 ${theme.colors.secondary} ${theme.font.size.sm} rounded-md border`}
-                      />
-                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    </div>
-                  </div>
-                  <div className="max-h-60 overflow-y-auto">
-                    {filteredWorkspaces.length > 0 ? (
-                      filteredWorkspaces.map((workspace) => (
-                        <button
-                          key={workspace.id}
-                          onClick={() => {
-                            setSelectedWorkspace(workspace); // 💡 조직(Workspace) 변경
-                            setShowWorkspaceMenu(false);
-                            setWorkspaceSearchQuery('');
-                          }}
-                          className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-left hover:bg-blue-50 transition last:border-b-0 ${
-                            theme.font.size.xs
-                          } ${
-                            selectedWorkspace?.id === workspace.id ? 'bg-blue-100 font-bold' : ''
-                          }`}
-                        >
-                          {workspace.name}
-                        </button>
-                      ))
-                    ) : (
-                      <p className={`p-3 text-center ${theme.colors.subText}`}>
-                        {workspaces.length > 0
-                          ? '검색 결과가 없습니다.'
-                          : '로드된 조직이 없습니다.'}
-                      </p>
-                    )}
-                  </div>
-                  <div
-                    className={`${theme.effects.cardBorderWidth} ${theme.colors.border} border-b-0 border-l-0 border-r-0`}
-                  ></div>
-                  <button
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-left ${theme.colors.success} text-white ${theme.colors.successHover} transition flex items-center gap-2 ${theme.font.size.xs} ${theme.effects.borderRadius} rounded-t-none`}
-                  >
-                    <Plus className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
-                    새로운 조직
-                  </button>
-                </div>
-              )}
-            </div>
-
+        <div className="flex flex-col flex-grow items-center">
+          {/* 1-1. 최상단 Workspace 로고 (Selector Trigger) */}
+          <div className={`py-3 flex justify-center w-full relative`}>
             <button
-              onClick={() => setShowMobileMenu(!showMobileMenu)}
-              className={`md:hidden relative ${theme.colors.secondary} ${theme.effects.cardBorderWidth} ${theme.colors.border} p-2 ${theme.effects.borderRadius}`}
+              id="workspace-logo-button"
+              onClick={() => setShowWorkspaceSelector(!showWorkspaceSelector)}
+              className={`w-12 h-12 rounded-lg mx-auto flex items-center justify-center text-xl font-bold transition 
+                    bg-white text-blue-800 ring-2 ring-white/50 hover:opacity-90`}
+              title={selectedWorkspace?.name || '워크스페이스 선택'}
             >
-              <Menu className="w-5 h-5" style={{ strokeWidth: 3 }} />
+              {currentWorkspaceInitial}
             </button>
           </div>
 
-          {/* 사용자 메뉴 */}
-          <div className="relative">
+          {/* 1-2. 고정 내비게이션 아이콘 (홈, DM, 알림, 파일) - Opacity 적용 */}
+          <div className="flex flex-col gap-2 mt-4 flex-grow px-2 w-full pt-4">
+            {/* 홈 (기본 대시보드) - 활성화 상태 */}
             <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className={`relative flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-2 ${theme.colors.secondary} ${theme.effects.cardBorderWidth} ${theme.colors.border} hover:bg-gray-100 transition ${theme.font.size.xs} ${theme.effects.borderRadius}`}
+              className={`w-12 h-12 rounded-lg mx-auto flex items-center justify-center transition bg-blue-600 text-white ring-2 ring-white/50`}
+              title="홈 (대시보드)"
             >
-              <User className="w-4 h-4 sm:w-5 sm:h-5" style={{ strokeWidth: 3 }} />
-              <span className="hidden sm:inline">{userProfile.name}</span>
-              <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
+              <Home className="w-6 h-6" />
             </button>
-            {showUserMenu && (
+
+            {/* DM (비활성) */}
+            <button
+              className={`w-12 h-12 rounded-lg mx-auto flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white opacity-50 transition`}
+              title="DM"
+            >
+              <MessageSquare className="w-6 h-6" />
+            </button>
+
+            {/* 알림 (비활성) */}
+            <button
+              className={`w-12 h-12 rounded-lg mx-auto flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white opacity-50 transition`}
+              title="알림"
+            >
+              <Bell className="w-6 h-6" />
+            </button>
+
+            {/* 파일 (비활성) */}
+            <button
+              className={`w-12 h-12 rounded-lg mx-auto flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white opacity-50 transition`}
+              title="파일"
+            >
+              <File className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+
+        {/* 1-3. 계정/유저 메뉴 (하단) */}
+        <div className={`py-3 px-2 border-t border-blue-700`}>
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className={`w-full flex items-center justify-center py-2 text-sm rounded-lg hover:bg-blue-600 transition relative`}
+            title="계정 메뉴"
+          >
+            <div
+              className={`w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold ring-2 ring-white/50 text-gray-700`}
+            >
+              {userProfile.avatar}
+            </div>
+          </button>
+        </div>
+      </aside>
+
+      {/* 2. Workspace Selector Overlay (Fixed) */}
+      {showWorkspaceSelector && (
+        <>
+          <div
+            onClick={() => setShowWorkspaceSelector(false)}
+            className="absolute inset-0 bg-black opacity-30 z-40"
+          />
+          <div
+            ref={workspaceSelectorRef}
+            className={`fixed top-0 left-16 sm:left-20 h-full w-72 ${theme.colors.card} border-r ${theme.colors.border} z-50 transition-transform duration-300 ease-out`}
+            style={{ boxShadow: theme.effects.shadow }}
+          >
+            <div className="p-4 flex flex-col h-full">
+              <div className="flex items-center justify-between pb-3 border-b mb-3">
+                <h2 className="font-bold text-lg text-black">워크스페이스</h2>
+                <button
+                  onClick={() => setShowWorkspaceSelector(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-grow">
+                <h3 className="text-xs text-gray-400 mb-2 px-2 font-semibold">내 워크스페이스</h3>
+                <div className="space-y-1">
+                  {workspaces.map((workspace) => (
+                    <button
+                      key={workspace.id}
+                      onClick={() => {
+                        setSelectedWorkspace(workspace);
+                        setShowWorkspaceSelector(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm rounded transition flex items-center gap-2 ${
+                        selectedWorkspace?.id === workspace.id
+                          ? 'bg-blue-100 text-blue-700 font-semibold'
+                          : 'hover:bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      <span className="w-6 h-6 rounded bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700">
+                        {workspace.name.slice(0, 1)}
+                      </span>
+                      {workspace.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t mt-3">
+                <button className="w-full px-3 py-2 text-left text-blue-500 text-sm flex items-center gap-2 hover:bg-gray-100 rounded transition">
+                  <Plus className="w-4 h-4" /> 새로운 워크스페이스 생성
+                </button>
+                <button className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-100 rounded transition text-gray-700">
+                  <Settings className="w-4 h-4 text-gray-500" /> 워크스페이스 설정
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 3. 메인 콘텐츠 영역 (사이드바만큼 margin/padding으로 공간 확보) */}
+      <div
+        className="flex-grow flex flex-col relative z-10"
+        style={{ marginLeft: sidebarWidth, minHeight: '100vh' }}
+      >
+        {/* 3-1. Header (Fixed, 전체 100% width of main content area) */}
+        <header
+          className={`fixed top-0 left-0 h-16 flex items-center justify-between px-6 sm:px-28 py-2 sm:py-3 ${theme.colors.card} shadow-md z-20 w-full`}
+          style={{
+            boxShadow: theme.effects.headerShadow,
+            width: `calc(100% - ${sidebarWidth})`,
+            left: sidebarWidth,
+          }}
+        >
+          <div className="flex items-center gap-2 relative">
+            {/* 💡 프로젝트 선택 드롭다운 버튼 */}
+            <button
+              onClick={() => setShowProjectSelector(!showProjectSelector)}
+              className={`flex items-center gap-2 font-bold text-xl ${theme.colors.text} hover:opacity-80 transition`}
+            >
+              {selectedProject?.name || '프로젝트를 선택하세요'}
+              <ChevronDown
+                className={`w-5 h-5 text-gray-500 transition-transform ${
+                  showProjectSelector ? 'rotate-180' : 'rotate-0'
+                }`}
+                style={{ strokeWidth: 2.5 }}
+              />
+            </button>
+
+            {/* 💡 프로젝트 선택 오버레이 */}
+            {showProjectSelector && (
               <div
-                className={`absolute top-full right-0 mt-2 w-48 sm:w-56 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} z-50 ${theme.effects.borderRadius}`}
+                ref={projectSelectorRef}
+                className={`absolute top-full -left-4 mt-3 w-80 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} z-50 ${theme.effects.borderRadius}`}
                 style={{ boxShadow: theme.effects.shadow }}
               >
-                <div
-                  className={`px-3 sm:px-4 py-2 sm:py-3 ${theme.effects.cardBorderWidth} ${theme.colors.border} border-t-0 border-l-0 border-r-0 ${theme.colors.primary} text-white`}
-                >
-                  <p className={`font-bold ${theme.font.size.xs}`}>{userProfile.email}</p>
+                <div className="p-3 max-h-80 overflow-y-auto">
+                  <h3 className="text-xs text-gray-400 mb-2 px-1 font-semibold">
+                    내 프로젝트 ({projects.length})
+                  </h3>
+                  {projects.map((project) => (
+                    <button
+                      key={project.id}
+                      onClick={() => {
+                        setSelectedProject(project);
+                        setShowProjectSelector(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm rounded transition truncate ${
+                        selectedProject?.id === project.id
+                          ? 'bg-blue-100 text-blue-700 font-semibold'
+                          : 'hover:bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      # {project.name}
+                    </button>
+                  ))}
                 </div>
-                <button
-                  onClick={() => {
-                    setShowUserProfile(true);
-                    setShowUserMenu(false);
-                  }}
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-left hover:bg-blue-50 transition ${theme.effects.cardBorderWidth} ${theme.colors.border} border-t-0 border-l-0 border-r-0 ${theme.font.size.xs}`}
-                >
-                  프로필
-                </button>
-                <div
-                  className={`${theme.effects.cardBorderWidth} ${theme.colors.border} border-b-0 border-l-0 border-r-0`}
-                ></div>
-                <button
-                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-left bg-red-500 hover:bg-red-600 transition text-white ${theme.font.size.xs} ${theme.effects.borderRadius} rounded-t-none`}
-                  onClick={onLogout}
-                >
-                  로그아웃
-                </button>
+                <div className="pt-2 border-t">
+                  <button className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-blue-500 hover:bg-gray-100 rounded-b-lg transition">
+                    <Plus className="w-4 h-4" /> 새 프로젝트 생성
+                  </button>
+                </div>
               </div>
             )}
           </div>
-        </div>
-      </header>
 
-      {/* 모바일 메뉴 */}
-      {showMobileMenu && (
-        <div
-          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-50"
-          onClick={() => setShowMobileMenu(false)}
-        >
-          <div
-            className={`${theme.colors.card} ${theme.effects.borderWidth} ${theme.colors.border} w-64 h-full p-4`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className={`${theme.font.size.xs} font-bold`}>메뉴</h2>
-              <button
-                onClick={() => setShowMobileMenu(false)}
-                className={`bg-red-500 ${theme.effects.cardBorderWidth} ${theme.colors.border} p-1`}
-              >
-                <X className="w-4 h-4 text-white" style={{ strokeWidth: 3 }} />
-              </button>
-            </div>
-            <div className="space-y-2">
-              <p className={`text-[8px] ${theme.colors.subText} mb-2`}>조직(Workspaces):</p>
-              {workspaces.map((workspace) => (
-                <button
-                  key={workspace.id}
-                  onClick={() => {
-                    setSelectedWorkspace(workspace); // 💡 조직(Workspace) 변경
-                    setShowMobileMenu(false);
-                  }}
-                  className={`w-full px-3 py-2 text-left ${theme.effects.cardBorderWidth} ${
-                    theme.colors.border
-                  } text-[8px] ${theme.effects.borderRadius} ${
-                    selectedWorkspace?.id === workspace.id
-                      ? `${theme.colors.primary} text-white`
-                      : `${theme.colors.secondary} hover:bg-gray-100`
-                  }`}
-                >
-                  {workspace.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+          {/* 우측의 검색 및 추가 버튼은 제거됨 */}
+        </header>
 
-      {/* 프로젝트 탭 바 */}
-      <div
-        className={`${theme.colors.card} ${theme.effects.borderWidth} ${theme.colors.border} border-t-0 border-l-0 border-r-0 px-3 sm:px-6 py-2 sm:py-3 overflow-x-auto`}
-      >
-        <div className="flex items-center gap-2 sm:gap-4 min-w-max">
-          <div className="flex gap-2 flex-nowrap">
-            {projects.map((project) => (
-              <div key={project.id} className="relative flex-shrink-0">
-                <button
-                  onClick={() => setSelectedProject(project)} // 💡 프로젝트 변경
-                  className={`relative px-2 sm:px-4 py-1 sm:py-2 ${theme.effects.cardBorderWidth} ${
-                    theme.colors.border
-                  } transition ${theme.font.size.xs} ${
-                    theme.effects.borderRadius
-                  } whitespace-nowrap ${
-                    selectedProject?.id === project.id
-                      ? `${theme.colors.primary} text-white`
-                      : `${theme.colors.secondary} ${theme.colors.text} hover:bg-gray-100`
-                  }`}
-                >
-                  {project.name}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 칸반 보드 */}
-      <div className="p-3 sm:p-6 relative z-10">
-        <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 lg:overflow-x-auto pb-4">
-          {columns.map((column, idx) => (
-            <div
-              key={column.id}
-              onDragOver={handleDragOver}
-              onDrop={() => handleDrop(column.id)}
-              className="w-full lg:w-80 lg:flex-shrink-0 relative"
-            >
-              <div
-                className={`relative ${theme.effects.cardBorderWidth} ${theme.colors.border} p-3 sm:p-4 ${theme.colors.card} ${theme.effects.borderRadius}`}
-              >
+        {/* 3-2. 칸반 보드 (스크롤 가능한 메인 콘텐츠) */}
+        {/* mt-16을 통해 Fixed Header 높이(h-16) 만큼 공간 확보 */}
+        <div className="flex-grow flex flex-col p-3 sm:p-6 overflow-auto mt-16 ml-20">
+          {selectedProject ? (
+            <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 min-w-max pb-4">
+              {columns.map((column, idx) => (
                 <div
-                  className={`flex items-center justify-between mb-3 sm:mb-4 pb-2 ${theme.effects.cardBorderWidth} ${theme.colors.border} border-t-0 border-l-0 border-r-0`}
+                  key={column.id}
+                  onDragOver={handleDragOver}
+                  onDrop={() => handleDrop(column.id)}
+                  className="w-full lg:w-80 lg:flex-shrink-0 relative"
                 >
-                  {/* 💡 컬럼 제목 클릭 시 모달 열기 */}
-                  <h3
-                    onClick={() => setSelectedColumn(column)}
-                    className={`font-bold ${theme.colors.text} flex items-center gap-2 ${theme.font.size.xs} cursor-pointer hover:underline`}
+                  <div
+                    className={`relative ${theme.effects.cardBorderWidth} ${theme.colors.border} p-3 sm:p-4 ${theme.colors.card} ${theme.effects.borderRadius}`}
                   >
-                    <span
-                      className={`w-3 h-3 sm:w-4 sm:h-4 ${
-                        columnColors[idx % columnColors.length]
-                      } ${theme.effects.cardBorderWidth} ${theme.colors.border}`}
-                    ></span>
-                    {column.title}
-                    <span
-                      className={`bg-black text-white px-1 sm:px-2 py-1 ${theme.effects.cardBorderWidth} ${theme.colors.border} text-[8px] sm:text-xs`}
+                    <div
+                      className={`flex items-center justify-between mb-3 sm:mb-4 pb-2 ${theme.effects.cardBorderWidth} ${theme.colors.border} border-t-0 border-l-0 border-r-0`}
                     >
-                      {column.tasks.length}
-                    </span>
-                  </h3>
-                  <button className={`${theme.colors.text} hover:text-blue-500`}>
-                    <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
-                  </button>
-                </div>
-
-                <div className="space-y-2 sm:space-y-3">
-                  {column.tasks.map((task) => (
-                    <div key={task.id} className="relative">
-                      <div
-                        draggable
-                        onDragStart={() => handleDragStart(task, column.id)}
-                        onClick={() => setSelectedTask(task)} // 💡 태스크 클릭 시 모달 열기
-                        className={`relative ${theme.colors.card} p-3 sm:p-4 ${theme.effects.cardBorderWidth} ${theme.colors.border} hover:border-blue-500 transition cursor-pointer ${theme.effects.borderRadius}`}
+                      <h3
+                        onClick={() => setSelectedColumn(column)}
+                        className={`font-bold ${theme.colors.text} flex items-center gap-2 ${theme.font.size.xs} cursor-pointer hover:underline`}
                       >
-                        <h4
-                          className={`font-bold ${theme.colors.text} mb-2 sm:mb-3 ${theme.font.size.xs} break-words`}
+                        <span
+                          className={`w-3 h-3 sm:w-4 sm:h-4 ${
+                            columnColors[idx % columnColors.length]
+                          } ${theme.effects.cardBorderWidth} ${theme.colors.border}`}
+                        ></span>
+                        {column.title}
+                        <span
+                          className={`bg-black text-white px-1 sm:px-2 py-1 ${theme.effects.cardBorderWidth} ${theme.colors.border} text-[8px] sm:text-xs`}
                         >
-                          {task.title}
-                        </h4>
-                        <div className="flex items-center gap-2">
+                          {column.tasks.length}
+                        </span>
+                      </h3>
+                      <button className={`${theme.colors.text} hover:text-blue-500`}>
+                        <MoreVertical
+                          className="w-3 h-3 sm:w-4 sm:h-4"
+                          style={{ strokeWidth: 3 }}
+                        />
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 sm:space-y-3">
+                      {column.tasks.map((task) => (
+                        <div key={task.id} className="relative">
                           <div
-                            className={`w-6 h-6 sm:w-8 sm:h-8 ${theme.colors.primary} ${theme.effects.cardBorderWidth} ${theme.colors.border} flex items-center justify-center text-white font-bold text-[8px] sm:text-xs flex-shrink-0 ${theme.effects.borderRadius}`}
+                            draggable
+                            onDragStart={() => handleDragStart(task, column.id)}
+                            onClick={() => setSelectedTask(task)}
+                            className={`relative ${theme.colors.card} p-3 sm:p-4 ${theme.effects.cardBorderWidth} ${theme.colors.border} hover:border-blue-500 transition cursor-pointer ${theme.effects.borderRadius}`}
                           >
-                            {task.assignee_id ? task.assignee_id[0].toUpperCase() : '?'}
+                            <h4
+                              className={`font-bold ${theme.colors.text} mb-2 sm:mb-3 ${theme.font.size.xs} break-words`}
+                            >
+                              {task.title}
+                            </h4>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`w-6 h-6 sm:w-8 sm:h-8 ${theme.colors.primary} ${theme.effects.cardBorderWidth} ${theme.colors.border} flex items-center justify-center text-white font-bold text-[8px] sm:text-xs flex-shrink-0 ${theme.effects.borderRadius}`}
+                              >
+                                {task.assignee_id ? task.assignee_id[0].toUpperCase() : '?'}
+                              </div>
+                              <span
+                                className={`${theme.font.size.xs} truncate ${theme.colors.text}`}
+                              >
+                                {task.assignee || '미배정'}
+                              </span>
+                            </div>
                           </div>
-                          <span className={`${theme.font.size.xs} truncate ${theme.colors.text}`}>
-                            {task.assignee || '미배정'}
-                          </span>
                         </div>
+                      ))}
+                      <div className="relative">
+                        <button
+                          className={`relative w-full py-3 sm:py-4 ${theme.effects.cardBorderWidth} border-dashed ${theme.colors.border} ${theme.colors.card} hover:bg-gray-100 transition flex items-center justify-center gap-2 ${theme.font.size.xs} ${theme.effects.borderRadius}`}
+                          onClick={() =>
+                            setSelectedTask({
+                              id: '',
+                              title: '',
+                              assignee_id: '',
+                              status: 'NEW',
+                              assignee: '',
+                            })
+                          }
+                        >
+                          <Plus className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
+                          칸반 추가
+                        </button>
                       </div>
                     </div>
-                  ))}
-                  <div className="relative">
-                    <button
-                      className={`relative w-full py-3 sm:py-4 ${theme.effects.cardBorderWidth} border-dashed ${theme.colors.border} ${theme.colors.card} hover:bg-gray-100 transition flex items-center justify-center gap-2 ${theme.font.size.xs} ${theme.effects.borderRadius}`}
-                      onClick={() =>
-                        setSelectedTask({
-                          id: '',
-                          title: '',
-                          assignee_id: '',
-                          status: 'NEW',
-                          assignee: '',
-                        })
-                      }
-                    >
-                      <Plus className="w-3 h-3 sm:w-4 sm:h-4" style={{ strokeWidth: 3 }} />
-                      태스크 추가
-                    </button>
                   </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-          <div className="w-full lg:w-80 lg:flex-shrink-0 relative">
-            <button
-              className={`relative w-full h-24 sm:h-32 ${theme.effects.cardBorderWidth} border-dashed ${theme.colors.border} ${theme.colors.card} hover:bg-gray-100 transition flex items-center justify-center gap-2 ${theme.font.size.xs} ${theme.effects.borderRadius}`}
-            >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" style={{ strokeWidth: 3 }} />
-              새로운 티켓
-            </button>
-          </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+              <Briefcase className="w-16 h-16 mb-4 text-gray-400" />
+              <h2 className={`${theme.font.size.xl} ${theme.colors.text} mb-2`}>
+                프로젝트를 선택하세요
+              </h2>
+              <p className={`${theme.colors.subText}`}>
+                왼쪽 워크스페이스 메뉴를 통해 프로젝트 목록을 불러오고 선택하세요.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* 모달 */}
+      {showUserMenu && (
+        <div
+          ref={userMenuRef}
+          className={`absolute bottom-20 left-20 w-48 sm:w-56 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} z-50 ${theme.effects.borderRadius}`}
+          style={{ boxShadow: theme.effects.shadow }}
+        >
+          <div className={`px-3 sm:px-4 py-2 sm:py-3 ${theme.colors.primary} text-white`}>
+            <p className={`font-bold ${theme.font.size.xs}`}>{userProfile.email}</p>
+          </div>
+          <button
+            onClick={() => {
+              setShowUserProfile(true);
+              setShowUserMenu(false);
+            }}
+            className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-left hover:bg-gray-100 transition text-black text-sm`}
+          >
+            프로필
+          </button>
+          <button
+            className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-left bg-red-500 hover:bg-red-600 transition text-white text-sm rounded-b-lg`}
+            onClick={onLogout}
+          >
+            로그아웃
+          </button>
+        </div>
+      )}
       {showUserProfile && userProfile && (
         <UserProfileModal user={userProfile} onClose={() => setShowUserProfile(false)} />
       )}
@@ -676,12 +711,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
         <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} />
       )}
 
-      {/* 💡 Column Detail Modal 렌더링 */}
       {selectedColumn && (
         <ColumnDetailModal
           column={selectedColumn}
           onClose={() => setSelectedColumn(null)}
-          onUpdate={handleColumnUpdate} // 💡 갱신 핸들러 연결
+          onUpdate={handleColumnUpdate}
         />
       )}
     </div>
