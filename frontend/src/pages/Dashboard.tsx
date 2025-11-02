@@ -242,7 +242,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({
         fetchProjectData(selectedWorkspace.id);
       }
     }
-  }, [selectedWorkspace, fetchProjectData, selectedProject]);
+  }, [selectedWorkspace, selectedProject]); // 🔑 fetchProjectData를 제거했습니다.
 
   // 프로젝트 변경 시 칸반 보드 리로드
   useEffect(() => {
