@@ -16,12 +16,12 @@ export interface CustomField {
 export interface Kanban {
   id: string;
   title: string;
-  assignee_id: string | null;
+  assignee_id: string;
   status: string;
   assignee: string;
   // 기존 Task에 추가된 필드 (KanbanDetailModal에서 사용)
   dueDate?: string;
-  priority?: 'HIGH' | 'MEDIUM' | 'LOW' | '';
+  priority?: Priority;
   description?: string;
 }
 

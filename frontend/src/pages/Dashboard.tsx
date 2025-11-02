@@ -15,7 +15,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import UserProfileModal from '../components/modals/UserProfileModal';
 import { UserProfile } from '../types';
 import { ProjectManageModal } from '../components/modals/ProjectManageModal';
-import { KanbanWithCustomFields } from '../types/kanban';
+import { Kanban, KanbanWithCustomFields } from '../types/kanban';
 import KanbanDetailModal from '../components/modals/KanbanDetailModal';
 
 // --- 1. API 스펙에 맞춘 Mock 데이터 타입 정의 ---
@@ -28,13 +28,6 @@ interface ProjectResponse {
   id: string;
   name: string;
   workspace_id: string;
-}
-interface Kanban {
-  id: string;
-  title: string;
-  assignee_id: string | null;
-  status: string;
-  assignee: string;
 }
 interface Column {
   id: string;
