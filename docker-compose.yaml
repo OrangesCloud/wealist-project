@@ -44,20 +44,26 @@ services:
       retries: 3
       start_period: 60s
 
-  #--- Kanban Service ---
-  kanban-service:
-    build: ./board-service
-    container_name: wealist-kanban-service
+  # 새로운 board-service 추가
+  board-service:
+    build:
+      context: ./board-service
+      dockerfile: docker/Dockerfile
+    container_name: wealist-board-service
     env_file: ./.env
     environment:
-      - DATABASE_URL=postgresql://${KANBAN_DB_USER}:${KANBAN_DB_PASSWORD}@postgres:5432/${KANBAN_DB_NAME}
+      - DATABASE_URL=postgresql://${KANBAN_DB_USER}:${KANBAN_DB_PASSWORD}@postgres:5432/${KANBAN_DB_NAME}?sslmode=disable
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - SECRET_KEY=${JWT_SECRET}
+      - USER_SERVICE_URL=http://user-service:8080
+      - ENV=dev
+      - SERVER_PORT=8000
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - LOG_LEVEL=debug
+      # 마이그레이션용 환경변수 추가
       - KANBAN_DB_USER=${KANBAN_DB_USER}
       - KANBAN_DB_PASSWORD=${KANBAN_DB_PASSWORD}
       - KANBAN_DB_NAME=${KANBAN_DB_NAME}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
-      - SECRET_KEY=${JWT_SECRET}
-      - ALGORITHM=${ALGORITHM:-HS512}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080}
     ports:
       - "8000:8000"
     networks:
@@ -67,11 +73,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      user-service:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
-
+      timeout: 10s
+      retries: 3
+      start_period: 40s
   #--- Shared PostgreSQL (multi-database) ---
   postgres:
     image: postgres:17-alpine

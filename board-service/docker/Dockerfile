@@ -16,6 +16,9 @@ COPY . .
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o board-api ./cmd/api
 
+# golang-migrate CLI 다운로드
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
 # Stage 2: Runtime
 FROM alpine:3.19
 
@@ -29,13 +32,15 @@ RUN adduser -D -u 1001 appuser
 
 # Copy binary from builder
 COPY --from=builder /build/board-api .
+COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
 
-# Copy scripts
+# Copy scripts and migrations
+COPY --from=builder /build/scripts/init.sh /scripts/
 COPY --from=builder /build/scripts/wait-for-it.sh /scripts/
-RUN chmod +x /scripts/wait-for-it.sh
+COPY --from=builder /build/migrations /app/migrations
 
-# Switch to non-root user
-USER appuser
+# Make scripts executable
+RUN chmod +x /scripts/init.sh /scripts/wait-for-it.sh
 
 # Expose port
 EXPOSE 8000
@@ -44,5 +49,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
-ENTRYPOINT ["/app/board-api"]
+# Use init script as entrypoint
+ENTRYPOINT ["/scripts/init.sh"]

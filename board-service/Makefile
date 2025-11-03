@@ -68,33 +68,45 @@ docker-run:  ## Run Docker container locally
 
 migrate-create:  ## Create new migration file (usage: make migrate-create name=create_users_table)
 	@if [ -z "$(name)" ]; then \
-		echo "Error: name is required. Usage: make migrate-create name=create_users_table"; \
+		echo "Usage: make migrate-create name=create_users_table"; \
 		exit 1; \
 	fi
 	@echo "Creating migration: $(name)"
 	migrate create -ext sql -dir migrations -seq $(name)
 
 migrate-up:  ## Run database migrations up
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "Error: DATABASE_URL is not set"; \
+		exit 1; \
+	fi
 	@echo "Running migrations up..."
 	migrate -path migrations -database "$(DATABASE_URL)" up
 	@echo "Migrations complete"
 
-migrate-down:  ## Rollback last migration
-	@echo "Rolling back last migration..."
-	migrate -path migrations -database "$(DATABASE_URL)" down 1
+migrate-down:  ## Rollback migrations (usage: make migrate-down n=1)
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "Error: DATABASE_URL is not set"; \
+		exit 1; \
+	fi
+	@echo "Rolling back migration(s)..."
+	migrate -path migrations -database "$(DATABASE_URL)" down $(if $(n),$(n),1)
 	@echo "Rollback complete"
 
 migrate-version:  ## Show current migration version
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "Error: DATABASE_URL is not set"; \
+		exit 1; \
+	fi
 	@echo "Current migration version:"
 	migrate -path migrations -database "$(DATABASE_URL)" version
 
-migrate-force:  ## Force migration version (usage: make migrate-force version=1)
-	@if [ -z "$(version)" ]; then \
-		echo "Error: version is required. Usage: make migrate-force version=1"; \
+migrate-force:  ## Force migration version (usage: make migrate-force v=1)
+	@if [ -z "$(DATABASE_URL)" ] || [ -z "$(v)" ]; then \
+		echo "Usage: make migrate-force v=1"; \
 		exit 1; \
 	fi
-	@echo "Forcing migration version to $(version)..."
-	migrate -path migrations -database "$(DATABASE_URL)" force $(version)
+	@echo "Forcing migration version to $(v)..."
+	migrate -path migrations -database "$(DATABASE_URL)" force $(v)
 
 fmt:  ## Format code
 	@echo "Formatting code..."
