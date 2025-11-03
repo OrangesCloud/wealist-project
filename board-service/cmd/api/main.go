@@ -51,19 +51,24 @@ func main() {
 	userClient := client.NewUserClient(cfg.UserService.URL)
 	log.Info("User Service client initialized", zap.String("url", cfg.UserService.URL))
 
-	// 5.5. Initialize repositories
+	// 5.5. Initialize caches
+	userOrderCache := cache.NewUserOrderCache(rdb)
+
+	// 5.6. Initialize repositories
 	roleRepo := repository.NewRoleRepository(db)
 	workspaceRepo := repository.NewWorkspaceRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 	customFieldRepo := repository.NewCustomFieldRepository(db)
 	kanbanRepo := repository.NewKanbanRepository(db)
+	userOrderRepo := repository.NewUserOrderRepository(db)
 
-	// 5.6. Initialize services
+	// 5.7. Initialize services
 	// Note: customFieldService needs kanbanRepo (for Phase 4 TODO), then injected into projectService
 	customFieldService := service.NewCustomFieldService(customFieldRepo, projectRepo, roleRepo, kanbanRepo, log, db)
 	kanbanService := service.NewKanbanService(kanbanRepo, projectRepo, customFieldRepo, roleRepo, userClient, log, db)
 	workspaceService := service.NewWorkspaceService(workspaceRepo, roleRepo, userClient, log, db)
-	projectService := service.NewProjectService(projectRepo, workspaceRepo, roleRepo, customFieldService, userClient, log, db)
+	projectService := service.NewProjectService(projectRepo, workspaceRepo, roleRepo, userOrderRepo, customFieldService, userClient, log, db)
+	userOrderService := service.NewUserOrderService(userOrderRepo, projectRepo, customFieldRepo, kanbanRepo, userOrderCache, log)
 
 	// 6. Configure Gin mode
 	if cfg.Server.Env == "prod" {
@@ -92,6 +97,7 @@ func main() {
 		projectHandler := handler.NewProjectHandler(projectService)
 		customFieldHandler := handler.NewCustomFieldHandler(customFieldService)
 		kanbanHandler := handler.NewKanbanHandler(kanbanService)
+		userOrderHandler := handler.NewUserOrderHandler(userOrderService)
 
 		// Workspace routes
 		workspaces := api.Group("/workspaces")
@@ -136,6 +142,14 @@ func main() {
 			projects.GET("/:id/members", projectHandler.GetProjectMembers)
 			projects.PUT("/:id/members/:memberId/role", projectHandler.UpdateMemberRole)
 			projects.DELETE("/:id/members/:memberId", projectHandler.RemoveMember)
+
+			// User Order Management (Drag-and-Drop)
+			projects.GET("/:projectId/orders/role-board", userOrderHandler.GetRoleBasedBoardView)
+			projects.GET("/:projectId/orders/stage-board", userOrderHandler.GetStageBasedBoardView)
+			projects.PUT("/:projectId/orders/role-columns", userOrderHandler.UpdateRoleColumnOrder)
+			projects.PUT("/:projectId/orders/stage-columns", userOrderHandler.UpdateStageColumnOrder)
+			projects.PUT("/:projectId/orders/role-kanbans/:roleId", userOrderHandler.UpdateKanbanOrderInRole)
+			projects.PUT("/:projectId/orders/stage-kanbans/:stageId", userOrderHandler.UpdateKanbanOrderInStage)
 		}
 
 		// Custom Fields routes

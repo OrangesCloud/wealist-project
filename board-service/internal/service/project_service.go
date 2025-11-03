@@ -37,6 +37,7 @@ type projectService struct {
 	repo               repository.ProjectRepository
 	workspaceRepo      repository.WorkspaceRepository
 	roleRepo           repository.RoleRepository
+	userOrderRepo      repository.UserOrderRepository
 	customFieldService CustomFieldService
 	userClient         *client.UserClient
 	logger             *zap.Logger
@@ -47,6 +48,7 @@ func NewProjectService(
 	repo repository.ProjectRepository,
 	workspaceRepo repository.WorkspaceRepository,
 	roleRepo repository.RoleRepository,
+	userOrderRepo repository.UserOrderRepository,
 	customFieldService CustomFieldService,
 	userClient *client.UserClient,
 	logger *zap.Logger,
@@ -56,6 +58,7 @@ func NewProjectService(
 		repo:               repo,
 		workspaceRepo:      workspaceRepo,
 		roleRepo:           roleRepo,
+		userOrderRepo:      userOrderRepo,
 		customFieldService: customFieldService,
 		userClient:         userClient,
 		logger:             logger,
@@ -123,6 +126,12 @@ func (s *projectService) CreateProject(userID string, req *dto.CreateProjectRequ
 		// - Custom Importance: "없음", "낮음", "보통", "높음", "긴급" (system defaults)
 		if err := s.customFieldService.CreateDefaultCustomFields(project.ID); err != nil {
 			s.logger.Error("Failed to create default custom fields", zap.Error(err), zap.String("project_id", project.ID.String()))
+			return err
+		}
+
+		// Phase 6 - Initialize user-specific order settings for project owner
+		if err := s.userOrderRepo.InitializeUserOrders(context.Background(), userUUID, project.ID); err != nil {
+			s.logger.Error("Failed to initialize user orders", zap.Error(err), zap.String("project_id", project.ID.String()), zap.String("user_id", userUUID.String()))
 			return err
 		}
 
@@ -423,6 +432,15 @@ func (s *projectService) UpdateJoinRequest(requestID, userID string, req *dto.Up
 
 		if err := s.repo.CreateMember(member); err != nil {
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 생성 실패", 500)
+		}
+
+		// Phase 6 - Initialize user-specific order settings for new member
+		if err := s.userOrderRepo.InitializeUserOrders(context.Background(), joinReq.UserID, joinReq.ProjectID); err != nil {
+			s.logger.Warn("Failed to initialize user orders for new member",
+				zap.Error(err),
+				zap.String("project_id", joinReq.ProjectID.String()),
+				zap.String("user_id", joinReq.UserID.String()))
+			// Don't fail the join request if order initialization fails
 		}
 	}
 
