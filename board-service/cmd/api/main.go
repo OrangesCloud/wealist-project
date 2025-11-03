@@ -7,6 +7,8 @@ import (
 	"board-service/internal/database"
 	"board-service/internal/handler"
 	"board-service/internal/middleware"
+	"board-service/internal/repository"
+	"board-service/internal/service"
 	"board-service/pkg/logger"
 	"os"
 
@@ -49,8 +51,12 @@ func main() {
 	userClient := client.NewUserClient(cfg.UserService.URL)
 	log.Info("User Service client initialized", zap.String("url", cfg.UserService.URL))
 
-	// Suppress unused variable warning (will be used in future phases)
-	_ = userClient
+	// 5.5. Initialize repositories
+	roleRepo := repository.NewRoleRepository(db)
+	workspaceRepo := repository.NewWorkspaceRepository(db)
+
+	// 5.6. Initialize services
+	workspaceService := service.NewWorkspaceService(workspaceRepo, roleRepo, userClient, log, db)
 
 	// 6. Configure Gin mode
 	if cfg.Server.Env == "prod" {
@@ -74,10 +80,32 @@ func main() {
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
 	{
-		// TODO: Add API routes in future phases
-		// Example:
-		// workspaceHandler := handler.NewWorkspaceHandler(...)
-		// api.POST("/workspaces", workspaceHandler.Create)
+		// Initialize handlers
+		workspaceHandler := handler.NewWorkspaceHandler(workspaceService)
+
+		// Workspace routes
+		workspaces := api.Group("/workspaces")
+		{
+			// Workspace CRUD
+			workspaces.POST("", workspaceHandler.CreateWorkspace)
+			workspaces.GET("/search", workspaceHandler.SearchWorkspaces) // Must be before /:id
+			workspaces.GET("/:id", workspaceHandler.GetWorkspace)
+			workspaces.PUT("/:id", workspaceHandler.UpdateWorkspace)
+			workspaces.DELETE("/:id", workspaceHandler.DeleteWorkspace)
+
+			// Join Requests
+			workspaces.POST("/join-requests", workspaceHandler.CreateJoinRequest)
+			workspaces.GET("/:id/join-requests", workspaceHandler.GetJoinRequests)
+			workspaces.PUT("/join-requests/:id", workspaceHandler.UpdateJoinRequest)
+
+			// Members
+			workspaces.GET("/:id/members", workspaceHandler.GetWorkspaceMembers)
+			workspaces.PUT("/:id/members/:memberId/role", workspaceHandler.UpdateMemberRole)
+			workspaces.DELETE("/:id/members/:memberId", workspaceHandler.RemoveMember)
+
+			// Default Workspace
+			workspaces.POST("/default", workspaceHandler.SetDefaultWorkspace)
+		}
 	}
 
 	// 11. Start server
