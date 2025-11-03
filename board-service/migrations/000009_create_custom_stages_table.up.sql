@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS custom_stages (
     color VARCHAR(7),
     is_system_default BOOLEAN NOT NULL DEFAULT FALSE,
     display_order INT NOT NULL DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_project_stage_name UNIQUE(project_id, name)
@@ -12,6 +13,7 @@ CREATE TABLE IF NOT EXISTS custom_stages (
 
 CREATE INDEX idx_custom_stages_project_id ON custom_stages(project_id);
 CREATE INDEX idx_custom_stages_is_system_default ON custom_stages(is_system_default);
+CREATE INDEX idx_custom_stages_is_deleted ON custom_stages(is_deleted);
 
 COMMENT ON TABLE custom_stages IS 'Project-specific custom stages for kanbans';
 COMMENT ON COLUMN custom_stages.project_id IS 'References projects.id (no FK for sharding compatibility)';

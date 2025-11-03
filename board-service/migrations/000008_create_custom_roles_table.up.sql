@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS custom_roles (
     color VARCHAR(7),
     is_system_default BOOLEAN NOT NULL DEFAULT FALSE,
     display_order INT NOT NULL DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_project_role_name UNIQUE(project_id, name)
@@ -12,6 +14,7 @@ CREATE TABLE IF NOT EXISTS custom_roles (
 
 CREATE INDEX idx_custom_roles_project_id ON custom_roles(project_id);
 CREATE INDEX idx_custom_roles_is_system_default ON custom_roles(is_system_default);
+CREATE INDEX idx_custom_roles_is_deleted ON custom_roles(is_deleted);
 
 COMMENT ON TABLE custom_roles IS 'Project-specific custom roles for kanbans';
 COMMENT ON COLUMN custom_roles.project_id IS 'References projects.id (no FK for sharding compatibility)';

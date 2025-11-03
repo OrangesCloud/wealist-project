@@ -4,23 +4,18 @@ package dto
 
 // UpdateOrderRequest is used for drag-and-drop reordering
 type UpdateOrderRequest struct {
-	Items []OrderItem `json:"items" binding:"required,min=1,dive"`
-}
-
-type OrderItem struct {
-	ID           string `json:"id" binding:"required,uuid"`
-	DisplayOrder int    `json:"displayOrder" binding:"min=0"`
+	ItemIds []string `json:"itemIds" binding:"required,min=1,dive,uuid"` // 다른 핸들러와 일치하도록 수정
 }
 
 // ==================== Response DTOs ====================
 
 // ColumnOrderResponse represents a single column's order information
 type ColumnOrderResponse struct {
-	ID           string `json:"id"`
-	CustomRoleID string `json:"customRoleId,omitempty"`
+	ID            string `json:"id"`
+	CustomRoleID  string `json:"customRoleId,omitempty"`
 	CustomStageID string `json:"customStageId,omitempty"`
-	DisplayOrder int    `json:"displayOrder"`
-	Name         string `json:"name"` // Retrieved from cache/DB
+	DisplayOrder  int    `json:"displayOrder"`
+	Name          string `json:"name"` // Retrieved from cache/DB
 }
 
 // KanbanOrderResponse represents a single kanban's order information

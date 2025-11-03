@@ -193,10 +193,10 @@ func (s *userOrderService) UpdateRoleColumnOrder(ctx context.Context, userID, pr
 		return err
 	}
 
-	// Build update orders
-	orders := make([]domain.UserRoleColumnOrder, len(req.Items))
-	for i, item := range req.Items {
-		roleID, err := uuid.Parse(item.ID)
+	// Build update orders with auto-calculated displayOrder
+	orders := make([]domain.UserRoleColumnOrder, len(req.ItemIds))
+	for i, itemID := range req.ItemIds {
+		roleID, err := uuid.Parse(itemID)
 		if err != nil {
 			return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 역할 ID", 400)
 		}
@@ -205,7 +205,7 @@ func (s *userOrderService) UpdateRoleColumnOrder(ctx context.Context, userID, pr
 			UserID:       userUUID,
 			ProjectID:    projectUUID,
 			CustomRoleID: roleID,
-			DisplayOrder: item.DisplayOrder,
+			DisplayOrder: i + 1, // Auto-increment order (1, 2, 3, ...)
 		}
 	}
 
@@ -238,10 +238,10 @@ func (s *userOrderService) UpdateStageColumnOrder(ctx context.Context, userID, p
 		return err
 	}
 
-	// Build update orders
-	orders := make([]domain.UserStageColumnOrder, len(req.Items))
-	for i, item := range req.Items {
-		stageID, err := uuid.Parse(item.ID)
+	// Build update orders with auto-calculated displayOrder
+	orders := make([]domain.UserStageColumnOrder, len(req.ItemIds))
+	for i, itemID := range req.ItemIds {
+		stageID, err := uuid.Parse(itemID)
 		if err != nil {
 			return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 진행단계 ID", 400)
 		}
@@ -250,7 +250,7 @@ func (s *userOrderService) UpdateStageColumnOrder(ctx context.Context, userID, p
 			UserID:        userUUID,
 			ProjectID:     projectUUID,
 			CustomStageID: stageID,
-			DisplayOrder:  item.DisplayOrder,
+			DisplayOrder:  i + 1, // Auto-increment order (1, 2, 3, ...)
 		}
 	}
 
@@ -290,10 +290,10 @@ func (s *userOrderService) UpdateKanbanOrderInRole(ctx context.Context, userID, 
 		return err
 	}
 
-	// Build update orders
-	orders := make([]domain.UserKanbanOrderInRole, len(req.Items))
-	for i, item := range req.Items {
-		kanbanID, err := uuid.Parse(item.ID)
+	// Build update orders with auto-calculated displayOrder
+	orders := make([]domain.UserKanbanOrderInRole, len(req.ItemIds))
+	for i, itemID := range req.ItemIds {
+		kanbanID, err := uuid.Parse(itemID)
 		if err != nil {
 			return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 칸반 ID", 400)
 		}
@@ -303,7 +303,7 @@ func (s *userOrderService) UpdateKanbanOrderInRole(ctx context.Context, userID, 
 			ProjectID:    projectUUID,
 			CustomRoleID: roleUUID,
 			KanbanID:     kanbanID,
-			DisplayOrder: item.DisplayOrder,
+			DisplayOrder: i + 1, // Auto-increment order (1, 2, 3, ...)
 		}
 	}
 
@@ -341,10 +341,10 @@ func (s *userOrderService) UpdateKanbanOrderInStage(ctx context.Context, userID,
 		return err
 	}
 
-	// Build update orders
-	orders := make([]domain.UserKanbanOrderInStage, len(req.Items))
-	for i, item := range req.Items {
-		kanbanID, err := uuid.Parse(item.ID)
+	// Build update orders with auto-calculated displayOrder
+	orders := make([]domain.UserKanbanOrderInStage, len(req.ItemIds))
+	for i, itemID := range req.ItemIds {
+		kanbanID, err := uuid.Parse(itemID)
 		if err != nil {
 			return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 칸반 ID", 400)
 		}
@@ -354,7 +354,7 @@ func (s *userOrderService) UpdateKanbanOrderInStage(ctx context.Context, userID,
 			ProjectID:     projectUUID,
 			CustomStageID: stageUUID,
 			KanbanID:      kanbanID,
-			DisplayOrder:  item.DisplayOrder,
+			DisplayOrder:  i + 1, // Auto-increment order (1, 2, 3, ...)
 		}
 	}
 
@@ -496,9 +496,6 @@ func (s *userOrderService) getKanbansForRole(ctx context.Context, userID, projec
 			DisplayOrder: order,
 		})
 	}
-
-	// Sort by display order (this should be done in the frontend, but we can pre-sort)
-	// result is sorted by display_order on the frontend
 
 	// Cache the result
 	if err := s.cache.SetRoleKanbanOrder(ctx, userID.String(), projectID.String(), roleID.String(), result); err != nil {
