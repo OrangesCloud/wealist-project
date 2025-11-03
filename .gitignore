@@ -50,6 +50,6 @@ frontend/.pnp
 frontend/.pnp.js
 
 # Claude Code
-.claude/
-.claudeignore
-CLAUDE.md
+#.claude/
+#.claudeignore
+#CLAUDE.md
