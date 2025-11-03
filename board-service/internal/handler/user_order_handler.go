@@ -22,11 +22,11 @@ func NewUserOrderHandler(service service.UserOrderService) *UserOrderHandler {
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
-// @Param        projectId path string true "Project ID"
+// @Param        id path string true "Project ID"  //
 // @Success      200 {object} dto.SuccessResponse{data=dto.RoleBasedBoardView}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
-// @Router       /api/projects/{projectId}/orders/role-board [get]
+// @Router       /api/projects/{id}/orders/role-board [get]  //
 // @Security     BearerAuth
 func (h *UserOrderHandler) GetRoleBasedBoardView(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -35,7 +35,7 @@ func (h *UserOrderHandler) GetRoleBasedBoardView(c *gin.Context) {
 		return
 	}
 
-	projectID := c.Param("projectId")
+	projectID := c.Param("id") //
 	if projectID == "" {
 		dto.Error(c, apperrors.Wrap(nil, apperrors.ErrCodeBadRequest, "프로젝트 ID가 필요합니다", 400))
 		return
@@ -60,11 +60,11 @@ func (h *UserOrderHandler) GetRoleBasedBoardView(c *gin.Context) {
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
-// @Param        projectId path string true "Project ID"
+// @Param        id path string true "Project ID"
 // @Success      200 {object} dto.SuccessResponse{data=dto.StageBasedBoardView}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
-// @Router       /api/projects/{projectId}/orders/stage-board [get]
+// @Router       /api/projects/{id}/orders/stage-board [get]
 // @Security     BearerAuth
 func (h *UserOrderHandler) GetStageBasedBoardView(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -73,7 +73,7 @@ func (h *UserOrderHandler) GetStageBasedBoardView(c *gin.Context) {
 		return
 	}
 
-	projectID := c.Param("projectId")
+	projectID := c.Param("id")
 	if projectID == "" {
 		dto.Error(c, apperrors.Wrap(nil, apperrors.ErrCodeBadRequest, "프로젝트 ID가 필요합니다", 400))
 		return
@@ -98,12 +98,12 @@ func (h *UserOrderHandler) GetStageBasedBoardView(c *gin.Context) {
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
-// @Param        projectId path string true "Project ID"
+// @Param        id path string true "Project ID"
 // @Param        request body dto.UpdateOrderRequest true "Order update details"
 // @Success      200 {object} dto.SuccessResponse{data=string}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
-// @Router       /api/projects/{projectId}/orders/role-columns [put]
+// @Router       /api/projects/{id}/orders/role-columns [put]
 // @Security     BearerAuth
 func (h *UserOrderHandler) UpdateRoleColumnOrder(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -112,7 +112,7 @@ func (h *UserOrderHandler) UpdateRoleColumnOrder(c *gin.Context) {
 		return
 	}
 
-	projectID := c.Param("projectId")
+	projectID := c.Param("id")
 	if projectID == "" {
 		dto.Error(c, apperrors.Wrap(nil, apperrors.ErrCodeBadRequest, "프로젝트 ID가 필요합니다", 400))
 		return
@@ -143,12 +143,12 @@ func (h *UserOrderHandler) UpdateRoleColumnOrder(c *gin.Context) {
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
-// @Param        projectId path string true "Project ID"
+// @Param        id path string true "Project ID"
 // @Param        request body dto.UpdateOrderRequest true "Order update details"
 // @Success      200 {object} dto.SuccessResponse{data=string}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
-// @Router       /api/projects/{projectId}/orders/stage-columns [put]
+// @Router       /api/projects/{id}/orders/stage-columns [put]
 // @Security     BearerAuth
 func (h *UserOrderHandler) UpdateStageColumnOrder(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -157,7 +157,7 @@ func (h *UserOrderHandler) UpdateStageColumnOrder(c *gin.Context) {
 		return
 	}
 
-	projectID := c.Param("projectId")
+	projectID := c.Param("id")
 	if projectID == "" {
 		dto.Error(c, apperrors.Wrap(nil, apperrors.ErrCodeBadRequest, "프로젝트 ID가 필요합니다", 400))
 		return
@@ -188,13 +188,13 @@ func (h *UserOrderHandler) UpdateStageColumnOrder(c *gin.Context) {
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
-// @Param        projectId path string true "Project ID"
+// @Param        id path string true "Project ID"
 // @Param        roleId path string true "Role ID"
 // @Param        request body dto.UpdateOrderRequest true "Order update details"
 // @Success      200 {object} dto.SuccessResponse{data=string}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
-// @Router       /api/projects/{projectId}/orders/role-kanbans/{roleId} [put]
+// @Router       /api/projects/{id}/orders/role-kanbans/{roleId} [put]
 // @Security     BearerAuth
 func (h *UserOrderHandler) UpdateKanbanOrderInRole(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -203,7 +203,7 @@ func (h *UserOrderHandler) UpdateKanbanOrderInRole(c *gin.Context) {
 		return
 	}
 
-	projectID := c.Param("projectId")
+	projectID := c.Param("id")
 	roleID := c.Param("roleId")
 
 	if projectID == "" || roleID == "" {
@@ -236,13 +236,13 @@ func (h *UserOrderHandler) UpdateKanbanOrderInRole(c *gin.Context) {
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
-// @Param        projectId path string true "Project ID"
+// @Param        id path string true "Project ID"
 // @Param        stageId path string true "Stage ID"
 // @Param        request body dto.UpdateOrderRequest true "Order update details"
 // @Success      200 {object} dto.SuccessResponse{data=string}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
-// @Router       /api/projects/{projectId}/orders/stage-kanbans/{stageId} [put]
+// @Router       /api/projects/{id}/orders/stage-kanbans/{stageId} [put]
 // @Security     BearerAuth
 func (h *UserOrderHandler) UpdateKanbanOrderInStage(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -251,7 +251,7 @@ func (h *UserOrderHandler) UpdateKanbanOrderInStage(c *gin.Context) {
 		return
 	}
 
-	projectID := c.Param("projectId")
+	projectID := c.Param("id")
 	stageID := c.Param("stageId")
 
 	if projectID == "" || stageID == "" {

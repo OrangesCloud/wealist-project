@@ -144,12 +144,12 @@ func main() {
 			projects.DELETE("/:id/members/:memberId", projectHandler.RemoveMember)
 
 			// User Order Management (Drag-and-Drop)
-			projects.GET("/:projectId/orders/role-board", userOrderHandler.GetRoleBasedBoardView)
-			projects.GET("/:projectId/orders/stage-board", userOrderHandler.GetStageBasedBoardView)
-			projects.PUT("/:projectId/orders/role-columns", userOrderHandler.UpdateRoleColumnOrder)
-			projects.PUT("/:projectId/orders/stage-columns", userOrderHandler.UpdateStageColumnOrder)
-			projects.PUT("/:projectId/orders/role-kanbans/:roleId", userOrderHandler.UpdateKanbanOrderInRole)
-			projects.PUT("/:projectId/orders/stage-kanbans/:stageId", userOrderHandler.UpdateKanbanOrderInStage)
+			projects.GET("/:id/orders/role-board", userOrderHandler.GetRoleBasedBoardView)
+			projects.GET("/:id/orders/stage-board", userOrderHandler.GetStageBasedBoardView)
+			projects.PUT("/:id/orders/role-columns", userOrderHandler.UpdateRoleColumnOrder)
+			projects.PUT("/:id/orders/stage-columns", userOrderHandler.UpdateStageColumnOrder)
+			projects.PUT("/:id/orders/role-kanbans/:roleId", userOrderHandler.UpdateKanbanOrderInRole)
+			projects.PUT("/:id/orders/stage-kanbans/:stageId", userOrderHandler.UpdateKanbanOrderInStage)
 		}
 
 		// Custom Fields routes
