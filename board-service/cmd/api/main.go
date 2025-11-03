@@ -54,9 +54,11 @@ func main() {
 	// 5.5. Initialize repositories
 	roleRepo := repository.NewRoleRepository(db)
 	workspaceRepo := repository.NewWorkspaceRepository(db)
+	projectRepo := repository.NewProjectRepository(db)
 
 	// 5.6. Initialize services
 	workspaceService := service.NewWorkspaceService(workspaceRepo, roleRepo, userClient, log, db)
+	projectService := service.NewProjectService(projectRepo, workspaceRepo, roleRepo, userClient, log, db)
 
 	// 6. Configure Gin mode
 	if cfg.Server.Env == "prod" {
@@ -82,6 +84,7 @@ func main() {
 	{
 		// Initialize handlers
 		workspaceHandler := handler.NewWorkspaceHandler(workspaceService)
+		projectHandler := handler.NewProjectHandler(projectService)
 
 		// Workspace routes
 		workspaces := api.Group("/workspaces")
@@ -105,6 +108,27 @@ func main() {
 
 			// Default Workspace
 			workspaces.POST("/default", workspaceHandler.SetDefaultWorkspace)
+		}
+
+		// Project routes
+		projects := api.Group("/projects")
+		{
+			// Project CRUD
+			projects.POST("", projectHandler.CreateProject)
+			projects.GET("/search", projectHandler.SearchProjects) // Must be before /:id
+			projects.GET("/:id", projectHandler.GetProject)
+			projects.PUT("/:id", projectHandler.UpdateProject)
+			projects.DELETE("/:id", projectHandler.DeleteProject)
+
+			// Join Requests
+			projects.POST("/join-requests", projectHandler.CreateJoinRequest)
+			projects.GET("/:id/join-requests", projectHandler.GetJoinRequests)
+			projects.PUT("/join-requests/:id", projectHandler.UpdateJoinRequest)
+
+			// Members
+			projects.GET("/:id/members", projectHandler.GetProjectMembers)
+			projects.PUT("/:id/members/:memberId/role", projectHandler.UpdateMemberRole)
+			projects.DELETE("/:id/members/:memberId", projectHandler.RemoveMember)
 		}
 	}
 
