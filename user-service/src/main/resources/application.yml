@@ -29,13 +29,16 @@ spring:
   # ====================================
   # 🔐 Google OAuth2 설정
   # ====================================
+
   security:
     oauth2:
       client:
         registration:
           google:
+#            client-id: "640996696843-gtht74dpnn9c4u7mb6k5craur1vojgbk"
             client-id: ${GOOGLE_CLIENT_ID}
             client-secret: ${GOOGLE_CLIENT_SECRET}
+#            client-secret: "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"
             scope:
               - email
               - profile
@@ -48,6 +51,7 @@ spring:
             token-uri: https://oauth2.googleapis.com/token
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: sub
+
 
 springdoc:
   swagger-ui:

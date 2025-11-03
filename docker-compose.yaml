@@ -3,7 +3,7 @@ services:
   user-service:
     build: ./user-service
     container_name: wealist-user-service
-    env_file: ./.env
+    env_file: .env
     environment:
       # Spring Boot 표준 데이터베이스 설정
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${USER_DB_NAME}

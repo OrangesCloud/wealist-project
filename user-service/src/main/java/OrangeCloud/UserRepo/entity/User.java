@@ -30,7 +30,7 @@ public class User {
     private String email;
 
     // OAuth2 로그인 시 비밀번호가 없을 수 있으므로 nullable
-    @Column(name = "password_hash")
+    @Column(name = "password_hash",nullable=true)
     private String passwordHash;
 
     // 로그인 제공자 (google, local 등)
