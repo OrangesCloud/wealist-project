@@ -46,7 +46,7 @@ services:
 
   #--- Kanban Service ---
   kanban-service:
-    build: ./kanban-service
+    build: ./board-service
     container_name: wealist-kanban-service
     env_file: ./.env
     environment:
@@ -135,7 +135,7 @@ services:
     networks:
       - wealist-net
     depends_on: # 백엔드 서비스들이 시작된 후 실행
-      - kanban-service
+      - board-service
       - user-service
     restart: unless-stopped
 #--- Networks and Volumes ---
