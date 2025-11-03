@@ -55,10 +55,13 @@ func main() {
 	roleRepo := repository.NewRoleRepository(db)
 	workspaceRepo := repository.NewWorkspaceRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
+	customFieldRepo := repository.NewCustomFieldRepository(db)
 
 	// 5.6. Initialize services
+	// Note: customFieldService is created first, then injected into projectService
+	customFieldService := service.NewCustomFieldService(customFieldRepo, projectRepo, roleRepo, log, db)
 	workspaceService := service.NewWorkspaceService(workspaceRepo, roleRepo, userClient, log, db)
-	projectService := service.NewProjectService(projectRepo, workspaceRepo, roleRepo, userClient, log, db)
+	projectService := service.NewProjectService(projectRepo, workspaceRepo, roleRepo, customFieldService, userClient, log, db)
 
 	// 6. Configure Gin mode
 	if cfg.Server.Env == "prod" {
@@ -85,6 +88,7 @@ func main() {
 		// Initialize handlers
 		workspaceHandler := handler.NewWorkspaceHandler(workspaceService)
 		projectHandler := handler.NewProjectHandler(projectService)
+		customFieldHandler := handler.NewCustomFieldHandler(customFieldService)
 
 		// Workspace routes
 		workspaces := api.Group("/workspaces")
@@ -129,6 +133,34 @@ func main() {
 			projects.GET("/:id/members", projectHandler.GetProjectMembers)
 			projects.PUT("/:id/members/:memberId/role", projectHandler.UpdateMemberRole)
 			projects.DELETE("/:id/members/:memberId", projectHandler.RemoveMember)
+		}
+
+		// Custom Fields routes
+		customFields := api.Group("/custom-fields")
+		{
+			// Custom Roles
+			customFields.POST("/roles", customFieldHandler.CreateCustomRole)
+			customFields.GET("/projects/:projectId/roles", customFieldHandler.GetCustomRoles)
+			customFields.GET("/roles/:id", customFieldHandler.GetCustomRole)
+			customFields.PUT("/roles/:id", customFieldHandler.UpdateCustomRole)
+			customFields.DELETE("/roles/:id", customFieldHandler.DeleteCustomRole)
+			customFields.PUT("/projects/:projectId/roles/order", customFieldHandler.UpdateCustomRoleOrder)
+
+			// Custom Stages
+			customFields.POST("/stages", customFieldHandler.CreateCustomStage)
+			customFields.GET("/projects/:projectId/stages", customFieldHandler.GetCustomStages)
+			customFields.GET("/stages/:id", customFieldHandler.GetCustomStage)
+			customFields.PUT("/stages/:id", customFieldHandler.UpdateCustomStage)
+			customFields.DELETE("/stages/:id", customFieldHandler.DeleteCustomStage)
+			customFields.PUT("/projects/:projectId/stages/order", customFieldHandler.UpdateCustomStageOrder)
+
+			// Custom Importance
+			customFields.POST("/importance", customFieldHandler.CreateCustomImportance)
+			customFields.GET("/projects/:projectId/importance", customFieldHandler.GetCustomImportances)
+			customFields.GET("/importance/:id", customFieldHandler.GetCustomImportance)
+			customFields.PUT("/importance/:id", customFieldHandler.UpdateCustomImportance)
+			customFields.DELETE("/importance/:id", customFieldHandler.DeleteCustomImportance)
+			customFields.PUT("/projects/:projectId/importance/order", customFieldHandler.UpdateCustomImportanceOrder)
 		}
 	}
 
