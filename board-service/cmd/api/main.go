@@ -56,10 +56,12 @@ func main() {
 	workspaceRepo := repository.NewWorkspaceRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 	customFieldRepo := repository.NewCustomFieldRepository(db)
+	kanbanRepo := repository.NewKanbanRepository(db)
 
 	// 5.6. Initialize services
-	// Note: customFieldService is created first, then injected into projectService
-	customFieldService := service.NewCustomFieldService(customFieldRepo, projectRepo, roleRepo, log, db)
+	// Note: customFieldService needs kanbanRepo (for Phase 4 TODO), then injected into projectService
+	customFieldService := service.NewCustomFieldService(customFieldRepo, projectRepo, roleRepo, kanbanRepo, log, db)
+	kanbanService := service.NewKanbanService(kanbanRepo, projectRepo, customFieldRepo, roleRepo, userClient, log, db)
 	workspaceService := service.NewWorkspaceService(workspaceRepo, roleRepo, userClient, log, db)
 	projectService := service.NewProjectService(projectRepo, workspaceRepo, roleRepo, customFieldService, userClient, log, db)
 
@@ -89,6 +91,7 @@ func main() {
 		workspaceHandler := handler.NewWorkspaceHandler(workspaceService)
 		projectHandler := handler.NewProjectHandler(projectService)
 		customFieldHandler := handler.NewCustomFieldHandler(customFieldService)
+		kanbanHandler := handler.NewKanbanHandler(kanbanService)
 
 		// Workspace routes
 		workspaces := api.Group("/workspaces")
@@ -161,6 +164,16 @@ func main() {
 			customFields.PUT("/importance/:id", customFieldHandler.UpdateCustomImportance)
 			customFields.DELETE("/importance/:id", customFieldHandler.DeleteCustomImportance)
 			customFields.PUT("/projects/:projectId/importance/order", customFieldHandler.UpdateCustomImportanceOrder)
+		}
+
+		// Kanban routes
+		kanbans := api.Group("/kanbans")
+		{
+			kanbans.POST("", kanbanHandler.CreateKanban)
+			kanbans.GET("/:id", kanbanHandler.GetKanban)
+			kanbans.GET("", kanbanHandler.GetKanbans)
+			kanbans.PUT("/:id", kanbanHandler.UpdateKanban)
+			kanbans.DELETE("/:id", kanbanHandler.DeleteKanban)
 		}
 	}
 
