@@ -104,7 +104,7 @@ print_info "애플리케이션 서비스 시작 중..."
 docker-compose up -d user-service board-service
 
 # Wait for application services
-#wait_for_service "User Service" "curl -f http://localhost:8080/actuator/health"
+wait_for_service "User Service" "curl -f http://localhost:8080/actuator/health"
 wait_for_service "Board Service" "curl -f http://localhost:8000/health"
 
 print_success "모든 서비스 시작 완료"

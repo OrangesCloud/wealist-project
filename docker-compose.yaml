@@ -7,6 +7,7 @@ services:
     environment:
       # Spring boot 포트 명시적 추가
       - USER_SERVICE_PORT=8080
+      - SERVER_PORT=8080
       # Spring Boot 표준 데이터베이스 설정
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${USER_DB_NAME}
       - SPRING_DATASOURCE_USERNAME=${USER_DB_USER}
@@ -39,12 +40,12 @@ services:
       redis:
         condition: service_started
     restart: unless-stopped
-#    healthcheck:
-#      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 60s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # Board Service (구 Kanban)
   board-service:
