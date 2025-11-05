@@ -62,8 +62,6 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
-                        // 임시 테스트용 API 허용
-                        .requestMatchers("/temp/**").permitAll()
                         // ************ 나중에 아래 전체 허용 해제 필수 **********
                         .requestMatchers("/**").permitAll()
                         // 나머지는 인증 필요
