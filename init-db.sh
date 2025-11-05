@@ -17,14 +17,14 @@ EOSQL
 
 echo "✅ User 서비스 데이터베이스 생성 완료: ${USER_DB_NAME}"
 
-# Kanban Service Database
+# Board Service Database (구 Kanban)
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
-    CREATE DATABASE ${KANBAN_DB_NAME};
-    CREATE USER ${KANBAN_DB_USER} WITH PASSWORD '${KANBAN_DB_PASSWORD}';
-    GRANT ALL PRIVILEGES ON DATABASE ${KANBAN_DB_NAME} TO ${KANBAN_DB_USER};
-    \c ${KANBAN_DB_NAME}
-    GRANT ALL ON SCHEMA public TO ${KANBAN_DB_USER};
+    CREATE DATABASE ${BOARD_DB_NAME};
+    CREATE USER ${BOARD_DB_USER} WITH PASSWORD '${BOARD_DB_PASSWORD}';
+    GRANT ALL PRIVILEGES ON DATABASE ${BOARD_DB_NAME} TO ${BOARD_DB_USER};
+    \c ${BOARD_DB_NAME}
+    GRANT ALL ON SCHEMA public TO ${BOARD_DB_USER};
 EOSQL
 
-echo "✅ Kanban 서비스 데이터베이스 생성 완료: ${KANBAN_DB_NAME}"
+echo "✅ Board 서비스 데이터베이스 생성 완료: ${BOARD_DB_NAME}"
 echo "🎉 데이터베이스 초기화 완료!"
