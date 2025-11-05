@@ -77,37 +77,28 @@ public class AuthService {
 //    }
 
     public AuthResponse TestLogin() {
-        String email = "admin@orangecloud.com";
-        logger.debug("Attempting to log in user with email: {}", email);
+        // 랜덤한 이메일로 새 사용자 생성
+        String randomEmail = "test_" + System.currentTimeMillis() + "@orangecloud.com";
+        logger.debug("Creating new test user with email: {}", randomEmail);
 
-        // 사용자 찾기
-        User user = userRepository.findByEmailAndIsActiveTrue(email)
-                .orElseThrow(() -> {
-                    logger.warn("Login failed: User not found for email: {}", email);
-                    return new UserNotFoundException("등록되지 않은 이메일입니다.");
-                });
+        // 새로운 테스트 사용자 생성
+        User testUser = User.builder()
+                .name("Test User " + System.currentTimeMillis())
+                .email(randomEmail)
+                .provider("local")
+                .role("ROLE_ADMIN")
+                .isActive(true)
+                .build();
 
-
-        if (!userRepository.existsByEmailAndIsActiveTrue("admin@orangecloud.com")) {
-            User adminUser = User.builder()
-                    .name("System Admin")
-                    .email("admin@orangecloud.com")
-                    .provider("local")
-                    .role("ROLE_ADMIN")
-                    .isActive(true)
-                    .build();
-
-            userRepository.save(adminUser);
-        }
-
-        logger.debug("User logged in successfully with ID: {}", user.getUserId());
+        User savedUser = userRepository.save(testUser);
+        logger.debug("Created new test user with ID: {}", savedUser.getUserId());
 
         // JWT 토큰 생성
-        String accessToken = tokenProvider.generateToken(user.getUserId());
-        String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
-        logger.debug("Generated tokens for user: {}", user.getUserId());
+        String accessToken = tokenProvider.generateToken(savedUser.getUserId());
+        String refreshToken = tokenProvider.generateRefreshToken(savedUser.getUserId());
+        logger.debug("Generated tokens for user: {}", savedUser.getUserId());
 
-        return new AuthResponse(accessToken, refreshToken, user.getUserId(), user.getName(), user.getEmail());
+        return new AuthResponse(accessToken, refreshToken, savedUser.getUserId(), savedUser.getName(), savedUser.getEmail());
     }
 
     public void logout(String token) {
