@@ -10,6 +10,7 @@ import OrangeCloud.UserRepo.util.JwtTokenProvider;
 import OrangeCloud.UserRepo.exception.EmailAlreadyExistsException;
 import OrangeCloud.UserRepo.exception.UserNotFoundException;
 import OrangeCloud.UserRepo.exception.InvalidPasswordException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,7 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final RedisTemplate<String, Object> redisTemplate;
 
+    @Value("${jwt.email}") String testEmail;
     @Autowired
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
@@ -74,31 +76,39 @@ public class AuthService {
 //        return new AuthResponse(accessToken, refreshToken, savedUser.getUserId(), savedUser.getName(), savedUser.getEmail());
 //    }
 
-//    public AuthResponse login(LoginRequest loginRequest) {
-//        logger.debug("Attempting to log in user with email: {}", loginRequest.getEmail());
-//
-//        // 사용자 찾기
-//        User user = userRepository.findByEmailAndIsActiveTrue(loginRequest.getEmail())
-//                .orElseThrow(() -> {
-//                    logger.warn("Login failed: User not found for email: {}", loginRequest.getEmail());
-//                    return new UserNotFoundException("등록되지 않은 이메일입니다.");
-//                });
-//
-//        // 비밀번호 확인
-//        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPasswordHash())) {
-//            logger.warn("Login failed: Invalid password for user: {}", loginRequest.getEmail());
-//            throw new InvalidPasswordException("비밀번호가 일치하지 않습니다.");
-//        }
-//
-//        logger.debug("User logged in successfully with ID: {}", user.getUserId());
-//
-//        // JWT 토큰 생성
-//        String accessToken = tokenProvider.generateToken(user.getUserId());
-//        String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
-//        logger.debug("Generated tokens for user: {}", user.getUserId());
-//
-//        return new AuthResponse(accessToken, refreshToken, user.getUserId(), user.getName(), user.getEmail());
-//    }
+    public AuthResponse TestLogin() {
+        String email = "admin@orangecloud.com";
+        logger.debug("Attempting to log in user with email: {}", email);
+
+        // 사용자 찾기
+        User user = userRepository.findByEmailAndIsActiveTrue(email)
+                .orElseThrow(() -> {
+                    logger.warn("Login failed: User not found for email: {}", email);
+                    return new UserNotFoundException("등록되지 않은 이메일입니다.");
+                });
+
+
+        if (!userRepository.existsByEmailAndIsActiveTrue("admin@orangecloud.com")) {
+            User adminUser = User.builder()
+                    .name("System Admin")
+                    .email("admin@orangecloud.com")
+                    .provider("local")
+                    .role("ROLE_ADMIN")
+                    .isActive(true)
+                    .build();
+
+            userRepository.save(adminUser);
+        }
+
+        logger.debug("User logged in successfully with ID: {}", user.getUserId());
+
+        // JWT 토큰 생성
+        String accessToken = tokenProvider.generateToken(user.getUserId());
+        String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
+        logger.debug("Generated tokens for user: {}", user.getUserId());
+
+        return new AuthResponse(accessToken, refreshToken, user.getUserId(), user.getName(), user.getEmail());
+    }
 
     public void logout(String token) {
         logger.debug("Attempting to log out token: {}", token);

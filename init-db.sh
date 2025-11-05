@@ -13,6 +13,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
     GRANT ALL PRIVILEGES ON DATABASE ${USER_DB_NAME} TO ${USER_DB_USER};
     \c ${USER_DB_NAME}
     GRANT ALL ON SCHEMA public TO ${USER_DB_USER};
+
+
 EOSQL
 
 echo "✅ User 서비스 데이터베이스 생성 완료: ${USER_DB_NAME}"
@@ -25,6 +27,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
     \c ${BOARD_DB_NAME}
     GRANT ALL ON SCHEMA public TO ${BOARD_DB_USER};
 EOSQL
+
+
 
 echo "✅ Board 서비스 데이터베이스 생성 완료: ${BOARD_DB_NAME}"
 echo "🎉 데이터베이스 초기화 완료!"

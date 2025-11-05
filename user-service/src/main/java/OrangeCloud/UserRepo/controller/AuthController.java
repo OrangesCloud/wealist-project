@@ -105,6 +105,10 @@ public class AuthController {
         logger.info(MessageCode.USER_INFO_RETRIEVED_SUCCESS.getMessage() + ": {}", userId);
         return ResponseEntity.ok(userInfo);
     }
+    @GetMapping("/test")
+    public ResponseEntity<AuthResponse> testUser(){
+        return ResponseEntity.ok(authService.TestLogin());
+    }
 
     // 헬퍼 메서드: Request에서 토큰 추출
     private String extractTokenFromRequest(HttpServletRequest request) {
