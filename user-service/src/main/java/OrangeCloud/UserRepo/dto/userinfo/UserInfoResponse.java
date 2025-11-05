@@ -22,6 +22,13 @@ public class UserInfoResponse {
         this.username = username;
         this.email = email;
         this.name = name;
-        this.createdAt = createdAt;
+//        this.createdAt = createdAt;
+    }
+    public UserInfoResponse(UUID id, String username, String email, String name) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.name = name;
+//        this.createdAt = createdAt;
     }
 }

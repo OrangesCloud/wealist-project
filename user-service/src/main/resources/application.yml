@@ -1,6 +1,6 @@
 spring:
   application:
-    name: ${APP_NAME}
+    name: ${APP_NAME:wealist-user}
 
   main:
     allow-circular-references: true
@@ -19,6 +19,9 @@ spring:
       hibernate:
         format_sql: ${JPA_FORMAT_SQL}
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
+
+  file:
+    upload-dir: /app/upload
 
   data:
     redis:

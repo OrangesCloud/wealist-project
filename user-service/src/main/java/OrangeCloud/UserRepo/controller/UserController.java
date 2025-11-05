@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,52 +60,73 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // 이메일로 사용자 조회
-    @GetMapping("/email/{email}")
-    public ResponseEntity<User> getActiveUserByEmail(@PathVariable String email) {
-        log.info("Request to get user by email: {}", email);
-
-        Optional<User> user = userService.getActiveUserByEmail(email);
-        return user.map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
-    // 이름으로 사용자 검색
+//    // 이메일로 사용자 조회
+//    @GetMapping("/email/{email}")
+//    public ResponseEntity<User> getActiveUserByEmail(@PathVariable String email) {
+//        log.info("Request to get user by email: {}", email);
+//
+//        Optional<User> user = userService.getActiveUserByEmail(email);
+//        return user.map(ResponseEntity::ok)
+//                .orElse(ResponseEntity.notFound().build());
+//    }
+//
+//    // 이름으로 사용자 검색
+//    @GetMapping("/search")
+//    public ResponseEntity<List<User>> searchUsersByName(@RequestParam String name) {
+//        log.info("Request to search users by name: {}", name);
+//        List<User> users = userService.searchActiveUsersByName(name);
+//        return ResponseEntity.ok(users);
+//    }
+    // 단일 이름검색 및 단일 이메일 검색
     @GetMapping("/search")
-    public ResponseEntity<List<User>> searchUsersByName(@RequestParam String name) {
-        log.info("Request to search users by name: {}", name);
-        List<User> users = userService.searchActiveUsersByName(name);
-        return ResponseEntity.ok(users);
-    }
+    public ResponseEntity<List<User>> searchUsers(@RequestParam String query) {
+        log.info("Searching users by query: {}", query);
 
-    // 사용자 정보 수정
-    @PutMapping("/{userId}")
-    public ResponseEntity<User> updateUser(@PathVariable UUID userId,
-                                           @Valid @RequestBody UpdateUserRequest request) {
-        log.info("Request to update user: {} with data: {}", userId, request);
-
-        try {
-            Optional<User> updatedUser = userService.updateUser(userId, request.getName(), request.getEmail());
-            return updatedUser.map(ResponseEntity::ok)
-                    .orElse(ResponseEntity.notFound().build());
-        } catch (IllegalArgumentException e) {
+        if (query == null || query.trim().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
+
+        List<User> users = userService.searchUsers(query);
+        return ResponseEntity.ok(users);
+}
+
+    // 요청하는 사용자 id 기반 모든 사용자 정보
+    @PostMapping("/ids")
+    public ResponseEntity<List<User>> getUsersByIds(@RequestBody UserIdRequest request) {
+        return ResponseEntity.ok(userService.getUsersByUserIds(request.getUserIds()));
     }
+    //유저 프로필 이미지 설정
+
+
+
+//    // 사용자 정보 수정
+//    @PutMapping("/{userId}")
+//    public ResponseEntity<User> updateUser(@PathVariable UUID userId,
+//                                           @Valid @RequestBody UpdateUserRequest request) {
+//        log.info("Request to update user: {} with data: {}", userId, request);
+//
+//        try {
+//            Optional<User> updatedUser = userService.updateUser(userId, request.getName(), request.getEmail());
+//            return updatedUser.map(ResponseEntity::ok)
+//                    .orElse(ResponseEntity.notFound().build());
+//        } catch (IllegalArgumentException e) {
+//            return ResponseEntity.badRequest().build();
+//        }
+//    }
 
     // 비밀번호 변경 메서드 수정
-    @PatchMapping("/{userId}/password")
-    public ResponseEntity<MessageApiResponse> changePassword(@PathVariable UUID userId,
-                                                             @Valid @RequestBody ChangePasswordRequest request) {
-        log.info("Request to change password for user: {}", userId);
-
-        boolean changed = userService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
-        if (changed) {
-            return ResponseEntity.ok(MessageApiResponse.success("비밀번호가 성공적으로 변경되었습니다."));
-        } else {
-            return ResponseEntity.badRequest().body(MessageApiResponse.failure("현재 비밀번호가 올바르지 않습니다."));
-        }
-    }
+//    @PatchMapping("/{userId}/password")
+//    public ResponseEntity<MessageApiResponse> changePassword(@PathVariable UUID userId,
+//                                                             @Valid @RequestBody ChangePasswordRequest request) {
+//        log.info("Request to change password for user: {}", userId);
+//
+//        boolean changed = userService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
+//        if (changed) {
+//            return ResponseEntity.ok(MessageApiResponse.success("비밀번호가 성공적으로 변경되었습니다."));
+//        } else {
+//            return ResponseEntity.badRequest().body(MessageApiResponse.failure("현재 비밀번호가 올바르지 않습니다."));
+//        }
+//    }
 
     // 사용자 재활성화
     @PutMapping("/{userId}/reactivate")
@@ -124,7 +146,7 @@ public class UserController {
     public ResponseEntity<User> login(@Valid @RequestBody LoginRequest request) {
         log.info("Login request for email: {}", request.getEmail());
 
-        Optional<User> user = userService.authenticateUser(request.getEmail(), request.getPassword());
+        Optional<User> user = userService.authenticateUser(request.getEmail());
         return user.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.status(401).build()); // 이렇게 수정
     }

@@ -47,58 +47,58 @@ public class AuthService {
         this.redisTemplate = redisTemplate;
     }
 
-    public AuthResponse signup(SignupRequest signupRequest) {
-        logger.debug("Attempting to sign up user with email: {}", signupRequest.getEmail());
+//    public AuthResponse signup(SignupRequest signupRequest) {
+//        logger.debug("Attempting to sign up user with email: {}", signupRequest.getEmail());
+//
+//        // 이메일 중복 검사
+//        if (userRepository.existsByEmailAndIsActiveTrue(signupRequest.getEmail())) {
+//            logger.warn("Signup failed: Email already exists: {}", signupRequest.getEmail());
+//            throw new EmailAlreadyExistsException("이미 사용 중인 이메일입니다.");
+//        }
+//
+//        // 사용자 생성
+//        User user = User.builder()
+//                .name(signupRequest.getName())
+//                .email(signupRequest.getEmail())
+////                .passwordHash(passwordEncoder.encode(signupRequest.getPassword()))
+//                .build();
+//
+//        User savedUser = userRepository.save(user);
+//        logger.debug("User signed up successfully with ID: {}", savedUser.getUserId());
+//
+//        // JWT 토큰 생성
+//        String accessToken = tokenProvider.generateToken(savedUser.getUserId());
+//        String refreshToken = tokenProvider.generateRefreshToken(savedUser.getUserId());
+//        logger.debug("Generated tokens for user: {}", savedUser.getUserId());
+//
+//        return new AuthResponse(accessToken, refreshToken, savedUser.getUserId(), savedUser.getName(), savedUser.getEmail());
+//    }
 
-        // 이메일 중복 검사
-        if (userRepository.existsByEmailAndIsActiveTrue(signupRequest.getEmail())) {
-            logger.warn("Signup failed: Email already exists: {}", signupRequest.getEmail());
-            throw new EmailAlreadyExistsException("이미 사용 중인 이메일입니다.");
-        }
-
-        // 사용자 생성
-        User user = User.builder()
-                .name(signupRequest.getName())
-                .email(signupRequest.getEmail())
-                .passwordHash(passwordEncoder.encode(signupRequest.getPassword()))
-                .build();
-
-        User savedUser = userRepository.save(user);
-        logger.debug("User signed up successfully with ID: {}", savedUser.getUserId());
-
-        // JWT 토큰 생성
-        String accessToken = tokenProvider.generateToken(savedUser.getUserId());
-        String refreshToken = tokenProvider.generateRefreshToken(savedUser.getUserId());
-        logger.debug("Generated tokens for user: {}", savedUser.getUserId());
-
-        return new AuthResponse(accessToken, refreshToken, savedUser.getUserId(), savedUser.getName(), savedUser.getEmail());
-    }
-
-    public AuthResponse login(LoginRequest loginRequest) {
-        logger.debug("Attempting to log in user with email: {}", loginRequest.getEmail());
-
-        // 사용자 찾기
-        User user = userRepository.findByEmailAndIsActiveTrue(loginRequest.getEmail())
-                .orElseThrow(() -> {
-                    logger.warn("Login failed: User not found for email: {}", loginRequest.getEmail());
-                    return new UserNotFoundException("등록되지 않은 이메일입니다.");
-                });
-
-        // 비밀번호 확인
-        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPasswordHash())) {
-            logger.warn("Login failed: Invalid password for user: {}", loginRequest.getEmail());
-            throw new InvalidPasswordException("비밀번호가 일치하지 않습니다.");
-        }
-
-        logger.debug("User logged in successfully with ID: {}", user.getUserId());
-
-        // JWT 토큰 생성
-        String accessToken = tokenProvider.generateToken(user.getUserId());
-        String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
-        logger.debug("Generated tokens for user: {}", user.getUserId());
-
-        return new AuthResponse(accessToken, refreshToken, user.getUserId(), user.getName(), user.getEmail());
-    }
+//    public AuthResponse login(LoginRequest loginRequest) {
+//        logger.debug("Attempting to log in user with email: {}", loginRequest.getEmail());
+//
+//        // 사용자 찾기
+//        User user = userRepository.findByEmailAndIsActiveTrue(loginRequest.getEmail())
+//                .orElseThrow(() -> {
+//                    logger.warn("Login failed: User not found for email: {}", loginRequest.getEmail());
+//                    return new UserNotFoundException("등록되지 않은 이메일입니다.");
+//                });
+//
+//        // 비밀번호 확인
+//        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPasswordHash())) {
+//            logger.warn("Login failed: Invalid password for user: {}", loginRequest.getEmail());
+//            throw new InvalidPasswordException("비밀번호가 일치하지 않습니다.");
+//        }
+//
+//        logger.debug("User logged in successfully with ID: {}", user.getUserId());
+//
+//        // JWT 토큰 생성
+//        String accessToken = tokenProvider.generateToken(user.getUserId());
+//        String refreshToken = tokenProvider.generateRefreshToken(user.getUserId());
+//        logger.debug("Generated tokens for user: {}", user.getUserId());
+//
+//        return new AuthResponse(accessToken, refreshToken, user.getUserId(), user.getName(), user.getEmail());
+//    }
 
     public void logout(String token) {
         logger.debug("Attempting to log out token: {}", token);
@@ -175,8 +175,8 @@ public class AuthService {
                 user.getUserId(),
                 user.getName(),
                 user.getEmail(), // username으로 email 사용
-                user.getName(),
-                LocalDateTime.now() // 현재 시간으로 대체
+                user.getName()
+//                LocalDateTime.now() // 현재 시간으로 대체
         );
     }
 

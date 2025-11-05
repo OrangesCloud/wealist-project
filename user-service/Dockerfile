@@ -25,8 +25,8 @@ ENV TZ=Asia/Seoul
 # Create a non-root user
 RUN groupadd -r spring && useradd -r -g spring spring
 WORKDIR /app
+RUN mkdir -p /app/upload && chown -R spring:spring /app/upload
 USER spring:spring
-
 # Copy the application JAR from the build stage
 COPY --from=builder --chown=spring:spring /home/gradle/src/build/libs/*.jar app.jar
 

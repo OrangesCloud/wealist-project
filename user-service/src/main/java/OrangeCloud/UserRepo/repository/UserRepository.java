@@ -66,4 +66,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     // 12. 이메일과 비밀번호로 활성화된 사용자 조회 (로그인용)
     @Query("SELECT u FROM User u WHERE u.email = :email AND u.isActive = true")
     Optional<User> findActiveByEmail(@Param("email") String email);
+    // 13. uuid 기반 해당하는 모든 사용자 정보
+    List<User> findAllByUserIdIn(List<UUID> ids);
+    // 14. 이메일로만 검색
+    List<User> findAllByEmailAndIsActiveTrue(String email);
 }

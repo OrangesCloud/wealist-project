@@ -30,8 +30,8 @@ public class User {
     private String email;
 
     // OAuth2 로그인 시 비밀번호가 없을 수 있으므로 nullable
-    @Column(name = "password_hash",nullable=true)
-    private String passwordHash;
+//    @Column(name = "password_hash",nullable=true)
+//    private String passwordHash;
 
     // 로그인 제공자 (google, local 등)
     @Column(name = "provider")
@@ -58,6 +58,7 @@ public class User {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
 
     /**
      * OAuth2 로그인 시 사용자 정보 업데이트
