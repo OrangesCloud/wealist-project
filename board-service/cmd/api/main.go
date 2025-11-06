@@ -13,8 +13,31 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
+
+	_ "board-service/docs" // Swagger docs
 )
+
+// @title Board Service API
+// @version 1.0
+// @description Board management API for weAlist project management platform
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.email support@wealist.com
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8000
+// @BasePath /api
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 
 func main() {
 	// 1. Load configuration
@@ -36,7 +59,7 @@ func main() {
 	)
 
 	// 3. Connect to database
-	db, err := database.Connect(cfg.Database.URL, log)
+	db, err := database.Connect(cfg.Database.URL, log, cfg.Server.UseAutoMigrate)
 	if err != nil {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -59,18 +82,18 @@ func main() {
 	workspaceRepo := repository.NewWorkspaceRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 	customFieldRepo := repository.NewCustomFieldRepository(db)
-	kanbanRepo := repository.NewKanbanRepository(db)
+	boardRepo := repository.NewBoardRepository(db)
 	userOrderRepo := repository.NewUserOrderRepository(db)
 	commentRepo := repository.NewCommentRepository(db) // Add CommentRepository
 
 	// 5.7. Initialize services
-	// Note: customFieldService needs kanbanRepo (for Phase 4 TODO), then injected into projectService
-	customFieldService := service.NewCustomFieldService(customFieldRepo, projectRepo, roleRepo, kanbanRepo, log, db)
-	kanbanService := service.NewKanbanService(kanbanRepo, projectRepo, customFieldRepo, roleRepo, userClient, log, db)
+	// Note: customFieldService needs boardRepo (for Phase 4 TODO), then injected into projectService
+	customFieldService := service.NewCustomFieldService(customFieldRepo, projectRepo, roleRepo, boardRepo, log, db)
+	boardService := service.NewBoardService(boardRepo, projectRepo, customFieldRepo, roleRepo, userClient, log, db)
 	workspaceService := service.NewWorkspaceService(workspaceRepo, roleRepo, userClient, log, db)
 	projectService := service.NewProjectService(projectRepo, workspaceRepo, roleRepo, userOrderRepo, customFieldService, userClient, log, db)
-	userOrderService := service.NewUserOrderService(userOrderRepo, projectRepo, customFieldRepo, kanbanRepo, userOrderCache, log)
-	commentService := service.NewCommentService(commentRepo, kanbanRepo, projectRepo, userClient, log, db) // Add CommentService
+	userOrderService := service.NewUserOrderService(userOrderRepo, projectRepo, customFieldRepo, boardRepo, userOrderCache, log)
+	commentService := service.NewCommentService(commentRepo, boardRepo, projectRepo, userClient, log, db) // Add CommentService
 
 	// 6. Configure Gin mode
 	if cfg.Server.Env == "prod" {
@@ -80,17 +103,25 @@ func main() {
 	// 7. Create router
 	r := gin.New()
 
+	
+
 	// 8. Register middleware (order is important)
 	r.Use(middleware.RequestIDMiddleware())
 	r.Use(middleware.LoggerMiddleware(log))
 	r.Use(middleware.RecoveryMiddleware(log))
 	r.Use(middleware.CORSMiddleware(cfg.CORS.Origins))
 
-	// 9. Register health check (no authentication required)
+	// 9. Register Swagger (development only)
+	if cfg.Server.Env == "dev" {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		log.Info("Swagger UI enabled", zap.String("url", "http://localhost:"+cfg.Server.Port+"/swagger/index.html"))
+	}
+
+	// 10. Register health check (no authentication required)
 	healthHandler := handler.NewHealthHandler(db, rdb)
 	handler.RegisterRoutes(r, healthHandler)
 
-	// 10. API routes group (authentication required)
+	// 11. API routes group (authentication required)
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
 	{
@@ -98,7 +129,7 @@ func main() {
 		workspaceHandler := handler.NewWorkspaceHandler(workspaceService)
 		projectHandler := handler.NewProjectHandler(projectService)
 		customFieldHandler := handler.NewCustomFieldHandler(customFieldService)
-		kanbanHandler := handler.NewKanbanHandler(kanbanService)
+		boardHandler := handler.NewBoardHandler(boardService)
 		userOrderHandler := handler.NewUserOrderHandler(userOrderService)
 		commentHandler := handler.NewCommentHandler(commentService) // Add CommentHandler
 
@@ -151,8 +182,8 @@ func main() {
 			projects.GET("/:id/orders/stage-board", userOrderHandler.GetStageBasedBoardView)
 			projects.PUT("/:id/orders/role-columns", userOrderHandler.UpdateRoleColumnOrder)
 			projects.PUT("/:id/orders/stage-columns", userOrderHandler.UpdateStageColumnOrder)
-			projects.PUT("/:id/orders/role-kanbans/:roleId", userOrderHandler.UpdateKanbanOrderInRole)
-			projects.PUT("/:id/orders/stage-kanbans/:stageId", userOrderHandler.UpdateKanbanOrderInStage)
+			projects.PUT("/:id/orders/role-boards/:roleId", userOrderHandler.UpdateBoardOrderInRole)
+			projects.PUT("/:id/orders/stage-boards/:stageId", userOrderHandler.UpdateBoardOrderInStage)
 		}
 
 		// Custom Fields routes
@@ -183,27 +214,27 @@ func main() {
 			customFields.PUT("/projects/:projectId/importance/order", customFieldHandler.UpdateCustomImportanceOrder)
 		}
 
-		// Kanban routes
-		kanbans := api.Group("/kanbans")
+		// Board routes
+		boards := api.Group("/boards")
 		{
-			kanbans.POST("", kanbanHandler.CreateKanban)
-			kanbans.GET("/:id", kanbanHandler.GetKanban)
-			kanbans.GET("", kanbanHandler.GetKanbans)
-			kanbans.PUT("/:id", kanbanHandler.UpdateKanban)
-			kanbans.DELETE("/:id", kanbanHandler.DeleteKanban)
+			boards.POST("", boardHandler.CreateBoard)
+			boards.GET("/:id", boardHandler.GetBoard)
+			boards.GET("", boardHandler.GetBoards)
+			boards.PUT("/:id", boardHandler.UpdateBoard)
+			boards.DELETE("/:id", boardHandler.DeleteBoard)
 		}
 
 		// Comment routes
 		comments := api.Group("/comments")
 		{
 			comments.POST("", commentHandler.CreateComment)
-			comments.GET("", commentHandler.GetCommentsByKanbanID) // Changed from nested route
+			comments.GET("", commentHandler.GetCommentsByBoardID) // Changed from nested route
 			comments.PUT("/:id", commentHandler.UpdateComment)
 			comments.DELETE("/:id", commentHandler.DeleteComment)
 		}
 	}
 
-	// 11. Start server
+	// 12. Start server
 	addr := ":" + cfg.Server.Port
 	log.Info("Server starting", zap.String("address", addr))
 

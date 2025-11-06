@@ -10,8 +10,9 @@ import (
 // Config holds all configuration for the application
 type Config struct {
 	Server struct {
-		Port string
-		Env  string // dev, prod
+		Port           string
+		Env            string // dev, prod
+		UseAutoMigrate bool   // Enable GORM AutoMigrate in dev mode
 	}
 	Database struct {
 		URL string // postgresql://user:pass@host:5432/dbname
@@ -40,10 +41,11 @@ func Load() (*Config, error) {
 	// Set defaults
 	v.SetDefault("SERVER_PORT", "8000")
 	v.SetDefault("ENV", "dev")
+	v.SetDefault("USE_AUTO_MIGRATE", true)
 	v.SetDefault("LOG_LEVEL", "info")
 	v.SetDefault("CORS_ORIGINS", "http://localhost:3000")
 
-	// Bind environment variables
+	// Bind environment variables only (no .env file loading)
 	v.AutomaticEnv()
 
 	// Read environment variables
@@ -52,6 +54,7 @@ func Load() (*Config, error) {
 	// Server
 	cfg.Server.Port = v.GetString("SERVER_PORT")
 	cfg.Server.Env = v.GetString("ENV")
+	cfg.Server.UseAutoMigrate = v.GetBool("USE_AUTO_MIGRATE")
 
 	// Database
 	cfg.Database.URL = v.GetString("DATABASE_URL")

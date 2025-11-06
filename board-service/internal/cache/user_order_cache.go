@@ -18,10 +18,10 @@ const (
 	StageColumnOrderKeyPattern = "user_order:stage:column:%s:%s"
 
 	// user_order:role:kanban:{userId}:{projectId}:{roleId}
-	RoleKanbanOrderKeyPattern = "user_order:role:kanban:%s:%s:%s"
+	RoleBoardOrderKeyPattern = "user_order:role:kanban:%s:%s:%s"
 
 	// user_order:stage:kanban:{userId}:{projectId}:{stageId}
-	StageKanbanOrderKeyPattern = "user_order:stage:kanban:%s:%s:%s"
+	StageBoardOrderKeyPattern = "user_order:stage:kanban:%s:%s:%s"
 
 	// TTL: 1 hour
 	UserOrderTTL = 1 * time.Hour
@@ -79,45 +79,45 @@ func (c *UserOrderCache) DeleteStageColumnOrder(ctx context.Context, userID, pro
 	return c.client.Del(ctx, key).Err()
 }
 
-// ==================== Role Kanban Order Cache ====================
+// ==================== Role Board Order Cache ====================
 
-func (c *UserOrderCache) GetRoleKanbanOrder(ctx context.Context, userID, projectID, roleID string) ([]byte, error) {
-	key := fmt.Sprintf(RoleKanbanOrderKeyPattern, userID, projectID, roleID)
+func (c *UserOrderCache) GetRoleBoardOrder(ctx context.Context, userID, projectID, roleID string) ([]byte, error) {
+	key := fmt.Sprintf(RoleBoardOrderKeyPattern, userID, projectID, roleID)
 	return c.client.Get(ctx, key).Bytes()
 }
 
-func (c *UserOrderCache) SetRoleKanbanOrder(ctx context.Context, userID, projectID, roleID string, data interface{}) error {
-	key := fmt.Sprintf(RoleKanbanOrderKeyPattern, userID, projectID, roleID)
+func (c *UserOrderCache) SetRoleBoardOrder(ctx context.Context, userID, projectID, roleID string, data interface{}) error {
+	key := fmt.Sprintf(RoleBoardOrderKeyPattern, userID, projectID, roleID)
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("failed to marshal role kanban order: %w", err)
+		return fmt.Errorf("failed to marshal role board order: %w", err)
 	}
 	return c.client.Set(ctx, key, jsonData, UserOrderTTL).Err()
 }
 
-func (c *UserOrderCache) DeleteRoleKanbanOrder(ctx context.Context, userID, projectID, roleID string) error {
-	key := fmt.Sprintf(RoleKanbanOrderKeyPattern, userID, projectID, roleID)
+func (c *UserOrderCache) DeleteRoleBoardOrder(ctx context.Context, userID, projectID, roleID string) error {
+	key := fmt.Sprintf(RoleBoardOrderKeyPattern, userID, projectID, roleID)
 	return c.client.Del(ctx, key).Err()
 }
 
-// ==================== Stage Kanban Order Cache ====================
+// ==================== Stage Board Order Cache ====================
 
-func (c *UserOrderCache) GetStageKanbanOrder(ctx context.Context, userID, projectID, stageID string) ([]byte, error) {
-	key := fmt.Sprintf(StageKanbanOrderKeyPattern, userID, projectID, stageID)
+func (c *UserOrderCache) GetStageBoardOrder(ctx context.Context, userID, projectID, stageID string) ([]byte, error) {
+	key := fmt.Sprintf(StageBoardOrderKeyPattern, userID, projectID, stageID)
 	return c.client.Get(ctx, key).Bytes()
 }
 
-func (c *UserOrderCache) SetStageKanbanOrder(ctx context.Context, userID, projectID, stageID string, data interface{}) error {
-	key := fmt.Sprintf(StageKanbanOrderKeyPattern, userID, projectID, stageID)
+func (c *UserOrderCache) SetStageBoardOrder(ctx context.Context, userID, projectID, stageID string, data interface{}) error {
+	key := fmt.Sprintf(StageBoardOrderKeyPattern, userID, projectID, stageID)
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("failed to marshal stage kanban order: %w", err)
+		return fmt.Errorf("failed to marshal stage board order: %w", err)
 	}
 	return c.client.Set(ctx, key, jsonData, UserOrderTTL).Err()
 }
 
-func (c *UserOrderCache) DeleteStageKanbanOrder(ctx context.Context, userID, projectID, stageID string) error {
-	key := fmt.Sprintf(StageKanbanOrderKeyPattern, userID, projectID, stageID)
+func (c *UserOrderCache) DeleteStageBoardOrder(ctx context.Context, userID, projectID, stageID string) error {
+	key := fmt.Sprintf(StageBoardOrderKeyPattern, userID, projectID, stageID)
 	return c.client.Del(ctx, key).Err()
 }
 
@@ -135,28 +135,28 @@ func (c *UserOrderCache) InvalidateUserOrderCache(ctx context.Context, userID, p
 		return fmt.Errorf("failed to delete stage column order cache: %w", err)
 	}
 
-	// Note: Individual kanban order caches (per role/stage) are not deleted here
+	// Note: Individual board order caches (per role/stage) are not deleted here
 	// They will be invalidated when specific orders are updated
 	// This is an optimization to avoid deleting all possible combinations
 
 	return nil
 }
 
-// InvalidateAllRoleKanbanCaches invalidates all role-based kanban order caches for a project
-func (c *UserOrderCache) InvalidateAllRoleKanbanCaches(ctx context.Context, userID, projectID string, roleIDs []string) error {
+// InvalidateAllRoleBoardCaches invalidates all role-based board order caches for a project
+func (c *UserOrderCache) InvalidateAllRoleBoardCaches(ctx context.Context, userID, projectID string, roleIDs []string) error {
 	for _, roleID := range roleIDs {
-		if err := c.DeleteRoleKanbanOrder(ctx, userID, projectID, roleID); err != nil && err != redis.Nil {
-			return fmt.Errorf("failed to delete role kanban order cache for role %s: %w", roleID, err)
+		if err := c.DeleteRoleBoardOrder(ctx, userID, projectID, roleID); err != nil && err != redis.Nil {
+			return fmt.Errorf("failed to delete role board order cache for role %s: %w", roleID, err)
 		}
 	}
 	return nil
 }
 
-// InvalidateAllStageKanbanCaches invalidates all stage-based kanban order caches for a project
-func (c *UserOrderCache) InvalidateAllStageKanbanCaches(ctx context.Context, userID, projectID string, stageIDs []string) error {
+// InvalidateAllStageBoardCaches invalidates all stage-based board order caches for a project
+func (c *UserOrderCache) InvalidateAllStageBoardCaches(ctx context.Context, userID, projectID string, stageIDs []string) error {
 	for _, stageID := range stageIDs {
-		if err := c.DeleteStageKanbanOrder(ctx, userID, projectID, stageID); err != nil && err != redis.Nil {
-			return fmt.Errorf("failed to delete stage kanban order cache for stage %s: %w", stageID, err)
+		if err := c.DeleteStageBoardOrder(ctx, userID, projectID, stageID); err != nil && err != redis.Nil {
+			return fmt.Errorf("failed to delete stage board order cache for stage %s: %w", stageID, err)
 		}
 	}
 	return nil

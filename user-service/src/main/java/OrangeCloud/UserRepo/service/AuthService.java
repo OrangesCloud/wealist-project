@@ -34,7 +34,7 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    
+
     @Autowired
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,

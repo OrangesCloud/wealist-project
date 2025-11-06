@@ -18,13 +18,13 @@ type UserOrderRepository interface {
 	GetStageColumnOrder(ctx context.Context, userID, projectID uuid.UUID) ([]domain.UserStageColumnOrder, error)
 	UpsertStageColumnOrder(ctx context.Context, orders []domain.UserStageColumnOrder) error
 
-	// Role Kanban Order
-	GetKanbanOrderInRole(ctx context.Context, userID, projectID, roleID uuid.UUID) ([]domain.UserKanbanOrderInRole, error)
-	UpsertKanbanOrderInRole(ctx context.Context, orders []domain.UserKanbanOrderInRole) error
+	// Role Board Order
+	GetBoardOrderInRole(ctx context.Context, userID, projectID, roleID uuid.UUID) ([]domain.UserBoardOrderInRole, error)
+	UpsertBoardOrderInRole(ctx context.Context, orders []domain.UserBoardOrderInRole) error
 
-	// Stage Kanban Order
-	GetKanbanOrderInStage(ctx context.Context, userID, projectID, stageID uuid.UUID) ([]domain.UserKanbanOrderInStage, error)
-	UpsertKanbanOrderInStage(ctx context.Context, orders []domain.UserKanbanOrderInStage) error
+	// Stage Board Order
+	GetBoardOrderInStage(ctx context.Context, userID, projectID, stageID uuid.UUID) ([]domain.UserBoardOrderInStage, error)
+	UpsertBoardOrderInStage(ctx context.Context, orders []domain.UserBoardOrderInStage) error
 
 	// Initialize user orders when joining a project
 	InitializeUserOrders(ctx context.Context, userID, projectID uuid.UUID) error
@@ -108,10 +108,10 @@ func (r *userOrderRepository) UpsertStageColumnOrder(ctx context.Context, orders
 	})
 }
 
-// ==================== Role Kanban Order ====================
+// ==================== Role Board Order ====================
 
-func (r *userOrderRepository) GetKanbanOrderInRole(ctx context.Context, userID, projectID, roleID uuid.UUID) ([]domain.UserKanbanOrderInRole, error) {
-	var orders []domain.UserKanbanOrderInRole
+func (r *userOrderRepository) GetBoardOrderInRole(ctx context.Context, userID, projectID, roleID uuid.UUID) ([]domain.UserBoardOrderInRole, error) {
+	var orders []domain.UserBoardOrderInRole
 	err := r.db.WithContext(ctx).
 		Where("user_id = ? AND project_id = ? AND custom_role_id = ?", userID, projectID, roleID).
 		Order("display_order ASC").
@@ -119,7 +119,7 @@ func (r *userOrderRepository) GetKanbanOrderInRole(ctx context.Context, userID, 
 	return orders, err
 }
 
-func (r *userOrderRepository) UpsertKanbanOrderInRole(ctx context.Context, orders []domain.UserKanbanOrderInRole) error {
+func (r *userOrderRepository) UpsertBoardOrderInRole(ctx context.Context, orders []domain.UserBoardOrderInRole) error {
 	if len(orders) == 0 {
 		return nil
 	}
@@ -131,7 +131,7 @@ func (r *userOrderRepository) UpsertKanbanOrderInRole(ctx context.Context, order
 					{Name: "user_id"},
 					{Name: "project_id"},
 					{Name: "custom_role_id"},
-					{Name: "kanban_id"},
+					{Name: "board_id"},
 				},
 				DoUpdates: clause.AssignmentColumns([]string{"display_order", "updated_at"}),
 			}).Create(&order).Error; err != nil {
@@ -142,10 +142,10 @@ func (r *userOrderRepository) UpsertKanbanOrderInRole(ctx context.Context, order
 	})
 }
 
-// ==================== Stage Kanban Order ====================
+// ==================== Stage Board Order ====================
 
-func (r *userOrderRepository) GetKanbanOrderInStage(ctx context.Context, userID, projectID, stageID uuid.UUID) ([]domain.UserKanbanOrderInStage, error) {
-	var orders []domain.UserKanbanOrderInStage
+func (r *userOrderRepository) GetBoardOrderInStage(ctx context.Context, userID, projectID, stageID uuid.UUID) ([]domain.UserBoardOrderInStage, error) {
+	var orders []domain.UserBoardOrderInStage
 	err := r.db.WithContext(ctx).
 		Where("user_id = ? AND project_id = ? AND custom_stage_id = ?", userID, projectID, stageID).
 		Order("display_order ASC").
@@ -153,7 +153,7 @@ func (r *userOrderRepository) GetKanbanOrderInStage(ctx context.Context, userID,
 	return orders, err
 }
 
-func (r *userOrderRepository) UpsertKanbanOrderInStage(ctx context.Context, orders []domain.UserKanbanOrderInStage) error {
+func (r *userOrderRepository) UpsertBoardOrderInStage(ctx context.Context, orders []domain.UserBoardOrderInStage) error {
 	if len(orders) == 0 {
 		return nil
 	}
@@ -165,7 +165,7 @@ func (r *userOrderRepository) UpsertKanbanOrderInStage(ctx context.Context, orde
 					{Name: "user_id"},
 					{Name: "project_id"},
 					{Name: "custom_stage_id"},
-					{Name: "kanban_id"},
+					{Name: "board_id"},
 				},
 				DoUpdates: clause.AssignmentColumns([]string{"display_order", "updated_at"}),
 			}).Create(&order).Error; err != nil {

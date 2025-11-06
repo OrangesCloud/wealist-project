@@ -12,6 +12,7 @@ type BaseModel struct {
 	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	IsDeleted bool      `gorm:"default:false;index" json:"is_deleted"`
 }
 
 // BeforeCreate is a GORM hook that generates UUID before creating a record

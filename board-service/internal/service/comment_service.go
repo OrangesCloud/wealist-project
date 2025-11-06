@@ -18,14 +18,14 @@ import (
 // CommentService defines the interface for comment business logic.
 type CommentService interface {
 	CreateComment(ctx context.Context, req dto.CreateCommentRequest, userID uuid.UUID) (*dto.CommentResponse, error)
-	GetCommentsByKanbanID(ctx context.Context, kanbanID uuid.UUID, userID uuid.UUID) ([]dto.CommentResponse, error)
+	GetCommentsByBoardID(ctx context.Context, boardID uuid.UUID, userID uuid.UUID) ([]dto.CommentResponse, error)
 	UpdateComment(ctx context.Context, commentID uuid.UUID, req dto.UpdateCommentRequest, userID uuid.UUID) (*dto.CommentResponse, error)
 	DeleteComment(ctx context.Context, commentID uuid.UUID, userID uuid.UUID) error
 }
 
 type commentService struct {
 	commentRepo repository.CommentRepository
-	kanbanRepo  repository.KanbanRepository
+	boardRepo  repository.BoardRepository
 	projectRepo repository.ProjectRepository
 	userClient  client.UserClient
 	logger      *zap.Logger
@@ -33,10 +33,10 @@ type commentService struct {
 }
 
 // NewCommentService creates a new instance of CommentService.
-func NewCommentService(cr repository.CommentRepository, kr repository.KanbanRepository, pr repository.ProjectRepository, uc client.UserClient, l *zap.Logger, db *gorm.DB) CommentService {
+func NewCommentService(cr repository.CommentRepository, kr repository.BoardRepository, pr repository.ProjectRepository, uc client.UserClient, l *zap.Logger, db *gorm.DB) CommentService {
 	return &commentService{
 		commentRepo: cr,
-		kanbanRepo:  kr,
+		boardRepo:  kr,
 		projectRepo: pr,
 		userClient:  uc,
 		logger:      l,
@@ -44,17 +44,17 @@ func NewCommentService(cr repository.CommentRepository, kr repository.KanbanRepo
 	}
 }
 
-// CreateComment creates a new comment on a kanban.
+// CreateComment creates a new comment on a board.
 func (s *commentService) CreateComment(ctx context.Context, req dto.CreateCommentRequest, userID uuid.UUID) (*dto.CommentResponse, error) {
-	kanban, err := s.kanbanRepo.FindByID(req.KanbanID)
+	board, err := s.boardRepo.FindByID(req.BoardID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.New(apperrors.ErrCodeNotFound, fmt.Sprintf("kanban with id %s not found", req.KanbanID), 404)
+			return nil, apperrors.New(apperrors.ErrCodeNotFound, fmt.Sprintf("board with id %s not found", req.BoardID), 404)
 		}
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "failed to find kanban", 500)
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "failed to find board", 500)
 	}
 
-	_, err = s.projectRepo.FindMemberByUserAndProject(userID, kanban.ProjectID)
+	_, err = s.projectRepo.FindMemberByUserAndProject(userID, board.ProjectID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperrors.New(apperrors.ErrCodeForbidden, "user is not a member of the project", 403)
@@ -63,7 +63,7 @@ func (s *commentService) CreateComment(ctx context.Context, req dto.CreateCommen
 	}
 
 	comment := &domain.Comment{
-		KanbanID: req.KanbanID,
+		BoardID: req.BoardID,
 		UserID:   userID,
 		Content:  req.Content,
 	}
@@ -90,17 +90,17 @@ func (s *commentService) CreateComment(ctx context.Context, req dto.CreateCommen
 	}, nil
 }
 
-// GetCommentsByKanbanID retrieves all comments for a given kanban.
-func (s *commentService) GetCommentsByKanbanID(ctx context.Context, kanbanID uuid.UUID, userID uuid.UUID) ([]dto.CommentResponse, error) {
-	kanban, err := s.kanbanRepo.FindByID(kanbanID)
+// GetCommentsByBoardID retrieves all comments for a given board.
+func (s *commentService) GetCommentsByBoardID(ctx context.Context, boardID uuid.UUID, userID uuid.UUID) ([]dto.CommentResponse, error) {
+	board, err := s.boardRepo.FindByID(boardID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.New(apperrors.ErrCodeNotFound, fmt.Sprintf("kanban with id %s not found", kanbanID), 404)
+			return nil, apperrors.New(apperrors.ErrCodeNotFound, fmt.Sprintf("board with id %s not found", boardID), 404)
 		}
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "failed to find kanban", 500)
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "failed to find board", 500)
 	}
 
-	_, err = s.projectRepo.FindMemberByUserAndProject(userID, kanban.ProjectID)
+	_, err = s.projectRepo.FindMemberByUserAndProject(userID, board.ProjectID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperrors.New(apperrors.ErrCodeForbidden, "user is not a member of the project", 403)
@@ -108,7 +108,7 @@ func (s *commentService) GetCommentsByKanbanID(ctx context.Context, kanbanID uui
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "failed to check project membership", 500)
 	}
 
-	comments, err := s.commentRepo.FindByKanbanID(kanbanID)
+	comments, err := s.commentRepo.FindByBoardID(boardID)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "failed to get comments", 500)
 	}

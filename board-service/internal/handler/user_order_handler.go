@@ -18,7 +18,7 @@ func NewUserOrderHandler(service service.UserOrderService) *UserOrderHandler {
 
 // GetRoleBasedBoardView godoc
 // @Summary      Get role-based board view
-// @Description  Get the kanban board organized by roles with user-specific column and kanban orders
+// @Description  Get the board organized by roles with user-specific column and board orders
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
@@ -56,7 +56,7 @@ func (h *UserOrderHandler) GetRoleBasedBoardView(c *gin.Context) {
 
 // GetStageBasedBoardView godoc
 // @Summary      Get stage-based board view
-// @Description  Get the kanban board organized by stages with user-specific column and kanban orders
+// @Description  Get the board organized by stages with user-specific column and board orders
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
@@ -182,9 +182,9 @@ func (h *UserOrderHandler) UpdateStageColumnOrder(c *gin.Context) {
 	dto.Success(c, "진행단계 컬럼 순서가 업데이트되었습니다")
 }
 
-// UpdateKanbanOrderInRole godoc
-// @Summary      Update kanban order in role column
-// @Description  Update the display order of kanbans within a specific role column (drag-and-drop)
+// UpdateBoardOrderInRole godoc
+// @Summary      Update board order in role column
+// @Description  Update the display order of boards within a specific role column (drag-and-drop)
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
@@ -194,9 +194,9 @@ func (h *UserOrderHandler) UpdateStageColumnOrder(c *gin.Context) {
 // @Success      200 {object} dto.SuccessResponse{data=string}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
-// @Router       /api/projects/{id}/orders/role-kanbans/{roleId} [put]
+// @Router       /api/projects/{id}/orders/role-boards/{roleId} [put]
 // @Security     BearerAuth
-func (h *UserOrderHandler) UpdateKanbanOrderInRole(c *gin.Context) {
+func (h *UserOrderHandler) UpdateBoardOrderInRole(c *gin.Context) {
 	userID := c.GetString("user_id")
 	if userID == "" {
 		dto.Error(c, apperrors.ErrUnauthorized)
@@ -217,7 +217,7 @@ func (h *UserOrderHandler) UpdateKanbanOrderInRole(c *gin.Context) {
 		return
 	}
 
-	err := h.service.UpdateKanbanOrderInRole(c.Request.Context(), userID, projectID, roleID, &req)
+	err := h.service.UpdateBoardOrderInRole(c.Request.Context(), userID, projectID, roleID, &req)
 	if err != nil {
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			dto.Error(c, appErr)
@@ -230,9 +230,9 @@ func (h *UserOrderHandler) UpdateKanbanOrderInRole(c *gin.Context) {
 	dto.Success(c, "역할별 칸반 순서가 업데이트되었습니다")
 }
 
-// UpdateKanbanOrderInStage godoc
-// @Summary      Update kanban order in stage column
-// @Description  Update the display order of kanbans within a specific stage column (drag-and-drop)
+// UpdateBoardOrderInStage godoc
+// @Summary      Update board order in stage column
+// @Description  Update the display order of boards within a specific stage column (drag-and-drop)
 // @Tags         user-orders
 // @Accept       json
 // @Produce      json
@@ -242,9 +242,9 @@ func (h *UserOrderHandler) UpdateKanbanOrderInRole(c *gin.Context) {
 // @Success      200 {object} dto.SuccessResponse{data=string}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
-// @Router       /api/projects/{id}/orders/stage-kanbans/{stageId} [put]
+// @Router       /api/projects/{id}/orders/stage-boards/{stageId} [put]
 // @Security     BearerAuth
-func (h *UserOrderHandler) UpdateKanbanOrderInStage(c *gin.Context) {
+func (h *UserOrderHandler) UpdateBoardOrderInStage(c *gin.Context) {
 	userID := c.GetString("user_id")
 	if userID == "" {
 		dto.Error(c, apperrors.ErrUnauthorized)
@@ -265,7 +265,7 @@ func (h *UserOrderHandler) UpdateKanbanOrderInStage(c *gin.Context) {
 		return
 	}
 
-	err := h.service.UpdateKanbanOrderInStage(c.Request.Context(), userID, projectID, stageID, &req)
+	err := h.service.UpdateBoardOrderInStage(c.Request.Context(), userID, projectID, stageID, &req)
 	if err != nil {
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			dto.Error(c, appErr)
