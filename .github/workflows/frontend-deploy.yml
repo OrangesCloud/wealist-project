@@ -3,46 +3,68 @@ name: Frontend CI/CD to S3/CloudFront
 on:
   push:
     branches:
-      - 11-frontend # 11-frontend 브랜치에 푸시될 때 워크플로우를 실행합니다.
+      - 11-frontend
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    env:
-      BUILD_DIR: frontend/build # frontend/build 폴더를 참조합니다.
-
     steps:
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
+
+      - name: ⚙️ Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.15.0
 
       - name: ⚙️ Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: "frontend/pnpm-lock.json"
+          cache: "pnpm"
+          cache-dependency-path: "frontend/pnpm-lock.yaml"
 
-      - name: 📦 Install Dependencies & Build
-        # frontend 디렉토리로 이동하여 npm install 및 빌드 실행
+      - name: 📦 Install Dependencies
         run: |
-          cd frontend 
-          pnpm install
+          cd frontend
+          pnpm install --frozen-lockfile
+
+      - name: 🔨 Build with Vite
+        run: |
+          cd frontend
           pnpm run build
+        env:
+          # 빌드 시 환경 변수 (프로덕션 API 서버 주소)
+          VITE_AUTH_SERVICE_URL: ${{ secrets.VITE_AUTH_SERVICE_URL }}
+          VITE_BOARD_SERVICE_URL: ${{ secrets.VITE_BOARD_SERVICE_URL }}
+          VITE_USER_SERVICE_URL: ${{ secrets.VITE_USER_SERVICE_URL }}
 
       - name: 🔑 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.FRONTEND_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.FRONTEND_AWS_SECRET_ACCESS_KEY }}
-          # 하드코딩된 리전 값 사용 (디버깅 완료 후 Secret으로 복구 권장)
-          aws-region: "ap-northeast-2"
+          aws-region: ap-northeast-2
 
       - name: ⬆️ Deploy to S3
-        # 💡 S3 Sync 명령 단순화 및 정확한 경로 참조: ./frontend/build를 참조합니다.
-        run: aws s3 sync ./${{ env.BUILD_DIR }} s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }}/ --delete
+        run: |
+          aws s3 sync ./frontend/dist s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }}/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html"
+
+          # index.html은 항상 최신 버전을 받도록 캐시 비활성화
+          aws s3 cp ./frontend/dist/index.html s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }}/index.html \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html"
 
       - name: 🌐 Invalidate CloudFront Cache
-        # 💡 CloudFront 캐시 무효화 명령 단순화
-        run: aws cloudfront create-invalidation --distribution-id ${{ secrets.FRONTEND_CLOUDFRONT_ID }} --paths "/*"
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.FRONTEND_CLOUDFRONT_ID }} \
+            --paths "/*"
+
+      - name: ✅ Deployment Complete
+        run: echo "✅ Frontend deployed successfully!"
