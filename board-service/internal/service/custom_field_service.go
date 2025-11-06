@@ -46,7 +46,7 @@ type customFieldService struct {
 	repo        repository.CustomFieldRepository
 	projectRepo repository.ProjectRepository
 	roleRepo    repository.RoleRepository
-	kanbanRepo  repository.KanbanRepository
+	boardRepo  repository.BoardRepository
 	logger      *zap.Logger
 	db          *gorm.DB
 }
@@ -55,7 +55,7 @@ func NewCustomFieldService(
 	repo repository.CustomFieldRepository,
 	projectRepo repository.ProjectRepository,
 	roleRepo repository.RoleRepository,
-	kanbanRepo repository.KanbanRepository,
+	boardRepo repository.BoardRepository,
 	logger *zap.Logger,
 	db *gorm.DB,
 ) CustomFieldService {
@@ -63,7 +63,7 @@ func NewCustomFieldService(
 		repo:        repo,
 		projectRepo: projectRepo,
 		roleRepo:    roleRepo,
-		kanbanRepo:  kanbanRepo,
+		boardRepo:  boardRepo,
 		logger:      logger,
 		db:          db,
 	}
@@ -308,15 +308,15 @@ func (s *customFieldService) DeleteCustomRole(roleID, userID string) error {
 		return apperrors.New(apperrors.ErrCodeForbidden, "시스템 기본 역할은 삭제할 수 없습니다", 403)
 	}
 
-	// Phase 5 IMPLEMENTED: Update kanbans using this role to "없음" (default role)
+	// Phase 5 IMPLEMENTED: Update boards using this role to "없음" (default role)
 	defaultRole, err := s.repo.FindCustomRoleByProjectAndName(role.ProjectID, "없음")
 	if err != nil {
 		s.logger.Error("Failed to find default role", zap.Error(err), zap.String("project_id", role.ProjectID.String()))
 		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "기본 역할 조회 실패", 500)
 	}
 
-	if err := s.kanbanRepo.UpdateKanbansRoleToDefault(roleUUID, defaultRole.ID); err != nil {
-		s.logger.Error("Failed to update kanbans role to default", zap.Error(err))
+	if err := s.boardRepo.UpdateBoardsRoleToDefault(roleUUID, defaultRole.ID); err != nil {
+		s.logger.Error("Failed to update boards role to default", zap.Error(err))
 		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 역할 업데이트 실패", 500)
 	}
 
@@ -552,15 +552,15 @@ func (s *customFieldService) DeleteCustomStage(stageID, userID string) error {
 		return apperrors.New(apperrors.ErrCodeForbidden, "시스템 기본 단계는 삭제할 수 없습니다", 403)
 	}
 
-	// Phase 5 IMPLEMENTED: Update kanbans using this stage to "없음"
+	// Phase 5 IMPLEMENTED: Update boards using this stage to "없음"
 	defaultStage, err := s.repo.FindCustomStageByProjectAndName(stage.ProjectID, "없음")
 	if err != nil {
 		s.logger.Error("Failed to find default stage", zap.Error(err), zap.String("project_id", stage.ProjectID.String()))
 		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "기본 단계 조회 실패", 500)
 	}
 
-	if err := s.kanbanRepo.UpdateKanbansStageToDefault(stageUUID, defaultStage.ID); err != nil {
-		s.logger.Error("Failed to update kanbans stage to default", zap.Error(err))
+	if err := s.boardRepo.UpdateBoardsStageToDefault(stageUUID, defaultStage.ID); err != nil {
+		s.logger.Error("Failed to update boards stage to default", zap.Error(err))
 		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 단계 업데이트 실패", 500)
 	}
 
@@ -792,15 +792,15 @@ func (s *customFieldService) DeleteCustomImportance(importanceID, userID string)
 		return apperrors.New(apperrors.ErrCodeForbidden, "시스템 기본 중요도는 삭제할 수 없습니다", 403)
 	}
 
-	// Phase 5 IMPLEMENTED: Update kanbans using this importance to "없음"
+	// Phase 5 IMPLEMENTED: Update boards using this importance to "없음"
 	defaultImportance, err := s.repo.FindCustomImportanceByProjectAndName(importance.ProjectID, "없음")
 	if err != nil {
 		s.logger.Error("Failed to find default importance", zap.Error(err), zap.String("project_id", importance.ProjectID.String()))
 		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "기본 중요도 조회 실패", 500)
 	}
 
-	if err := s.kanbanRepo.UpdateKanbansImportanceToDefault(importanceUUID, defaultImportance.ID); err != nil {
-		s.logger.Error("Failed to update kanbans importance to default", zap.Error(err))
+	if err := s.boardRepo.UpdateBoardsImportanceToDefault(importanceUUID, defaultImportance.ID); err != nil {
+		s.logger.Error("Failed to update boards importance to default", zap.Error(err))
 		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 중요도 업데이트 실패", 500)
 	}
 

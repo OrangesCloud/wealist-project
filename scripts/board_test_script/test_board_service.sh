@@ -86,29 +86,24 @@ else
     print_error "Health check failed: $response"
 fi
 
-# Step 2: User Registration & Login (완전히 수정됨)
-print_step "2" "사용자 등록 및 로그인"
+# Step 2: Test Auth 호출
+print_step "2" "테스트 토큰 생성"
 
-# Register user (에러 무시)
-register_data="{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\",\"name\":\"$TEST_NAME\"}"
-register_response=$(api_call "POST" "$USER_SERVICE_URL/api/auth/signup" "$register_data" 2>/dev/null || echo "user may already exist")
+test_auth_response=$(api_call "GET" "$USER_SERVICE_URL/api/auth/test")
 
-# Login
-login_data="{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\"}"
-login_response=$(api_call "POST" "$USER_SERVICE_URL/api/auth/login" "$login_data")
-
-if echo "$login_response" | grep -q "accessToken"; then
-    TOKEN=$(echo "$login_response" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
-    USER_ID=$(echo "$login_response" | grep -o '"userId":"[^"]*"' | cut -d'"' -f4)
+if echo "$test_auth_response" | grep -q '"accessToken"'; then
+    TOKEN=$(echo "$test_auth_response" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+    USER_ID=$(echo "$test_auth_response" | grep -o '"userId":"[^"]*"' | cut -d'"' -f4)
 
     if [ -n "$TOKEN" ] && [ -n "$USER_ID" ]; then
-        print_success "로그인 성공 (User ID: ${USER_ID:0:8}...)"
+        print_success "테스트 토큰 생성 성공 (User ID: ${USER_ID:0:8}...)"
     else
         print_error "토큰 또는 사용자 ID 추출 실패"
     fi
 else
-    print_error "로그인 실패: $login_response"
+    print_error "테스트 토큰 생성 실패: $test_auth_response"
 fi
+
 
 # Step 3: Workspace 생성
 print_step "3" "Workspace 생성"
@@ -157,7 +152,7 @@ importance_response=$(api_call "GET" "$BASE_URL/api/custom-fields/projects/$PROJ
 IMPORTANCE_ID=$(echo "$importance_response" | grep -o '"id":"[^"]*"' | sed -n '3p' | cut -d'"' -f4)  # "보통" importance
 
 kanban_data="{\"projectId\":\"$PROJECT_ID\",\"title\":\"테스트 칸반 1\",\"description\":\"자동 테스트용 칸반\",\"roleIds\":[\"$CUSTOM_ROLE_ID\"],\"stageId\":\"$STAGE_ID\",\"importanceId\":\"$IMPORTANCE_ID\"}"
-kanban_response=$(api_call "POST" "$BASE_URL/api/kanbans" "$kanban_data" "Authorization: Bearer $TOKEN")
+kanban_response=$(api_call "POST" "$BASE_URL/api/boards" "$kanban_data" "Authorization: Bearer $TOKEN")
 
 if echo "$kanban_response" | grep -q '"data"'; then
     KANBAN_ID=$(echo "$kanban_response" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
@@ -169,7 +164,7 @@ fi
 # Step 7: 두 번째 칸반 생성
 print_step "7" "두 번째 칸반 생성"
 kanban2_data="{\"projectId\":\"$PROJECT_ID\",\"title\":\"테스트 칸반 2\",\"description\":\"순서 테스트용\",\"roleIds\":[\"$CUSTOM_ROLE_ID\"],\"stageId\":\"$STAGE_ID\",\"importanceId\":\"$IMPORTANCE_ID\"}"
-kanban2_response=$(api_call "POST" "$BASE_URL/api/kanbans" "$kanban2_data" "Authorization: Bearer $TOKEN")
+kanban2_response=$(api_call "POST" "$BASE_URL/api/boards" "$kanban2_data" "Authorization: Bearer $TOKEN")
 
 if echo "$kanban2_response" | grep -q '"data"'; then
     KANBAN2_ID=$(echo "$kanban2_response" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
@@ -203,7 +198,7 @@ fi
 # Step 10: 칸반 순서 변경 테스트
 print_step "10" "칸반 순서 변경 테스트"
 order_data="{\"itemIds\":[\"$KANBAN2_ID\",\"$KANBAN_ID\"]}"
-order_response=$(api_call "PUT" "$BASE_URL/api/projects/$PROJECT_ID/orders/stage-kanbans/$STAGE_ID" "$order_data" "Authorization: Bearer $TOKEN")
+order_response=$(api_call "PUT" "$BASE_URL/api/projects/$PROJECT_ID/orders/stage-boards/$STAGE_ID" "$order_data" "Authorization: Bearer $TOKEN")
 
 if echo "$order_response" | grep -q -E '"success"|"data"|업데이트'; then
     print_success "칸반 순서 변경 성공"
@@ -239,7 +234,7 @@ fi
 print_step "13" "칸반 수정 테스트"
 
 # 현재 프로젝트의 칸반 목록 조회
-kanbans_response=$(api_call "GET" "$BASE_URL/api/kanbans?projectId=$PROJECT_ID" "" "Authorization: Bearer $TOKEN")
+kanbans_response=$(api_call "GET" "$BASE_URL/api/boards?projectId=$PROJECT_ID" "" "Authorization: Bearer $TOKEN")
 
 if echo "$kanbans_response" | grep -q '"data"'; then
     # 첫 번째 칸반 ID 추출
@@ -253,14 +248,14 @@ if echo "$kanbans_response" | grep -q '"data"'; then
 
     if [ -n "$CURRENT_KANBAN_ID" ] && [ -n "$PROGRESS_STAGE_ID" ]; then
         update_data="{\"title\":\"수정된 칸반 제목\",\"stageId\":\"$PROGRESS_STAGE_ID\"}"
-        update_response=$(api_call "PUT" "$BASE_URL/api/kanbans/$CURRENT_KANBAN_ID" "$update_data" "Authorization: Bearer $TOKEN")
+        update_response=$(api_call "PUT" "$BASE_URL/api/boards/$CURRENT_KANBAN_ID" "$update_data" "Authorization: Bearer $TOKEN")
 
         if echo "$update_response" | grep -q "수정된 칸반 제목"; then
             print_success "칸반 수정 성공"
         else
             # stage 변경 없이 제목만 수정 시도
             update_data="{\"title\":\"수정된 칸반 제목\"}"
-            update_response=$(api_call "PUT" "$BASE_URL/api/kanbans/$CURRENT_KANBAN_ID" "$update_data" "Authorization: Bearer $TOKEN")
+            update_response=$(api_call "PUT" "$BASE_URL/api/boards/$CURRENT_KANBAN_ID" "$update_data" "Authorization: Bearer $TOKEN")
 
             if echo "$update_response" | grep -q "수정된 칸반 제목"; then
                 print_success "칸반 제목 수정 성공"

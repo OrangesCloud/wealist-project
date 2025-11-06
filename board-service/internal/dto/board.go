@@ -4,7 +4,7 @@ import "time"
 
 // ==================== Request DTOs ====================
 
-type CreateKanbanRequest struct {
+type CreateBoardRequest struct {
 	ProjectID    string   `json:"projectId" binding:"required,uuid"`
 	Title        string   `json:"title" binding:"required,min=1,max=200"`
 	Content      string   `json:"content" binding:"max=5000"`
@@ -15,7 +15,7 @@ type CreateKanbanRequest struct {
 	DueDate      *string  `json:"dueDate" binding:"omitempty"` // ISO 8601 format
 }
 
-type UpdateKanbanRequest struct {
+type UpdateBoardRequest struct {
 	Title        string   `json:"title" binding:"omitempty,min=1,max=200"`
 	Content      string   `json:"content" binding:"omitempty,max=5000"`
 	StageID      string   `json:"stageId" binding:"omitempty,uuid"`
@@ -25,7 +25,7 @@ type UpdateKanbanRequest struct {
 	DueDate      *string  `json:"dueDate" binding:"omitempty"`
 }
 
-type GetKanbansRequest struct {
+type GetBoardsRequest struct {
 	ProjectID    string `form:"projectId" binding:"required,uuid"`
 	StageID      string `form:"stageId"`       // Filter: by stage
 	RoleID       string `form:"roleId"`        // Filter: by role
@@ -38,7 +38,7 @@ type GetKanbansRequest struct {
 
 // ==================== Response DTOs ====================
 
-type KanbanResponse struct {
+type BoardResponse struct {
 	ID         string                     `json:"id"`
 	ProjectID  string                     `json:"projectId"`
 	Title      string                     `json:"title"`
@@ -60,9 +60,9 @@ type UserInfo struct {
 	IsActive bool   `json:"isActive"`
 }
 
-type PaginatedKanbansResponse struct {
-	Kanbans []KanbanResponse `json:"kanbans"`
-	Total   int64            `json:"total"`
-	Page    int              `json:"page"`
-	Limit   int              `json:"limit"`
+type PaginatedBoardsResponse struct {
+	Boards []BoardResponse `json:"boards"`
+	Total  int64           `json:"total"`
+	Page   int             `json:"page"`
+	Limit  int             `json:"limit"`
 }

@@ -25,16 +25,16 @@ type UserOrderService interface {
 	UpdateRoleColumnOrder(ctx context.Context, userID, projectID string, req *dto.UpdateOrderRequest) error
 	UpdateStageColumnOrder(ctx context.Context, userID, projectID string, req *dto.UpdateOrderRequest) error
 
-	// Update Kanban Orders (drag-and-drop within column)
-	UpdateKanbanOrderInRole(ctx context.Context, userID, projectID, roleID string, req *dto.UpdateOrderRequest) error
-	UpdateKanbanOrderInStage(ctx context.Context, userID, projectID, stageID string, req *dto.UpdateOrderRequest) error
+	// Update Board Orders (drag-and-drop within column)
+	UpdateBoardOrderInRole(ctx context.Context, userID, projectID, roleID string, req *dto.UpdateOrderRequest) error
+	UpdateBoardOrderInStage(ctx context.Context, userID, projectID, stageID string, req *dto.UpdateOrderRequest) error
 }
 
 type userOrderService struct {
 	orderRepo       repository.UserOrderRepository
 	projectRepo     repository.ProjectRepository
 	customFieldRepo repository.CustomFieldRepository
-	kanbanRepo      repository.KanbanRepository
+	boardRepo      repository.BoardRepository
 	cache           *cache.UserOrderCache
 	logger          *zap.Logger
 }
@@ -43,7 +43,7 @@ func NewUserOrderService(
 	orderRepo repository.UserOrderRepository,
 	projectRepo repository.ProjectRepository,
 	customFieldRepo repository.CustomFieldRepository,
-	kanbanRepo repository.KanbanRepository,
+	boardRepo repository.BoardRepository,
 	cache *cache.UserOrderCache,
 	logger *zap.Logger,
 ) UserOrderService {
@@ -51,7 +51,7 @@ func NewUserOrderService(
 		orderRepo:       orderRepo,
 		projectRepo:     projectRepo,
 		customFieldRepo: customFieldRepo,
-		kanbanRepo:      kanbanRepo,
+		boardRepo:      boardRepo,
 		cache:           cache,
 		logger:          logger,
 	}
@@ -98,8 +98,8 @@ func (s *userOrderService) GetRoleBasedBoardView(ctx context.Context, userID, pr
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "역할 조회 실패", 500)
 		}
 
-		// Get kanbans for this role
-		kanbans, err := s.getKanbansForRole(ctx, userUUID, projectUUID, roleOrder.CustomRoleID)
+		// Get boards for this role
+		boards, err := s.getBoardsForRole(ctx, userUUID, projectUUID, roleOrder.CustomRoleID)
 		if err != nil {
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 조회 실패", 500)
 		}
@@ -109,7 +109,7 @@ func (s *userOrderService) GetRoleBasedBoardView(ctx context.Context, userID, pr
 			RoleName:     role.Name,
 			RoleColor:    role.Color,
 			DisplayOrder: roleOrder.DisplayOrder,
-			Kanbans:      kanbans,
+			Boards:      boards,
 		}
 	}
 
@@ -157,8 +157,8 @@ func (s *userOrderService) GetStageBasedBoardView(ctx context.Context, userID, p
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "진행단계 조회 실패", 500)
 		}
 
-		// Get kanbans for this stage
-		kanbans, err := s.getKanbansForStage(ctx, userUUID, projectUUID, stageOrder.CustomStageID)
+		// Get boards for this stage
+		boards, err := s.getBoardsForStage(ctx, userUUID, projectUUID, stageOrder.CustomStageID)
 		if err != nil {
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 조회 실패", 500)
 		}
@@ -168,7 +168,7 @@ func (s *userOrderService) GetStageBasedBoardView(ctx context.Context, userID, p
 			StageName:     stage.Name,
 			StageColor:    stage.Color,
 			DisplayOrder:  stageOrder.DisplayOrder,
-			Kanbans:       kanbans,
+			Boards:       boards,
 		}
 	}
 
@@ -267,9 +267,9 @@ func (s *userOrderService) UpdateStageColumnOrder(ctx context.Context, userID, p
 	return nil
 }
 
-// ==================== Update Kanban Orders ====================
+// ==================== Update Board Orders ====================
 
-func (s *userOrderService) UpdateKanbanOrderInRole(ctx context.Context, userID, projectID, roleID string, req *dto.UpdateOrderRequest) error {
+func (s *userOrderService) UpdateBoardOrderInRole(ctx context.Context, userID, projectID, roleID string, req *dto.UpdateOrderRequest) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
@@ -291,36 +291,36 @@ func (s *userOrderService) UpdateKanbanOrderInRole(ctx context.Context, userID, 
 	}
 
 	// Build update orders with auto-calculated displayOrder
-	orders := make([]domain.UserKanbanOrderInRole, len(req.ItemIds))
+	orders := make([]domain.UserBoardOrderInRole, len(req.ItemIds))
 	for i, itemID := range req.ItemIds {
-		kanbanID, err := uuid.Parse(itemID)
+		boardID, err := uuid.Parse(itemID)
 		if err != nil {
 			return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 칸반 ID", 400)
 		}
 
-		orders[i] = domain.UserKanbanOrderInRole{
+		orders[i] = domain.UserBoardOrderInRole{
 			UserID:       userUUID,
 			ProjectID:    projectUUID,
 			CustomRoleID: roleUUID,
-			KanbanID:     kanbanID,
+			BoardID:     boardID,
 			DisplayOrder: i + 1, // Auto-increment order (1, 2, 3, ...)
 		}
 	}
 
 	// Update in DB
-	if err := s.orderRepo.UpsertKanbanOrderInRole(ctx, orders); err != nil {
+	if err := s.orderRepo.UpsertBoardOrderInRole(ctx, orders); err != nil {
 		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "역할별 칸반 순서 업데이트 실패", 500)
 	}
 
 	// Invalidate cache
-	if err := s.cache.DeleteRoleKanbanOrder(ctx, userID, projectID, roleID); err != nil && err != redis.Nil {
-		s.logger.Warn("Failed to invalidate role kanban order cache", zap.Error(err))
+	if err := s.cache.DeleteRoleBoardOrder(ctx, userID, projectID, roleID); err != nil && err != redis.Nil {
+		s.logger.Warn("Failed to invalidate role board order cache", zap.Error(err))
 	}
 
 	return nil
 }
 
-func (s *userOrderService) UpdateKanbanOrderInStage(ctx context.Context, userID, projectID, stageID string, req *dto.UpdateOrderRequest) error {
+func (s *userOrderService) UpdateBoardOrderInStage(ctx context.Context, userID, projectID, stageID string, req *dto.UpdateOrderRequest) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
@@ -342,30 +342,30 @@ func (s *userOrderService) UpdateKanbanOrderInStage(ctx context.Context, userID,
 	}
 
 	// Build update orders with auto-calculated displayOrder
-	orders := make([]domain.UserKanbanOrderInStage, len(req.ItemIds))
+	orders := make([]domain.UserBoardOrderInStage, len(req.ItemIds))
 	for i, itemID := range req.ItemIds {
-		kanbanID, err := uuid.Parse(itemID)
+		boardID, err := uuid.Parse(itemID)
 		if err != nil {
 			return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 칸반 ID", 400)
 		}
 
-		orders[i] = domain.UserKanbanOrderInStage{
+		orders[i] = domain.UserBoardOrderInStage{
 			UserID:        userUUID,
 			ProjectID:     projectUUID,
 			CustomStageID: stageUUID,
-			KanbanID:      kanbanID,
+			BoardID:      boardID,
 			DisplayOrder:  i + 1, // Auto-increment order (1, 2, 3, ...)
 		}
 	}
 
 	// Update in DB
-	if err := s.orderRepo.UpsertKanbanOrderInStage(ctx, orders); err != nil {
+	if err := s.orderRepo.UpsertBoardOrderInStage(ctx, orders); err != nil {
 		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "진행단계별 칸반 순서 업데이트 실패", 500)
 	}
 
 	// Invalidate cache
-	if err := s.cache.DeleteStageKanbanOrder(ctx, userID, projectID, stageID); err != nil && err != redis.Nil {
-		s.logger.Warn("Failed to invalidate stage kanban order cache", zap.Error(err))
+	if err := s.cache.DeleteStageBoardOrder(ctx, userID, projectID, stageID); err != nil && err != redis.Nil {
+		s.logger.Warn("Failed to invalidate stage board order cache", zap.Error(err))
 	}
 
 	return nil
@@ -454,24 +454,24 @@ func (s *userOrderService) getStageColumnOrdersWithCache(ctx context.Context, us
 	return orders, nil
 }
 
-func (s *userOrderService) getKanbansForRole(ctx context.Context, userID, projectID, roleID uuid.UUID) ([]dto.KanbanOrderResponse, error) {
+func (s *userOrderService) getBoardsForRole(ctx context.Context, userID, projectID, roleID uuid.UUID) ([]dto.BoardOrderResponse, error) {
 	// Try cache first
-	cachedData, err := s.cache.GetRoleKanbanOrder(ctx, userID.String(), projectID.String(), roleID.String())
+	cachedData, err := s.cache.GetRoleBoardOrder(ctx, userID.String(), projectID.String(), roleID.String())
 	if err == nil {
-		var kanbans []dto.KanbanOrderResponse
-		if err := json.Unmarshal(cachedData, &kanbans); err == nil {
-			return kanbans, nil
+		var boards []dto.BoardOrderResponse
+		if err := json.Unmarshal(cachedData, &boards); err == nil {
+			return boards, nil
 		}
 	}
 
-	// Get kanbans from DB (using kanban_roles join)
-	kanbans, err := s.kanbanRepo.FindKanbansByRole(roleID)
+	// Get boards from DB (using kanban_roles join)
+	boards, err := s.boardRepo.FindBoardsByRole(roleID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get user-specific order
-	userOrders, err := s.orderRepo.GetKanbanOrderInRole(ctx, userID, projectID, roleID)
+	userOrders, err := s.orderRepo.GetBoardOrderInRole(ctx, userID, projectID, roleID)
 	if err != nil {
 		return nil, err
 	}
@@ -479,50 +479,50 @@ func (s *userOrderService) getKanbansForRole(ctx context.Context, userID, projec
 	// Create order map
 	orderMap := make(map[uuid.UUID]int)
 	for _, order := range userOrders {
-		orderMap[order.KanbanID] = order.DisplayOrder
+		orderMap[order.BoardID] = order.DisplayOrder
 	}
 
 	// Build response with order
-	result := make([]dto.KanbanOrderResponse, 0, len(kanbans))
-	for _, kanban := range kanbans {
-		order, exists := orderMap[kanban.ID]
+	result := make([]dto.BoardOrderResponse, 0, len(boards))
+	for _, board := range boards {
+		order, exists := orderMap[board.ID]
 		if !exists {
-			order = 999999 // Default order for new kanbans
+			order = 999999 // Default order for new boards
 		}
 
-		result = append(result, dto.KanbanOrderResponse{
-			KanbanID:     kanban.ID.String(),
-			Title:        kanban.Title,
+		result = append(result, dto.BoardOrderResponse{
+			BoardID:     board.ID.String(),
+			Title:        board.Title,
 			DisplayOrder: order,
 		})
 	}
 
 	// Cache the result
-	if err := s.cache.SetRoleKanbanOrder(ctx, userID.String(), projectID.String(), roleID.String(), result); err != nil {
-		s.logger.Warn("Failed to cache role kanban orders", zap.Error(err))
+	if err := s.cache.SetRoleBoardOrder(ctx, userID.String(), projectID.String(), roleID.String(), result); err != nil {
+		s.logger.Warn("Failed to cache role board orders", zap.Error(err))
 	}
 
 	return result, nil
 }
 
-func (s *userOrderService) getKanbansForStage(ctx context.Context, userID, projectID, stageID uuid.UUID) ([]dto.KanbanOrderResponse, error) {
+func (s *userOrderService) getBoardsForStage(ctx context.Context, userID, projectID, stageID uuid.UUID) ([]dto.BoardOrderResponse, error) {
 	// Try cache first
-	cachedData, err := s.cache.GetStageKanbanOrder(ctx, userID.String(), projectID.String(), stageID.String())
+	cachedData, err := s.cache.GetStageBoardOrder(ctx, userID.String(), projectID.String(), stageID.String())
 	if err == nil {
-		var kanbans []dto.KanbanOrderResponse
-		if err := json.Unmarshal(cachedData, &kanbans); err == nil {
-			return kanbans, nil
+		var boards []dto.BoardOrderResponse
+		if err := json.Unmarshal(cachedData, &boards); err == nil {
+			return boards, nil
 		}
 	}
 
-	// Get kanbans from DB (filter by stage)
-	kanbans, _, err := s.kanbanRepo.FindByProject(projectID, repository.KanbanFilters{StageID: stageID}, 1, 1000)
+	// Get boards from DB (filter by stage)
+	boards, _, err := s.boardRepo.FindByProject(projectID, repository.BoardFilters{StageID: stageID}, 1, 1000)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get user-specific order
-	userOrders, err := s.orderRepo.GetKanbanOrderInStage(ctx, userID, projectID, stageID)
+	userOrders, err := s.orderRepo.GetBoardOrderInStage(ctx, userID, projectID, stageID)
 	if err != nil {
 		return nil, err
 	}
@@ -530,27 +530,27 @@ func (s *userOrderService) getKanbansForStage(ctx context.Context, userID, proje
 	// Create order map
 	orderMap := make(map[uuid.UUID]int)
 	for _, order := range userOrders {
-		orderMap[order.KanbanID] = order.DisplayOrder
+		orderMap[order.BoardID] = order.DisplayOrder
 	}
 
 	// Build response with order
-	result := make([]dto.KanbanOrderResponse, 0, len(kanbans))
-	for _, kanban := range kanbans {
-		order, exists := orderMap[kanban.ID]
+	result := make([]dto.BoardOrderResponse, 0, len(boards))
+	for _, board := range boards {
+		order, exists := orderMap[board.ID]
 		if !exists {
-			order = 999999 // Default order for new kanbans
+			order = 999999 // Default order for new boards
 		}
 
-		result = append(result, dto.KanbanOrderResponse{
-			KanbanID:     kanban.ID.String(),
-			Title:        kanban.Title,
+		result = append(result, dto.BoardOrderResponse{
+			BoardID:     board.ID.String(),
+			Title:        board.Title,
 			DisplayOrder: order,
 		})
 	}
 
 	// Cache the result
-	if err := s.cache.SetStageKanbanOrder(ctx, userID.String(), projectID.String(), stageID.String(), result); err != nil {
-		s.logger.Warn("Failed to cache stage kanban orders", zap.Error(err))
+	if err := s.cache.SetStageBoardOrder(ctx, userID.String(), projectID.String(), stageID.String(), result); err != nil {
+		s.logger.Warn("Failed to cache stage board orders", zap.Error(err))
 	}
 
 	return result, nil

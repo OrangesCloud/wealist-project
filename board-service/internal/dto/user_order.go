@@ -18,9 +18,9 @@ type ColumnOrderResponse struct {
 	Name          string `json:"name"` // Retrieved from cache/DB
 }
 
-// KanbanOrderResponse represents a single kanban's order information
-type KanbanOrderResponse struct {
-	KanbanID     string `json:"kanbanId"`
+// BoardOrderResponse represents a single board's order information
+type BoardOrderResponse struct {
+	BoardID     string `json:"boardId"`
 	Title        string `json:"title"`
 	DisplayOrder int    `json:"displayOrder"`
 }
@@ -32,13 +32,13 @@ type RoleBasedBoardView struct {
 	Columns   []RoleColumnView `json:"columns"`
 }
 
-// RoleColumnView represents a single role column with its kanbans
+// RoleColumnView represents a single role column with its boards
 type RoleColumnView struct {
 	CustomRoleID string                `json:"customRoleId"`
 	RoleName     string                `json:"roleName"`
 	RoleColor    string                `json:"roleColor,omitempty"`
 	DisplayOrder int                   `json:"displayOrder"`
-	Kanbans      []KanbanOrderResponse `json:"kanbans"`
+	Boards      []BoardOrderResponse `json:"boards"`
 }
 
 // StageBasedBoardView represents the complete board view organized by stages
@@ -48,13 +48,13 @@ type StageBasedBoardView struct {
 	Columns   []StageColumnView `json:"columns"`
 }
 
-// StageColumnView represents a single stage column with its kanbans
+// StageColumnView represents a single stage column with its boards
 type StageColumnView struct {
 	CustomStageID string                `json:"customStageId"`
 	StageName     string                `json:"stageName"`
 	StageColor    string                `json:"stageColor,omitempty"`
 	DisplayOrder  int                   `json:"displayOrder"`
-	Kanbans       []KanbanOrderResponse `json:"kanbans"`
+	Boards       []BoardOrderResponse `json:"boards"`
 }
 
 // ==================== Internal DTOs ====================
@@ -75,9 +75,9 @@ type StageColumnOrderData struct {
 	StageColor    string `json:"stageColor"`
 }
 
-// KanbanOrderData is used internally for caching
-type KanbanOrderData struct {
-	KanbanID     string `json:"kanbanId"`
+// BoardOrderData is used internally for caching
+type BoardOrderData struct {
+	BoardID     string `json:"boardId"`
 	DisplayOrder int    `json:"displayOrder"`
 	Title        string `json:"title"`
 }

@@ -9,41 +9,41 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type KanbanHandler struct {
-	service service.KanbanService
+type BoardHandler struct {
+	service service.BoardService
 }
 
-func NewKanbanHandler(service service.KanbanService) *KanbanHandler {
-	return &KanbanHandler{service: service}
+func NewBoardHandler(service service.BoardService) *BoardHandler {
+	return &BoardHandler{service: service}
 }
 
-// CreateKanban godoc
-// @Summary      Create kanban
-// @Description  Create a new kanban card (task/issue) in a project
-// @Tags         kanbans
+// CreateBoard godoc
+// @Summary      Create board
+// @Description  Create a new board card (task/issue) in a project
+// @Tags         boards
 // @Accept       json
 // @Produce      json
-// @Param        request body dto.CreateKanbanRequest true "Kanban details"
-// @Success      201 {object} dto.SuccessResponse{data=dto.KanbanResponse}
+// @Param        request body dto.CreateBoardRequest true "Board details"
+// @Success      201 {object} dto.SuccessResponse{data=dto.BoardResponse}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
 // @Failure      404 {object} dto.ErrorResponse
-// @Router       /api/kanbans [post]
+// @Router       /api/boards [post]
 // @Security     BearerAuth
-func (h *KanbanHandler) CreateKanban(c *gin.Context) {
+func (h *BoardHandler) CreateBoard(c *gin.Context) {
 	userID := c.GetString("user_id")
 	if userID == "" {
 		dto.Error(c, apperrors.ErrUnauthorized)
 		return
 	}
 
-	var req dto.CreateKanbanRequest
+	var req dto.CreateBoardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		dto.Error(c, apperrors.Wrap(err, apperrors.ErrCodeValidation, "입력값 검증 실패", 400))
 		return
 	}
 
-	kanban, err := h.service.CreateKanban(userID, &req)
+	board, err := h.service.CreateBoard(userID, &req)
 	if err != nil {
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			dto.Error(c, appErr)
@@ -53,26 +53,26 @@ func (h *KanbanHandler) CreateKanban(c *gin.Context) {
 		return
 	}
 
-	dto.SuccessWithStatus(c, http.StatusCreated, kanban)
+	dto.SuccessWithStatus(c, http.StatusCreated, board)
 }
 
-// GetKanban godoc
-// @Summary      Get kanban
-// @Description  Get a specific kanban by ID (project member only)
-// @Tags         kanbans
+// GetBoard godoc
+// @Summary      Get board
+// @Description  Get a specific board by ID (project member only)
+// @Tags         boards
 // @Accept       json
 // @Produce      json
-// @Param        id path string true "Kanban ID"
-// @Success      200 {object} dto.SuccessResponse{data=dto.KanbanResponse}
+// @Param        id path string true "Board ID"
+// @Success      200 {object} dto.SuccessResponse{data=dto.BoardResponse}
 // @Failure      403 {object} dto.ErrorResponse
 // @Failure      404 {object} dto.ErrorResponse
-// @Router       /api/kanbans/{id} [get]
+// @Router       /api/boards/{id} [get]
 // @Security     BearerAuth
-func (h *KanbanHandler) GetKanban(c *gin.Context) {
+func (h *BoardHandler) GetBoard(c *gin.Context) {
 	userID := c.GetString("user_id")
-	kanbanID := c.Param("id")
+	boardID := c.Param("id")
 
-	kanban, err := h.service.GetKanban(kanbanID, userID)
+	board, err := h.service.GetBoard(boardID, userID)
 	if err != nil {
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			dto.Error(c, appErr)
@@ -82,13 +82,13 @@ func (h *KanbanHandler) GetKanban(c *gin.Context) {
 		return
 	}
 
-	dto.Success(c, kanban)
+	dto.Success(c, board)
 }
 
-// GetKanbans godoc
-// @Summary      Get kanbans
-// @Description  Get kanbans for a project with optional filters
-// @Tags         kanbans
+// GetBoards godoc
+// @Summary      Get boards
+// @Description  Get boards for a project with optional filters
+// @Tags         boards
 // @Accept       json
 // @Produce      json
 // @Param        projectId query string true "Project ID"
@@ -99,15 +99,15 @@ func (h *KanbanHandler) GetKanban(c *gin.Context) {
 // @Param        authorId query string false "Filter by Author ID"
 // @Param        page query int false "Page number (default: 1)"
 // @Param        limit query int false "Items per page (default: 20, max: 100)"
-// @Success      200 {object} dto.SuccessResponse{data=dto.PaginatedKanbansResponse}
+// @Success      200 {object} dto.SuccessResponse{data=dto.PaginatedBoardsResponse}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
-// @Router       /api/kanbans [get]
+// @Router       /api/boards [get]
 // @Security     BearerAuth
-func (h *KanbanHandler) GetKanbans(c *gin.Context) {
+func (h *BoardHandler) GetBoards(c *gin.Context) {
 	userID := c.GetString("user_id")
 
-	var req dto.GetKanbansRequest
+	var req dto.GetBoardsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		dto.Error(c, apperrors.Wrap(err, apperrors.ErrCodeValidation, "입력값 검증 실패", 400))
 		return
@@ -121,7 +121,7 @@ func (h *KanbanHandler) GetKanbans(c *gin.Context) {
 		req.Limit = 20
 	}
 
-	kanbans, err := h.service.GetKanbans(userID, &req)
+	boards, err := h.service.GetBoards(userID, &req)
 	if err != nil {
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			dto.Error(c, appErr)
@@ -131,34 +131,34 @@ func (h *KanbanHandler) GetKanbans(c *gin.Context) {
 		return
 	}
 
-	dto.Success(c, kanbans)
+	dto.Success(c, boards)
 }
 
-// UpdateKanban godoc
-// @Summary      Update kanban
-// @Description  Update a kanban (author or ADMIN+ only)
-// @Tags         kanbans
+// UpdateBoard godoc
+// @Summary      Update board
+// @Description  Update a board (author or ADMIN+ only)
+// @Tags         boards
 // @Accept       json
 // @Produce      json
-// @Param        id path string true "Kanban ID"
-// @Param        request body dto.UpdateKanbanRequest true "Kanban updates"
-// @Success      200 {object} dto.SuccessResponse{data=dto.KanbanResponse}
+// @Param        id path string true "Board ID"
+// @Param        request body dto.UpdateBoardRequest true "Board updates"
+// @Success      200 {object} dto.SuccessResponse{data=dto.BoardResponse}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
 // @Failure      404 {object} dto.ErrorResponse
-// @Router       /api/kanbans/{id} [put]
+// @Router       /api/boards/{id} [put]
 // @Security     BearerAuth
-func (h *KanbanHandler) UpdateKanban(c *gin.Context) {
+func (h *BoardHandler) UpdateBoard(c *gin.Context) {
 	userID := c.GetString("user_id")
-	kanbanID := c.Param("id")
+	boardID := c.Param("id")
 
-	var req dto.UpdateKanbanRequest
+	var req dto.UpdateBoardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		dto.Error(c, apperrors.Wrap(err, apperrors.ErrCodeValidation, "입력값 검증 실패", 400))
 		return
 	}
 
-	kanban, err := h.service.UpdateKanban(kanbanID, userID, &req)
+	board, err := h.service.UpdateBoard(boardID, userID, &req)
 	if err != nil {
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			dto.Error(c, appErr)
@@ -168,26 +168,26 @@ func (h *KanbanHandler) UpdateKanban(c *gin.Context) {
 		return
 	}
 
-	dto.Success(c, kanban)
+	dto.Success(c, board)
 }
 
-// DeleteKanban godoc
-// @Summary      Delete kanban
-// @Description  Delete a kanban (soft delete, author or ADMIN+ only)
-// @Tags         kanbans
+// DeleteBoard godoc
+// @Summary      Delete board
+// @Description  Delete a board (soft delete, author or ADMIN+ only)
+// @Tags         boards
 // @Accept       json
 // @Produce      json
-// @Param        id path string true "Kanban ID"
+// @Param        id path string true "Board ID"
 // @Success      200 {object} dto.SuccessResponse
 // @Failure      403 {object} dto.ErrorResponse
 // @Failure      404 {object} dto.ErrorResponse
-// @Router       /api/kanbans/{id} [delete]
+// @Router       /api/boards/{id} [delete]
 // @Security     BearerAuth
-func (h *KanbanHandler) DeleteKanban(c *gin.Context) {
+func (h *BoardHandler) DeleteBoard(c *gin.Context) {
 	userID := c.GetString("user_id")
-	kanbanID := c.Param("id")
+	boardID := c.Param("id")
 
-	if err := h.service.DeleteKanban(kanbanID, userID); err != nil {
+	if err := h.service.DeleteBoard(boardID, userID); err != nil {
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			dto.Error(c, appErr)
 		} else {
@@ -196,5 +196,5 @@ func (h *KanbanHandler) DeleteKanban(c *gin.Context) {
 		return
 	}
 
-	dto.Success(c, gin.H{"message": "칸반이 삭제되었습니다"})
+	dto.Success(c, gin.H{"message": "보드가 삭제되었습니다"})
 }

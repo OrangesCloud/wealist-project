@@ -7,13 +7,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// Comment represents a comment on a Kanban card.
+// Comment represents a comment on a Board card.
 type Comment struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	Content   string         `gorm:"type:text;not null"`
 	UserID    uuid.UUID      `gorm:"type:uuid;not null;index"`
-	KanbanID  uuid.UUID      `gorm:"type:uuid;not null;index"`
-	Kanban    Kanban         `gorm:"foreignKey:KanbanID"`
+	BoardID   uuid.UUID      `gorm:"type:uuid;not null;index"`
+	Board     Board          `gorm:"foreignKey:BoardID"`
 	CreatedAt time.Time      `gorm:"autoCreateTime"`
 	UpdatedAt time.Time      `gorm:"autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `gorm:"index"`

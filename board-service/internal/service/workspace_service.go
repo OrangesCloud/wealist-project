@@ -79,8 +79,8 @@ func (s *workspaceService) CreateWorkspace(ownerID string, req *dto.CreateWorksp
 		workspace = &domain.Workspace{
 			Name:        req.Name,
 			Description: req.Description,
-			CreatedBy:   ownerUUID,
-			IsDeleted:   false,
+			OwnerID:     ownerUUID,
+			IsPublic:    false,
 		}
 		if err := s.repo.Create(workspace); err != nil {
 			return err
@@ -590,16 +590,16 @@ func (s *workspaceService) toWorkspaceResponse(workspace *domain.Workspace) (*dt
 		ID:          workspace.ID.String(),
 		Name:        workspace.Name,
 		Description: workspace.Description,
-		OwnerID:     workspace.CreatedBy.String(),
+		OwnerID:     workspace.OwnerID.String(),
 		CreatedAt:   workspace.CreatedAt,
 		UpdatedAt:   workspace.UpdatedAt,
 	}
 
 	// Fetch user info from User Service
 	ctx := context.Background()
-	userInfo, err := s.userClient.GetUser(ctx, workspace.CreatedBy.String())
+	userInfo, err := s.userClient.GetUser(ctx, workspace.OwnerID.String())
 	if err != nil {
-		s.logger.Warn("Failed to fetch user info", zap.Error(err), zap.String("user_id", workspace.CreatedBy.String()))
+		s.logger.Warn("Failed to fetch user info", zap.Error(err), zap.String("user_id", workspace.OwnerID.String()))
 		// Continue without user info
 	} else {
 		response.OwnerName = userInfo.Name

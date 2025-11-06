@@ -48,8 +48,8 @@ func (h *CommentHandler) CreateComment(c *gin.Context) {
 	dto.SuccessWithStatus(c, http.StatusCreated, resp)
 }
 
-// GetCommentsByKanbanID handles fetching all comments for a kanban.
-func (h *CommentHandler) GetCommentsByKanbanID(c *gin.Context) {
+// GetCommentsByBoardID handles fetching all comments for a board.
+func (h *CommentHandler) GetCommentsByBoardID(c *gin.Context) {
 	userIDStr := c.GetString("user_id")
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
@@ -57,19 +57,19 @@ func (h *CommentHandler) GetCommentsByKanbanID(c *gin.Context) {
 		return
 	}
 
-	kanbanIDStr := c.Query("kanbanId")
-	if kanbanIDStr == "" {
-		dto.Error(c, apperrors.New(apperrors.ErrCodeBadRequest, "kanbanId query parameter is required", http.StatusBadRequest))
+	boardIDStr := c.Query("boardId")
+	if boardIDStr == "" {
+		dto.Error(c, apperrors.New(apperrors.ErrCodeBadRequest, "boardId query parameter is required", http.StatusBadRequest))
 		return
 	}
 
-	kanbanID, err := uuid.Parse(kanbanIDStr)
+	boardID, err := uuid.Parse(boardIDStr)
 	if err != nil {
-		dto.Error(c, apperrors.New(apperrors.ErrCodeBadRequest, "Invalid kanban ID format", http.StatusBadRequest))
+		dto.Error(c, apperrors.New(apperrors.ErrCodeBadRequest, "Invalid board ID format", http.StatusBadRequest))
 		return
 	}
 
-	resp, err := h.commentService.GetCommentsByKanbanID(c.Request.Context(), kanbanID, userID)
+	resp, err := h.commentService.GetCommentsByBoardID(c.Request.Context(), boardID, userID)
 	if err != nil {
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			dto.Error(c, appErr)

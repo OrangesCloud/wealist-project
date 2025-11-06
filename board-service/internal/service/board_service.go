@@ -15,16 +15,16 @@ import (
 	"gorm.io/gorm"
 )
 
-type KanbanService interface {
-	CreateKanban(userID string, req *dto.CreateKanbanRequest) (*dto.KanbanResponse, error)
-	GetKanban(kanbanID, userID string) (*dto.KanbanResponse, error)
-	GetKanbans(userID string, req *dto.GetKanbansRequest) (*dto.PaginatedKanbansResponse, error)
-	UpdateKanban(kanbanID, userID string, req *dto.UpdateKanbanRequest) (*dto.KanbanResponse, error)
-	DeleteKanban(kanbanID, userID string) error
+type BoardService interface {
+	CreateBoard(userID string, req *dto.CreateBoardRequest) (*dto.BoardResponse, error)
+	GetBoard(boardID, userID string) (*dto.BoardResponse, error)
+	GetBoards(userID string, req *dto.GetBoardsRequest) (*dto.PaginatedBoardsResponse, error)
+	UpdateBoard(boardID, userID string, req *dto.UpdateBoardRequest) (*dto.BoardResponse, error)
+	DeleteBoard(boardID, userID string) error
 }
 
-type kanbanService struct {
-	repo            repository.KanbanRepository
+type boardService struct {
+	repo            repository.BoardRepository
 	projectRepo     repository.ProjectRepository
 	customFieldRepo repository.CustomFieldRepository
 	roleRepo        repository.RoleRepository
@@ -33,16 +33,16 @@ type kanbanService struct {
 	db              *gorm.DB
 }
 
-func NewKanbanService(
-	repo repository.KanbanRepository,
+func NewBoardService(
+	repo repository.BoardRepository,
 	projectRepo repository.ProjectRepository,
 	customFieldRepo repository.CustomFieldRepository,
 	roleRepo repository.RoleRepository,
 	userClient client.UserClient,
 	logger *zap.Logger,
 	db *gorm.DB,
-) KanbanService {
-	return &kanbanService{
+) BoardService {
+	return &boardService{
 		repo:            repo,
 		projectRepo:     projectRepo,
 		customFieldRepo: customFieldRepo,
@@ -53,9 +53,9 @@ func NewKanbanService(
 	}
 }
 
-// ==================== Create Kanban ====================
+// ==================== Create Board ====================
 
-func (s *kanbanService) CreateKanban(userID string, req *dto.CreateKanbanRequest) (*dto.KanbanResponse, error) {
+func (s *boardService) CreateBoard(userID string, req *dto.CreateBoardRequest) (*dto.BoardResponse, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
@@ -169,28 +169,28 @@ func (s *kanbanService) CreateKanban(userID string, req *dto.CreateKanbanRequest
 		dueDate = &parsed
 	}
 
-	// 7. Create Kanban in transaction
-	var kanban *domain.Kanban
+	// 7. Create Board in transaction
+	var board *domain.Board
 	err = s.db.Transaction(func(tx *gorm.DB) error {
-		kanban = &domain.Kanban{
-			ProjectID:    projectUUID,
-			Title:        req.Title,
-			Content:      req.Content,
-			StageID:      stageUUID,
-			ImportanceID: importanceUUID,
-			AssigneeID:   assigneeUUID,
-			AuthorID:     userUUID,
-			DueDate:      dueDate,
+		board = &domain.Board{
+			ProjectID:          projectUUID,
+			Title:              req.Title,
+			Description:        req.Content,
+			CustomStageID:      stageUUID,
+			CustomImportanceID: importanceUUID,
+			AssigneeID:         assigneeUUID,
+			CreatedBy:          userUUID,
+			DueDate:            dueDate,
 		}
 
-		if err := s.repo.Create(kanban); err != nil {
-			s.logger.Error("Failed to create kanban", zap.Error(err))
+		if err := s.repo.Create(board); err != nil {
+			s.logger.Error("Failed to create board", zap.Error(err))
 			return err
 		}
 
-		// Create kanban_roles (many-to-many)
-		if err := s.repo.CreateKanbanRoles(kanban.ID, roleUUIDs); err != nil {
-			s.logger.Error("Failed to create kanban roles", zap.Error(err))
+		// Create board_roles (many-to-many)
+		if err := s.repo.CreateBoardRoles(board.ID, roleUUIDs); err != nil {
+			s.logger.Error("Failed to create board roles", zap.Error(err))
 			return err
 		}
 
@@ -198,19 +198,19 @@ func (s *kanbanService) CreateKanban(userID string, req *dto.CreateKanbanRequest
 	})
 
 	if err != nil {
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 생성 실패", 500)
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 생성 실패", 500)
 	}
 
 	// 8. Build response with user info
-	return s.buildKanbanResponse(kanban, stage, importance, roles)
+	return s.buildBoardResponse(board, stage, importance, roles)
 }
 
-// ==================== Get Single Kanban ====================
+// ==================== Get Single Board ====================
 
-func (s *kanbanService) GetKanban(kanbanID, userID string) (*dto.KanbanResponse, error) {
-	kanbanUUID, err := uuid.Parse(kanbanID)
+func (s *boardService) GetBoard(boardID, userID string) (*dto.BoardResponse, error) {
+	boardUUID, err := uuid.Parse(boardID)
 	if err != nil {
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 칸반 ID", 400)
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 보드 ID", 400)
 	}
 
 	userUUID, err := uuid.Parse(userID)
@@ -218,17 +218,17 @@ func (s *kanbanService) GetKanban(kanbanID, userID string) (*dto.KanbanResponse,
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
 	}
 
-	// 1. Find kanban
-	kanban, err := s.repo.FindByID(kanbanUUID)
+	// 1. Find board
+	board, err := s.repo.FindByID(boardUUID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.New(apperrors.ErrCodeNotFound, "칸반을 찾을 수 없습니다", 404)
+			return nil, apperrors.New(apperrors.ErrCodeNotFound, "보드을 찾을 수 없습니다", 404)
 		}
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 조회 실패", 500)
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 조회 실패", 500)
 	}
 
 	// 2. Check if user is project member
-	_, err = s.projectRepo.FindMemberByUserAndProject(userUUID, kanban.ProjectID)
+	_, err = s.projectRepo.FindMemberByUserAndProject(userUUID, board.ProjectID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperrors.New(apperrors.ErrCodeForbidden, "프로젝트 멤버가 아닙니다", 403)
@@ -237,26 +237,26 @@ func (s *kanbanService) GetKanban(kanbanID, userID string) (*dto.KanbanResponse,
 	}
 
 	// 3. Fetch related data
-	stage, err := s.customFieldRepo.FindCustomStageByID(kanban.StageID)
+	stage, err := s.customFieldRepo.FindCustomStageByID(board.CustomStageID)
 	if err != nil {
-		s.logger.Warn("Failed to fetch stage", zap.Error(err), zap.String("stage_id", kanban.StageID.String()))
+		s.logger.Warn("Failed to fetch stage", zap.Error(err), zap.String("stage_id", board.CustomStageID.String()))
 	}
 
 	var importance *domain.CustomImportance
-	if kanban.ImportanceID != nil {
-		importance, err = s.customFieldRepo.FindCustomImportanceByID(*kanban.ImportanceID)
+	if board.CustomImportanceID != nil {
+		importance, err = s.customFieldRepo.FindCustomImportanceByID(*board.CustomImportanceID)
 		if err != nil {
-			s.logger.Warn("Failed to fetch importance", zap.Error(err), zap.String("importance_id", kanban.ImportanceID.String()))
+			s.logger.Warn("Failed to fetch importance", zap.Error(err), zap.String("importance_id", board.CustomImportanceID.String()))
 		}
 	}
 
-	kanbanRoles, err := s.repo.FindRolesByKanban(kanban.ID)
+	boardRoles, err := s.repo.FindRolesByBoard(board.ID)
 	if err != nil {
-		s.logger.Warn("Failed to fetch kanban roles", zap.Error(err))
+		s.logger.Warn("Failed to fetch board roles", zap.Error(err))
 	}
 
-	roles := make([]*domain.CustomRole, 0, len(kanbanRoles))
-	for _, kr := range kanbanRoles {
+	roles := make([]*domain.CustomRole, 0, len(boardRoles))
+	for _, kr := range boardRoles {
 		role, err := s.customFieldRepo.FindCustomRoleByID(kr.CustomRoleID)
 		if err == nil && role != nil {
 			roles = append(roles, role)
@@ -264,12 +264,12 @@ func (s *kanbanService) GetKanban(kanbanID, userID string) (*dto.KanbanResponse,
 	}
 
 	// 4. Build response
-	return s.buildKanbanResponse(kanban, stage, importance, roles)
+	return s.buildBoardResponse(board, stage, importance, roles)
 }
 
-// ==================== Get Kanbans (List with Filters) ====================
+// ==================== Get Boards (List with Filters) ====================
 
-func (s *kanbanService) GetKanbans(userID string, req *dto.GetKanbansRequest) (*dto.PaginatedKanbansResponse, error) {
+func (s *boardService) GetBoards(userID string, req *dto.GetBoardsRequest) (*dto.PaginatedBoardsResponse, error) {
 	projectUUID, err := uuid.Parse(req.ProjectID)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 프로젝트 ID", 400)
@@ -290,7 +290,7 @@ func (s *kanbanService) GetKanbans(userID string, req *dto.GetKanbansRequest) (*
 	}
 
 	// 2. Build filters
-	filters := repository.KanbanFilters{}
+	filters := repository.BoardFilters{}
 	if req.StageID != "" {
 		stageUUID, err := uuid.Parse(req.StageID)
 		if err == nil {
@@ -332,51 +332,51 @@ func (s *kanbanService) GetKanbans(userID string, req *dto.GetKanbansRequest) (*
 		limit = 20
 	}
 
-	// 4. Fetch kanbans
-	kanbans, total, err := s.repo.FindByProject(projectUUID, filters, page, limit)
+	// 4. Fetch boards
+	boards, total, err := s.repo.FindByProject(projectUUID, filters, page, limit)
 	if err != nil {
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 조회 실패", 500)
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 조회 실패", 500)
 	}
 
 	// 5. Build responses (batch processing)
-	responses := make([]dto.KanbanResponse, 0, len(kanbans))
-	for _, kanban := range kanbans {
-		stage, _ := s.customFieldRepo.FindCustomStageByID(kanban.StageID)
+	responses := make([]dto.BoardResponse, 0, len(boards))
+	for _, board := range boards {
+		stage, _ := s.customFieldRepo.FindCustomStageByID(board.CustomStageID)
 
 		var importance *domain.CustomImportance
-		if kanban.ImportanceID != nil {
-			importance, _ = s.customFieldRepo.FindCustomImportanceByID(*kanban.ImportanceID)
+		if board.CustomImportanceID != nil {
+			importance, _ = s.customFieldRepo.FindCustomImportanceByID(*board.CustomImportanceID)
 		}
 
-		kanbanRoles, _ := s.repo.FindRolesByKanban(kanban.ID)
-		roles := make([]*domain.CustomRole, 0, len(kanbanRoles))
-		for _, kr := range kanbanRoles {
+		boardRoles, _ := s.repo.FindRolesByBoard(board.ID)
+		roles := make([]*domain.CustomRole, 0, len(boardRoles))
+		for _, kr := range boardRoles {
 			role, err := s.customFieldRepo.FindCustomRoleByID(kr.CustomRoleID)
 			if err == nil && role != nil {
 				roles = append(roles, role)
 			}
 		}
 
-		response, err := s.buildKanbanResponse(&kanban, stage, importance, roles)
+		response, err := s.buildBoardResponse(&board, stage, importance, roles)
 		if err == nil && response != nil {
 			responses = append(responses, *response)
 		}
 	}
 
-	return &dto.PaginatedKanbansResponse{
-		Kanbans: responses,
+	return &dto.PaginatedBoardsResponse{
+		Boards: responses,
 		Total:   total,
 		Page:    page,
 		Limit:   limit,
 	}, nil
 }
 
-// ==================== Update Kanban ====================
+// ==================== Update Board ====================
 
-func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKanbanRequest) (*dto.KanbanResponse, error) {
-	kanbanUUID, err := uuid.Parse(kanbanID)
+func (s *boardService) UpdateBoard(boardID, userID string, req *dto.UpdateBoardRequest) (*dto.BoardResponse, error) {
+	boardUUID, err := uuid.Parse(boardID)
 	if err != nil {
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 칸반 ID", 400)
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 보드 ID", 400)
 	}
 
 	userUUID, err := uuid.Parse(userID)
@@ -384,17 +384,17 @@ func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKan
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
 	}
 
-	// 1. Find kanban
-	kanban, err := s.repo.FindByID(kanbanUUID)
+	// 1. Find board
+	board, err := s.repo.FindByID(boardUUID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.New(apperrors.ErrCodeNotFound, "칸반을 찾을 수 없습니다", 404)
+			return nil, apperrors.New(apperrors.ErrCodeNotFound, "보드을 찾을 수 없습니다", 404)
 		}
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 조회 실패", 500)
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 조회 실패", 500)
 	}
 
 	// 2. Check permission (author or ADMIN+)
-	member, err := s.projectRepo.FindMemberByUserAndProject(userUUID, kanban.ProjectID)
+	member, err := s.projectRepo.FindMemberByUserAndProject(userUUID, board.ProjectID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperrors.New(apperrors.ErrCodeForbidden, "프로젝트 멤버가 아닙니다", 403)
@@ -409,16 +409,16 @@ func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKan
 	}
 
 	// Check if user is author or has ADMIN+ permission
-	if kanban.AuthorID != userUUID && role.Name == "MEMBER" {
+	if board.CreatedBy != userUUID && role.Name == "MEMBER" {
 		return nil, apperrors.New(apperrors.ErrCodeForbidden, "수정 권한이 없습니다", 403)
 	}
 
 	// 3. Update fields
 	if req.Title != "" {
-		kanban.Title = req.Title
+		board.Title = req.Title
 	}
 	if req.Content != "" {
-		kanban.Content = req.Content
+		board.Description = req.Content
 	}
 
 	if req.StageID != "" {
@@ -428,10 +428,10 @@ func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKan
 		}
 
 		stage, err := s.customFieldRepo.FindCustomStageByID(stageUUID)
-		if err != nil || stage.ProjectID != kanban.ProjectID {
+		if err != nil || stage.ProjectID != board.ProjectID {
 			return nil, apperrors.New(apperrors.ErrCodeNotFound, "진행단계를 찾을 수 없습니다", 404)
 		}
-		kanban.StageID = stageUUID
+		board.CustomStageID = stageUUID
 	}
 
 	if req.ImportanceID != nil {
@@ -441,10 +441,10 @@ func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKan
 		}
 
 		importance, err := s.customFieldRepo.FindCustomImportanceByID(importanceUUID)
-		if err != nil || importance.ProjectID != kanban.ProjectID {
+		if err != nil || importance.ProjectID != board.ProjectID {
 			return nil, apperrors.New(apperrors.ErrCodeNotFound, "중요도를 찾을 수 없습니다", 404)
 		}
-		kanban.ImportanceID = &importanceUUID
+		board.CustomImportanceID = &importanceUUID
 	}
 
 	if req.AssigneeID != nil {
@@ -453,11 +453,11 @@ func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKan
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 담당자 ID", 400)
 		}
 
-		_, err = s.projectRepo.FindMemberByUserAndProject(assigneeUUID, kanban.ProjectID)
+		_, err = s.projectRepo.FindMemberByUserAndProject(assigneeUUID, board.ProjectID)
 		if err != nil {
 			return nil, apperrors.New(apperrors.ErrCodeNotFound, "담당자가 프로젝트 멤버가 아닙니다", 404)
 		}
-		kanban.AssigneeID = &assigneeUUID
+		board.AssigneeID = &assigneeUUID
 	}
 
 	if req.DueDate != nil {
@@ -465,7 +465,7 @@ func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKan
 		if err != nil {
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 마감일 형식입니다 (ISO 8601 required)", 400)
 		}
-		kanban.DueDate = &parsed
+		board.DueDate = &parsed
 	}
 
 	// 4. Update roles if provided
@@ -479,7 +479,7 @@ func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKan
 			}
 
 			role, err := s.customFieldRepo.FindCustomRoleByID(roleUUID)
-			if err != nil || role.ProjectID != kanban.ProjectID {
+			if err != nil || role.ProjectID != board.ProjectID {
 				return nil, apperrors.New(apperrors.ErrCodeNotFound, "역할을 찾을 수 없습니다", 404)
 			}
 
@@ -488,10 +488,10 @@ func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKan
 
 		// Delete existing roles and create new ones in transaction
 		err = s.db.Transaction(func(tx *gorm.DB) error {
-			if err := s.repo.DeleteKanbanRolesByKanban(kanban.ID); err != nil {
+			if err := s.repo.DeleteBoardRolesByBoard(board.ID); err != nil {
 				return err
 			}
-			if err := s.repo.CreateKanbanRoles(kanban.ID, roleUUIDs); err != nil {
+			if err := s.repo.CreateBoardRoles(board.ID, roleUUIDs); err != nil {
 				return err
 			}
 			return nil
@@ -502,21 +502,21 @@ func (s *kanbanService) UpdateKanban(kanbanID, userID string, req *dto.UpdateKan
 		}
 	}
 
-	// 5. Save kanban
-	if err := s.repo.Update(kanban); err != nil {
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 수정 실패", 500)
+	// 5. Save board
+	if err := s.repo.Update(board); err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 수정 실패", 500)
 	}
 
-	// 6. Return updated kanban
-	return s.GetKanban(kanban.ID.String(), userID)
+	// 6. Return updated board
+	return s.GetBoard(board.ID.String(), userID)
 }
 
-// ==================== Delete Kanban (Soft) ====================
+// ==================== Delete Board (Soft) ====================
 
-func (s *kanbanService) DeleteKanban(kanbanID, userID string) error {
-	kanbanUUID, err := uuid.Parse(kanbanID)
+func (s *boardService) DeleteBoard(boardID, userID string) error {
+	boardUUID, err := uuid.Parse(boardID)
 	if err != nil {
-		return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 칸반 ID", 400)
+		return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 보드 ID", 400)
 	}
 
 	userUUID, err := uuid.Parse(userID)
@@ -524,17 +524,17 @@ func (s *kanbanService) DeleteKanban(kanbanID, userID string) error {
 		return apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
 	}
 
-	// 1. Find kanban
-	kanban, err := s.repo.FindByID(kanbanUUID)
+	// 1. Find board
+	board, err := s.repo.FindByID(boardUUID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return apperrors.New(apperrors.ErrCodeNotFound, "칸반을 찾을 수 없습니다", 404)
+			return apperrors.New(apperrors.ErrCodeNotFound, "보드을 찾을 수 없습니다", 404)
 		}
-		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 조회 실패", 500)
+		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 조회 실패", 500)
 	}
 
 	// 2. Check permission (author or ADMIN+)
-	member, err := s.projectRepo.FindMemberByUserAndProject(userUUID, kanban.ProjectID)
+	member, err := s.projectRepo.FindMemberByUserAndProject(userUUID, board.ProjectID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return apperrors.New(apperrors.ErrCodeForbidden, "프로젝트 멤버가 아닙니다", 403)
@@ -549,30 +549,30 @@ func (s *kanbanService) DeleteKanban(kanbanID, userID string) error {
 	}
 
 	// Check if user is author or has ADMIN+ permission
-	if kanban.AuthorID != userUUID && role.Name == "MEMBER" {
+	if board.CreatedBy != userUUID && role.Name == "MEMBER" {
 		return apperrors.New(apperrors.ErrCodeForbidden, "삭제 권한이 없습니다", 403)
 	}
 
 	// 3. Soft delete
-	if err := s.repo.Delete(kanban.ID); err != nil {
-		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "칸반 삭제 실패", 500)
+	if err := s.repo.Delete(board.ID); err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 삭제 실패", 500)
 	}
 
 	return nil
 }
 
-// ==================== Helper: Build Kanban Response ====================
+// ==================== Helper: Build Board Response ====================
 
-func (s *kanbanService) buildKanbanResponse(
-	kanban *domain.Kanban,
+func (s *boardService) buildBoardResponse(
+	board *domain.Board,
 	stage *domain.CustomStage,
 	importance *domain.CustomImportance,
 	roles []*domain.CustomRole,
-) (*dto.KanbanResponse, error) {
+) (*dto.BoardResponse, error) {
 	// Collect user IDs for batch query
-	userIDs := []string{kanban.AuthorID.String()}
-	if kanban.AssigneeID != nil {
-		userIDs = append(userIDs, kanban.AssigneeID.String())
+	userIDs := []string{board.CreatedBy.String()}
+	if board.AssigneeID != nil {
+		userIDs = append(userIDs, board.AssigneeID.String())
 	}
 
 	// Fetch users from User Service (batch)
@@ -590,14 +590,14 @@ func (s *kanbanService) buildKanbanResponse(
 	}
 
 	// Build response
-	response := &dto.KanbanResponse{
-		ID:        kanban.ID.String(),
-		ProjectID: kanban.ProjectID.String(),
-		Title:     kanban.Title,
-		Content:   kanban.Content,
-		DueDate:   kanban.DueDate,
-		CreatedAt: kanban.CreatedAt,
-		UpdatedAt: kanban.UpdatedAt,
+	response := &dto.BoardResponse{
+		ID:        board.ID.String(),
+		ProjectID: board.ProjectID.String(),
+		Title:     board.Title,
+		Content:   board.Description,
+		DueDate:   board.DueDate,
+		CreatedAt: board.CreatedAt,
+		UpdatedAt: board.UpdatedAt,
 	}
 
 	// Stage
@@ -645,7 +645,7 @@ func (s *kanbanService) buildKanbanResponse(
 	response.Roles = roleResponses
 
 	// Author
-	if author, ok := userMap[kanban.AuthorID.String()]; ok {
+	if author, ok := userMap[board.CreatedBy.String()]; ok {
 		response.Author = dto.UserInfo{
 			UserID:   author.UserID,
 			Name:     author.Name,
@@ -655,7 +655,7 @@ func (s *kanbanService) buildKanbanResponse(
 	} else {
 		// Fallback if user not found
 		response.Author = dto.UserInfo{
-			UserID:   kanban.AuthorID.String(),
+			UserID:   board.CreatedBy.String(),
 			Name:     "Unknown User",
 			Email:    "",
 			IsActive: false,
@@ -663,8 +663,8 @@ func (s *kanbanService) buildKanbanResponse(
 	}
 
 	// Assignee
-	if kanban.AssigneeID != nil {
-		if assignee, ok := userMap[kanban.AssigneeID.String()]; ok {
+	if board.AssigneeID != nil {
+		if assignee, ok := userMap[board.AssigneeID.String()]; ok {
 			response.Assignee = &dto.UserInfo{
 				UserID:   assignee.UserID,
 				Name:     assignee.Name,
@@ -674,7 +674,7 @@ func (s *kanbanService) buildKanbanResponse(
 		} else {
 			// Fallback if user not found
 			response.Assignee = &dto.UserInfo{
-				UserID:   kanban.AssigneeID.String(),
+				UserID:   board.AssigneeID.String(),
 				Name:     "Unknown User",
 				Email:    "",
 				IsActive: false,

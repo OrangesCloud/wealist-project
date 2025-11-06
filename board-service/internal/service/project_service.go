@@ -103,7 +103,6 @@ func (s *projectService) CreateProject(userID string, req *dto.CreateProjectRequ
 			Name:        req.Name,
 			Description: req.Description,
 			OwnerID:     userUUID,
-			IsDeleted:   false,
 		}
 		if err := s.repo.Create(project); err != nil {
 			return err

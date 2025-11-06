@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"board-service/internal/domain"
+
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -12,7 +14,8 @@ import (
 )
 
 // Connect establishes a connection to PostgreSQL database
-func Connect(databaseURL string, logger *zap.Logger) (*gorm.DB, error) {
+// If useAutoMigrate is true, it will automatically migrate all domain models
+func Connect(databaseURL string, logger *zap.Logger, useAutoMigrate bool) (*gorm.DB, error) {
 	// Configure GORM with custom logger
 	gormConfig := &gorm.Config{
 		Logger: newGormLogger(logger),
@@ -49,7 +52,45 @@ func Connect(databaseURL string, logger *zap.Logger) (*gorm.DB, error) {
 		zap.Duration("conn_max_lifetime", time.Hour),
 	)
 
+	// Run AutoMigrate if enabled (development mode)
+	if useAutoMigrate {
+		if err := autoMigrateAll(db, logger); err != nil {
+			return nil, fmt.Errorf("failed to auto-migrate: %w", err)
+		}
+		logger.Info("GORM AutoMigrate completed successfully")
+	} else {
+		logger.Info("AutoMigrate disabled - using manual migrations")
+	}
+
 	return db, nil
+}
+
+// autoMigrateAll runs GORM AutoMigrate for all domain models
+func autoMigrateAll(db *gorm.DB, logger *zap.Logger) error {
+	logger.Info("Running GORM AutoMigrate...")
+
+	models := []interface{}{
+		&domain.SchemaVersion{},
+		&domain.Role{},
+		&domain.Workspace{},
+		&domain.WorkspaceMember{},
+		&domain.WorkspaceJoinRequest{},
+		&domain.Project{},
+		&domain.ProjectMember{},
+		&domain.ProjectJoinRequest{},
+		&domain.CustomRole{},
+		&domain.CustomStage{},
+		&domain.CustomImportance{},
+		&domain.Board{},
+		&domain.BoardRole{},
+		&domain.UserRoleColumnOrder{},
+		&domain.UserStageColumnOrder{},
+		&domain.UserBoardOrderInRole{},
+		&domain.UserBoardOrderInStage{},
+		&domain.Comment{},
+	}
+
+	return db.AutoMigrate(models...)
 }
 
 // gormLogger is a custom logger adapter for GORM

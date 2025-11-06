@@ -8,7 +8,7 @@ import (
 
 // CreateCommentRequest defines the structure for creating a new comment.
 type CreateCommentRequest struct {
-	KanbanID uuid.UUID `json:"kanbanId" binding:"required"`
+	BoardID uuid.UUID `json:"boardId" binding:"required"`
 	Content  string    `json:"content" binding:"required"`
 }
 

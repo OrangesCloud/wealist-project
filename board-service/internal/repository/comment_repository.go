@@ -10,7 +10,7 @@ import (
 type CommentRepository interface {
 	Create(comment *domain.Comment) error
 	FindByID(id uuid.UUID) (*domain.Comment, error)
-	FindByKanbanID(kanbanID uuid.UUID) ([]domain.Comment, error)
+	FindByBoardID(boardID uuid.UUID) ([]domain.Comment, error)
 	Update(comment *domain.Comment) error
 	Delete(id uuid.UUID) error
 }
@@ -36,10 +36,10 @@ func (r *commentRepository) FindByID(id uuid.UUID) (*domain.Comment, error) {
 	return &comment, err
 }
 
-// FindByKanbanID retrieves all comments for a given Kanban ID.
-func (r *commentRepository) FindByKanbanID(kanbanID uuid.UUID) ([]domain.Comment, error) {
+// FindByBoardID retrieves all comments for a given Board ID.
+func (r *commentRepository) FindByBoardID(boardID uuid.UUID) ([]domain.Comment, error) {
 	var comments []domain.Comment
-	err := r.db.Where("kanban_id = ?", kanbanID).Order("created_at asc").Find(&comments).Error
+	err := r.db.Where("board_id = ?", boardID).Order("created_at asc").Find(&comments).Error
 	return comments, err
 }
 
