@@ -173,14 +173,14 @@ func (s *boardService) CreateBoard(userID string, req *dto.CreateBoardRequest) (
 	var board *domain.Board
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		board = &domain.Board{
-			ProjectID:    projectUUID,
-			Title:        req.Title,
-			Content:      req.Content,
-			StageID:      stageUUID,
-			ImportanceID: importanceUUID,
-			AssigneeID:   assigneeUUID,
-			AuthorID:     userUUID,
-			DueDate:      dueDate,
+			ProjectID:          projectUUID,
+			Title:              req.Title,
+			Description:        req.Content,
+			CustomStageID:      stageUUID,
+			CustomImportanceID: importanceUUID,
+			AssigneeID:         assigneeUUID,
+			CreatedBy:          userUUID,
+			DueDate:            dueDate,
 		}
 
 		if err := s.repo.Create(board); err != nil {
@@ -237,16 +237,16 @@ func (s *boardService) GetBoard(boardID, userID string) (*dto.BoardResponse, err
 	}
 
 	// 3. Fetch related data
-	stage, err := s.customFieldRepo.FindCustomStageByID(board.StageID)
+	stage, err := s.customFieldRepo.FindCustomStageByID(board.CustomStageID)
 	if err != nil {
-		s.logger.Warn("Failed to fetch stage", zap.Error(err), zap.String("stage_id", board.StageID.String()))
+		s.logger.Warn("Failed to fetch stage", zap.Error(err), zap.String("stage_id", board.CustomStageID.String()))
 	}
 
 	var importance *domain.CustomImportance
-	if board.ImportanceID != nil {
-		importance, err = s.customFieldRepo.FindCustomImportanceByID(*board.ImportanceID)
+	if board.CustomImportanceID != nil {
+		importance, err = s.customFieldRepo.FindCustomImportanceByID(*board.CustomImportanceID)
 		if err != nil {
-			s.logger.Warn("Failed to fetch importance", zap.Error(err), zap.String("importance_id", board.ImportanceID.String()))
+			s.logger.Warn("Failed to fetch importance", zap.Error(err), zap.String("importance_id", board.CustomImportanceID.String()))
 		}
 	}
 
@@ -341,11 +341,11 @@ func (s *boardService) GetBoards(userID string, req *dto.GetBoardsRequest) (*dto
 	// 5. Build responses (batch processing)
 	responses := make([]dto.BoardResponse, 0, len(boards))
 	for _, board := range boards {
-		stage, _ := s.customFieldRepo.FindCustomStageByID(board.StageID)
+		stage, _ := s.customFieldRepo.FindCustomStageByID(board.CustomStageID)
 
 		var importance *domain.CustomImportance
-		if board.ImportanceID != nil {
-			importance, _ = s.customFieldRepo.FindCustomImportanceByID(*board.ImportanceID)
+		if board.CustomImportanceID != nil {
+			importance, _ = s.customFieldRepo.FindCustomImportanceByID(*board.CustomImportanceID)
 		}
 
 		boardRoles, _ := s.repo.FindRolesByBoard(board.ID)
@@ -409,7 +409,7 @@ func (s *boardService) UpdateBoard(boardID, userID string, req *dto.UpdateBoardR
 	}
 
 	// Check if user is author or has ADMIN+ permission
-	if board.AuthorID != userUUID && role.Name == "MEMBER" {
+	if board.CreatedBy != userUUID && role.Name == "MEMBER" {
 		return nil, apperrors.New(apperrors.ErrCodeForbidden, "수정 권한이 없습니다", 403)
 	}
 
@@ -418,7 +418,7 @@ func (s *boardService) UpdateBoard(boardID, userID string, req *dto.UpdateBoardR
 		board.Title = req.Title
 	}
 	if req.Content != "" {
-		board.Content = req.Content
+		board.Description = req.Content
 	}
 
 	if req.StageID != "" {
@@ -431,7 +431,7 @@ func (s *boardService) UpdateBoard(boardID, userID string, req *dto.UpdateBoardR
 		if err != nil || stage.ProjectID != board.ProjectID {
 			return nil, apperrors.New(apperrors.ErrCodeNotFound, "진행단계를 찾을 수 없습니다", 404)
 		}
-		board.StageID = stageUUID
+		board.CustomStageID = stageUUID
 	}
 
 	if req.ImportanceID != nil {
@@ -444,7 +444,7 @@ func (s *boardService) UpdateBoard(boardID, userID string, req *dto.UpdateBoardR
 		if err != nil || importance.ProjectID != board.ProjectID {
 			return nil, apperrors.New(apperrors.ErrCodeNotFound, "중요도를 찾을 수 없습니다", 404)
 		}
-		board.ImportanceID = &importanceUUID
+		board.CustomImportanceID = &importanceUUID
 	}
 
 	if req.AssigneeID != nil {
@@ -549,7 +549,7 @@ func (s *boardService) DeleteBoard(boardID, userID string) error {
 	}
 
 	// Check if user is author or has ADMIN+ permission
-	if board.AuthorID != userUUID && role.Name == "MEMBER" {
+	if board.CreatedBy != userUUID && role.Name == "MEMBER" {
 		return apperrors.New(apperrors.ErrCodeForbidden, "삭제 권한이 없습니다", 403)
 	}
 
@@ -570,7 +570,7 @@ func (s *boardService) buildBoardResponse(
 	roles []*domain.CustomRole,
 ) (*dto.BoardResponse, error) {
 	// Collect user IDs for batch query
-	userIDs := []string{board.AuthorID.String()}
+	userIDs := []string{board.CreatedBy.String()}
 	if board.AssigneeID != nil {
 		userIDs = append(userIDs, board.AssigneeID.String())
 	}
@@ -594,7 +594,7 @@ func (s *boardService) buildBoardResponse(
 		ID:        board.ID.String(),
 		ProjectID: board.ProjectID.String(),
 		Title:     board.Title,
-		Content:   board.Content,
+		Content:   board.Description,
 		DueDate:   board.DueDate,
 		CreatedAt: board.CreatedAt,
 		UpdatedAt: board.UpdatedAt,
@@ -645,7 +645,7 @@ func (s *boardService) buildBoardResponse(
 	response.Roles = roleResponses
 
 	// Author
-	if author, ok := userMap[board.AuthorID.String()]; ok {
+	if author, ok := userMap[board.CreatedBy.String()]; ok {
 		response.Author = dto.UserInfo{
 			UserID:   author.UserID,
 			Name:     author.Name,
@@ -655,7 +655,7 @@ func (s *boardService) buildBoardResponse(
 	} else {
 		// Fallback if user not found
 		response.Author = dto.UserInfo{
-			UserID:   board.AuthorID.String(),
+			UserID:   board.CreatedBy.String(),
 			Name:     "Unknown User",
 			Email:    "",
 			IsActive: false,

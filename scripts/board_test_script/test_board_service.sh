@@ -86,29 +86,24 @@ else
     print_error "Health check failed: $response"
 fi
 
-# Step 2: User Registration & Login (완전히 수정됨)
-print_step "2" "사용자 등록 및 로그인"
+# Step 2: Test Auth 호출
+print_step "2" "테스트 토큰 생성"
 
-# Register user (에러 무시)
-register_data="{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\",\"name\":\"$TEST_NAME\"}"
-register_response=$(api_call "POST" "$USER_SERVICE_URL/api/auth/signup" "$register_data" 2>/dev/null || echo "user may already exist")
+test_auth_response=$(api_call "GET" "$USER_SERVICE_URL/api/auth/test")
 
-# Login
-login_data="{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\"}"
-login_response=$(api_call "POST" "$USER_SERVICE_URL/api/auth/login" "$login_data")
-
-if echo "$login_response" | grep -q "accessToken"; then
-    TOKEN=$(echo "$login_response" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
-    USER_ID=$(echo "$login_response" | grep -o '"userId":"[^"]*"' | cut -d'"' -f4)
+if echo "$test_auth_response" | grep -q '"accessToken"'; then
+    TOKEN=$(echo "$test_auth_response" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+    USER_ID=$(echo "$test_auth_response" | grep -o '"userId":"[^"]*"' | cut -d'"' -f4)
 
     if [ -n "$TOKEN" ] && [ -n "$USER_ID" ]; then
-        print_success "로그인 성공 (User ID: ${USER_ID:0:8}...)"
+        print_success "테스트 토큰 생성 성공 (User ID: ${USER_ID:0:8}...)"
     else
         print_error "토큰 또는 사용자 ID 추출 실패"
     fi
 else
-    print_error "로그인 실패: $login_response"
+    print_error "테스트 토큰 생성 실패: $test_auth_response"
 fi
+
 
 # Step 3: Workspace 생성
 print_step "3" "Workspace 생성"

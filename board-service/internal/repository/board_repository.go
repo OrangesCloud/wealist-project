@@ -65,16 +65,16 @@ func (r *boardRepository) FindByProject(projectID uuid.UUID, filters BoardFilter
 
 	// Apply filters
 	if filters.StageID != uuid.Nil {
-		query = query.Where("stage_id = ?", filters.StageID)
+		query = query.Where("custom_stage_id = ?", filters.StageID)
 	}
 	if filters.ImportanceID != uuid.Nil {
-		query = query.Where("importance_id = ?", filters.ImportanceID)
+		query = query.Where("custom_importance_id = ?", filters.ImportanceID)
 	}
 	if filters.AssigneeID != uuid.Nil {
 		query = query.Where("assignee_id = ?", filters.AssigneeID)
 	}
 	if filters.AuthorID != uuid.Nil {
-		query = query.Where("author_id = ?", filters.AuthorID)
+		query = query.Where("created_by = ?", filters.AuthorID)
 	}
 
 	// Role filter (JOIN)
@@ -157,13 +157,13 @@ func (r *boardRepository) UpdateBoardsRoleToDefault(oldRoleID, defaultRoleID uui
 func (r *boardRepository) UpdateBoardsStageToDefault(oldStageID, defaultStageID uuid.UUID) error {
 	// Update all boards using oldStageID to defaultStageID
 	return r.db.Model(&domain.Board{}).
-		Where("stage_id = ? AND deleted_at IS NULL", oldStageID).
-		Update("stage_id", defaultStageID).Error
+		Where("custom_stage_id = ? AND deleted_at IS NULL", oldStageID).
+		Update("custom_stage_id", defaultStageID).Error
 }
 
 func (r *boardRepository) UpdateBoardsImportanceToDefault(oldImportanceID, defaultImportanceID uuid.UUID) error {
 	// Update all boards using oldImportanceID to defaultImportanceID
 	return r.db.Model(&domain.Board{}).
-		Where("importance_id = ? AND deleted_at IS NULL", oldImportanceID).
-		Update("importance_id", defaultImportanceID).Error
+		Where("custom_importance_id = ? AND deleted_at IS NULL", oldImportanceID).
+		Update("custom_importance_id", defaultImportanceID).Error
 }
