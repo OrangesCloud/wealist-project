@@ -63,7 +63,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
         <div
           className={`${theme.colors.secondary} ${theme.effects.cardBorderWidth} ${theme.colors.border} p-4 sm:p-6 ${theme.effects.borderRadius}`}
         >
-          <img src="public/logo.png" alt="logo"></img>
+          <img src="logo.png" alt="logo"></img>
           <p className={`${theme.font.size.xs} ${theme.colors.text} mb-4 sm:mb-6 text-center`}>
             Google 계정으로 로그인하고 워크스페이스를 시작하세요.
           </p>
