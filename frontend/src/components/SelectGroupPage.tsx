@@ -46,7 +46,7 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
   const [memberEmailError, setMemberEmailError] = useState<string | null>(null);
 
   // 조직 생성 중 저장된 데이터
-  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
+  const [_createdGroupId, setCreatedGroupId] = useState<string | null>(null);
 
   // 1. 초기 그룹 로드
   useEffect(() => {

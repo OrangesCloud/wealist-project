@@ -24,14 +24,16 @@ services:
       - SPRING_JPA_SHOW_SQL=${JPA_SHOW_SQL}
       - SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=${JPA_FORMAT_SQL}
       - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+
       # Redis 설정
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
       - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD}
       - SPRING_REDIS_DATABASE=0
-        # Spring Security가 이 변수들을 자동으로 읽을 수 있도록 명시적 선언이 필요할 수 있습니다.
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID} # 💡 이 변수가 필요한지 확인
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET} # 💡 이 변수가 반드시 필요!
+
+      - SPRING_REDIS_DATABASE=0# Spring Security가 이 변수들을 자동으로 읽을 수 있도록 명시적 선언이 필요할 수 있습니다.
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
     ports:
       - "${USER_HOST_PORT:-8080}:8080"
     networks:
@@ -128,6 +130,88 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
+  #-----모니터링 부분------#
+  prometheus:
+    user: "root"
+    image: prom/prometheus
+    container_name: prometheus_container
+    volumes:
+      - ./prometheus/config:/etc/prometheus
+      - prometheus-data:/prometheus/data
+    ports:
+      - 9090:9090
+    command:
+      - "--web.enable-lifecycle"
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+    restart: always
+    networks:
+      - wealist-net
+
+  grafana:
+    user: "root"
+    image: grafana/grafana
+    container_name: grafana_container
+    ports:
+      - 9092:3000
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - grafana-logs:/var/log/grafana
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - wealist-net
+
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter
+    container_name: redis-exporter
+    environment:
+      - REDIS_ADDR=redis://wealist-redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "9121:9121"
+    networks:
+      - wealist-net
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9121"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # PostgreSQL Exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@postgres:5432/postgres?sslmode=disable
+    ports:
+      - "9187:9187"
+    networks:
+      - wealist-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9187/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
 
 #--- Networks and Volumes (Base 파일에서 정의되어야 참조 가능) ---

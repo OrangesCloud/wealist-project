@@ -107,7 +107,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout, currentGroupId,
   const [columns, setColumns] = useState<Column[]>([]);
   const [selectedProject, setSelectedProject] = useState<ProjectResponse | null>(null);
 
-  const [userProfile, setUserProfile] = useState<UserProfile>({
+  const [userProfile, _setUserProfile] = useState<UserProfile>({
     name: 'User',
     email: 'user@example.com',
     avatar: 'U',
