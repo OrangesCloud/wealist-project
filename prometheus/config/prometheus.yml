@@ -9,12 +9,12 @@ scrape_configs:
     ## dns 접근으로 나중에 변경
       - targets: ['host.docker.internal:8080']
     scrape_interval: 10s
-    # board-Service 나중에 사용할것
-  # - job_name: 'wealist-board'
-  #   static_configs:
-  #     - targets: ['host.docker.internal:8000']  # Go는 8081!
-  #   metrics_path: /metrics
-  #   scrape_interval: 5s
+
+  - job_name: 'wealist-board'
+    static_configs:
+      - targets: ['board-service:8000']
+    metrics_path: /metrics
+    scrape_interval: 5s
     
   # Redis
   - job_name: 'redis'
