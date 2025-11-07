@@ -5,7 +5,16 @@ localhost:9092 admin/admin 으로 접속
 2. 프로메테우스 선택
 3. URL에 host.docker.internal:8080(유저 서비스) 입력
 
-4. 대시보드 설정 왼쪽 대시보드에서 New 버튼에서 import 클릭 후 Upload Json file에 18812_rev4.json 넣기
-5. Prometheus에서  3에서 설정한 프로메테우스 클릭후 완료
+## user-service 추가
+1. 대시보드 설정 왼쪽 대시보드에서 New 버튼에서 import 클릭 후 Upload Json file에 18812_rev4.json 넣기
+2. Prometheus에서  3에서 설정한 프로메테우스 클릭후 완료
+3. test-api 실행시키면 cpu 증가하는것 확인 가능  
 
-6. test-api 실행시키면 cpu 증가하는것 확인 가능  
+## redis 추가 
+1. 대쉬보드에서 import 11692.json 파일 추가 - 데이터 소스 프로메테우스 선택
+
+## postgresql 추가
+1. 대쉬보드에서 import 9628.json 파일 추가 - 데이터 소스 프로메테우스 선택
+
+## go 추가 
+1. 대쉬보드에서 import -> 6671.json 파일 추가 - 데이터 소스 프로메테우스 선택

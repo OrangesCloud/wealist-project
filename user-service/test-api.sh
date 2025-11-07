@@ -7,7 +7,6 @@ if ! command -v jq &> /dev/null;
   exit 1
 fi
 
-
 # ===== 환경 설정 =====
 BASE_URL="http://localhost:8080"
 # BASE_URL="https://api.orangecloud.com"  # 프로덕션 서버

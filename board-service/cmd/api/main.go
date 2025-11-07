@@ -13,6 +13,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
@@ -117,11 +118,14 @@ func main() {
 		log.Info("Swagger UI enabled", zap.String("url", "http://localhost:"+cfg.Server.Port+"/swagger/index.html"))
 	}
 
-	// 10. Register health check (no authentication required)
+	// 10. Register Prometheus metrics endpoint
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	// 11. Register health check (no authentication required)
 	healthHandler := handler.NewHealthHandler(db, rdb)
 	handler.RegisterRoutes(r, healthHandler)
 
-	// 11. API routes group (authentication required)
+	// 12. API routes group (authentication required)
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
 	{
