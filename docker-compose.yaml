@@ -30,6 +30,10 @@ services:
       - SPRING_REDIS_PORT=6379
       - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD}
       - SPRING_REDIS_DATABASE=0
+
+      - SPRING_REDIS_DATABASE=0# Spring Security가 이 변수들을 자동으로 읽을 수 있도록 명시적 선언이 필요할 수 있습니다.
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID} 
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET} 
     ports:
       - "${USER_HOST_PORT:-8080}:8080"
     networks:
@@ -159,6 +163,12 @@ services:
     command:
       - '--web.enable-lifecycle'
       - '--config.file=/etc/prometheus/prometheus.yml'
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    
     restart: always
     networks:
       - wealist-net
@@ -173,6 +183,11 @@ services:
       - grafana-storage:/var/lib/grafana
       - grafana-logs:/var/log/grafana
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin  
     networks:
@@ -191,6 +206,11 @@ services:
       - wealist-net
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9121"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
 
   # PostgreSQL Exporter
@@ -206,6 +226,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9187/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
 
 #--- Networks and Volumes ---
