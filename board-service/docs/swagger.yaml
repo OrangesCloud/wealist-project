@@ -1483,6 +1483,43 @@ paths:
       tags:
       - custom-fields
   /api/projects:
+    get:
+      consumes:
+      - application/json
+      description: Get all projects in a workspace (workspace member only)
+      parameters:
+      - description: Workspace ID
+        in: query
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.ProjectResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get projects
+      tags:
+      - projects
     post:
       consumes:
       - application/json
@@ -2221,6 +2258,38 @@ paths:
       tags:
       - projects
   /api/workspaces:
+    get:
+      consumes:
+      - application/json
+      description: Get all workspaces for current user (or specified user_id)
+      parameters:
+      - description: User ID (optional, defaults to current user)
+        in: query
+        name: user_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.WorkspaceResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get workspaces
+      tags:
+      - workspaces
     post:
       consumes:
       - application/json

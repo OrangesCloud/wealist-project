@@ -18,6 +18,7 @@ import (
 type WorkspaceService interface {
 	CreateWorkspace(ownerID string, req *dto.CreateWorkspaceRequest) (*dto.WorkspaceResponse, error)
 	GetWorkspace(workspaceID, userID string) (*dto.WorkspaceResponse, error)
+	GetWorkspacesByUserID(userID string) ([]dto.WorkspaceResponse, error)
 	UpdateWorkspace(workspaceID, userID string, req *dto.UpdateWorkspaceRequest) (*dto.WorkspaceResponse, error)
 	DeleteWorkspace(workspaceID, userID string) error
 	SearchWorkspaces(req *dto.SearchWorkspacesRequest) (*dto.PaginatedWorkspacesResponse, error)
@@ -140,6 +141,40 @@ func (s *workspaceService) GetWorkspace(workspaceID, userID string) (*dto.Worksp
 	}
 
 	return s.toWorkspaceResponse(workspace)
+}
+
+// GetWorkspacesByUserID retrieves all workspaces for a user
+func (s *workspaceService) GetWorkspacesByUserID(userID string) ([]dto.WorkspaceResponse, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
+	}
+
+	// Get all workspace memberships for user
+	members, err := s.repo.FindMembersByUser(userUUID)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버십 조회 실패", 500)
+	}
+
+	// Get workspace details for each membership
+	var responses []dto.WorkspaceResponse
+	for _, member := range members {
+		workspace, err := s.repo.FindByID(member.WorkspaceID)
+		if err != nil {
+			s.logger.Warn("Failed to fetch workspace", zap.Error(err), zap.String("workspace_id", member.WorkspaceID.String()))
+			continue
+		}
+
+		resp, err := s.toWorkspaceResponse(workspace)
+		if err != nil {
+			s.logger.Warn("Failed to convert workspace to response", zap.Error(err))
+			continue
+		}
+
+		responses = append(responses, *resp)
+	}
+
+	return responses, nil
 }
 
 // UpdateWorkspace updates workspace information

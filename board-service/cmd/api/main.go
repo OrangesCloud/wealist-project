@@ -138,7 +138,8 @@ func main() {
 		{
 			// Workspace CRUD
 			workspaces.POST("", workspaceHandler.CreateWorkspace)
-			workspaces.GET("/search", workspaceHandler.SearchWorkspaces) // Must be before /:id
+			workspaces.GET("", workspaceHandler.GetWorkspaces)             // Get all workspaces for user
+			workspaces.GET("/search", workspaceHandler.SearchWorkspaces)   // Must be before /:id
 			workspaces.GET("/:id", workspaceHandler.GetWorkspace)
 			workspaces.PUT("/:id", workspaceHandler.UpdateWorkspace)
 			workspaces.DELETE("/:id", workspaceHandler.DeleteWorkspace)
@@ -162,6 +163,7 @@ func main() {
 		{
 			// Project CRUD
 			projects.POST("", projectHandler.CreateProject)
+			projects.GET("", projectHandler.GetProjects)           // Get all projects in workspace
 			projects.GET("/search", projectHandler.SearchProjects) // Must be before /:id
 			projects.GET("/:id", projectHandler.GetProject)
 			projects.PUT("/:id", projectHandler.UpdateProject)

@@ -85,6 +85,38 @@ func (h *WorkspaceHandler) GetWorkspace(c *gin.Context) {
 	dto.Success(c, workspace)
 }
 
+// GetWorkspaces godoc
+// @Summary      Get workspaces
+// @Description  Get all workspaces for current user (or specified user_id)
+// @Tags         workspaces
+// @Accept       json
+// @Produce      json
+// @Param        user_id query string false "User ID (optional, defaults to current user)"
+// @Success      200 {object} dto.SuccessResponse{data=[]dto.WorkspaceResponse}
+// @Failure      400 {object} dto.ErrorResponse
+// @Router       /api/workspaces [get]
+// @Security     BearerAuth
+func (h *WorkspaceHandler) GetWorkspaces(c *gin.Context) {
+	userID := c.Query("user_id")
+
+	// If user_id not provided, use current user
+	if userID == "" {
+		userID = c.GetString("user_id")
+	}
+
+	workspaces, err := h.service.GetWorkspacesByUserID(userID)
+	if err != nil {
+		if appErr, ok := err.(*apperrors.AppError); ok {
+			dto.Error(c, appErr)
+		} else {
+			dto.Error(c, apperrors.ErrInternalServer)
+		}
+		return
+	}
+
+	dto.Success(c, map[string]interface{}{"workspaces": workspaces})
+}
+
 // UpdateWorkspace godoc
 // @Summary      Update workspace
 // @Description  Update workspace details (OWNER only)

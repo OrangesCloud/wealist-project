@@ -18,6 +18,7 @@ import (
 type ProjectService interface {
 	CreateProject(userID string, req *dto.CreateProjectRequest) (*dto.ProjectResponse, error)
 	GetProject(projectID, userID string) (*dto.ProjectResponse, error)
+	GetProjectsByWorkspaceID(workspaceID, userID string) ([]dto.ProjectResponse, error)
 	UpdateProject(projectID, userID string, req *dto.UpdateProjectRequest) (*dto.ProjectResponse, error)
 	DeleteProject(projectID, userID string) error
 	SearchProjects(userID string, req *dto.SearchProjectsRequest) (*dto.PaginatedProjectsResponse, error)
@@ -176,6 +177,45 @@ func (s *projectService) GetProject(projectID, userID string) (*dto.ProjectRespo
 	}
 
 	return s.toProjectResponse(project)
+}
+
+// GetProjectsByWorkspaceID retrieves all projects in a workspace
+func (s *projectService) GetProjectsByWorkspaceID(workspaceID, userID string) ([]dto.ProjectResponse, error) {
+	workspaceUUID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 워크스페이스 ID", 400)
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
+	}
+
+	// Check if user is workspace member
+	_, err = s.workspaceRepo.FindMemberByUserAndWorkspace(userUUID, workspaceUUID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.New(apperrors.ErrCodeForbidden, "워크스페이스 멤버가 아닙니다", 403)
+		}
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 확인 실패", 500)
+	}
+
+	projects, err := s.repo.FindByWorkspaceID(workspaceUUID)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "프로젝트 조회 실패", 500)
+	}
+
+	var responses []dto.ProjectResponse
+	for _, proj := range projects {
+		resp, err := s.toProjectResponse(&proj)
+		if err != nil {
+			s.logger.Warn("Failed to convert project to response", zap.Error(err))
+			continue
+		}
+		responses = append(responses, *resp)
+	}
+
+	return responses, nil
 }
 
 // UpdateProject updates project information

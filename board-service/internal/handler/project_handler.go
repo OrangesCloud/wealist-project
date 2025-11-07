@@ -86,6 +86,40 @@ func (h *ProjectHandler) GetProject(c *gin.Context) {
 	dto.Success(c, project)
 }
 
+// GetProjects godoc
+// @Summary      Get projects
+// @Description  Get all projects in a workspace (workspace member only)
+// @Tags         projects
+// @Accept       json
+// @Produce      json
+// @Param        workspace_id query string true "Workspace ID"
+// @Success      200 {object} dto.SuccessResponse{data=[]dto.ProjectResponse}
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      403 {object} dto.ErrorResponse
+// @Router       /api/projects [get]
+// @Security     BearerAuth
+func (h *ProjectHandler) GetProjects(c *gin.Context) {
+	userID := c.GetString("user_id")
+	workspaceID := c.Query("workspace_id")
+
+	if workspaceID == "" {
+		dto.Error(c, apperrors.New(apperrors.ErrCodeBadRequest, "workspace_id가 필요합니다", 400))
+		return
+	}
+
+	projects, err := h.service.GetProjectsByWorkspaceID(workspaceID, userID)
+	if err != nil {
+		if appErr, ok := err.(*apperrors.AppError); ok {
+			dto.Error(c, appErr)
+		} else {
+			dto.Error(c, apperrors.ErrInternalServer)
+		}
+		return
+	}
+
+	dto.Success(c, map[string]interface{}{"projects": projects})
+}
+
 // UpdateProject godoc
 // @Summary      Update project
 // @Description  Update project details (OWNER only)
