@@ -72,9 +72,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      # user-service 의존성 제거 (healthcheck 문제로)
-      # user-service:
-      #   condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -132,21 +129,80 @@ services:
     restart: unless-stopped
 
   #--- Frontend 임시!! ---
-  frontend-service: # React 프론트엔드
+  frontend-service:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: wealist-frontend
     ports:
-      - "3000:80" # 로컬 개발 서버 포트
+      - "3000:80"
     volumes:
       - ./frontend:/app
-      - /app/node_modules # node_modules는 컨테이너 내부 것을 사용하도록 설정
+      - /app/node_modules
     networks:
       - wealist-net
-    depends_on: # 백엔드 서비스들이 시작된 후 실행
+    depends_on:
       - board-service
       - user-service
+    restart: unless-stopped
+
+  #-----모니터링 부분------#
+  prometheus:
+    user: "root"
+    image: prom/prometheus
+    container_name: prometheus_container
+    volumes:
+      - ./prometheus/config:/etc/prometheus
+      - ./prometheus/volume:/prometheus/data
+    ports:
+      - 9090:9090
+    command:
+      - '--web.enable-lifecycle'
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    restart: always
+    networks:
+      - wealist-net
+
+  grafana:
+    user: "root"
+    image: grafana/grafana
+    container_name: grafana_container
+    ports:
+      - 9092:3000
+    volumes:
+      - ./grafana/volume:/var/lib/grafana
+    restart: always
+    networks:
+      - wealist-net
+
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter
+    container_name: redis-exporter
+    environment:
+      - REDIS_ADDR=redis://wealist-redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "9121:9121"
+    networks:
+      - wealist-net
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # PostgreSQL Exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@postgres:5432/postgres?sslmode=disable
+    ports:
+      - "9187:9187"
+    networks:
+      - wealist-net
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
 #--- Networks and Volumes ---
