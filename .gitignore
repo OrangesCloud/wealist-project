@@ -62,3 +62,7 @@ grafana/volume/grafana.db
 grafana/volume/plugins/
 grafana/volume/log/
 grafana/volume/png/
+prometheus/volume/
+prometheus/data/ 
+prometheus/volume/ 
+

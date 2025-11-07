@@ -7,6 +7,7 @@ if ! command -v jq &> /dev/null;
   exit 1
 fi
 
+
 # ===== 환경 설정 =====
 BASE_URL="http://localhost:8080"
 # BASE_URL="https://api.orangecloud.com"  # 프로덕션 서버
@@ -36,7 +37,7 @@ print_section "Authentication Setup (OAuth2)"
 # 1.1 수동으로 Google OAuth2 로그인을 수행하고, 발급받은 JWT Access Token을 아래에 붙여넣으세요.
 # 브라우저 개발자 도구의 네트워크 탭에서 API 요청 헤더를 확인하여 토큰을 복사할 수 있습니다.
 
-ACCESS_TOKEN="eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxNDczZjZiYS02NzA4LTQzNzItOTQxNi1lODE0ZjY2YWQ0ZmUiLCJpYXQiOjE3NjI0MTQ0NjgsImV4cCI6MTc2MzAxOTI2OH0.MSdAv-WqIb9W06Ca64fKkav1zkZdSX-rKWBrU_4gE1lIAmg96ujOd0NW5I0ozFCrfgv-ZYaNWktwSU6MsjF1Rw"
+ACCESS_TOKEN=""
 
 if [ -z "$ACCESS_TOKEN" ]; then
     print_error "ACCESS_TOKEN이 비어있습니다. 스크립트를 수정하여 토큰을 직접 설정해주세요."

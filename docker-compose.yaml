@@ -153,7 +153,7 @@ services:
     container_name: prometheus_container
     volumes:
       - ./prometheus/config:/etc/prometheus
-      - ./prometheus/volume:/prometheus/data
+      - prometheus-data:/prometheus/data
     ports:
       - 9090:9090
     command:
@@ -170,8 +170,11 @@ services:
     ports:
       - 9092:3000
     volumes:
-      - ./grafana/volume:/var/lib/grafana
+      - grafana-storage:/var/lib/grafana
+      - grafana-logs:/var/log/grafana
     restart: always
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin  
     networks:
       - wealist-net
 
@@ -215,3 +218,10 @@ volumes:
     driver: local
   redis-data:
     driver: local
+  grafana-storage:
+    driver: local
+  grafana-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+
