@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-// 💡 실제 API 대신 Mock 함수를 사용합니다.
-import { GroupResponse } from '../api/userService';
+import {
+  GroupResponse,
+  CreateGroupRequest,
+  getGroups, // 💡 GET /api/groups
+  createGroup, // 💡 POST /api/groups
+  createUserInfo, // 💡 POST /api/userinfo
+} from '../api/userService';
 import { Search } from 'lucide-react';
+import axios, { AxiosError } from 'axios';
 
 interface SelectGroupPageProps {
   userId: string;
@@ -10,16 +16,11 @@ interface SelectGroupPageProps {
   onGroupSelected: (groupId: string) => void;
 }
 
-//  Mock 데이터 정의 (조직 검색을 위한 더미 데이터)
-const MOCK_GROUPS: GroupResponse[] = [
-  { groupId: '1111-a', name: 'Wealist Dev Team (Mock)', companyName: 'Wealist Inc.' },
-  { groupId: '2222-b', name: 'Orange Cloud Design (Mock)', companyName: 'KT Cloud' },
-  { groupId: '3333-c', name: 'Project Kanban Alpha (Mock)', companyName: 'Self-Employed' },
-  { groupId: '4444-d', name: 'Data Engineer Study (Mock)', companyName: 'Personal' },
-];
+// Mock 데이터 정의는 이제 불필요하거나, 초기 로딩 시 빈 배열로 시작합니다.
+// const MOCK_GROUPS: GroupResponse[] = [ ... ];
 
 const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
-  // userId,
+  userId,
   accessToken,
   onGroupSelected,
 }) => {
@@ -34,30 +35,39 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
   const [newCompany, setNewCompany] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 1. 그룹 목록 조회 및 초기화 (MOCK)
+  // 1. 그룹 목록 조회 및 초기화 (실제 API 호출)
   useEffect(() => {
-    const mockFetchGroups = () => {
+    const fetchGroups = async () => {
+      if (!accessToken) return;
+
       setIsLoading(true);
       setError(null);
 
-      setTimeout(() => {
-        // [Mock] 미리 정의된 조직 목록을 반환합니다. (사용자가 속한 그룹이 있다면 목록에 나타납니다.)
-        // 현재는 '처음 접속한 사용자' 시나리오에 맞게 빈 목록을 반환하는 대신
-        // 선택할 수 있는 조직 목록을 Mock으로 제공합니다.
-        setGroups(MOCK_GROUPS);
+      try {
+        // 🚀 실제 API 호출: 사용자가 속한 모든 활성 그룹을 조회합니다.
+        // 현재는 '모든 활성 그룹'을 조회하지만, 백엔드가 '사용자가 속한 그룹'을 필터링해준다고 가정합니다.
+        const fetchedGroups = await getGroups(accessToken);
+        setGroups(fetchedGroups);
+
+        // 🚨 참고: Swagger 스펙상 'getGroups'는 MessageApiResponse<any>를 반환합니다.
+        //         'userService.ts'에서 data 배열을 추출하는 로직이 필요합니다.
+      } catch (e) {
+        const err = e as AxiosError;
+        setError(`조직 목록 조회 실패: ${err.message}`);
+        setGroups([]); // 실패 시 빈 배열로 설정
+      } finally {
         setIsLoading(false);
-      }, 500);
+      }
     };
 
-    mockFetchGroups();
+    fetchGroups();
   }, [accessToken]);
 
-  // 2. 조직 검색 필터링 로직 (useMemo로 성능 최적화)
+  // 2. 조직 검색 필터링 로직 (기존 로직 유지)
   const availableGroups = useMemo(() => {
     if (!groups) return [];
     const query = searchQuery.toLowerCase().trim();
 
-    // 💡 변경된 로직: 검색어가 없으면 (false) groups 배열 전체를 반환합니다.
     if (!query) {
       return groups;
     }
@@ -69,7 +79,7 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
     );
   }, [searchQuery, groups]);
 
-  // 3. 새로운 그룹 생성 및 등록 핸들러 (MOCK)
+  // 3. 새로운 그룹 생성 및 등록 핸들러 (실제 API 호출)
   const handleCreateAndSelectGroup = async () => {
     if (!newGroupName.trim()) {
       setError('그룹 이름을 입력해 주세요.');
@@ -79,24 +89,54 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
     setIsLoading(true);
     setError(null);
 
-    setTimeout(() => {
-      const newGroupId = 'mock-new-group-' + Math.random().toString(36).substring(2, 9);
-      alert(`[Mock] 조직 '${newGroupName}' 생성 완료!`);
-      setIsLoading(false);
+    const createData: CreateGroupRequest = {
+      name: newGroupName,
+      companyName: newCompany || 'Personal',
+    };
+
+    try {
+      // 🚀 1단계: 새 그룹 생성 (POST /api/groups)
+      const newGroup = await createGroup(createData, accessToken);
+      const newGroupId = newGroup.groupId; // 생성된 그룹의 ID 추출
+
+      // 🚀 2단계: 생성된 그룹에 사용자 정보 등록 (POST /api/userinfo)
+      // Spring Security는 JWT의 정보를 사용하여 UserInfo를 자동으로 생성할 수도 있지만,
+      // Swagger에 명시된 createUserInfo를 사용하여 명시적으로 등록합니다.
+      await createUserInfo(userId, newGroupId, accessToken, 'LEADER');
+
+      alert(`조직 '${newGroupName}' 생성 및 등록 완료!`);
+
+      // 🚀 최종 핸들러 호출 -> Workspace 생성 단계로 이동
       onGroupSelected(newGroupId);
-    }, 1500);
+    } catch (e) {
+      const err = e as AxiosError;
+      setError(`조직 생성 및 등록 실패: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // 4. 기존 그룹 선택 핸들러 (MOCK)
+  // 4. 기존 그룹 선택 핸들러 (실제 API 호출)
   const handleSelectExistingGroup = async (group: GroupResponse) => {
     setIsLoading(true);
     setError(null);
-    setTimeout(() => {
-      setIsLoading(false);
-      alert(`[Mock] 그룹 '${group.name}' 선택 완료!`);
+
+    try {
+      // 🚀 1단계: 기존 그룹에 사용자 정보 등록/업데이트 (POST /api/userinfo)
+      // 이미 등록된 사용자라면 등록 API가 업데이트 역할을 할 수도 있습니다.
+      // 현재는 '선택'이 곧 '등록'을 의미한다고 가정합니다.
+      await createUserInfo(userId, group.groupId, accessToken, 'MEMBER');
+
+      alert(`그룹 '${group.name}'에 참여 완료!`);
+
       // 🚀 최종 핸들러 호출 -> Workspace 생성 단계로 이동
       onGroupSelected(group.groupId);
-    }, 500);
+    } catch (e) {
+      const err = e as AxiosError;
+      setError(`그룹 참여 등록 실패: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // --- 로딩 화면 ---
@@ -106,6 +146,7 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
         className={`min-h-screen ${theme.colors.background} flex items-center justify-center p-4`}
       >
         <div className="p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className={`${theme.font.size.lg} ${theme.colors.text}`}>조직 정보를 확인 중...</p>
         </div>
       </div>
@@ -161,7 +202,7 @@ const SelectGroupPage: React.FC<SelectGroupPageProps> = ({
               disabled={isLoading || !newGroupName.trim()}
               className={`w-full ${theme.colors.success} text-white py-3 font-bold rounded-lg ${theme.colors.successHover} transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md`}
             >
-              {isLoading ? '생성 및 등록 중...' : '새 조직 생성 및 시작 (Mock)'}
+              {isLoading ? '생성 및 등록 중...' : '새 조직 생성 및 시작'}
             </button>
 
             <button

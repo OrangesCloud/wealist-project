@@ -43,11 +43,6 @@ Thumbs.db
 # Log files
 *.log
 
-# Frontend
-frontend/node_modules/
-frontend/build/
-frontend/.pnp
-frontend/.pnp.js
 
 # Claude Code
 .claude/
@@ -66,3 +61,16 @@ prometheus/volume/
 prometheus/data/ 
 prometheus/volume/ 
 
+
+
+
+# 모놀리식 프론트엔드 
+frontend/dist/
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+frontend/.env
+frontend/docker-compose.yml
+frontend/Dockerfile.local
+docker-compose.base.yml
+docker-compose.local.yml
