@@ -2,6 +2,7 @@ package service
 
 import (
 	"board-service/internal/apperrors"
+	"board-service/internal/cache"
 	"board-service/internal/client"
 	"board-service/internal/domain"
 	"board-service/internal/dto"
@@ -29,6 +30,7 @@ type boardService struct {
 	customFieldRepo repository.CustomFieldRepository
 	roleRepo        repository.RoleRepository
 	userClient      client.UserClient
+	userInfoCache   cache.UserInfoCache
 	logger          *zap.Logger
 	db              *gorm.DB
 }
@@ -39,6 +41,7 @@ func NewBoardService(
 	customFieldRepo repository.CustomFieldRepository,
 	roleRepo repository.RoleRepository,
 	userClient client.UserClient,
+	userInfoCache cache.UserInfoCache,
 	logger *zap.Logger,
 	db *gorm.DB,
 ) BoardService {
@@ -48,6 +51,7 @@ func NewBoardService(
 		customFieldRepo: customFieldRepo,
 		roleRepo:        roleRepo,
 		userClient:      userClient,
+		userInfoCache:   userInfoCache,
 		logger:          logger,
 		db:              db,
 	}
@@ -280,6 +284,8 @@ func (s *boardService) GetBoards(userID string, req *dto.GetBoardsRequest) (*dto
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
 	}
 
+	ctx := context.Background()
+
 	// 1. Check if user is project member
 	_, err = s.projectRepo.FindMemberByUserAndProject(userUUID, projectUUID)
 	if err != nil {
@@ -338,26 +344,104 @@ func (s *boardService) GetBoards(userID string, req *dto.GetBoardsRequest) (*dto
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 조회 실패", 500)
 	}
 
-	// 5. Build responses (batch processing)
+	if len(boards) == 0 {
+		return &dto.PaginatedBoardsResponse{
+			Boards: []dto.BoardResponse{},
+			Total:  total,
+			Page:   page,
+			Limit:  limit,
+		}, nil
+	}
+
+	// 5. Collect all IDs for batch queries
+	stageIDs := make([]uuid.UUID, 0, len(boards))
+	importanceIDs := make([]uuid.UUID, 0)
+	userIDs := make([]string, 0, len(boards)*2)
+
+	for _, board := range boards {
+		stageIDs = append(stageIDs, board.CustomStageID)
+		if board.CustomImportanceID != nil {
+			importanceIDs = append(importanceIDs, *board.CustomImportanceID)
+		}
+		userIDs = append(userIDs, board.CreatedBy.String())
+		if board.AssigneeID != nil {
+			userIDs = append(userIDs, board.AssigneeID.String())
+		}
+	}
+
+	// 6. Batch fetch custom fields
+	stagesSlice, _ := s.customFieldRepo.FindCustomStagesByIDs(stageIDs)
+	stagesMap := make(map[uuid.UUID]*domain.CustomStage)
+	for i := range stagesSlice {
+		stagesMap[stagesSlice[i].ID] = &stagesSlice[i]
+	}
+
+	importancesSlice, _ := s.customFieldRepo.FindCustomImportancesByIDs(importanceIDs)
+	importancesMap := make(map[uuid.UUID]*domain.CustomImportance)
+	for i := range importancesSlice {
+		importancesMap[importancesSlice[i].ID] = &importancesSlice[i]
+	}
+
+	// 7. Batch fetch users
+	userMap := s.getUserInfoBatch(ctx, userIDs)
+
+	// 8. Batch fetch board roles for all boards
+	boardRolesMap := make(map[uuid.UUID][]*domain.CustomRole)
+	allRoleIDs := make([]uuid.UUID, 0)
+	boardToRoleIDs := make(map[uuid.UUID][]uuid.UUID)
+
+	// Collect all board IDs
+	boardIDs := make([]uuid.UUID, 0, len(boards))
+	for _, board := range boards {
+		boardIDs = append(boardIDs, board.ID)
+	}
+
+	// Batch fetch board roles (1 query instead of N)
+	boardRolesData, _ := s.repo.FindRolesByBoards(boardIDs)
+
+	// Process board roles
+	for boardID, boardRoles := range boardRolesData {
+		if len(boardRoles) > 0 {
+			roleIDs := make([]uuid.UUID, 0, len(boardRoles))
+			for _, kr := range boardRoles {
+				roleIDs = append(roleIDs, kr.CustomRoleID)
+				allRoleIDs = append(allRoleIDs, kr.CustomRoleID)
+			}
+			boardToRoleIDs[boardID] = roleIDs
+		}
+	}
+
+	// Batch fetch all roles at once
+	if len(allRoleIDs) > 0 {
+		rolesSlice, _ := s.customFieldRepo.FindCustomRolesByIDs(allRoleIDs)
+		rolesMapByID := make(map[uuid.UUID]*domain.CustomRole)
+		for i := range rolesSlice {
+			rolesMapByID[rolesSlice[i].ID] = &rolesSlice[i]
+		}
+
+		// Map roles to boards
+		for boardID, roleIDs := range boardToRoleIDs {
+			roles := make([]*domain.CustomRole, 0, len(roleIDs))
+			for _, roleID := range roleIDs {
+				if role, ok := rolesMapByID[roleID]; ok {
+					roles = append(roles, role)
+				}
+			}
+			boardRolesMap[boardID] = roles
+		}
+	}
+
+	// 9. Build responses
 	responses := make([]dto.BoardResponse, 0, len(boards))
 	for _, board := range boards {
-		stage, _ := s.customFieldRepo.FindCustomStageByID(board.CustomStageID)
-
+		stage := stagesMap[board.CustomStageID]
 		var importance *domain.CustomImportance
 		if board.CustomImportanceID != nil {
-			importance, _ = s.customFieldRepo.FindCustomImportanceByID(*board.CustomImportanceID)
+			importance = importancesMap[*board.CustomImportanceID]
 		}
+		roles := boardRolesMap[board.ID]
 
-		boardRoles, _ := s.repo.FindRolesByBoard(board.ID)
-		roles := make([]*domain.CustomRole, 0, len(boardRoles))
-		for _, kr := range boardRoles {
-			role, err := s.customFieldRepo.FindCustomRoleByID(kr.CustomRoleID)
-			if err == nil && role != nil {
-				roles = append(roles, role)
-			}
-		}
-
-		response, err := s.buildBoardResponse(&board, stage, importance, roles)
+		response, err := s.buildBoardResponseOptimized(&board, stage, importance, roles, userMap)
 		if err == nil && response != nil {
 			responses = append(responses, *response)
 		}
@@ -365,9 +449,9 @@ func (s *boardService) GetBoards(userID string, req *dto.GetBoardsRequest) (*dto
 
 	return &dto.PaginatedBoardsResponse{
 		Boards: responses,
-		Total:   total,
-		Page:    page,
-		Limit:   limit,
+		Total:  total,
+		Page:   page,
+		Limit:  limit,
 	}, nil
 }
 
@@ -575,19 +659,9 @@ func (s *boardService) buildBoardResponse(
 		userIDs = append(userIDs, board.AssigneeID.String())
 	}
 
-	// Fetch users from User Service (batch)
+	// Fetch users with caching
 	ctx := context.Background()
-	users, err := s.userClient.GetUsersBatch(ctx, userIDs)
-	if err != nil {
-		s.logger.Warn("Failed to fetch users from User Service", zap.Error(err))
-		users = []client.UserInfo{} // Continue without user info
-	}
-
-	// Convert to map for easy lookup
-	userMap := make(map[string]client.UserInfo)
-	for _, user := range users {
-		userMap[user.UserID] = user
-	}
+	userMap := s.getUserInfoBatch(ctx, userIDs)
 
 	// Build response
 	response := &dto.BoardResponse{
@@ -683,4 +757,170 @@ func (s *boardService) buildBoardResponse(
 	}
 
 	return response, nil
+}
+
+// buildBoardResponseOptimized builds a board response using pre-fetched data (batch optimized)
+func (s *boardService) buildBoardResponseOptimized(
+	board *domain.Board,
+	stage *domain.CustomStage,
+	importance *domain.CustomImportance,
+	roles []*domain.CustomRole,
+	userMap map[string]client.UserInfo,
+) (*dto.BoardResponse, error) {
+	// Build response
+	response := &dto.BoardResponse{
+		ID:        board.ID.String(),
+		ProjectID: board.ProjectID.String(),
+		Title:     board.Title,
+		Content:   board.Description,
+		DueDate:   board.DueDate,
+		CreatedAt: board.CreatedAt,
+		UpdatedAt: board.UpdatedAt,
+	}
+
+	// Stage
+	if stage != nil {
+		response.Stage = dto.CustomStageResponse{
+			ID:              stage.ID.String(),
+			ProjectID:       stage.ProjectID.String(),
+			Name:            stage.Name,
+			Color:           stage.Color,
+			IsSystemDefault: stage.IsSystemDefault,
+			DisplayOrder:    stage.DisplayOrder,
+			CreatedAt:       stage.CreatedAt,
+			UpdatedAt:       stage.UpdatedAt,
+		}
+	}
+
+	// Importance
+	if importance != nil {
+		response.Importance = &dto.CustomImportanceResponse{
+			ID:              importance.ID.String(),
+			ProjectID:       importance.ProjectID.String(),
+			Name:            importance.Name,
+			Color:           importance.Color,
+			IsSystemDefault: importance.IsSystemDefault,
+			DisplayOrder:    importance.DisplayOrder,
+			CreatedAt:       importance.CreatedAt,
+			UpdatedAt:       importance.UpdatedAt,
+		}
+	}
+
+	// Roles
+	roleResponses := make([]dto.CustomRoleResponse, 0, len(roles))
+	for _, role := range roles {
+		roleResponses = append(roleResponses, dto.CustomRoleResponse{
+			ID:              role.ID.String(),
+			ProjectID:       role.ProjectID.String(),
+			Name:            role.Name,
+			Color:           role.Color,
+			IsSystemDefault: role.IsSystemDefault,
+			DisplayOrder:    role.DisplayOrder,
+			CreatedAt:       role.CreatedAt,
+			UpdatedAt:       role.UpdatedAt,
+		})
+	}
+	response.Roles = roleResponses
+
+	// Author (from userMap)
+	if author, ok := userMap[board.CreatedBy.String()]; ok {
+		response.Author = dto.UserInfo{
+			UserID:   author.UserID,
+			Name:     author.Name,
+			Email:    author.Email,
+			IsActive: author.IsActive,
+		}
+	} else {
+		// Fallback if user not found
+		response.Author = dto.UserInfo{
+			UserID:   board.CreatedBy.String(),
+			Name:     "Unknown User",
+			Email:    "",
+			IsActive: false,
+		}
+	}
+
+	// Assignee (from userMap)
+	if board.AssigneeID != nil {
+		if assignee, ok := userMap[board.AssigneeID.String()]; ok {
+			response.Assignee = &dto.UserInfo{
+				UserID:   assignee.UserID,
+				Name:     assignee.Name,
+				Email:    assignee.Email,
+				IsActive: assignee.IsActive,
+			}
+		} else {
+			// Fallback if user not found
+			response.Assignee = &dto.UserInfo{
+				UserID:   board.AssigneeID.String(),
+				Name:     "Unknown User",
+				Email:    "",
+				IsActive: false,
+			}
+		}
+	}
+
+	return response, nil
+}
+
+// getUserInfoBatch fetches user info for multiple users with caching
+func (s *boardService) getUserInfoBatch(ctx context.Context, userIDs []string) map[string]client.UserInfo {
+	if len(userIDs) == 0 {
+		return make(map[string]client.UserInfo)
+	}
+
+	// Try to get from cache first
+	cachedUsers, err := s.userInfoCache.GetSimpleUsersBatch(ctx, userIDs)
+	if err != nil {
+		s.logger.Warn("Failed to get users from cache", zap.Error(err))
+		cachedUsers = make(map[string]*cache.SimpleUser)
+	}
+
+	// Find missing user IDs (not in cache)
+	missingUserIDs := []string{}
+	for _, userID := range userIDs {
+		if _, exists := cachedUsers[userID]; !exists {
+			missingUserIDs = append(missingUserIDs, userID)
+		}
+	}
+
+	// Fetch missing users from User Service
+	userMap := make(map[string]client.UserInfo)
+
+	if len(missingUserIDs) > 0 {
+		users, err := s.userClient.GetUsersBatch(ctx, missingUserIDs)
+		if err != nil {
+			s.logger.Warn("Failed to fetch users from User Service", zap.Error(err))
+		} else {
+			// Cache the fetched users
+			simpleUsers := make([]cache.SimpleUser, 0, len(users))
+			for _, user := range users {
+				userMap[user.UserID] = user
+				// Note: UserInfo and SimpleUser have different fields
+				// For now, we'll just cache what we got
+				simpleUsers = append(simpleUsers, cache.SimpleUser{
+					ID:        user.UserID,
+					Name:      user.Name,
+					AvatarURL: "", // UserInfo doesn't have avatar URL
+				})
+			}
+			if cacheErr := s.userInfoCache.SetSimpleUsersBatch(ctx, simpleUsers); cacheErr != nil {
+				s.logger.Warn("Failed to cache users", zap.Error(cacheErr))
+			}
+		}
+	}
+
+	// Add cached users to result
+	for userID, cachedUser := range cachedUsers {
+		if _, exists := userMap[userID]; !exists {
+			userMap[userID] = client.UserInfo{
+				UserID:   cachedUser.ID,
+				Name:     cachedUser.Name,
+				Email:    "", // SimpleUser doesn't have email
+				IsActive: true,
+			}
+		}
+	}
+
+	return userMap
 }

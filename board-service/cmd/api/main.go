@@ -77,10 +77,11 @@ func main() {
 
 	// 5.5. Initialize caches
 	userOrderCache := cache.NewUserOrderCache(rdb)
+	workspaceCache := cache.NewWorkspaceCache(rdb)
+	userInfoCache := cache.NewUserInfoCache(rdb)
 
 	// 5.6. Initialize repositories
 	roleRepo := repository.NewRoleRepository(db)
-	workspaceRepo := repository.NewWorkspaceRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 	customFieldRepo := repository.NewCustomFieldRepository(db)
 	boardRepo := repository.NewBoardRepository(db)
@@ -90,11 +91,10 @@ func main() {
 	// 5.7. Initialize services
 	// Note: customFieldService needs boardRepo (for Phase 4 TODO), then injected into projectService
 	customFieldService := service.NewCustomFieldService(customFieldRepo, projectRepo, roleRepo, boardRepo, log, db)
-	boardService := service.NewBoardService(boardRepo, projectRepo, customFieldRepo, roleRepo, userClient, log, db)
-	workspaceService := service.NewWorkspaceService(workspaceRepo, roleRepo, userClient, log, db)
-	projectService := service.NewProjectService(projectRepo, workspaceRepo, roleRepo, userOrderRepo, customFieldService, userClient, log, db)
+	boardService := service.NewBoardService(boardRepo, projectRepo, customFieldRepo, roleRepo, userClient, userInfoCache, log, db)
+	projectService := service.NewProjectService(projectRepo, roleRepo, userOrderRepo, customFieldService, userClient, workspaceCache, userInfoCache, log, db)
 	userOrderService := service.NewUserOrderService(userOrderRepo, projectRepo, customFieldRepo, boardRepo, userOrderCache, log)
-	commentService := service.NewCommentService(commentRepo, boardRepo, projectRepo, userClient, log, db) // Add CommentService
+	commentService := service.NewCommentService(commentRepo, boardRepo, projectRepo, userClient, userInfoCache, log, db) // Add CommentService
 
 	// 6. Configure Gin mode
 	if cfg.Server.Env == "prod" {
@@ -130,37 +130,11 @@ func main() {
 	api.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
 	{
 		// Initialize handlers
-		workspaceHandler := handler.NewWorkspaceHandler(workspaceService)
 		projectHandler := handler.NewProjectHandler(projectService)
 		customFieldHandler := handler.NewCustomFieldHandler(customFieldService)
 		boardHandler := handler.NewBoardHandler(boardService)
 		userOrderHandler := handler.NewUserOrderHandler(userOrderService)
 		commentHandler := handler.NewCommentHandler(commentService) // Add CommentHandler
-
-		// Workspace routes
-		workspaces := api.Group("/workspaces")
-		{
-			// Workspace CRUD
-			workspaces.POST("", workspaceHandler.CreateWorkspace)
-			workspaces.GET("", workspaceHandler.GetWorkspaces)             // Get all workspaces for user
-			workspaces.GET("/search", workspaceHandler.SearchWorkspaces)   // Must be before /:id
-			workspaces.GET("/:id", workspaceHandler.GetWorkspace)
-			workspaces.PUT("/:id", workspaceHandler.UpdateWorkspace)
-			workspaces.DELETE("/:id", workspaceHandler.DeleteWorkspace)
-
-			// Join Requests
-			workspaces.POST("/join-requests", workspaceHandler.CreateJoinRequest)
-			workspaces.GET("/:id/join-requests", workspaceHandler.GetJoinRequests)
-			workspaces.PUT("/join-requests/:id", workspaceHandler.UpdateJoinRequest)
-
-			// Members
-			workspaces.GET("/:id/members", workspaceHandler.GetWorkspaceMembers)
-			workspaces.PUT("/:id/members/:memberId/role", workspaceHandler.UpdateMemberRole)
-			workspaces.DELETE("/:id/members/:memberId", workspaceHandler.RemoveMember)
-
-			// Default Workspace
-			workspaces.POST("/default", workspaceHandler.SetDefaultWorkspace)
-		}
 
 		// Project routes
 		projects := api.Group("/projects")
@@ -168,28 +142,28 @@ func main() {
 			// Project CRUD
 			projects.POST("", projectHandler.CreateProject)
 			projects.GET("", projectHandler.GetProjects)           // Get all projects in workspace
-			projects.GET("/search", projectHandler.SearchProjects) // Must be before /:id
-			projects.GET("/:id", projectHandler.GetProject)
-			projects.PUT("/:id", projectHandler.UpdateProject)
-			projects.DELETE("/:id", projectHandler.DeleteProject)
+			projects.GET("/search", projectHandler.SearchProjects) // Must be before /:project_id
+			projects.GET("/:project_id", projectHandler.GetProject)
+			projects.PUT("/:project_id", projectHandler.UpdateProject)
+			projects.DELETE("/:project_id", projectHandler.DeleteProject)
 
 			// Join Requests
 			projects.POST("/join-requests", projectHandler.CreateJoinRequest)
-			projects.GET("/:id/join-requests", projectHandler.GetJoinRequests)
-			projects.PUT("/join-requests/:id", projectHandler.UpdateJoinRequest)
+			projects.GET("/:project_id/join-requests", projectHandler.GetJoinRequests)
+			projects.PUT("/join-requests/:join_request_id", projectHandler.UpdateJoinRequest)
 
 			// Members
-			projects.GET("/:id/members", projectHandler.GetProjectMembers)
-			projects.PUT("/:id/members/:memberId/role", projectHandler.UpdateMemberRole)
-			projects.DELETE("/:id/members/:memberId", projectHandler.RemoveMember)
+			projects.GET("/:project_id/members", projectHandler.GetProjectMembers)
+			projects.PUT("/:project_id/members/:member_id/role", projectHandler.UpdateMemberRole)
+			projects.DELETE("/:project_id/members/:member_id", projectHandler.RemoveMember)
 
 			// User Order Management (Drag-and-Drop)
-			projects.GET("/:id/orders/role-board", userOrderHandler.GetRoleBasedBoardView)
-			projects.GET("/:id/orders/stage-board", userOrderHandler.GetStageBasedBoardView)
-			projects.PUT("/:id/orders/role-columns", userOrderHandler.UpdateRoleColumnOrder)
-			projects.PUT("/:id/orders/stage-columns", userOrderHandler.UpdateStageColumnOrder)
-			projects.PUT("/:id/orders/role-boards/:roleId", userOrderHandler.UpdateBoardOrderInRole)
-			projects.PUT("/:id/orders/stage-boards/:stageId", userOrderHandler.UpdateBoardOrderInStage)
+			projects.GET("/:project_id/orders/role-board", userOrderHandler.GetRoleBasedBoardView)
+			projects.GET("/:project_id/orders/stage-board", userOrderHandler.GetStageBasedBoardView)
+			projects.PUT("/:project_id/orders/role-columns", userOrderHandler.UpdateRoleColumnOrder)
+			projects.PUT("/:project_id/orders/stage-columns", userOrderHandler.UpdateStageColumnOrder)
+			projects.PUT("/:project_id/orders/role-boards/:role_id", userOrderHandler.UpdateBoardOrderInRole)
+			projects.PUT("/:project_id/orders/stage-boards/:stage_id", userOrderHandler.UpdateBoardOrderInStage)
 		}
 
 		// Custom Fields routes
@@ -197,37 +171,37 @@ func main() {
 		{
 			// Custom Roles
 			customFields.POST("/roles", customFieldHandler.CreateCustomRole)
-			customFields.GET("/projects/:projectId/roles", customFieldHandler.GetCustomRoles)
-			customFields.GET("/roles/:id", customFieldHandler.GetCustomRole)
-			customFields.PUT("/roles/:id", customFieldHandler.UpdateCustomRole)
-			customFields.DELETE("/roles/:id", customFieldHandler.DeleteCustomRole)
-			customFields.PUT("/projects/:projectId/roles/order", customFieldHandler.UpdateCustomRoleOrder)
+			customFields.GET("/projects/:project_id/roles", customFieldHandler.GetCustomRoles)
+			customFields.GET("/roles/:role_id", customFieldHandler.GetCustomRole)
+			customFields.PUT("/roles/:role_id", customFieldHandler.UpdateCustomRole)
+			customFields.DELETE("/roles/:role_id", customFieldHandler.DeleteCustomRole)
+			customFields.PUT("/projects/:project_id/roles/order", customFieldHandler.UpdateCustomRoleOrder)
 
 			// Custom Stages
 			customFields.POST("/stages", customFieldHandler.CreateCustomStage)
-			customFields.GET("/projects/:projectId/stages", customFieldHandler.GetCustomStages)
-			customFields.GET("/stages/:id", customFieldHandler.GetCustomStage)
-			customFields.PUT("/stages/:id", customFieldHandler.UpdateCustomStage)
-			customFields.DELETE("/stages/:id", customFieldHandler.DeleteCustomStage)
-			customFields.PUT("/projects/:projectId/stages/order", customFieldHandler.UpdateCustomStageOrder)
+			customFields.GET("/projects/:project_id/stages", customFieldHandler.GetCustomStages)
+			customFields.GET("/stages/:stage_id", customFieldHandler.GetCustomStage)
+			customFields.PUT("/stages/:stage_id", customFieldHandler.UpdateCustomStage)
+			customFields.DELETE("/stages/:stage_id", customFieldHandler.DeleteCustomStage)
+			customFields.PUT("/projects/:project_id/stages/order", customFieldHandler.UpdateCustomStageOrder)
 
 			// Custom Importance
 			customFields.POST("/importance", customFieldHandler.CreateCustomImportance)
-			customFields.GET("/projects/:projectId/importance", customFieldHandler.GetCustomImportances)
-			customFields.GET("/importance/:id", customFieldHandler.GetCustomImportance)
-			customFields.PUT("/importance/:id", customFieldHandler.UpdateCustomImportance)
-			customFields.DELETE("/importance/:id", customFieldHandler.DeleteCustomImportance)
-			customFields.PUT("/projects/:projectId/importance/order", customFieldHandler.UpdateCustomImportanceOrder)
+			customFields.GET("/projects/:project_id/importance", customFieldHandler.GetCustomImportances)
+			customFields.GET("/importance/:importance_id", customFieldHandler.GetCustomImportance)
+			customFields.PUT("/importance/:importance_id", customFieldHandler.UpdateCustomImportance)
+			customFields.DELETE("/importance/:importance_id", customFieldHandler.DeleteCustomImportance)
+			customFields.PUT("/projects/:project_id/importance/order", customFieldHandler.UpdateCustomImportanceOrder)
 		}
 
 		// Board routes
 		boards := api.Group("/boards")
 		{
 			boards.POST("", boardHandler.CreateBoard)
-			boards.GET("/:id", boardHandler.GetBoard)
+			boards.GET("/:board_id", boardHandler.GetBoard)
 			boards.GET("", boardHandler.GetBoards)
-			boards.PUT("/:id", boardHandler.UpdateBoard)
-			boards.DELETE("/:id", boardHandler.DeleteBoard)
+			boards.PUT("/:board_id", boardHandler.UpdateBoard)
+			boards.DELETE("/:board_id", boardHandler.DeleteBoard)
 		}
 
 		// Comment routes

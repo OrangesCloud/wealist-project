@@ -2,6 +2,7 @@ package service
 
 import (
 	"board-service/internal/apperrors"
+	"board-service/internal/cache"
 	"board-service/internal/client"
 	"board-service/internal/domain"
 	"board-service/internal/dto"
@@ -16,15 +17,15 @@ import (
 )
 
 type ProjectService interface {
-	CreateProject(userID string, req *dto.CreateProjectRequest) (*dto.ProjectResponse, error)
+	CreateProject(userID string, token string, req *dto.CreateProjectRequest) (*dto.ProjectResponse, error)
 	GetProject(projectID, userID string) (*dto.ProjectResponse, error)
-	GetProjectsByWorkspaceID(workspaceID, userID string) ([]dto.ProjectResponse, error)
+	GetProjectsByWorkspaceID(workspaceID, userID string, token string) ([]dto.ProjectResponse, error)
 	UpdateProject(projectID, userID string, req *dto.UpdateProjectRequest) (*dto.ProjectResponse, error)
 	DeleteProject(projectID, userID string) error
-	SearchProjects(userID string, req *dto.SearchProjectsRequest) (*dto.PaginatedProjectsResponse, error)
+	SearchProjects(userID string, token string, req *dto.SearchProjectsRequest) (*dto.PaginatedProjectsResponse, error)
 
 	// Join Request
-	CreateJoinRequest(userID string, req *dto.CreateProjectJoinRequestRequest) (*dto.ProjectJoinRequestResponse, error)
+	CreateJoinRequest(userID string, token string, req *dto.CreateProjectJoinRequestRequest) (*dto.ProjectJoinRequestResponse, error)
 	GetJoinRequests(projectID, userID string, status string) ([]dto.ProjectJoinRequestResponse, error)
 	UpdateJoinRequest(requestID, userID string, req *dto.UpdateProjectJoinRequestRequest) (*dto.ProjectJoinRequestResponse, error)
 
@@ -36,39 +37,42 @@ type ProjectService interface {
 
 type projectService struct {
 	repo               repository.ProjectRepository
-	workspaceRepo      repository.WorkspaceRepository
 	roleRepo           repository.RoleRepository
 	userOrderRepo      repository.UserOrderRepository
 	customFieldService CustomFieldService
 	userClient         client.UserClient
+	workspaceCache     cache.WorkspaceCache
+	userInfoCache      cache.UserInfoCache
 	logger             *zap.Logger
 	db                 *gorm.DB
 }
 
 func NewProjectService(
 	repo repository.ProjectRepository,
-	workspaceRepo repository.WorkspaceRepository,
 	roleRepo repository.RoleRepository,
 	userOrderRepo repository.UserOrderRepository,
 	customFieldService CustomFieldService,
 	userClient client.UserClient,
+	workspaceCache cache.WorkspaceCache,
+	userInfoCache cache.UserInfoCache,
 	logger *zap.Logger,
 	db *gorm.DB,
 ) ProjectService {
 	return &projectService{
 		repo:               repo,
-		workspaceRepo:      workspaceRepo,
 		roleRepo:           roleRepo,
 		userOrderRepo:      userOrderRepo,
 		customFieldService: customFieldService,
 		userClient:         userClient,
+		workspaceCache:     workspaceCache,
+		userInfoCache:      userInfoCache,
 		logger:             logger,
 		db:                 db,
 	}
 }
 
 // CreateProject creates a new project
-func (s *projectService) CreateProject(userID string, req *dto.CreateProjectRequest) (*dto.ProjectResponse, error) {
+func (s *projectService) CreateProject(userID string, token string, req *dto.CreateProjectRequest) (*dto.ProjectResponse, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
@@ -79,13 +83,10 @@ func (s *projectService) CreateProject(userID string, req *dto.CreateProjectRequ
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 워크스페이스 ID", 400)
 	}
 
-	// Check if user is workspace member
-	_, err = s.workspaceRepo.FindMemberByUserAndWorkspace(userUUID, workspaceUUID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.New(apperrors.ErrCodeForbidden, "워크스페이스 멤버가 아닙니다", 403)
-		}
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 확인 실패", 500)
+	// Check workspace membership with caching
+	ctx := context.Background()
+	if err := s.validateWorkspaceMembership(ctx, req.WorkspaceID, userID, token); err != nil {
+		return nil, err
 	}
 
 	// Get OWNER role
@@ -180,24 +181,16 @@ func (s *projectService) GetProject(projectID, userID string) (*dto.ProjectRespo
 }
 
 // GetProjectsByWorkspaceID retrieves all projects in a workspace
-func (s *projectService) GetProjectsByWorkspaceID(workspaceID, userID string) ([]dto.ProjectResponse, error) {
+func (s *projectService) GetProjectsByWorkspaceID(workspaceID, userID string, token string) ([]dto.ProjectResponse, error) {
 	workspaceUUID, err := uuid.Parse(workspaceID)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 워크스페이스 ID", 400)
 	}
 
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
-	}
-
-	// Check if user is workspace member
-	_, err = s.workspaceRepo.FindMemberByUserAndWorkspace(userUUID, workspaceUUID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.New(apperrors.ErrCodeForbidden, "워크스페이스 멤버가 아닙니다", 403)
-		}
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 확인 실패", 500)
+	// Check workspace membership with caching
+	ctx := context.Background()
+	if err := s.validateWorkspaceMembership(ctx, workspaceID, userID, token); err != nil {
+		return nil, err
 	}
 
 	projects, err := s.repo.FindByWorkspaceID(workspaceUUID)
@@ -205,14 +198,33 @@ func (s *projectService) GetProjectsByWorkspaceID(workspaceID, userID string) ([
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "프로젝트 조회 실패", 500)
 	}
 
-	var responses []dto.ProjectResponse
+	// Batch fetch owner info
+	ownerIDs := make([]string, 0, len(projects))
 	for _, proj := range projects {
-		resp, err := s.toProjectResponse(&proj)
-		if err != nil {
-			s.logger.Warn("Failed to convert project to response", zap.Error(err))
-			continue
+		ownerIDs = append(ownerIDs, proj.OwnerID.String())
+	}
+	userMap := s.getUserInfoBatch(ctx, ownerIDs)
+
+	// Convert to responses
+	responses := make([]dto.ProjectResponse, 0, len(projects))
+	for _, proj := range projects {
+		response := &dto.ProjectResponse{
+			ID:          proj.ID.String(),
+			WorkspaceID: proj.WorkspaceID.String(),
+			Name:        proj.Name,
+			Description: proj.Description,
+			OwnerID:     proj.OwnerID.String(),
+			CreatedAt:   proj.CreatedAt,
+			UpdatedAt:   proj.UpdatedAt,
 		}
-		responses = append(responses, *resp)
+
+		// Add owner info from batch result
+		if userInfo, ok := userMap[proj.OwnerID.String()]; ok {
+			response.OwnerName = userInfo.Name
+			response.OwnerEmail = userInfo.Email
+		}
+
+		responses = append(responses, *response)
 	}
 
 	return responses, nil
@@ -283,24 +295,16 @@ func (s *projectService) DeleteProject(projectID, userID string) error {
 }
 
 // SearchProjects searches projects in a workspace
-func (s *projectService) SearchProjects(userID string, req *dto.SearchProjectsRequest) (*dto.PaginatedProjectsResponse, error) {
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
-	}
-
+func (s *projectService) SearchProjects(userID string, token string, req *dto.SearchProjectsRequest) (*dto.PaginatedProjectsResponse, error) {
 	workspaceUUID, err := uuid.Parse(req.WorkspaceID)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 워크스페이스 ID", 400)
 	}
 
-	// Check if user is workspace member
-	_, err = s.workspaceRepo.FindMemberByUserAndWorkspace(userUUID, workspaceUUID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.New(apperrors.ErrCodeForbidden, "워크스페이스 멤버가 아닙니다", 403)
-		}
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 확인 실패", 500)
+	// Check workspace membership with caching
+	ctx := context.Background()
+	if err := s.validateWorkspaceMembership(ctx, req.WorkspaceID, userID, token); err != nil {
+		return nil, err
 	}
 
 	// Default values
@@ -316,15 +320,33 @@ func (s *projectService) SearchProjects(userID string, req *dto.SearchProjectsRe
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "프로젝트 검색 실패", 500)
 	}
 
-	// Convert to response DTOs
-	var responses []dto.ProjectResponse
+	// Batch fetch owner info
+	ownerIDs := make([]string, 0, len(projects))
 	for _, proj := range projects {
-		resp, err := s.toProjectResponse(&proj)
-		if err != nil {
-			s.logger.Warn("Failed to convert project to response", zap.Error(err))
-			continue
+		ownerIDs = append(ownerIDs, proj.OwnerID.String())
+	}
+	userMap := s.getUserInfoBatch(ctx, ownerIDs)
+
+	// Convert to response DTOs
+	responses := make([]dto.ProjectResponse, 0, len(projects))
+	for _, proj := range projects {
+		response := &dto.ProjectResponse{
+			ID:          proj.ID.String(),
+			WorkspaceID: proj.WorkspaceID.String(),
+			Name:        proj.Name,
+			Description: proj.Description,
+			OwnerID:     proj.OwnerID.String(),
+			CreatedAt:   proj.CreatedAt,
+			UpdatedAt:   proj.UpdatedAt,
 		}
-		responses = append(responses, *resp)
+
+		// Add owner info from batch result
+		if userInfo, ok := userMap[proj.OwnerID.String()]; ok {
+			response.OwnerName = userInfo.Name
+			response.OwnerEmail = userInfo.Email
+		}
+
+		responses = append(responses, *response)
 	}
 
 	return &dto.PaginatedProjectsResponse{
@@ -336,7 +358,7 @@ func (s *projectService) SearchProjects(userID string, req *dto.SearchProjectsRe
 }
 
 // CreateJoinRequest creates a join request
-func (s *projectService) CreateJoinRequest(userID string, req *dto.CreateProjectJoinRequestRequest) (*dto.ProjectJoinRequestResponse, error) {
+func (s *projectService) CreateJoinRequest(userID string, token string, req *dto.CreateProjectJoinRequestRequest) (*dto.ProjectJoinRequestResponse, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
@@ -356,13 +378,10 @@ func (s *projectService) CreateJoinRequest(userID string, req *dto.CreateProject
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "프로젝트 조회 실패", 500)
 	}
 
-	// Check if user is workspace member
-	_, err = s.workspaceRepo.FindMemberByUserAndWorkspace(userUUID, project.WorkspaceID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.New(apperrors.ErrCodeForbidden, "워크스페이스 멤버가 아닙니다", 403)
-		}
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 확인 실패", 500)
+	// Check workspace membership with caching
+	ctx := context.Background()
+	if err := s.validateWorkspaceMembership(ctx, project.WorkspaceID.String(), userID, token); err != nil {
+		return nil, err
 	}
 
 	// Check if already a member
@@ -414,14 +433,33 @@ func (s *projectService) GetJoinRequests(projectID, userID string, status string
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "참여 신청 조회 실패", 500)
 	}
 
-	var responses []dto.ProjectJoinRequestResponse
+	// Batch fetch user info
+	ctx := context.Background()
+	userIDs := make([]string, 0, len(requests))
 	for _, req := range requests {
-		resp, err := s.toJoinRequestResponse(&req)
-		if err != nil {
-			s.logger.Warn("Failed to convert join request to response", zap.Error(err))
-			continue
+		userIDs = append(userIDs, req.UserID.String())
+	}
+	userMap := s.getUserInfoBatch(ctx, userIDs)
+
+	// Convert to responses
+	responses := make([]dto.ProjectJoinRequestResponse, 0, len(requests))
+	for _, req := range requests {
+		response := &dto.ProjectJoinRequestResponse{
+			ID:          req.ID.String(),
+			ProjectID:   req.ProjectID.String(),
+			UserID:      req.UserID.String(),
+			Status:      string(req.Status),
+			RequestedAt: req.RequestedAt,
+			UpdatedAt:   req.UpdatedAt,
 		}
-		responses = append(responses, *resp)
+
+		// Add user info from batch result
+		if userInfo, ok := userMap[req.UserID.String()]; ok {
+			response.UserName = userInfo.Name
+			response.UserEmail = userInfo.Email
+		}
+
+		responses = append(responses, *response)
 	}
 
 	return responses, nil
@@ -516,14 +554,39 @@ func (s *projectService) GetProjectMembers(projectID, userID string) ([]dto.Proj
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 조회 실패", 500)
 	}
 
-	var responses []dto.ProjectMemberResponse
+	// Batch fetch user info
+	ctx := context.Background()
+	userIDs := make([]string, 0, len(members))
 	for _, member := range members {
-		resp, err := s.toMemberResponse(&member)
+		userIDs = append(userIDs, member.UserID.String())
+	}
+	userMap := s.getUserInfoBatch(ctx, userIDs)
+
+	// Convert to responses
+	responses := make([]dto.ProjectMemberResponse, 0, len(members))
+	for _, member := range members {
+		// Get role name
+		role, err := s.roleRepo.FindByID(member.RoleID)
 		if err != nil {
-			s.logger.Warn("Failed to convert member to response", zap.Error(err))
+			s.logger.Warn("Failed to get role", zap.Error(err))
 			continue
 		}
-		responses = append(responses, *resp)
+
+		response := &dto.ProjectMemberResponse{
+			ID:        member.ID.String(),
+			ProjectID: member.ProjectID.String(),
+			UserID:    member.UserID.String(),
+			RoleName:  role.Name,
+			JoinedAt:  member.JoinedAt,
+		}
+
+		// Add user info from batch result
+		if userInfo, ok := userMap[member.UserID.String()]; ok {
+			response.UserName = userInfo.Name
+			response.UserEmail = userInfo.Email
+		}
+
+		responses = append(responses, *response)
 	}
 
 	return responses, nil
@@ -628,6 +691,159 @@ func (s *projectService) RemoveMember(projectID, memberID, requestUserID string)
 
 // Helper methods
 
+// validateWorkspaceMembership checks workspace membership with caching
+func (s *projectService) validateWorkspaceMembership(ctx context.Context, workspaceID, userID, token string) error {
+	// Try cache first
+	cacheExists, isMember, err := s.workspaceCache.GetMembership(ctx, workspaceID, userID)
+	if err != nil {
+		s.logger.Warn("Failed to get workspace membership from cache", zap.Error(err))
+		// Continue to User Service call on cache error
+	}
+
+	if cacheExists {
+		// Cache hit
+		if !isMember {
+			return apperrors.New(apperrors.ErrCodeWorkspaceAccessDenied, "워크스페이스 멤버가 아닙니다", 403)
+		}
+		return nil
+	}
+
+	// Cache miss - validate via User Service
+	// First check if workspace exists
+	workspaceExists, err := s.userClient.CheckWorkspaceExists(ctx, workspaceID, token)
+	if err != nil {
+		s.logger.Error("Failed to check workspace existence", zap.Error(err), zap.String("workspace_id", workspaceID))
+		return apperrors.Wrap(err, apperrors.ErrCodeWorkspaceValidationFailed, "워크스페이스 확인 실패", 500)
+	}
+	if !workspaceExists {
+		return apperrors.New(apperrors.ErrCodeWorkspaceNotFound, "워크스페이스를 찾을 수 없습니다", 404)
+	}
+
+	// Check membership
+	isMember, err = s.userClient.ValidateWorkspaceMembership(ctx, workspaceID, userID, token)
+	if err != nil {
+		s.logger.Error("Failed to validate workspace membership", zap.Error(err), zap.String("workspace_id", workspaceID), zap.String("user_id", userID))
+		return apperrors.Wrap(err, apperrors.ErrCodeWorkspaceValidationFailed, "워크스페이스 멤버십 확인 실패", 500)
+	}
+
+	// Cache the result
+	if cacheErr := s.workspaceCache.SetMembership(ctx, workspaceID, userID, isMember); cacheErr != nil {
+		s.logger.Warn("Failed to cache workspace membership", zap.Error(cacheErr))
+		// Don't fail the request on cache write error
+	}
+
+	if !isMember {
+		return apperrors.New(apperrors.ErrCodeWorkspaceAccessDenied, "워크스페이스 멤버가 아닙니다", 403)
+	}
+
+	return nil
+}
+
+// getUserInfoWithCache retrieves user info with caching
+func (s *projectService) getUserInfoWithCache(ctx context.Context, userID string) (*dto.UserInfo, error) {
+	// Try cache first
+	cacheExists, cachedUser, err := s.userInfoCache.GetUserInfo(ctx, userID)
+	if err != nil {
+		s.logger.Warn("Failed to get user info from cache", zap.Error(err))
+	}
+
+	if cacheExists && cachedUser != nil {
+		// Cache hit - convert to dto.UserInfo
+		return &dto.UserInfo{
+			UserID: cachedUser.UserID,
+			Name:   cachedUser.Name,
+			Email:  cachedUser.Email,
+		}, nil
+	}
+
+	// Cache miss - fetch from User Service
+	userInfo, err := s.userClient.GetUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the result
+	cacheUser := &cache.UserInfo{
+		UserID:   userInfo.UserID,
+		Name:     userInfo.Name,
+		Email:    userInfo.Email,
+		IsActive: userInfo.IsActive,
+	}
+	if cacheErr := s.userInfoCache.SetUserInfo(ctx, cacheUser); cacheErr != nil {
+		s.logger.Warn("Failed to cache user info", zap.Error(cacheErr))
+	}
+
+	return &dto.UserInfo{
+		UserID: userInfo.UserID,
+		Name:   userInfo.Name,
+		Email:  userInfo.Email,
+	}, nil
+}
+
+// getUserInfoBatch retrieves multiple user infos with caching
+func (s *projectService) getUserInfoBatch(ctx context.Context, userIDs []string) map[string]*dto.UserInfo {
+	if len(userIDs) == 0 {
+		return make(map[string]*dto.UserInfo)
+	}
+
+	// Try cache first
+	cachedUsers, err := s.userInfoCache.GetSimpleUsersBatch(ctx, userIDs)
+	if err != nil {
+		s.logger.Warn("Failed to get users from cache", zap.Error(err))
+		cachedUsers = make(map[string]*cache.SimpleUser)
+	}
+
+	// Find missing user IDs
+	missingUserIDs := []string{}
+	for _, userID := range userIDs {
+		if _, exists := cachedUsers[userID]; !exists {
+			missingUserIDs = append(missingUserIDs, userID)
+		}
+	}
+
+	// Build result map
+	userMap := make(map[string]*dto.UserInfo)
+
+	// Fetch missing users from User Service
+	if len(missingUserIDs) > 0 {
+		users, err := s.userClient.GetUsersBatch(ctx, missingUserIDs)
+		if err != nil {
+			s.logger.Warn("Failed to fetch users from User Service", zap.Error(err))
+		} else {
+			// Cache the fetched users
+			simpleUsers := make([]cache.SimpleUser, 0, len(users))
+			for _, user := range users {
+				userMap[user.UserID] = &dto.UserInfo{
+					UserID: user.UserID,
+					Name:   user.Name,
+					Email:  user.Email,
+				}
+				simpleUsers = append(simpleUsers, cache.SimpleUser{
+					ID:        user.UserID,
+					Name:      user.Name,
+					AvatarURL: "",
+				})
+			}
+			if cacheErr := s.userInfoCache.SetSimpleUsersBatch(ctx, simpleUsers); cacheErr != nil {
+				s.logger.Warn("Failed to cache users", zap.Error(cacheErr))
+			}
+		}
+	}
+
+	// Add cached users to result
+	for userID, cachedUser := range cachedUsers {
+		if _, exists := userMap[userID]; !exists {
+			userMap[userID] = &dto.UserInfo{
+				UserID: cachedUser.ID,
+				Name:   cachedUser.Name,
+				Email:  "", // SimpleUser doesn't have email
+			}
+		}
+	}
+
+	return userMap
+}
+
 func (s *projectService) checkProjectOwnerPermission(userID, projectID uuid.UUID) error {
 	member, err := s.repo.FindMemberByUserAndProject(userID, projectID)
 	if err != nil {
@@ -677,9 +893,9 @@ func (s *projectService) toProjectResponse(project *domain.Project) (*dto.Projec
 		UpdatedAt:   project.UpdatedAt,
 	}
 
-	// Fetch user info from User Service
+	// Fetch user info with caching
 	ctx := context.Background()
-	userInfo, err := s.userClient.GetUser(ctx, project.OwnerID.String())
+	userInfo, err := s.getUserInfoWithCache(ctx, project.OwnerID.String())
 	if err != nil {
 		s.logger.Warn("Failed to fetch user info", zap.Error(err), zap.String("user_id", project.OwnerID.String()))
 		// Continue without user info
@@ -706,9 +922,9 @@ func (s *projectService) toMemberResponse(member *domain.ProjectMember) (*dto.Pr
 		JoinedAt:  member.JoinedAt,
 	}
 
-	// Fetch user info from User Service
+	// Fetch user info with caching
 	ctx := context.Background()
-	userInfo, err := s.userClient.GetUser(ctx, member.UserID.String())
+	userInfo, err := s.getUserInfoWithCache(ctx, member.UserID.String())
 	if err != nil {
 		s.logger.Warn("Failed to fetch user info", zap.Error(err), zap.String("user_id", member.UserID.String()))
 	} else {
@@ -729,9 +945,9 @@ func (s *projectService) toJoinRequestResponse(req *domain.ProjectJoinRequest) (
 		UpdatedAt:   req.UpdatedAt,
 	}
 
-	// Fetch user info from User Service
+	// Fetch user info with caching
 	ctx := context.Background()
-	userInfo, err := s.userClient.GetUser(ctx, req.UserID.String())
+	userInfo, err := s.getUserInfoWithCache(ctx, req.UserID.String())
 	if err != nil {
 		s.logger.Warn("Failed to fetch user info", zap.Error(err), zap.String("user_id", req.UserID.String()))
 	} else {
