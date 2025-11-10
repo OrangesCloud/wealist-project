@@ -59,12 +59,25 @@ const processQueue = (error: Error | null, token: string | null = null) => {
 };
 
 /**
+ * localStorage를 정리하고 로그인 페이지로 리다이렉트합니다.
+ */
+const performLogout = () => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('userEmail');
+  window.location.href = '/';
+};
+
+/**
  * Refresh Token을 사용하여 새로운 Access Token을 발급받습니다.
  */
 const refreshAccessToken = async (): Promise<string> => {
   const refreshToken = localStorage.getItem('refreshToken');
-
+  // Refresh Token이 없으면 즉시 로그아웃
   if (!refreshToken) {
+    console.warn('⚠️ Refresh token not found. Logging out...');
+    performLogout();
     throw new Error('No refresh token available');
   }
 
@@ -158,29 +171,34 @@ const setupUnifiedResponseInterceptor = (client: AxiosInstance) => {
       if (status && status >= 400 && status < 599) {
         return Promise.reject(error);
       }
+      // 💡 네트워크 단절 오류 처리: response가 없고, 오류가 AbortError가 아닌 경우
+      // 이는 서버가 완전히 꺼졌을 때 발생하는 오류(ERR_CONNECTION_REFUSED)를 포함합니다.
+      if (!status && error.code !== 'ERR_CANCELED') {
+        // Axios의 기본 취소 에러는 무시
 
-      // 네트워크 단절 오류 처리:
-      originalRequest.retryCount = originalRequest.retryCount || 0;
+        // 네트워크 단절 오류 처리:
+        originalRequest.retryCount = originalRequest.retryCount || 0;
 
-      if (originalRequest.retryCount >= MAX_RETRIES) {
-        console.error(
-          `[Axios Interceptor] 최대 재시도 횟수(${MAX_RETRIES}회) 초과. 요청 중단: ${originalRequest.url}`,
+        if (originalRequest.retryCount >= MAX_RETRIES) {
+          console.error(
+            `[Axios Interceptor] 최대 재시도 횟수(${MAX_RETRIES}회) 초과. 요청 중단: ${originalRequest.url}`,
+          );
+          return Promise.reject(error);
+        }
+
+        originalRequest.retryCount += 1;
+
+        const delay = new Promise((resolve) => {
+          setTimeout(resolve, RETRY_DELAY_MS);
+        });
+
+        console.warn(
+          `[Axios Interceptor] 요청 실패(${originalRequest.retryCount}회 재시도 중): ${originalRequest.url}`,
         );
-        return Promise.reject(error);
+
+        await delay;
+        return client(originalRequest);
       }
-
-      originalRequest.retryCount += 1;
-
-      const delay = new Promise((resolve) => {
-        setTimeout(resolve, RETRY_DELAY_MS);
-      });
-
-      console.warn(
-        `[Axios Interceptor] 요청 실패(${originalRequest.retryCount}회 재시도 중): ${originalRequest.url}`,
-      );
-
-      await delay;
-      return client(originalRequest);
     },
   );
 };

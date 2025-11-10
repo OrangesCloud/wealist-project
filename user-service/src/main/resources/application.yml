@@ -44,10 +44,10 @@ spring:
       client:
         registration:
           google:
-#            
+            #
             client-id: ${GOOGLE_CLIENT_ID}
             client-secret: ${GOOGLE_CLIENT_SECRET}
-#            
+            #
             scope:
               - email
               - profile
@@ -60,7 +60,6 @@ spring:
             token-uri: https://oauth2.googleapis.com/token
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: sub
-
 
 springdoc:
   swagger-ui:
@@ -78,8 +77,8 @@ server:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-token-expiration-ms: ${JWT_EXPIRATION_MS}
-  refresh-token-expiration-ms: ${JWT_ACCESS_MS}
+  access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS}
+  refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS}
 
 # OAuth2 설정
 oauth2:
@@ -118,4 +117,3 @@ management:
     metrics:
       export:
         enabled: true
-    
