@@ -2,7 +2,7 @@ export interface Task {
   [key: string]: any;
   id: string;
   title: string;
-  assigneeId: string | null;
+  assignee_id: string | null;
   status: string;
   assignee: string; // 💡 전역 타입 호환성 유지
 }
