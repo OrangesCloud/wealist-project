@@ -12,9 +12,9 @@ definitions:
   dto.BoardResponse:
     properties:
       assignee:
-        $ref: '#/definitions/dto.UserInfo'
+        $ref: "#/definitions/dto.UserInfo"
       author:
-        $ref: '#/definitions/dto.UserInfo'
+        $ref: "#/definitions/dto.UserInfo"
       board_id:
         type: string
       content:
@@ -24,15 +24,15 @@ definitions:
       dueDate:
         type: string
       importance:
-        $ref: '#/definitions/dto.CustomImportanceResponse'
+        $ref: "#/definitions/dto.CustomImportanceResponse"
       project_id:
         type: string
       roles:
         items:
-          $ref: '#/definitions/dto.CustomRoleResponse'
+          $ref: "#/definitions/dto.CustomRoleResponse"
         type: array
       stage:
-        $ref: '#/definitions/dto.CustomStageResponse'
+        $ref: "#/definitions/dto.CustomStageResponse"
       title:
         type: string
       updatedAt:
@@ -64,10 +64,10 @@ definitions:
         minLength: 1
         type: string
     required:
-    - project_id
-    - role_ids
-    - stage_id
-    - title
+      - project_id
+      - role_ids
+      - stage_id
+      - title
     type: object
   dto.CreateCustomImportanceRequest:
     properties:
@@ -80,13 +80,13 @@ definitions:
       project_id:
         type: string
     required:
-    - name
-    - project_id
+      - name
+      - project_id
     type: object
   dto.CreateCustomRoleRequest:
     properties:
       color:
-        description: '#RRGGBB'
+        description: "#RRGGBB"
         type: string
       name:
         maxLength: 50
@@ -95,8 +95,8 @@ definitions:
       project_id:
         type: string
     required:
-    - name
-    - project_id
+      - name
+      - project_id
     type: object
   dto.CreateCustomStageRequest:
     properties:
@@ -109,15 +109,15 @@ definitions:
       project_id:
         type: string
     required:
-    - name
-    - project_id
+      - name
+      - project_id
     type: object
   dto.CreateProjectJoinRequestRequest:
     properties:
       project_id:
         type: string
     required:
-    - project_id
+      - project_id
     type: object
   dto.CreateProjectRequest:
     properties:
@@ -131,8 +131,8 @@ definitions:
       workspace_id:
         type: string
     required:
-    - name
-    - workspace_id
+      - name
+      - workspace_id
     type: object
   dto.CustomImportanceResponse:
     properties:
@@ -211,13 +211,13 @@ definitions:
       importance_id:
         type: string
     required:
-    - importance_id
+      - importance_id
     type: object
   dto.PaginatedBoardsResponse:
     properties:
       boards:
         items:
-          $ref: '#/definitions/dto.BoardResponse'
+          $ref: "#/definitions/dto.BoardResponse"
         type: array
       limit:
         type: integer
@@ -234,7 +234,7 @@ definitions:
         type: integer
       projects:
         items:
-          $ref: '#/definitions/dto.ProjectResponse'
+          $ref: "#/definitions/dto.ProjectResponse"
         type: array
       total:
         type: integer
@@ -300,7 +300,7 @@ definitions:
     properties:
       columns:
         items:
-          $ref: '#/definitions/dto.RoleColumnView'
+          $ref: "#/definitions/dto.RoleColumnView"
         type: array
       project_id:
         type: string
@@ -312,7 +312,7 @@ definitions:
     properties:
       boards:
         items:
-          $ref: '#/definitions/dto.BoardOrderResponse'
+          $ref: "#/definitions/dto.BoardOrderResponse"
         type: array
       custom_role_id:
         type: string
@@ -331,13 +331,13 @@ definitions:
       role_id:
         type: string
     required:
-    - role_id
+      - role_id
     type: object
   dto.StageBasedBoardView:
     properties:
       columns:
         items:
-          $ref: '#/definitions/dto.StageColumnView'
+          $ref: "#/definitions/dto.StageColumnView"
         type: array
       project_id:
         type: string
@@ -349,7 +349,7 @@ definitions:
     properties:
       boards:
         items:
-          $ref: '#/definitions/dto.BoardOrderResponse'
+          $ref: "#/definitions/dto.BoardOrderResponse"
         type: array
       custom_stage_id:
         type: string
@@ -368,7 +368,7 @@ definitions:
       stage_id:
         type: string
     required:
-    - stage_id
+      - stage_id
     type: object
   dto.SuccessResponse:
     properties:
@@ -402,11 +402,11 @@ definitions:
     properties:
       importanceOrders:
         items:
-          $ref: '#/definitions/dto.ImportanceOrder'
+          $ref: "#/definitions/dto.ImportanceOrder"
         minItems: 1
         type: array
     required:
-    - importanceOrders
+      - importanceOrders
     type: object
   dto.UpdateCustomImportanceRequest:
     properties:
@@ -421,11 +421,11 @@ definitions:
     properties:
       roleOrders:
         items:
-          $ref: '#/definitions/dto.RoleOrder'
+          $ref: "#/definitions/dto.RoleOrder"
         minItems: 1
         type: array
     required:
-    - roleOrders
+      - roleOrders
     type: object
   dto.UpdateCustomRoleRequest:
     properties:
@@ -440,11 +440,11 @@ definitions:
     properties:
       stageOrders:
         items:
-          $ref: '#/definitions/dto.StageOrder'
+          $ref: "#/definitions/dto.StageOrder"
         minItems: 1
         type: array
     required:
-    - stageOrders
+      - stageOrders
     type: object
   dto.UpdateCustomStageRequest:
     properties:
@@ -464,28 +464,28 @@ definitions:
         minItems: 1
         type: array
     required:
-    - itemIds
+      - itemIds
     type: object
   dto.UpdateProjectJoinRequestRequest:
     properties:
       status:
         enum:
-        - APPROVED
-        - REJECTED
+          - APPROVED
+          - REJECTED
         type: string
     required:
-    - status
+      - status
     type: object
   dto.UpdateProjectMemberRoleRequest:
     properties:
       roleName:
         enum:
-        - OWNER
-        - ADMIN
-        - MEMBER
+          - OWNER
+          - ADMIN
+          - MEMBER
         type: string
     required:
-    - roleName
+      - roleName
     type: object
   dto.UpdateProjectRequest:
     properties:
@@ -524,1612 +524,1619 @@ paths:
   /api/boards:
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get boards for a project with optional filters
       parameters:
-      - description: Project ID
-        in: query
-        name: project_id
-        required: true
-        type: string
-      - description: Filter by Stage ID
-        in: query
-        name: stage_id
-        type: string
-      - description: Filter by Role ID
-        in: query
-        name: role_id
-        type: string
-      - description: Filter by Importance ID
-        in: query
-        name: importance_id
-        type: string
-      - description: Filter by Assignee ID
-        in: query
-        name: assignee_id
-        type: string
-      - description: Filter by Author ID
-        in: query
-        name: author_id
-        type: string
-      - description: 'Page number (default: 1)'
-        in: query
-        name: page
-        type: integer
-      - description: 'Items per page (default: 20, max: 100)'
-        in: query
-        name: limit
-        type: integer
+        - description: Project ID
+          in: query
+          name: project_id
+          required: true
+          type: string
+        - description: Filter by Stage ID
+          in: query
+          name: stage_id
+          type: string
+        - description: Filter by Role ID
+          in: query
+          name: role_id
+          type: string
+        - description: Filter by Importance ID
+          in: query
+          name: importance_id
+          type: string
+        - description: Filter by Assignee ID
+          in: query
+          name: assignee_id
+          type: string
+        - description: Filter by Author ID
+          in: query
+          name: author_id
+          type: string
+        - description: "Page number (default: 1)"
+          in: query
+          name: page
+          type: integer
+        - description: "Items per page (default: 20, max: 100)"
+          in: query
+          name: limit
+          type: integer
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.PaginatedBoardsResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.PaginatedBoardsResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get boards
       tags:
-      - boards
+        - boards
     post:
       consumes:
-      - application/json
+        - application/json
       description: Create a new board card (task/issue) in a project
       parameters:
-      - description: Board details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateBoardRequest'
+        - description: Board details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.CreateBoardRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.BoardResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.BoardResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Create board
       tags:
-      - boards
+        - boards
   /api/boards/{board_id}:
     delete:
       consumes:
-      - application/json
+        - application/json
       description: Delete a board (soft delete, author or ADMIN+ only)
       parameters:
-      - description: Board ID
-        in: path
-        name: board_id
-        required: true
-        type: string
+        - description: Board ID
+          in: path
+          name: board_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SuccessResponse'
+            $ref: "#/definitions/dto.SuccessResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Delete board
       tags:
-      - boards
+        - boards
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get a specific board by ID (project member only)
       parameters:
-      - description: Board ID
-        in: path
-        name: board_id
-        required: true
-        type: string
+        - description: Board ID
+          in: path
+          name: board_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.BoardResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.BoardResponse"
+                type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get board
       tags:
-      - boards
+        - boards
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update a board (author or ADMIN+ only)
       parameters:
-      - description: Board ID
-        in: path
-        name: board_id
-        required: true
-        type: string
-      - description: Board updates
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateBoardRequest'
+        - description: Board ID
+          in: path
+          name: board_id
+          required: true
+          type: string
+        - description: Board updates
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateBoardRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.BoardResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.BoardResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update board
       tags:
-      - boards
+        - boards
   /api/custom-fields/importance:
     post:
       consumes:
-      - application/json
+        - application/json
       description: Create a new custom importance for a project (ADMIN+ only)
       parameters:
-      - description: Importance details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateCustomImportanceRequest'
+        - description: Importance details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.CreateCustomImportanceRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.CustomImportanceResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.CustomImportanceResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Create custom importance
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/importance/{importance_id}:
     delete:
       consumes:
-      - application/json
-      description: Delete a custom importance (ADMIN+ only, system defaults cannot
+        - application/json
+      description:
+        Delete a custom importance (ADMIN+ only, system defaults cannot
         be deleted)
       parameters:
-      - description: Importance ID
-        in: path
-        name: importance_id
-        required: true
-        type: string
+        - description: Importance ID
+          in: path
+          name: importance_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SuccessResponse'
+            $ref: "#/definitions/dto.SuccessResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Delete custom importance
       tags:
-      - custom-fields
+        - custom-fields
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get a specific custom importance by ID
       parameters:
-      - description: Importance ID
-        in: path
-        name: importance_id
-        required: true
-        type: string
+        - description: Importance ID
+          in: path
+          name: importance_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.CustomImportanceResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.CustomImportanceResponse"
+                type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get custom importance
       tags:
-      - custom-fields
+        - custom-fields
     put:
       consumes:
-      - application/json
-      description: Update a custom importance (ADMIN+ only, system defaults cannot
+        - application/json
+      description:
+        Update a custom importance (ADMIN+ only, system defaults cannot
         be updated)
       parameters:
-      - description: Importance ID
-        in: path
-        name: importance_id
-        required: true
-        type: string
-      - description: Importance updates
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateCustomImportanceRequest'
+        - description: Importance ID
+          in: path
+          name: importance_id
+          required: true
+          type: string
+        - description: Importance updates
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateCustomImportanceRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.CustomImportanceResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.CustomImportanceResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update custom importance
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/projects/{project_id}/importance:
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get all custom importances for a project
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/dto.CustomImportanceResponse'
-                  type: array
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    items:
+                      $ref: "#/definitions/dto.CustomImportanceResponse"
+                    type: array
+                type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get custom importances
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/projects/{project_id}/importance/order:
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update the display order of custom importances (ADMIN+ only)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Importance orders
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateCustomImportanceOrderRequest'
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Importance orders
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateCustomImportanceOrderRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SuccessResponse'
+            $ref: "#/definitions/dto.SuccessResponse"
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update importance display order
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/projects/{project_id}/roles:
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get all custom roles for a project
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/dto.CustomRoleResponse'
-                  type: array
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    items:
+                      $ref: "#/definitions/dto.CustomRoleResponse"
+                    type: array
+                type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get custom roles
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/projects/{project_id}/roles/order:
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update the display order of custom roles (ADMIN+ only)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Role orders
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateCustomRoleOrderRequest'
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Role orders
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateCustomRoleOrderRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SuccessResponse'
+            $ref: "#/definitions/dto.SuccessResponse"
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update role display order
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/projects/{project_id}/stages:
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get all custom stages for a project
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/dto.CustomStageResponse'
-                  type: array
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    items:
+                      $ref: "#/definitions/dto.CustomStageResponse"
+                    type: array
+                type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get custom stages
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/projects/{project_id}/stages/order:
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update the display order of custom stages (ADMIN+ only)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Stage orders
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateCustomStageOrderRequest'
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Stage orders
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateCustomStageOrderRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SuccessResponse'
+            $ref: "#/definitions/dto.SuccessResponse"
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update stage display order
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/roles:
     post:
       consumes:
-      - application/json
+        - application/json
       description: Create a new custom role for a project (ADMIN+ only)
       parameters:
-      - description: Role details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateCustomRoleRequest'
+        - description: Role details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.CreateCustomRoleRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.CustomRoleResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.CustomRoleResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Create custom role
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/roles/{role_id}:
     delete:
       consumes:
-      - application/json
+        - application/json
       description: Delete a custom role (ADMIN+ only, system defaults cannot be deleted)
       parameters:
-      - description: Role ID
-        in: path
-        name: role_id
-        required: true
-        type: string
+        - description: Role ID
+          in: path
+          name: role_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SuccessResponse'
+            $ref: "#/definitions/dto.SuccessResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Delete custom role
       tags:
-      - custom-fields
+        - custom-fields
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get a specific custom role by ID
       parameters:
-      - description: Role ID
-        in: path
-        name: role_id
-        required: true
-        type: string
+        - description: Role ID
+          in: path
+          name: role_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.CustomRoleResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.CustomRoleResponse"
+                type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get custom role
       tags:
-      - custom-fields
+        - custom-fields
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update a custom role (ADMIN+ only, system defaults cannot be updated)
       parameters:
-      - description: Role ID
-        in: path
-        name: role_id
-        required: true
-        type: string
-      - description: Role updates
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateCustomRoleRequest'
+        - description: Role ID
+          in: path
+          name: role_id
+          required: true
+          type: string
+        - description: Role updates
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateCustomRoleRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.CustomRoleResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.CustomRoleResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update custom role
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/stages:
     post:
       consumes:
-      - application/json
+        - application/json
       description: Create a new custom stage for a project (ADMIN+ only)
       parameters:
-      - description: Stage details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateCustomStageRequest'
+        - description: Stage details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.CreateCustomStageRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.CustomStageResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.CustomStageResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Create custom stage
       tags:
-      - custom-fields
+        - custom-fields
   /api/custom-fields/stages/{stage_id}:
     delete:
       consumes:
-      - application/json
+        - application/json
       description: Delete a custom stage (ADMIN+ only, system defaults cannot be deleted)
       parameters:
-      - description: Stage ID
-        in: path
-        name: stage_id
-        required: true
-        type: string
+        - description: Stage ID
+          in: path
+          name: stage_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SuccessResponse'
+            $ref: "#/definitions/dto.SuccessResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Delete custom stage
       tags:
-      - custom-fields
+        - custom-fields
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get a specific custom stage by ID
       parameters:
-      - description: Stage ID
-        in: path
-        name: stage_id
-        required: true
-        type: string
+        - description: Stage ID
+          in: path
+          name: stage_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.CustomStageResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.CustomStageResponse"
+                type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get custom stage
       tags:
-      - custom-fields
+        - custom-fields
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update a custom stage (ADMIN+ only, system defaults cannot be updated)
       parameters:
-      - description: Stage ID
-        in: path
-        name: stage_id
-        required: true
-        type: string
-      - description: Stage updates
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateCustomStageRequest'
+        - description: Stage ID
+          in: path
+          name: stage_id
+          required: true
+          type: string
+        - description: Stage updates
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateCustomStageRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.CustomStageResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.CustomStageResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update custom stage
       tags:
-      - custom-fields
+        - custom-fields
   /api/projects:
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get all projects in a workspace (workspace member only)
       parameters:
-      - description: Workspace ID
-        in: query
-        name: workspace_id
-        required: true
-        type: string
+        - description: Workspace ID
+          in: query
+          name: workspace_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/dto.ProjectResponse'
-                  type: array
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    items:
+                      $ref: "#/definitions/dto.ProjectResponse"
+                    type: array
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get projects
       tags:
-      - projects
+        - projects
     post:
       consumes:
-      - application/json
+        - application/json
       description: Create a new project in a workspace (workspace member only)
       parameters:
-      - description: Project details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateProjectRequest'
+        - description: Project details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.CreateProjectRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.ProjectResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.ProjectResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Create project
       tags:
-      - projects
+        - projects
   /api/projects/{project_id}:
     delete:
       consumes:
-      - application/json
+        - application/json
       description: Soft delete a project (OWNER only)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  properties:
-                    message:
-                      type: string
-                  type: object
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    properties:
+                      message:
+                        type: string
+                    type: object
+                type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Delete project
       tags:
-      - projects
+        - projects
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get project details (project member only)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.ProjectResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.ProjectResponse"
+                type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get project
       tags:
-      - projects
+        - projects
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update project details (OWNER only)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Updated project details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateProjectRequest'
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Updated project details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateProjectRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.ProjectResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.ProjectResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update project
       tags:
-      - projects
-  /api/projects/{project_id}/join-requests:
+        - projects
+  /api/projects/{project_id}/joinRequests:
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get join requests for a project (OWNER/ADMIN only)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Filter by status (PENDING/APPROVED/REJECTED)
-        in: query
-        name: status
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Filter by status (PENDING/APPROVED/REJECTED)
+          in: query
+          name: status
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/dto.ProjectJoinRequestResponse'
-                  type: array
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    items:
+                      $ref: "#/definitions/dto.ProjectJoinRequestResponse"
+                    type: array
+                type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get join requests
       tags:
-      - projects
+        - projects
   /api/projects/{project_id}/members:
     get:
       consumes:
-      - application/json
+        - application/json
       description: Get all members of a project (member only)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/dto.ProjectMemberResponse'
-                  type: array
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    items:
+                      $ref: "#/definitions/dto.ProjectMemberResponse"
+                    type: array
+                type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get project members
       tags:
-      - projects
+        - projects
   /api/projects/{project_id}/members/{member_id}:
     delete:
       consumes:
-      - application/json
-      description: Remove a member from project (OWNER/ADMIN only, cannot remove OWNER
+        - application/json
+      description:
+        Remove a member from project (OWNER/ADMIN only, cannot remove OWNER
         or self)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Member ID
-        in: path
-        name: member_id
-        required: true
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Member ID
+          in: path
+          name: member_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  properties:
-                    message:
-                      type: string
-                  type: object
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    properties:
+                      message:
+                        type: string
+                    type: object
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Remove member
       tags:
-      - projects
+        - projects
   /api/projects/{project_id}/members/{member_id}/role:
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update a member's role in project (OWNER only)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Member ID
-        in: path
-        name: member_id
-        required: true
-        type: string
-      - description: New role
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateProjectMemberRoleRequest'
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Member ID
+          in: path
+          name: member_id
+          required: true
+          type: string
+        - description: New role
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateProjectMemberRoleRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.ProjectMemberResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.ProjectMemberResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update member role
       tags:
-      - projects
+        - projects
   /api/projects/{project_id}/orders/role-board:
     get:
       consumes:
-      - application/json
-      description: Get the board organized by roles with user-specific column and
+        - application/json
+      description:
+        Get the board organized by roles with user-specific column and
         board orders
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.RoleBasedBoardView'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.RoleBasedBoardView"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get role-based board view
       tags:
-      - user-orders
+        - user-orders
   /api/projects/{project_id}/orders/role-boards/{role_id}:
     put:
       consumes:
-      - application/json
-      description: Update the display order of boards within a specific role column
+        - application/json
+      description:
+        Update the display order of boards within a specific role column
         (drag-and-drop)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Role ID
-        in: path
-        name: role_id
-        required: true
-        type: string
-      - description: Order update details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateOrderRequest'
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Role ID
+          in: path
+          name: role_id
+          required: true
+          type: string
+        - description: Order update details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateOrderRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  type: string
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    type: string
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update board order in role column
       tags:
-      - user-orders
+        - user-orders
   /api/projects/{project_id}/orders/role-columns:
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update the display order of role columns (drag-and-drop)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Order update details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateOrderRequest'
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Order update details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateOrderRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  type: string
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    type: string
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update role column order
       tags:
-      - user-orders
+        - user-orders
   /api/projects/{project_id}/orders/stage-board:
     get:
       consumes:
-      - application/json
-      description: Get the board organized by stages with user-specific column and
+        - application/json
+      description:
+        Get the board organized by stages with user-specific column and
         board orders
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.StageBasedBoardView'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.StageBasedBoardView"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Get stage-based board view
       tags:
-      - user-orders
+        - user-orders
   /api/projects/{project_id}/orders/stage-boards/{stage_id}:
     put:
       consumes:
-      - application/json
-      description: Update the display order of boards within a specific stage column
+        - application/json
+      description:
+        Update the display order of boards within a specific stage column
         (drag-and-drop)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Stage ID
-        in: path
-        name: stage_id
-        required: true
-        type: string
-      - description: Order update details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateOrderRequest'
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Stage ID
+          in: path
+          name: stage_id
+          required: true
+          type: string
+        - description: Order update details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateOrderRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  type: string
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    type: string
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update board order in stage column
       tags:
-      - user-orders
+        - user-orders
   /api/projects/{project_id}/orders/stage-columns:
     put:
       consumes:
-      - application/json
+        - application/json
       description: Update the display order of stage columns (drag-and-drop)
       parameters:
-      - description: Project ID
-        in: path
-        name: project_id
-        required: true
-        type: string
-      - description: Order update details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateOrderRequest'
+        - description: Project ID
+          in: path
+          name: project_id
+          required: true
+          type: string
+        - description: Order update details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateOrderRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  type: string
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    type: string
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update stage column order
       tags:
-      - user-orders
+        - user-orders
   /api/projects/join-requests:
     post:
       consumes:
-      - application/json
+        - application/json
       description: Request to join a project (workspace member only)
       parameters:
-      - description: Join request details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateProjectJoinRequestRequest'
+        - description: Join request details
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.CreateProjectJoinRequestRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.ProjectJoinRequestResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.ProjectJoinRequestResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Create join request
       tags:
-      - projects
+        - projects
   /api/projects/join-requests/{join_request_id}:
     put:
       consumes:
-      - application/json
+        - application/json
       description: Approve or reject a join request (OWNER/ADMIN only)
       parameters:
-      - description: Join Request ID
-        in: path
-        name: join_request_id
-        required: true
-        type: string
-      - description: Status update
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateProjectJoinRequestRequest'
+        - description: Join Request ID
+          in: path
+          name: join_request_id
+          required: true
+          type: string
+        - description: Status update
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: "#/definitions/dto.UpdateProjectJoinRequestRequest"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.ProjectJoinRequestResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.ProjectJoinRequestResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Update join request
       tags:
-      - projects
+        - projects
   /api/projects/search:
     get:
       consumes:
-      - application/json
+        - application/json
       description: Search projects in a workspace by name or description
       parameters:
-      - description: Workspace ID
-        in: query
-        name: workspace_id
-        required: true
-        type: string
-      - description: Search query
-        in: query
-        name: query
-        required: true
-        type: string
-      - description: 'Page number (default: 1)'
-        in: query
-        name: page
-        type: integer
-      - description: 'Page size (default: 10, max: 100)'
-        in: query
-        name: limit
-        type: integer
+        - description: Workspace ID
+          in: query
+          name: workspace_id
+          required: true
+          type: string
+        - description: Search query
+          in: query
+          name: query
+          required: true
+          type: string
+        - description: "Page number (default: 1)"
+          in: query
+          name: page
+          type: integer
+        - description: "Page size (default: 10, max: 100)"
+          in: query
+          name: limit
+          type: integer
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/dto.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.PaginatedProjectsResponse'
-              type: object
+              - $ref: "#/definitions/dto.SuccessResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/dto.PaginatedProjectsResponse"
+                type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: "#/definitions/dto.ErrorResponse"
       security:
-      - BearerAuth: []
+        - BearerAuth: []
       summary: Search projects
       tags:
-      - projects
+        - projects
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom'; // 1. useNavigate 임포트
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import {
   WorkspaceResponse,
   CreateWorkspaceRequest,
   getWorkspaces,
   createWorkspace,
 } from '../api/user/userService';
-import { Search, Plus, X, AlertCircle, Settings } from 'lucide-react';
+import { Search, Plus, X, AlertCircle, Settings, LogOut } from 'lucide-react';
 import WorkspaceManagementModal from './modals/WorkspaceManagementModal';
 
 // 2. Props 인터페이스 제거 (더 이상 App.tsx에서 props를 받지 않음)
@@ -32,6 +33,7 @@ interface PendingMember {
 const SelectWorkspacePage: React.FC = () => {
   const navigate = useNavigate(); // 4. navigate 훅 사용
   const { theme } = useTheme();
+  const { userEmail, logout } = useAuth();
 
   // 5. localStorage에서 토큰 및 ID 직접 조회
   const accessToken = localStorage.getItem('accessToken') || '';
@@ -89,7 +91,9 @@ const SelectWorkspacePage: React.FC = () => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return workspaces;
     return workspaces.filter(
-      (ws) => ws.workspaceName.toLowerCase().includes(query) || ws.workspaceDescription.toLowerCase().includes(query),
+      (ws) =>
+        ws.workspaceName.toLowerCase().includes(query) ||
+        ws.workspaceDescription.toLowerCase().includes(query),
     );
   }, [searchQuery, workspaces]);
 
@@ -210,6 +214,23 @@ const SelectWorkspacePage: React.FC = () => {
       <div
         className={`${theme.colors.card} ${theme.effects.borderRadius} p-6 sm:p-8 w-full max-w-2xl relative z-10 shadow-xl ${theme.effects.cardBorderWidth} ${theme.colors.border}`}
       >
+        {/* 사용자 정보 헤더 */}
+        <div className="flex items-center justify-between mb-6 pb-4">
+          <div className="flex items-center gap-2">
+            <span className={`${theme.font.size.sm} ${theme.colors.text}`}>
+              {userEmail ? `반갑습니다, ${userEmail.split('@')[0]}님!` : '환영합니다!'}
+            </span>
+          </div>
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+            title="로그아웃"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className={`${theme.font.size.sm}`}>로그아웃</span>
+          </button>
+        </div>
+
         {/* Step 1: 워크스페이스 목록 & 선택 */}
         {step === 'list' && (
           <>

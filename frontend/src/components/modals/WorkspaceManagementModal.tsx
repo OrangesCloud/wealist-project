@@ -11,7 +11,7 @@
  * 1. GET  /api/workspaces/{workspaceId}/settings           - 워크스페이스 설정 조회
  * 2. PUT  /api/workspaces/{workspaceId}/settings           - 워크스페이스 설정 업데이트
  * 3. GET  /api/workspaces/{workspaceId}/members            - 회원 목록 조회
- * 4. GET  /api/workspaces/{workspaceId}/pending-members    - 승인 대기 목록 조회
+ * 4. GET  /api/workspaces/{workspaceId}/pendingMembers    - 승인 대기 목록 조회
  * 5. POST /api/workspaces/{workspaceId}/members/{userId}/approve - 회원 승인
  * 6. POST /api/workspaces/{workspaceId}/members/{userId}/reject  - 회원 거절
  * 7. PUT  /api/workspaces/{workspaceId}/members/{userId}/role    - 회원 역할 변경

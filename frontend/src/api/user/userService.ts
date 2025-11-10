@@ -64,9 +64,9 @@ export type WorkspaceMemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
 export interface WorkspaceMember {
   userId: string;
-  userName: string;  // Changed from 'name' to match backend DTO
-  userEmail: string;  // Changed from 'email' to match backend DTO
-  roleName: WorkspaceMemberRole;  // Changed from 'role' to match backend DTO
+  userName: string; // Changed from 'name' to match backend DTO
+  userEmail: string; // Changed from 'email' to match backend DTO
+  roleName: WorkspaceMemberRole; // Changed from 'role' to match backend DTO
   profileImageUrl?: string | null;
   joinedAt: string;
 }
@@ -356,9 +356,12 @@ export const getMyProfile = async (accessToken: string): Promise<UserProfileResp
   }
 
   // 실제 API 호출
-  const response: AxiosResponse<UserProfileResponse> = await userRepoClient.get('/api/profiles/me', {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const response: AxiosResponse<UserProfileResponse> = await userRepoClient.get(
+    '/api/profiles/me',
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  );
   return response.data;
 };
 
@@ -471,7 +474,9 @@ export const updateWorkspaceProfile = async (
       nickName: data.nickName || existingProfile?.nickName || '김개발',
       email: data.email !== undefined ? data.email : existingProfile?.email || null,
       profileImageUrl:
-        data.profileImageUrl !== undefined ? data.profileImageUrl : existingProfile?.profileImageUrl || null,
+        data.profileImageUrl !== undefined
+          ? data.profileImageUrl
+          : existingProfile?.profileImageUrl || null,
       createdAt: existingProfile?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -603,7 +608,7 @@ export const getWorkspaceMembers = async (
  * 승인 대기 회원 목록 조회
  *
  * [백엔드 API]
- * - GET /api/workspaces/{workspaceId}/pending-members
+ * - GET /api/workspaces/{workspaceId}/pendingMembers
  * - Headers: Authorization: Bearer {accessToken}
  * - Response: PendingMember[]
  */
@@ -620,7 +625,7 @@ export const getPendingMembers = async (
   }
 
   const response: AxiosResponse<PendingMember[]> = await userRepoClient.get(
-    `/api/workspaces/${workspaceId}/pending-members`,
+    `/api/workspaces/${workspaceId}/pendingMembers`,
     {
       headers: { Authorization: `Bearer ${accessToken}` },
     },
