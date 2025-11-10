@@ -29,18 +29,18 @@ import { WorkspaceMember, getWorkspaceMembers } from '../../api/user/userService
  */
 interface BoardDetailModalProps {
   boardId: string;
-  workspace_id: string;
+  workspaceId: string;
   onClose: () => void;
   onBoardUpdated: () => void;
   onBoardDeleted: () => void;
   onEdit: (boardData: {
     boardId: string;
-    project_id: string;
+    projectId: string;
     title: string;
     content: string;
-    stage_id: string;
+    stageId: string;
     roleId: string;
-    importance_id: string;
+    importanceId: string;
     assigneeIds: string[];
     dueDate: string;
   }) => void;
@@ -55,7 +55,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   onEdit,
 }) => {
   const { theme } = useTheme();
-  const accessToken = localStorage.getItem('access_token') || '';
+  const accessToken = localStorage.getItem('accessToken') || '';
 
   // Form state
   const [projectId, setProjectId] = useState<string>('');
@@ -91,7 +91,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
         const boardData = await getBoard(boardId, accessToken);
 
         // 보드 데이터로 상태 초기화
-        setProjectId(boardData.project_id);
+        setProjectId(boardData.projectId);
         setTitle(boardData.title);
         setContent(boardData.content || '');
         setSelectedStageId(boardData.stage?.id || '');
@@ -105,13 +105,13 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
         if (boardData.assignees && Array.isArray(boardData.assignees)) {
           // assignees가 배열인 경우
           assignees = boardData.assignees
-            .map((a: any) => a?.user_id || a)
+            .map((a: any) => a?.userId || a)
             .filter((id): id is string => typeof id === 'string' && id.length > 0);
         } else if (boardData.assignee) {
           // 단일 assignee 객체인 경우
           const userId = typeof boardData.assignee === 'string'
             ? boardData.assignee
-            : boardData.assignee?.user_id;
+            : boardData.assignee?.userId;
           if (userId) {
             assignees = [userId];
           }
@@ -351,7 +351,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
               {assigneeIds.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {assigneeIds.map((userId) => {
-                    const member = workspaceMembers.find((m) => m.user_id === userId);
+                    const member = workspaceMembers.find((m) => m.userId === userId);
                     return (
                       <span
                         key={userId}
@@ -435,9 +435,9 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                 projectId,
                 title,
                 content,
-                stage_id: selectedStageId,
+                stageId: selectedStageId,
                 roleId: selectedRoleId,
-                importance_id: selectedImportanceId,
+                importanceId: selectedImportanceId,
                 assigneeIds,
                 dueDate,
               });

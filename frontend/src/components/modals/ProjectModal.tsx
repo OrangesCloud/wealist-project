@@ -7,10 +7,10 @@ import { useTheme } from '../../contexts/ThemeContext';
  * - project prop이 있으면 편집 모드, 없으면 생성 모드
  */
 interface ProjectData {
-  id: string;
+  projectId: string;
   name: string;
   description?: string;
-  workspace_id: string;
+  workspaceId: string;
   ownerId: string;
   ownerName: string;
   ownerEmail: string;
@@ -19,14 +19,14 @@ interface ProjectData {
 }
 
 interface ProjectModalProps {
-  workspace_id: string;
+  workspaceId: string;
   project?: ProjectData; // 편집 모드일 때만 전달
   onClose: () => void;
   onProjectSaved: () => void; // 생성 또는 수정 후 호출
 }
 
 export const ProjectModal: React.FC<ProjectModalProps> = ({
-  workspace_id,
+  workspaceId,
   project,
   onClose,
   onProjectSaved,
@@ -63,13 +63,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     setError(null);
 
     try {
-      const accessToken = localStorage.getItem('access_token') || '';
+      const accessToken = localStorage.getItem('accessToken') || '';
 
       if (isEditMode) {
         // 편집 모드
         const { updateProject } = await import('../../api/board/boardService');
         await updateProject(
-          project.id,
+          project.projectId,
           {
             name: name.trim(),
             description: description.trim() || undefined,
@@ -82,7 +82,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         const { createProject } = await import('../../api/board/boardService');
         await createProject(
           {
-            workspace_id,
+            workspaceId,
             name: name.trim(),
             description: description.trim() || undefined,
           },
@@ -95,10 +95,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       onClose();
     } catch (err) {
       const error = err as Error;
-      console.error(
-        isEditMode ? '❌ 프로젝트 수정 실패:' : '❌ 프로젝트 생성 실패:',
-        error,
-      );
+      console.error(isEditMode ? '❌ 프로젝트 수정 실패:' : '❌ 프로젝트 생성 실패:', error);
       setError(
         error.message ||
           (isEditMode ? '프로젝트 수정에 실패했습니다.' : '프로젝트 생성에 실패했습니다.'),
@@ -210,8 +207,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   ? '저장 중...'
                   : '생성 중...'
                 : isEditMode
-                  ? '저장'
-                  : '프로젝트 만들기'}
+                ? '저장'
+                : '프로젝트 만들기'}
             </button>
           </div>
         </form>
