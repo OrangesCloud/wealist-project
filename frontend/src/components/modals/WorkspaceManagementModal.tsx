@@ -50,7 +50,6 @@ interface WorkspaceManagementModalProps {
 
 const WorkspaceManagementModal: React.FC<WorkspaceManagementModalProps> = ({
   workspaceId,
-  workspaceName,
   onClose,
 }) => {
   const { theme } = useTheme();
@@ -374,7 +373,9 @@ const WorkspaceManagementModal: React.FC<WorkspaceManagementModalProps> = ({
                   <input
                     type="text"
                     value={settingsForm.workspaceName}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, workspaceName: e.target.value })}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, workspaceName: e.target.value })
+                    }
                     className={`w-full px-3 py-2 ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.colors.card} ${theme.font.size.xs} ${theme.effects.borderRadius} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     placeholder="워크스페이스 이름"
                   />
