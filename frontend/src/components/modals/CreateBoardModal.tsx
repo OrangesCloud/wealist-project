@@ -18,27 +18,27 @@ import {
 import { WorkspaceMember, getWorkspaceMembers } from '../../api/user/userService';
 
 interface CreateBoardModalProps {
-  project_id: string;
+  projectId: string;
   stageId?: string; // 컬럼에서 열었을 때 미리 선택된 stageId
   editData?: {
     boardId: string;
-    project_id: string;
+    projectId: string;
     title: string;
     content: string;
-    stage_id: string;
+    stageId: string;
     roleId: string;
-    importance_id: string;
+    importanceId: string;
     assigneeIds: string[];
     dueDate: string;
   } | null;
-  workspace_id: string;
+  workspaceId: string;
   onClose: () => void;
   onBoardCreated: () => void;
 }
 
 export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   projectId,
-  stage_id: initialStageId,
+  stageId: initialStageId,
   editData,
   workspaceId,
   onClose,
@@ -50,10 +50,10 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   // Form state
   const [title, setTitle] = useState(editData?.title || '');
   const [content, setContent] = useState(editData?.content || '');
-  const [selectedStageId, setSelectedStageId] = useState(editData?.stage_id || initialStageId || '');
-  const [selectedRoleId, setSelectedRoleId] = useState<string>(editData?.role_id || '');
-  const [selectedImportanceId, setSelectedImportanceId] = useState<string>(editData?.importance_id || '');
-  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>(editData?.assignee_ids || []);
+  const [selectedStageId, setSelectedStageId] = useState(editData?.stageId || initialStageId || '');
+  const [selectedRoleId, setSelectedRoleId] = useState<string>(editData?.roleId || '');
+  const [selectedImportanceId, setSelectedImportanceId] = useState<string>(editData?.importanceId || '');
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>(editData?.assigneeIds || []);
   const [dueDate, setDueDate] = useState<string>(editData?.dueDate || '');
 
   // Assignee search state
@@ -261,16 +261,16 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
         projectId,
         title: title.trim(),
         content: content.trim() || undefined,
-        stage_id: selectedStageId,
-        role_ids: [selectedRoleId],
-        importance_id: selectedImportanceId || undefined,
+        stageId: selectedStageId,
+        roleIds: [selectedRoleId],
+        importanceId: selectedImportanceId || undefined,
         assigneeIds: selectedAssigneeIds.length > 0 ? selectedAssigneeIds : undefined,
         dueDate: dueDate || undefined,
       };
 
       if (editData) {
         // 수정 모드
-        await updateBoard(editData.board_id, boardData, accessToken);
+        await updateBoard(editData.boardId, boardData, accessToken);
         console.log('✅ 보드 수정 성공:', title);
       } else {
         // 생성 모드

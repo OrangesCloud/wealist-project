@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 
 // ⚠️ 백엔드 OAuth2 인증 시작 엔드포인트
@@ -8,9 +9,18 @@ const GOOGLE_AUTH_URL = `http://localhost:8080/oauth2/authorization/google`;
 // onLogin prop 제거 (TS6133 에러 해결)
 const AuthPage: React.FC = () => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // 로그인 상태 체크: 이미 로그인되어 있으면 워크스페이스 선택 페이지로 이동
+  useEffect(() => {
+    const accessToken = localStorage.getItem('access_token');
+    if (accessToken) {
+      navigate('/workspaces', { replace: true });
+    }
+  }, [navigate]);
 
   // Google 로그인 핸들러: 리다이렉션만 수행
   const handleGoogleLogin = () => {
