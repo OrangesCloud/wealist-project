@@ -37,6 +37,7 @@ const SelectWorkspacePage: React.FC = () => {
 
   // 5. localStorage에서 토큰 및 ID 직접 조회
   const accessToken = localStorage.getItem('accessToken') || '';
+  const nickName = localStorage.getItem('nickName') || '';
 
   // 페이지 상태
   const [step, setStep] = useState<WorkspacePageStep>('list');
@@ -218,7 +219,7 @@ const SelectWorkspacePage: React.FC = () => {
         <div className="flex items-center justify-between mb-6 pb-4">
           <div className="flex items-center gap-2">
             <span className={`${theme.font.size.sm} ${theme.colors.text}`}>
-              {userEmail ? `반갑습니다, ${userEmail.split('@')[0]}님!` : '환영합니다!'}
+              {userEmail ? `반갑습니다, ${nickName}님!` : '환영합니다!'}
             </span>
           </div>
           <button

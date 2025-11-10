@@ -96,7 +96,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
 
         setWorkspaces(workspaceList);
         if (workspaceList.length > 0) {
-          setSelectedWorkspaceId(workspaceList[0].id);
+          setSelectedWorkspaceId(workspaceList[0].workspaceId);
         }
       } catch (err) {
         console.error('[Initial Data Load Error]', err);
@@ -129,16 +129,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
         } else {
           // 프로필이 없으면 기본 프로필 정보로 초기화
           setWorkspaceProfile(null);
-          const workspace = workspaces.find((ws) => ws.id === selectedWorkspaceId);
-          setWorkspaceNickName(`${defaultProfile?.nickName || ''} (${workspace?.workspaceName || ''})`);
+          const workspace = workspaces.find((ws) => ws.workspaceId === selectedWorkspaceId);
+          setWorkspaceNickName(
+            `${defaultProfile?.nickName || ''} (${workspace?.workspaceName || ''})`,
+          );
           setWorkspaceEmail(defaultProfile?.email || '');
         }
       } catch (err) {
         console.error('[Workspace Profile Load Error]', err);
         // 에러 발생 시 기본값으로 설정
         setWorkspaceProfile(null);
-        const workspace = workspaces.find((ws) => ws.id === selectedWorkspaceId);
-        setWorkspaceNickName(`${defaultProfile?.nickName || ''} (${workspace?.workspaceName || ''})`);
+        const workspace = workspaces.find((ws) => ws.workspaceId === selectedWorkspaceId);
+        setWorkspaceNickName(
+          `${defaultProfile?.nickName || ''} (${workspace?.workspaceName || ''})`,
+        );
         setWorkspaceEmail(defaultProfile?.email || '');
       }
     };
@@ -214,7 +218,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
         );
 
         setWorkspaceProfile(updatedProfile);
-        const workspaceName_display = workspaces.find((ws) => ws.id === selectedWorkspaceId)?.workspaceName;
+        const workspaceName_display = workspaces.find(
+          (ws) => ws.workspaceId === selectedWorkspaceId,
+        )?.workspaceName;
         alert(`${workspaceName_display} 프로필이 저장되었습니다.`);
       }
 
@@ -242,7 +248,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
   // 현재 활성 탭의 프로필 정보 가져오기
   // ========================================
 
-  const currentProfile = activeTab === 'default' ? defaultProfile : (workspaceProfile || defaultProfile);
+  const currentProfile =
+    activeTab === 'default' ? defaultProfile : workspaceProfile || defaultProfile;
   const currentNickName = activeTab === 'default' ? defaultNickName : workspaceNickName;
   const currentEmail = activeTab === 'default' ? defaultEmail : workspaceEmail;
   const setCurrentNickName = activeTab === 'default' ? setDefaultNickName : setWorkspaceNickName;
@@ -274,7 +281,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
         >
           {/* 헤더 */}
           <div className="flex items-center justify-between p-4 pb-3">
-            <h2 className={`${theme.font.size.base} font-bold text-gray-800`}>사용자 프로필 설정</h2>
+            <h2 className={`${theme.font.size.base} font-bold text-gray-800`}>
+              사용자 프로필 설정
+            </h2>
             <button
               onClick={handleClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition"
@@ -426,7 +435,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className={`flex-1 ${theme.colors.primary} text-white py-3 ${theme.effects.borderRadius} font-semibold transition ${
+                className={`flex-1 ${theme.colors.primary} text-white py-3 ${
+                  theme.effects.borderRadius
+                } font-semibold transition ${
                   loading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
                 }`}
               >

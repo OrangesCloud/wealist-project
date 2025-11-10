@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * ProjectModal - 프로젝트 생성 및 편집을 위한 통합 모달
@@ -34,6 +35,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const { theme } = useTheme();
   const isEditMode = !!project;
 
+  const { nickName } = useAuth();
   const [name, setName] = useState(project?.name || '');
   const [description, setDescription] = useState(project?.description || '');
   const [isLoading, setIsLoading] = useState(false);
@@ -42,6 +44,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   // project prop이 변경되면 폼 리셋
   useEffect(() => {
     if (project) {
+      console.log(project);
       setName(project.name);
       setDescription(project.description || '');
     } else {
@@ -78,6 +81,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         );
         console.log('✅ 프로젝트 수정 성공:', name);
       } else {
+        console.log(nickName);
         // 생성 모드
         const { createProject } = await import('../../api/board/boardService');
         await createProject(
@@ -88,6 +92,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           },
           accessToken,
         );
+        alert(name + '이 생성되었습니다!');
         console.log('✅ 프로젝트 생성 성공:', name);
       }
 
@@ -132,7 +137,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <div className="mb-4 p-3 bg-gray-50 rounded-lg">
             <div className="text-xs text-gray-500 mb-1">프로젝트 소유자</div>
             <div className="text-sm font-medium text-gray-700">
-              {project.ownerName} ({project.ownerEmail})
+              {project.ownerId} ({project.ownerEmail})
             </div>
           </div>
         )}

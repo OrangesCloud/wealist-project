@@ -491,6 +491,17 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     console.log(`✅ Stage 컬럼 순서 변경 (로컬)`);
   };
 
+  // 💡 [추가] 드래그 종료 시 상태를 초기화하는 핸들러
+  const handleDragEnd = (): void => {
+    // 마우스를 놓았을 때, 드래그 상태와 컬럼 드래그 상태를 모두 초기화
+    setDraggedBoard(null);
+    setDraggedFromColumn(null);
+    setDraggedColumn(null);
+    setDragOverBoardId(null);
+    setDragOverColumn(null);
+    console.log('✅ Drag End: 드래그 상태 초기화');
+  };
+
   // Table sorting handler
   const handleSort = (
     column: 'title' | 'stage' | 'role' | 'importance' | 'assignee' | 'dueDate',
@@ -629,23 +640,23 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
               className={`flex items-center gap-2 font-bold text-xl ${theme.colors.text} hover:opacity-80 transition`}
             >
               {selectedProject?.name || '프로젝트 선택'}
-              {canAccessSettings && selectedProject && (
-                <button
-                  onClick={() => setShowProjectSettings(true)}
-                  className={`p-2 rounded-lg transition ${theme.colors.text} hover:bg-gray-100`}
-                  title="프로젝트 설정"
-                >
-                  <Settings className="w-5 h-5" />
-                </button>
-              )}
-              <ChevronDown
-                className={`w-5 h-5 text-gray-500 transition-transform ${
-                  showProjectSelector ? 'rotate-180' : 'rotate-0'
-                }`}
-                style={{ strokeWidth: 2.5 }}
-              />
             </button>
-
+            {canAccessSettings && selectedProject && (
+              <button
+                onClick={() => setShowProjectSettings(true)}
+                className={`p-2 rounded-lg transition ${theme.colors.text} hover:bg-gray-100`}
+                title="프로젝트 설정"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+            )}
+            <ChevronDown
+              onClick={() => setShowProjectSelector(!showProjectSelector)}
+              className={`w-5 h-5 text-gray-500 transition-transform ${
+                showProjectSelector ? 'rotate-180' : 'rotate-0'
+              }`}
+              style={{ strokeWidth: 2.5 }}
+            />
             {showProjectSelector && (
               <div
                 ref={projectSelectorRef}
@@ -997,6 +1008,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                         key={column.stage_id}
                         draggable
                         onDragStart={() => handleColumnDragStart(column)}
+                        onDragEnd={handleDragEnd}
                         onDragOver={(e) => {
                           handleDragOver(e);
                           handleColumnDragOver(e);
@@ -1054,7 +1066,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                           <div className="space-y-2 sm:space-y-3">
                             {column.boards.map((board) => (
                               <div
-                                key={board.boardId}
+                                key={board.boardId} // 보드 감싸는 최상위 div
                                 className="relative"
                                 onDragOver={(e) => {
                                   e.preventDefault();
@@ -1080,6 +1092,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
                                     e.stopPropagation();
                                     handleDragStart(board, column.stage_id);
                                   }}
+                                  // 💡 [추가] 보드 카드 드래그 종료 시 상태 초기화
+                                  onDragEnd={handleDragEnd}
                                   onClick={() => setSelectedBoardId(board.boardId)}
                                   className={`relative ${theme.colors.card} p-3 sm:p-4 ${
                                     theme.effects.cardBorderWidth

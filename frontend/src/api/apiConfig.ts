@@ -64,7 +64,7 @@ const processQueue = (error: Error | null, token: string | null = null) => {
 const performLogout = () => {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
-  localStorage.removeItem('userId');
+  localStorage.removeItem('nickName');
   localStorage.removeItem('userEmail');
   window.location.href = '/';
 };
@@ -100,7 +100,7 @@ const refreshAccessToken = async (): Promise<string> => {
     // Refresh token도 만료된 경우 로그아웃 처리
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-    localStorage.removeItem('userId');
+    localStorage.removeItem('nickName');
     localStorage.removeItem('userEmail');
 
     // 로그인 페이지로 리다이렉트
