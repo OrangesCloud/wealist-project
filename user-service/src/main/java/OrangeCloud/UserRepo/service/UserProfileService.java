@@ -28,14 +28,14 @@ public class UserProfileService {
     @Transactional(readOnly = true)
     @Cacheable(value = "userProfile", key = "#userId")
     // 💡 수정: 반환 타입을 UserProfileResponse DTO로 변경
-    public UserProfileResponse getProfile(UUID userId) { 
+    public UserProfileResponse getProfile(UUID userId) {
         log.info("[Cacheable] Attempting to retrieve profile from DB for user: {}", userId);
-        
+
         // DB 조회 (UserProfile 엔티티)
-         UserProfile profile = userProfileRepository.findByUserId(userId)
-                                           // 💡 수정: 정의된 UserNotFoundException을 사용
-                                           .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
-    
+        UserProfile profile = userProfileRepository.findByUserId(userId)
+                // 💡 수정: 정의된 UserNotFoundException을 사용
+                .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
+
         // 💡 수정: DTO를 반환하도록 로직을 유지
         return UserProfileResponse.from(profile);
     }
@@ -46,14 +46,16 @@ public class UserProfileService {
      * @return 업데이트된 UserProfile 엔티티 (Service 내부에서 사용되므로 엔티티 반환 유지)
      */
     @Transactional
-    @CacheEvict(value = "userProfile", key = "#userId") 
+    @CacheEvict(value = "userProfile", key = "#userId")
     // 💡 주의: Service 내부의 CRUD 메서드는 엔티티를 반환하도록 유지
-    public UserProfile updateProfile(UUID userId, String nickName, String email, String profileImageUrl) {
+    public UserProfile updateProfile(UUID workspaceId,UUID userId, String nickName, String email, String profileImageUrl) {
         log.info("[CacheEvict] Updating profile for user: userId={}, nickName={}, email={}, imageUrl={}", userId, nickName, email, profileImageUrl);
 
         // 1. UserProfile 조회
-        UserProfile profile = userProfileRepository.findByUserId(userId)
+        UserProfile profile = userProfileRepository.findByWorkspaceId(workspaceId)
                 .orElseThrow(() -> new UserNotFoundException("프로필 업데이트 대상 사용자를 찾을 수 없습니다."));
+
+        // 워크 스페이스 id랑 동일한 경우 ,
 
         // 2. 닉네임 업데이트 (값이 존재하고 비어있지 않을 경우에만)
         if (nickName != null && !nickName.trim().isEmpty()) {
@@ -77,4 +79,58 @@ public class UserProfileService {
         // 5. 변경된 프로필 저장
         return userProfileRepository.save(profile);
     }
+    // 워크스페이스별 생성자 만들기
+    @Transactional
+    @CacheEvict(value = "userProfile", key = "#userId")
+    public UserProfile upsertProfile(UUID workspaceId,
+                                     UUID userId,
+                                     String nickName,
+                                     String email,
+                                     String profileImageUrl) {
+
+        log.info("[UpsertProfile] workspaceId={}, userId={}, nickName={}, email={}, imageUrl={}",
+                workspaceId, userId, nickName, email, profileImageUrl);
+
+        // 1. workspaceId + userId 기준으로 조회
+        UserProfile profile = userProfileRepository
+                .findByWorkspaceIdAndUserId(workspaceId, userId)
+                .orElse(null);
+
+        // 2. 존재하지 않으면 새로 생성
+        if (profile == null) {
+            log.info("No existing profile found. Creating new profile for userId={} in workspaceId={}",
+                    userId, workspaceId);
+
+            profile = UserProfile.create(
+                    workspaceId,
+                    userId,
+                    nickName != null ? nickName.trim() : null,
+                    email != null ? email.trim() : null,
+                    profileImageUrl != null ? profileImageUrl.trim() : null
+            );
+
+            return userProfileRepository.save(profile);
+        }
+
+        // 3. 존재하면 선택적 업데이트 적용
+        if (nickName != null && !nickName.trim().isEmpty()) {
+            profile.updateNickName(nickName.trim());
+            log.debug("Updated nickName: {}", nickName.trim());
+        }
+
+        if (email != null && !email.trim().isEmpty()) {
+            profile.updateEmail(email.trim());
+            log.debug("Updated email: {}", email.trim());
+        }
+
+        if (profileImageUrl != null) {
+            String urlToSave = profileImageUrl.trim().isEmpty() ? null : profileImageUrl.trim();
+            profile.updateProfileImageUrl(urlToSave);
+            log.debug("Updated imageUrl: {}", urlToSave);
+        }
+
+        // 4. 최종 저장
+        return userProfileRepository.save(profile);
+    }
+
 }

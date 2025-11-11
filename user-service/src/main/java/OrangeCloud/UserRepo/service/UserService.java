@@ -21,6 +21,8 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
+
 
     /**
      * Google OAuth 로그인/가입
@@ -63,6 +65,7 @@ public class UserService {
         UserProfile profile = UserProfile.builder()
                 .userId(savedUser.getUserId())
                 .nickName(nickName)
+                .workspaceId(DEFAULT_WORKSPACE_ID)
                 .build();
 
         userProfileRepository.save(profile);

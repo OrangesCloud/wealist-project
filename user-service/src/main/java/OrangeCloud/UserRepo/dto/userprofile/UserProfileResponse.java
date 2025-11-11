@@ -15,6 +15,7 @@ public class UserProfileResponse {
     
     // 💡 필드 선언부가 명확해야 합니다.
     private UUID profileId;
+    private UUID workspaceId;
     private UUID userId;
     private String nickName;
     private String email;
@@ -22,7 +23,8 @@ public class UserProfileResponse {
     // 💡 정적 팩토리 메서드는 그대로 유지
     public static UserProfileResponse from(UserProfile profile) {
         return UserProfileResponse.builder()
-                .profileId(profile.getProfileId()) 
+                .profileId(profile.getProfileId())
+                .workspaceId(profile.getWorkspaceId())
                 .userId(profile.getUserId())
                 .nickName(profile.getNickName())
                 .email(profile.getEmail())
