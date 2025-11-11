@@ -3,9 +3,10 @@ package OrangeCloud.UserRepo.controller;
 import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileImageRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse; // 💡 DTO 경로 수정 완료
-import OrangeCloud.UserRepo.entity.UserProfile; 
+import OrangeCloud.UserRepo.entity.UserProfile;
 import OrangeCloud.UserRepo.service.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,12 +39,12 @@ public class UserProfileController {
      * 내 프로필 조회
      * GET /api/profiles/me
      */
-   @GetMapping("/me")
+    @GetMapping("/me")
     public ResponseEntity<UserProfileResponse> getMyProfile(Principal principal) {
         UUID userId = extractUserId(principal);
         // 💡 Service가 DTO를 반환하도록 변경했으므로, 여기서 변환 과정이 필요 없습니다.
         UserProfileResponse response = userProfileService.getProfile(userId);
-        return ResponseEntity.ok(response); 
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -53,22 +54,24 @@ public class UserProfileController {
     @PutMapping("/me/image")
     @Operation(summary = "프로필 사진 업데이트", description = "프로필 사진 URL을 업데이트합니다.")
     public ResponseEntity<UserProfileResponse> updateProfileImage( // 💡 반환 타입을 DTO로 통일
-            Principal principal,
-            @Valid @RequestBody UpdateProfileImageRequest request) {
+                                                                   Principal principal,
+                                                                   @Valid @RequestBody UpdateProfileImageRequest request) {
         UUID userId = extractUserId(principal);
-        
+
+
         // ✅ [문제 해결]: updateProfileImageUrl 대신 통합 서비스 메서드 updateProfile 호출
         // 닉네임, 이메일은 null로 전달하여 변경하지 않도록 합니다.
         UserProfile updatedProfile = userProfileService.updateProfile(
-            userId,
-            null, // 닉네임은 변경하지 않음
-            null, // 이메일은 변경하지 않음
-            request.profileImageUrl() // 이미지 URL만 업데이트
+                request.workspaceId(),
+                userId,
+                null, // 닉네임은 변경하지 않음
+                null, // 이메일은 변경하지 않음
+                request.profileImageUrl() // 이미지 URL만 업데이트
         );
 
         return ResponseEntity.ok(UserProfileResponse.from(updatedProfile));
     }
-    
+
     /**
      * 인증된 사용자의 프로필 (이름 또는 이미지 URL)을 통합 업데이트합니다.
      * PUT /api/profiles/me
@@ -84,6 +87,32 @@ public class UserProfileController {
 
         // ✅ 통합 서비스 메서드 호출
         UserProfile updatedProfile = userProfileService.updateProfile(
+                request.workspaceId(),
+                request.userId(),
+                request.nickName(),
+                request.email(),
+                request.profileImageUrl()
+        );
+
+        return ResponseEntity.ok(UserProfileResponse.from(updatedProfile));
+    }
+    /**
+     * 특정 워크스페이스의 프로필 업데이트/생성
+     * PUT /api/profiles/workspace/{workspaceId}/me
+     */
+    @PutMapping("/workspace/{workspaceId}/me")
+    @Operation(summary = "워크스페이스별 프로필 업데이트",
+            description = "특정 워크스페이스에서의 프로필을 업데이트하거나 생성합니다.")
+    public ResponseEntity<UserProfileResponse> updateMyProfileInWorkspace(
+            Principal principal,
+            @Parameter(description = "워크스페이스 ID") @PathVariable UUID workspaceId,
+            @Valid @RequestBody UpdateProfileRequest request) {
+
+        UUID userId = extractUserId(principal);
+        log.info("Upserting profile for user: {} in workspace: {}", userId, workspaceId);
+
+        UserProfile updatedProfile = userProfileService.upsertProfile(
+                workspaceId,
                 userId,
                 request.nickName(),
                 request.email(),
