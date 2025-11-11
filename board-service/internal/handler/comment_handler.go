@@ -91,7 +91,7 @@ func (h *CommentHandler) UpdateComment(c *gin.Context) {
 		return
 	}
 
-	commentID, err := uuid.Parse(c.Param("id"))
+	commentID, err := uuid.Parse(c.Param("commentId"))
 	if err != nil {
 		dto.Error(c, apperrors.New(apperrors.ErrCodeBadRequest, "Invalid comment ID format", http.StatusBadRequest))
 		return
@@ -125,7 +125,7 @@ func (h *CommentHandler) DeleteComment(c *gin.Context) {
 		return
 	}
 
-	commentID, err := uuid.Parse(c.Param("id"))
+	commentID, err := uuid.Parse(c.Param("commentId"))
 	if err != nil {
 		dto.Error(c, apperrors.New(apperrors.ErrCodeBadRequest, "Invalid comment ID format", http.StatusBadRequest))
 		return
