@@ -4,7 +4,7 @@ name: AWS ECR Image Push
 on:
   push:
     branches:
-      - "jaehyeong/aws"
+      - "jaehyeong/aws-dev"
 
 # 2. 공통 환경 변수 설정 (본인 값으로 수정)
 env:
