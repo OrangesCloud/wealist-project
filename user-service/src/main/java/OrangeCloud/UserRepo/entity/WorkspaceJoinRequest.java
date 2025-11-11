@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "workspaceJoinRequests")
+@Table(name = "workspace_join_requests")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -20,13 +20,13 @@ import java.util.UUID;
 public class WorkspaceJoinRequest {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "joinRequestId", updatable = false, nullable = false, columnDefinition = "UUID")
+    @Column(name = "join_request_id", updatable = false, nullable = false, columnDefinition = "UUID")
     private UUID joinRequestId;
 
-    @Column(name = "workspaceId", nullable = false, columnDefinition = "UUID")
+    @Column(name = "workspace_id", nullable = false, columnDefinition = "UUID")
     private UUID workspaceId;
 
-    @Column(name = "userId", nullable = false, columnDefinition = "UUID")
+    @Column(name = "user_id", nullable = false, columnDefinition = "UUID")
     private UUID userId;
 
     @Column(name = "status", nullable = false)
@@ -35,11 +35,11 @@ public class WorkspaceJoinRequest {
     private JoinRequestStatus status = JoinRequestStatus.PENDING;
 
     @CreationTimestamp
-    @Column(name = "requestedAt", updatable = false)
+    @Column(name = "requested_at", updatable = false)
     private LocalDateTime requestedAt;
 
     @UpdateTimestamp
-    @Column(name = "updatedAt")
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     public enum JoinRequestStatus {

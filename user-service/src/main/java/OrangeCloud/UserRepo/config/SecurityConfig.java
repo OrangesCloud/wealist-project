@@ -6,7 +6,6 @@ import OrangeCloud.UserRepo.oauth.CustomOAuth2UserService;
 import OrangeCloud.UserRepo.oauth.OAuth2SuccessHandler;
 import OrangeCloud.UserRepo.service.AuthService;
 import OrangeCloud.UserRepo.util.JwtTokenProvider;
-import com.fasterxml.jackson.databind.ObjectMapper; // 💡 ObjectMapper 임포트 추가
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,7 +27,6 @@ public class SecurityConfig {
 
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
-    private final ObjectMapper objectMapper; // 💡 JacksonConfig에서 설정된 ObjectMapper 빈 주입
 
     @Bean
     public SecurityFilterChain filterChain(
@@ -36,12 +34,10 @@ public class SecurityConfig {
             JwtTokenProvider jwtTokenProvider,
             AuthService authService
     ) throws Exception {
-        // JWT 필터 생성
+        // JWT 필터 생성 (순환 참조 방지)
         JwtAuthenticationFilter jwtAuthenticationFilter =
                 new JwtAuthenticationFilter(jwtTokenProvider, authService);
-        
-        // 💡 수정: 주입받은 ObjectMapper를 JwtExceptionFilter에 전달
-        JwtExceptionFilter jwtExceptionFilter = new JwtExceptionFilter(objectMapper); 
+        JwtExceptionFilter jwtExceptionFilter = new JwtExceptionFilter();
 
         return http
                 .csrf(csrf -> csrf.disable())
@@ -71,11 +67,10 @@ public class SecurityConfig {
                         // 나머지는 인증 필요
                         .anyRequest().authenticated()
                 )
-                // 💡 JWT 예외 처리 필터 추가 (인증 필터보다 먼저)
+                // JWT 인증 필터 추가
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // JWT 예외 처리 필터 추가
                 .addFilterBefore(jwtExceptionFilter, UsernamePasswordAuthenticationFilter.class)
-                // 💡 JWT 인증 필터 추가 (ExceptionFilter 뒤, 인증 실패 시 ExceptionFilter가 잡도록)
-                .addFilterBefore(jwtAuthenticationFilter, JwtExceptionFilter.class) 
-                
                 // OAuth2 로그인 설정 추가
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo ->

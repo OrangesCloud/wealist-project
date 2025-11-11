@@ -3,53 +3,61 @@ package OrangeCloud.UserRepo.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "workspaces")
+@Table(name = "groups")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @ToString
-@EqualsAndHashCode(of = "workspaceId")
+@EqualsAndHashCode(of = "groupId")
 public class Workspace {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "workspaceId", updatable = false, nullable = false, columnDefinition = "UUID")
-    private UUID workspaceId;
+    @Column(name = "group_id", updatable = false, nullable = false, columnDefinition = "UUID")
+    private UUID groupId;
 
-    @Column(name = "ownerId", nullable = false, columnDefinition = "UUID")
-    private UUID ownerId;
+    @Column(nullable = false)
+    private String name;
 
-    @Column(name = "workspaceName", nullable = false)
-    private String workspaceName;
-
-    @Column(name = "workspaceDescription", nullable = false)
-    private String workspaceDescription;
-
-    @Column(name = "isPublic", nullable = false)
-    @Builder.Default
-    private Boolean isPublic = false; // 검색 > 초대 가능성
-
-    @Column(name = "needApproved", nullable = false)
-    @Builder.Default
-    private Boolean needApproved = true; // workspace에 들어오는 기본 승인 필요
+    @Column(name = "company_name")
+    private String companyName; // 실제로는 description 역할
 
     @CreationTimestamp
-    @Column(name = "createdAt", updatable = false)
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "deletedAt")
-    private LocalDateTime deletedAt;
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
-    // 소프트 삭제를 위한 필드
-    @Column(name = "isActive", nullable = false)
+    // 소프트 삭제를 위한 필드들
+    @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    // 수동으로 groupId 설정할 수 있는 생성자 추가
+    public Workspace(UUID groupId, String name, String companyName) {
+        this.groupId = groupId;
+        this.name = name;
+        this.companyName = companyName;
+        this.isActive = true;
+    }
+
+    public Workspace(String name, String companyName) {
+        this.name = name;
+        this.companyName = companyName;
+        this.isActive = true;
+    }
 
     public void softDelete() {
         this.isActive = false;

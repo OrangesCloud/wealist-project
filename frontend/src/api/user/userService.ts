@@ -20,15 +20,15 @@ export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   userId: string; // (format: uuid)
-  name: string; // Google OAuth에서 받은 사용자 이름 (UserProfile.nickName 값)
+  name: string;
   email: string;
   tokenType: string; // e.g., "bearer"
 }
 
 export interface WorkspaceResponse {
-  workspaceId: string;
-  workspaceName: string;
-  workspaceDescription: string;
+  id: string;
+  name: string;
+  description: string;
   ownerId: string;
   ownerName: string;
   ownerEmail: string;
@@ -37,15 +37,15 @@ export interface WorkspaceResponse {
 }
 
 export interface CreateWorkspaceRequest {
-  workspaceName: string;
-  workspaceDescription?: string;
+  name: string;
+  // description?: string; // API 스펙에 name만 required이므로 일단 제외
 }
 
 export interface UserProfileResponse {
   profileId: string;
   userId: string;
   workspaceId?: string | null; // [추가] 워크스페이스별 프로필용
-  nickName: string;
+  name: string;
   email: string | null;
   profileImageUrl: string | null;
   createdAt: string;
@@ -53,7 +53,7 @@ export interface UserProfileResponse {
 }
 
 export interface UpdateProfileRequest {
-  nickName?: string;
+  name?: string;
   email?: string;
   profileImageUrl?: string;
 }
@@ -64,38 +64,38 @@ export type WorkspaceMemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
 export interface WorkspaceMember {
   userId: string;
-  userName: string; // Changed from 'name' to match backend DTO
-  userEmail: string; // Changed from 'email' to match backend DTO
-  roleName: WorkspaceMemberRole; // Changed from 'role' to match backend DTO
+  userName: string;  // Changed from 'name' to match backend DTO
+  userEmail: string;  // Changed from 'email' to match backend DTO
+  roleName: WorkspaceMemberRole;  // Changed from 'role' to match backend DTO
   profileImageUrl?: string | null;
   joinedAt: string;
 }
 
 export interface PendingMember {
   userId: string;
-  nickName: string;
+  name: string;
   email: string;
   requestedAt: string;
 }
 
 export interface InvitableUser {
   userId: string;
-  nickName: string;
+  name: string;
   email: string;
 }
 
 export interface WorkspaceSettings {
   workspaceId: string;
-  workspaceName: string;
-  workspaceDescription: string;
+  name: string;
+  description: string;
   isPublic: boolean; // 공개/비공개
   requiresApproval: boolean; // 승인제/비승인제
   onlyOwnerCanInvite: boolean; // OWNER만 초대 가능
 }
 
 export interface UpdateWorkspaceSettingsRequest {
-  workspaceName?: string;
-  workspaceDescription?: string;
+  name?: string;
+  description?: string;
   isPublic?: boolean;
   requiresApproval?: boolean;
   onlyOwnerCanInvite?: boolean;
@@ -116,9 +116,9 @@ export interface UpdateWorkspaceSettingsRequest {
 // 목업: 워크스페이스 목록
 const MOCK_WORKSPACES: WorkspaceResponse[] = [
   {
-    workspaceId: 'workspace-1',
-    workspaceName: '오렌지클라우드',
-    workspaceDescription: '메인 워크스페이스',
+    id: 'workspace-1',
+    name: '오렌지클라우드',
+    description: '메인 워크스페이스',
     ownerId: 'user-123',
     ownerName: '김개발',
     ownerEmail: 'dev.kim@example.com',
@@ -126,9 +126,9 @@ const MOCK_WORKSPACES: WorkspaceResponse[] = [
     updatedAt: '2024-01-01T00:00:00Z',
   },
   {
-    workspaceId: 'workspace-2',
-    workspaceName: '데이터랩',
-    workspaceDescription: '데이터 분석 팀',
+    id: 'workspace-2',
+    name: '데이터랩',
+    description: '데이터 분석 팀',
     ownerId: 'user-123',
     ownerName: '김개발',
     ownerEmail: 'dev.kim@example.com',
@@ -136,9 +136,9 @@ const MOCK_WORKSPACES: WorkspaceResponse[] = [
     updatedAt: '2024-01-02T00:00:00Z',
   },
   {
-    workspaceId: 'workspace-3',
-    workspaceName: '마케팅팀',
-    workspaceDescription: '마케팅 전략팀',
+    id: 'workspace-3',
+    name: '마케팅팀',
+    description: '마케팅 전략팀',
     ownerId: 'user-123',
     ownerName: '김개발',
     ownerEmail: 'dev.kim@example.com',
@@ -152,7 +152,7 @@ let MOCK_DEFAULT_PROFILE: UserProfileResponse = {
   profileId: 'profile-default-001',
   userId: 'user-123',
   workspaceId: null,
-  nickName: '김개발',
+  name: '김개발',
   email: 'dev.kim@example.com',
   profileImageUrl: null,
   createdAt: '2024-01-01T00:00:00Z',
@@ -165,7 +165,7 @@ let MOCK_WORKSPACE_PROFILES: Record<string, UserProfileResponse> = {
     profileId: 'profile-ws-001',
     userId: 'user-123',
     workspaceId: 'workspace-1',
-    nickName: '김개발 (오렌지클라우드)',
+    name: '김개발 (오렌지클라우드)',
     email: 'dev.kim@orangecloud.com',
     profileImageUrl: null,
     createdAt: '2024-01-02T00:00:00Z',
@@ -177,8 +177,8 @@ let MOCK_WORKSPACE_PROFILES: Record<string, UserProfileResponse> = {
 let MOCK_WORKSPACE_SETTINGS: Record<string, WorkspaceSettings> = {
   'workspace-1': {
     workspaceId: 'workspace-1',
-    workspaceName: '오렌지클라우드',
-    workspaceDescription: '메인 워크스페이스',
+    name: '오렌지클라우드',
+    description: '메인 워크스페이스',
     isPublic: true,
     requiresApproval: true,
     onlyOwnerCanInvite: false,
@@ -236,13 +236,13 @@ let MOCK_PENDING_MEMBERS: Record<string, PendingMember[]> = {
   'workspace-1': [
     {
       userId: 'user-pending-1',
-      nickName: '한신입',
+      name: '한신입',
       email: 'newbie.han@gmail.com',
       requestedAt: '2024-01-20T09:30:00Z',
     },
     {
       userId: 'user-pending-2',
-      nickName: '강인턴',
+      name: '강인턴',
       email: 'intern.kang@naver.com',
       requestedAt: '2024-01-21T14:20:00Z',
     },
@@ -253,17 +253,17 @@ let MOCK_PENDING_MEMBERS: Record<string, PendingMember[]> = {
 const MOCK_INVITABLE_USERS: InvitableUser[] = [
   {
     userId: 'user-inv-1',
-    nickName: '정마케팅',
+    name: '정마케팅',
     email: 'marketing.jung@example.com',
   },
   {
     userId: 'user-inv-2',
-    nickName: '송영업',
+    name: '송영업',
     email: 'sales.song@example.com',
   },
   {
     userId: 'user-inv-3',
-    nickName: '한재무',
+    name: '한재무',
     email: 'finance.han@example.com',
   },
 ];
@@ -313,9 +313,9 @@ export const createWorkspace = async (
     // 목업 모드
     console.log('[MOCK] createWorkspace 호출:', data);
     const newWorkspace: WorkspaceResponse = {
-      workspaceId: `workspace-${Date.now()}`,
-      workspaceName: data.workspaceName,
-      workspaceDescription: data.workspaceDescription || '',
+      id: `workspace-${Date.now()}`,
+      name: data.name,
+      description: '',
       ownerId: 'user-123',
       ownerName: '김개발',
       ownerEmail: 'dev.kim@example.com',
@@ -356,12 +356,9 @@ export const getMyProfile = async (accessToken: string): Promise<UserProfileResp
   }
 
   // 실제 API 호출
-  const response: AxiosResponse<UserProfileResponse> = await userRepoClient.get(
-    '/api/profiles/me',
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    },
-  );
+  const response: AxiosResponse<UserProfileResponse> = await userRepoClient.get('/api/profiles/me', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
   return response.data;
 };
 
@@ -471,12 +468,10 @@ export const updateWorkspaceProfile = async (
       profileId: existingProfile?.profileId || `profile-ws-${Date.now()}`,
       userId: 'user-123',
       workspaceId: workspaceId,
-      nickName: data.nickName || existingProfile?.nickName || '김개발',
+      name: data.name || existingProfile?.name || '김개발',
       email: data.email !== undefined ? data.email : existingProfile?.email || null,
       profileImageUrl:
-        data.profileImageUrl !== undefined
-          ? data.profileImageUrl
-          : existingProfile?.profileImageUrl || null,
+        data.profileImageUrl !== undefined ? data.profileImageUrl : existingProfile?.profileImageUrl || null,
       createdAt: existingProfile?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -517,8 +512,8 @@ export const getWorkspaceSettings = async (
     console.log('[MOCK] getWorkspaceSettings 호출:', workspaceId);
     const settings = MOCK_WORKSPACE_SETTINGS[workspaceId] || {
       workspaceId,
-      workspaceName: '워크스페이스',
-      workspaceDescription: '',
+      name: '워크스페이스',
+      description: '',
       isPublic: false,
       requiresApproval: false,
       onlyOwnerCanInvite: true,
@@ -608,7 +603,7 @@ export const getWorkspaceMembers = async (
  * 승인 대기 회원 목록 조회
  *
  * [백엔드 API]
- * - GET /api/workspaces/{workspaceId}/pendingMembers
+ * - GET /api/workspaces/{workspaceId}/pending-members
  * - Headers: Authorization: Bearer {accessToken}
  * - Response: PendingMember[]
  */
@@ -625,7 +620,7 @@ export const getPendingMembers = async (
   }
 
   const response: AxiosResponse<PendingMember[]> = await userRepoClient.get(
-    `/api/workspaces/${workspaceId}/pendingMembers`,
+    `/api/workspaces/${workspaceId}/pending-members`,
     {
       headers: { Authorization: `Bearer ${accessToken}` },
     },
@@ -657,7 +652,7 @@ export const approveMember = async (
       const members = MOCK_WORKSPACE_MEMBERS[workspaceId] || [];
       members.push({
         userId: member.userId,
-        userName: member.nickName,
+        userName: member.name,
         userEmail: member.email,
         roleName: 'MEMBER',
         joinedAt: new Date().toISOString(),
@@ -790,7 +785,7 @@ export const searchInvitableUsers = async (
     const filtered = query.trim()
       ? MOCK_INVITABLE_USERS.filter(
           (u) =>
-            u.nickName.toLowerCase().includes(query.toLowerCase()) ||
+            u.name.toLowerCase().includes(query.toLowerCase()) ||
             u.email.toLowerCase().includes(query.toLowerCase()),
         )
       : MOCK_INVITABLE_USERS;
@@ -832,7 +827,7 @@ export const inviteUser = async (
         const pending = MOCK_PENDING_MEMBERS[workspaceId] || [];
         pending.push({
           userId: user.userId,
-          nickName: user.nickName,
+          name: user.name,
           email: user.email,
           requestedAt: new Date().toISOString(),
         });
@@ -841,7 +836,7 @@ export const inviteUser = async (
         const members = MOCK_WORKSPACE_MEMBERS[workspaceId] || [];
         members.push({
           userId: user.userId,
-          userName: user.nickName,
+          userName: user.name,
           userEmail: user.email,
           roleName: 'MEMBER',
           joinedAt: new Date().toISOString(),

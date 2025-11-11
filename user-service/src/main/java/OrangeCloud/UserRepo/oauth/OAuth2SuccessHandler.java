@@ -46,9 +46,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 .queryParam("refreshToken", refreshToken)
                 .queryParam("userId", oAuth2User.getUserId().toString())
                 .queryParam("email", oAuth2User.getEmail())
-                .queryParam("nickName", oAuth2User.getName())
+                .queryParam("name", oAuth2User.getName())
                 .build()
-                .encode() // UTF-8로 인코딩 (예: 한글을 %ED%95%9C으로 변환)
                 .toUriString();
 
         log.info("Redirecting to: {}", targetUrl);

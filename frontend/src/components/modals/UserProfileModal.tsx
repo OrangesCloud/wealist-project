@@ -55,11 +55,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
 
   // 기본 프로필 상태
   const [defaultProfile, setDefaultProfile] = useState<UserProfileResponse | null>(null);
-  const [defaultNickName, setDefaultNickName] = useState('');
+  const [defaultName, setDefaultName] = useState('');
+  const [defaultEmail, setDefaultEmail] = useState('');
 
   // 워크스페이스 프로필 상태
   const [workspaceProfile, setWorkspaceProfile] = useState<UserProfileResponse | null>(null);
-  const [workspaceNickName, setWorkspaceNickName] = useState('');
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [workspaceEmail, setWorkspaceEmail] = useState('');
 
   // 프로필 이미지 미리보기 URL
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
@@ -89,11 +91,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
         ]);
 
         setDefaultProfile(profile);
-        setDefaultNickName(profile.nickName);
+        setDefaultName(profile.name);
+        setDefaultEmail(profile.email || '');
 
         setWorkspaces(workspaceList);
         if (workspaceList.length > 0) {
-          setSelectedWorkspaceId(workspaceList[0].workspaceId);
+          setSelectedWorkspaceId(workspaceList[0].id);
         }
       } catch (err) {
         console.error('[Initial Data Load Error]', err);
@@ -121,23 +124,22 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
 
         if (profile) {
           setWorkspaceProfile(profile);
-          setWorkspaceNickName(profile.nickName);
+          setWorkspaceName(profile.name);
+          setWorkspaceEmail(profile.email || '');
         } else {
           // 프로필이 없으면 기본 프로필 정보로 초기화
           setWorkspaceProfile(null);
-          const workspace = workspaces.find((ws) => ws.workspaceId === selectedWorkspaceId);
-          setWorkspaceNickName(
-            `${defaultProfile?.nickName || ''} (${workspace?.workspaceName || ''})`,
-          );
+          const workspace = workspaces.find((ws) => ws.id === selectedWorkspaceId);
+          setWorkspaceName(`${defaultProfile?.name || ''} (${workspace?.name || ''})`);
+          setWorkspaceEmail(defaultProfile?.email || '');
         }
       } catch (err) {
         console.error('[Workspace Profile Load Error]', err);
         // 에러 발생 시 기본값으로 설정
         setWorkspaceProfile(null);
-        const workspace = workspaces.find((ws) => ws.workspaceId === selectedWorkspaceId);
-        setWorkspaceNickName(
-          `${defaultProfile?.nickName || ''} (${workspace?.workspaceName || ''})`,
-        );
+        const workspace = workspaces.find((ws) => ws.id === selectedWorkspaceId);
+        setWorkspaceName(`${defaultProfile?.name || ''} (${workspace?.name || ''})`);
+        setWorkspaceEmail(defaultProfile?.email || '');
       }
     };
 
@@ -190,7 +192,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
         // 기본 프로필 저장
         const updatedProfile = await updateMyProfile(
           {
-            nickName: defaultNickName,
+            name: defaultName,
+            email: defaultEmail || undefined,
             profileImageUrl: avatarPreviewUrl || undefined,
           },
           token,
@@ -203,16 +206,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
         const updatedProfile = await updateWorkspaceProfile(
           selectedWorkspaceId,
           {
-            nickName: workspaceNickName,
+            name: workspaceName,
+            email: workspaceEmail || undefined,
             profileImageUrl: avatarPreviewUrl || undefined,
           },
           token,
         );
 
         setWorkspaceProfile(updatedProfile);
-        const workspaceName_display = workspaces.find(
-          (ws) => ws.workspaceId === selectedWorkspaceId,
-        )?.workspaceName;
+        const workspaceName_display = workspaces.find((ws) => ws.id === selectedWorkspaceId)?.name;
         alert(`${workspaceName_display} 프로필이 저장되었습니다.`);
       }
 
@@ -240,10 +242,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
   // 현재 활성 탭의 프로필 정보 가져오기
   // ========================================
 
-  const currentProfile =
-    activeTab === 'default' ? defaultProfile : workspaceProfile || defaultProfile;
-  const currentNickName = activeTab === 'default' ? defaultNickName : workspaceNickName;
-  const setCurrentNickName = activeTab === 'default' ? setDefaultNickName : setWorkspaceNickName;
+  const currentProfile = activeTab === 'default' ? defaultProfile : (workspaceProfile || defaultProfile);
+  const currentName = activeTab === 'default' ? defaultName : workspaceName;
+  const currentEmail = activeTab === 'default' ? defaultEmail : workspaceEmail;
+  const setCurrentName = activeTab === 'default' ? setDefaultName : setWorkspaceName;
+  const setCurrentEmail = activeTab === 'default' ? setDefaultEmail : setWorkspaceEmail;
 
   // ========================================
   // 렌더링
@@ -271,9 +274,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
         >
           {/* 헤더 */}
           <div className="flex items-center justify-between p-4 pb-3">
-            <h2 className={`${theme.font.size.base} font-bold text-gray-800`}>
-              사용자 프로필 설정
-            </h2>
+            <h2 className={`${theme.font.size.base} font-bold text-gray-800`}>사용자 프로필 설정</h2>
             <button
               onClick={handleClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition"
@@ -329,8 +330,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
                 className={`w-full px-3 py-2 ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.colors.card} ${theme.font.size.xs} ${theme.effects.borderRadius} focus:outline-none focus:ring-2 focus:ring-blue-500`}
               >
                 {workspaces.map((workspace) => (
-                  <option key={workspace.workspaceId} value={workspace.workspaceId}>
-                    {workspace.workspaceName}
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name}
                   </option>
                 ))}
               </select>
@@ -356,7 +357,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
                   />
                 ) : (
                   <div className="w-24 h-24 bg-blue-500 border-2 border-gray-300 flex items-center justify-center text-white text-3xl font-bold rounded-full">
-                    {currentNickName[0] || 'U'}
+                    {currentName[0] || 'U'}
                   </div>
                 )}
 
@@ -378,17 +379,45 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
               </div>
             </div>
 
-            {/* 닉네임 */}
+            {/* 사용자 ID */}
             <div>
               <label className={`block ${theme.font.size.xs} mb-2 text-gray-500 font-medium`}>
-                닉네임:
+                사용자 ID:
               </label>
               <input
                 type="text"
-                value={currentNickName}
-                onChange={(e) => setCurrentNickName(e.target.value)}
+                readOnly
+                disabled
+                value={currentProfile?.userId || ''}
+                className="w-full px-3 py-2 border border-gray-300 text-gray-700 text-xs rounded-md disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+              />
+            </div>
+
+            {/* 이름 */}
+            <div>
+              <label className={`block ${theme.font.size.xs} mb-2 text-gray-500 font-medium`}>
+                이름:
+              </label>
+              <input
+                type="text"
+                value={currentName}
+                onChange={(e) => setCurrentName(e.target.value)}
                 className={`w-full px-3 py-2 ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.colors.card} ${theme.font.size.xs} ${theme.effects.borderRadius} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                placeholder="닉네임을 입력하세요"
+                placeholder="이름을 입력하세요"
+              />
+            </div>
+
+            {/* 이메일 */}
+            <div>
+              <label className={`block ${theme.font.size.xs} mb-2 text-gray-500 font-medium`}>
+                이메일:
+              </label>
+              <input
+                type="email"
+                value={currentEmail}
+                onChange={(e) => setCurrentEmail(e.target.value)}
+                className={`w-full px-3 py-2 ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.colors.card} ${theme.font.size.xs} ${theme.effects.borderRadius} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                placeholder="이메일을 입력하세요"
               />
             </div>
 
@@ -397,9 +426,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className={`flex-1 ${theme.colors.primary} text-white py-3 ${
-                  theme.effects.borderRadius
-                } font-semibold transition ${
+                className={`flex-1 ${theme.colors.primary} text-white py-3 ${theme.effects.borderRadius} font-semibold transition ${
                   loading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
                 }`}
               >

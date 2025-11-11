@@ -13,13 +13,12 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class WorkspaceResponse {
-    private UUID workspaceId;
-    private String workspaceName;
-    private String workspaceDescription;
+    private UUID id;
+    private String name;
+    private String description;
     private UUID ownerId;
     private String ownerName;
     private String ownerEmail;
-    private Boolean isPublic;
-    private Boolean needApproved;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

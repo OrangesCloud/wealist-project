@@ -10,6 +10,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreateWorkspaceRequest {
     @NotBlank(message = "워크스페이스 이름은 필수입니다.")
-    private String workspaceName;
-    private String workspaceDescription;
+    private String name;
 }

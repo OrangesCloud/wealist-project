@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.UUID;
 
@@ -56,7 +57,7 @@ public class AuthService {
         // UserProfile 생성
         UserProfile profile = UserProfile.builder()
                 .userId(savedUser.getUserId())
-                .nickName(testName)
+                .name(testName)
                 .build();
 
         userProfileRepository.save(profile);
@@ -148,7 +149,7 @@ public class AuthService {
                 newAccessToken,
                 newRefreshToken,
                 user.getUserId(),
-                profile.getNickName(),
+                profile.getName(),
                 user.getEmail()
         );
     }

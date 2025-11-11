@@ -3,14 +3,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom'; // 1. useNavigate 임포트
 import { useTheme } from '../contexts/ThemeContext';
-import { useAuth } from '../contexts/AuthContext';
 import {
   WorkspaceResponse,
   CreateWorkspaceRequest,
   getWorkspaces,
   createWorkspace,
 } from '../api/user/userService';
-import { Search, Plus, X, AlertCircle, Settings, LogOut } from 'lucide-react';
+import { Search, Plus, X, AlertCircle, Settings } from 'lucide-react';
 import WorkspaceManagementModal from './modals/WorkspaceManagementModal';
 
 // 2. Props 인터페이스 제거 (더 이상 App.tsx에서 props를 받지 않음)
@@ -33,11 +32,10 @@ interface PendingMember {
 const SelectWorkspacePage: React.FC = () => {
   const navigate = useNavigate(); // 4. navigate 훅 사용
   const { theme } = useTheme();
-  const { userEmail, logout } = useAuth();
 
   // 5. localStorage에서 토큰 및 ID 직접 조회
   const accessToken = localStorage.getItem('accessToken') || '';
-  const nickName = localStorage.getItem('nickName') || '';
+  const userId = localStorage.getItem('userId') || ''; // OWNER 확인용
 
   // 페이지 상태
   const [step, setStep] = useState<WorkspacePageStep>('list');
@@ -48,7 +46,7 @@ const SelectWorkspacePage: React.FC = () => {
 
   // 폼 상태
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
-  const [newDescription, setNewDescription] = useState(''); // (Description)
+  const [newCompany, setNewCompany] = useState(''); // (Description)
 
   // 멤버 초대
   const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
@@ -92,9 +90,7 @@ const SelectWorkspacePage: React.FC = () => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return workspaces;
     return workspaces.filter(
-      (ws) =>
-        ws.workspaceName.toLowerCase().includes(query) ||
-        ws.workspaceDescription.toLowerCase().includes(query),
+      (ws) => ws.name.toLowerCase().includes(query) || ws.description.toLowerCase().includes(query),
     );
   }, [searchQuery, workspaces]);
 
@@ -137,11 +133,11 @@ const SelectWorkspacePage: React.FC = () => {
     setError(null);
     try {
       const createData: CreateWorkspaceRequest = {
-        workspaceName: newWorkspaceName,
-        workspaceDescription: newDescription || '-',
+        name: newWorkspaceName,
+        // description: newCompany || 'Personal', // (필요시 API DTO 수정 후)
       };
       const newWorkspace = await createWorkspace(createData, accessToken);
-      const newWorkspaceId = newWorkspace.workspaceId;
+      const newWorkspaceId = newWorkspace.id;
       setCreatedWorkspaceId(newWorkspaceId);
 
       for (const member of pendingMembers) {
@@ -167,10 +163,10 @@ const SelectWorkspacePage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      alert(`워크스페이스 '${workspace.workspaceName}'에 참여 완료!`);
+      alert(`워크스페이스 '${workspace.name}'에 참여 완료!`);
 
       // 6. [수정] props 콜백 대신 navigate로 페이지 이동
-      navigate(`/workspace/${workspace.workspaceId}`);
+      navigate(`/workspace/${workspace.id}`);
     } catch (e) {
       const err = e as Error;
       setError(`워크스페이스 참여 실패: ${err.message}`);
@@ -186,7 +182,7 @@ const SelectWorkspacePage: React.FC = () => {
   // 8. 폼 초기화 (동일)
   const resetCreateForm = () => {
     setNewWorkspaceName('');
-    setNewDescription('');
+    setNewCompany('');
     setPendingMembers([]);
     setMemberEmail('');
     setMemberEmailError(null);
@@ -215,23 +211,6 @@ const SelectWorkspacePage: React.FC = () => {
       <div
         className={`${theme.colors.card} ${theme.effects.borderRadius} p-6 sm:p-8 w-full max-w-2xl relative z-10 shadow-xl ${theme.effects.cardBorderWidth} ${theme.colors.border}`}
       >
-        {/* 사용자 정보 헤더 */}
-        <div className="flex items-center justify-between mb-6 pb-4">
-          <div className="flex items-center gap-2">
-            <span className={`${theme.font.size.sm} ${theme.colors.text}`}>
-              {userEmail ? `반갑습니다, ${nickName}님!` : '환영합니다!'}
-            </span>
-          </div>
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-            title="로그아웃"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className={`${theme.font.size.sm}`}>로그아웃</span>
-          </button>
-        </div>
-
         {/* Step 1: 워크스페이스 목록 & 선택 */}
         {step === 'list' && (
           <>
@@ -272,7 +251,7 @@ const SelectWorkspacePage: React.FC = () => {
               {availableWorkspaces.length > 0 ? (
                 availableWorkspaces.map((ws) => (
                   <div
-                    key={ws.workspaceId}
+                    key={ws.id}
                     onClick={() => !isLoading && handleSelectExistingWorkspace(ws)}
                     className={`w-full text-left p-4 hover:bg-blue-50 border-b border-gray-100 ${
                       theme.colors.text
@@ -283,9 +262,9 @@ const SelectWorkspacePage: React.FC = () => {
                     }`}
                   >
                     <div>
-                      <span className="font-semibold">{ws.workspaceName}</span>
+                      <span className="font-semibold">{ws.name}</span>
                       <p className={`${theme.colors.subText} ${theme.font.size.xs}`}>
-                        {ws.workspaceDescription}
+                        {ws.description}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -373,8 +352,8 @@ const SelectWorkspacePage: React.FC = () => {
                 <input
                   type="text"
                   placeholder="예: Orange Cloud 프로젝트"
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
+                  value={newCompany}
+                  onChange={(e) => setNewCompany(e.target.value)}
                   className={`w-full px-4 py-3 ${theme.colors.secondary} ${theme.font.size.sm} rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition`}
                   disabled={isLoading}
                 />
@@ -500,8 +479,8 @@ const SelectWorkspacePage: React.FC = () => {
       {/* 워크스페이스 관리 모달 */}
       {managingWorkspace && (
         <WorkspaceManagementModal
-          workspaceId={managingWorkspace.workspaceId}
-          workspaceName={managingWorkspace.workspaceName}
+          workspaceId={managingWorkspace.id}
+          workspaceName={managingWorkspace.name}
           onClose={() => setManagingWorkspace(null)}
         />
       )}

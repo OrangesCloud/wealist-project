@@ -6,7 +6,7 @@ import { USER_REPO_API_URL } from '../api/apiConfig';
 interface AuthContextType {
   isAuthenticated: boolean;
   token: string | null;
-  nickName: string | null;
+  userId: string | null;
   userEmail: string | null;
   // WorkspaceSettingsModal에서 사용하는 login, logout 대신 상태값만 노출
   // login 함수는 OAuthRedirectPage에서 직접 처리하고, logout만 제공합니다.
@@ -28,26 +28,33 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const [token, setToken] = useState<string | null>(null);
-  const [reToken, setReToken] = useState<string | null>(null);
-  const [nickName, setNickName] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // 1. 초기 로딩 시 localStorage에서 토큰 및 ID 로드
   useEffect(() => {
-    console.log(localStorage);
     const storedToken = localStorage.getItem('accessToken');
-    const storedReToken = localStorage.getItem('refreshToken');
-    const storedNickName = localStorage.getItem('nickName');
+    const storedUserId = localStorage.getItem('userId');
     const storedUserEmail = localStorage.getItem('userEmail');
 
-    if (storedToken && storedReToken && storedUserEmail) {
+    if (storedToken && storedUserId && storedUserEmail) {
       setToken(storedToken);
-      setNickName(storedNickName);
+      setUserId(storedUserId);
       setUserEmail(storedUserEmail);
     }
     setIsLoading(false);
   }, []);
+
+  // 2. [내부 전용] 로그인 상태 설정 함수 (OAuthRedirectPage에서 사용됨)
+  // const setLoginState = useCallback((newToken: string, newUserId: string, newEmail: string) => {
+  //   localStorage.setItem('accessToken', newToken);
+  //   localStorage.setItem('userId', newUserId);
+  //   localStorage.setItem('userEmail', newEmail);
+  //   setToken(newToken);
+  //   setUserId(newUserId);
+  //   setUserEmail(newEmail);
+  // }, []);
 
   // 3. 로그아웃 핸들러
   const logout = useCallback(async () => {
@@ -67,12 +74,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('nickName');
+    localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');
     setToken(null);
-    setReToken(null);
-    setNickName(null);
+    setUserId(null);
     setUserEmail(null);
     // 로그아웃 후 로그인 페이지로 이동
     navigate('/', { replace: true });
@@ -81,8 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value = {
     isAuthenticated: !!token,
     token,
-    reToken,
-    nickName,
+    userId,
     userEmail,
     logout,
     isLoading,
