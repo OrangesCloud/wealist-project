@@ -36,22 +36,20 @@ type ProjectService interface {
 }
 
 type projectService struct {
-	repo               repository.ProjectRepository
-	roleRepo           repository.RoleRepository
-	userOrderRepo      repository.UserOrderRepository
-	customFieldService CustomFieldService
-	userClient         client.UserClient
-	workspaceCache     cache.WorkspaceCache
-	userInfoCache      cache.UserInfoCache
-	logger             *zap.Logger
-	db                 *gorm.DB
+	repo           repository.ProjectRepository
+	roleRepo       repository.RoleRepository
+	fieldRepo      repository.FieldRepository
+	userClient     client.UserClient
+	workspaceCache cache.WorkspaceCache
+	userInfoCache  cache.UserInfoCache
+	logger         *zap.Logger
+	db             *gorm.DB
 }
 
 func NewProjectService(
 	repo repository.ProjectRepository,
 	roleRepo repository.RoleRepository,
-	userOrderRepo repository.UserOrderRepository,
-	customFieldService CustomFieldService,
+	fieldRepo repository.FieldRepository,
 	userClient client.UserClient,
 	workspaceCache cache.WorkspaceCache,
 	userInfoCache cache.UserInfoCache,
@@ -59,15 +57,14 @@ func NewProjectService(
 	db *gorm.DB,
 ) ProjectService {
 	return &projectService{
-		repo:               repo,
-		roleRepo:           roleRepo,
-		userOrderRepo:      userOrderRepo,
-		customFieldService: customFieldService,
-		userClient:         userClient,
-		workspaceCache:     workspaceCache,
-		userInfoCache:      userInfoCache,
-		logger:             logger,
-		db:                 db,
+		repo:           repo,
+		roleRepo:       roleRepo,
+		fieldRepo:      fieldRepo,
+		userClient:     userClient,
+		workspaceCache: workspaceCache,
+		userInfoCache:  userInfoCache,
+		logger:         logger,
+		db:             db,
 	}
 }
 
@@ -121,18 +118,9 @@ func (s *projectService) CreateProject(userID string, token string, req *dto.Cre
 			return err
 		}
 
-		// Phase 4 - Create default custom fields
-		// - Custom Roles: "없음" (system default)
-		// - Custom Stages: "없음", "대기", "진행중", "완료" (system defaults)
-		// - Custom Importance: "없음", "낮음", "보통", "높음", "긴급" (system defaults)
-		if err := s.customFieldService.CreateDefaultCustomFields(project.ID); err != nil {
-			s.logger.Error("Failed to create default custom fields", zap.Error(err), zap.String("project_id", project.ID.String()))
-			return err
-		}
-
-		// Phase 6 - Initialize user-specific order settings for project owner
-		if err := s.userOrderRepo.InitializeUserOrders(context.Background(), userUUID, project.ID); err != nil {
-			s.logger.Error("Failed to initialize user orders", zap.Error(err), zap.String("project_id", project.ID.String()), zap.String("user_id", userUUID.String()))
+		// Create default custom fields (stage, role, importance)
+		if err := s.initializeDefaultFields(project.ID); err != nil {
+			s.logger.Error("Failed to initialize default fields", zap.Error(err))
 			return err
 		}
 
@@ -509,15 +497,6 @@ func (s *projectService) UpdateJoinRequest(requestID, userID string, req *dto.Up
 
 		if err := s.repo.CreateMember(member); err != nil {
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 생성 실패", 500)
-		}
-
-		// Phase 6 - Initialize user-specific order settings for new member
-		if err := s.userOrderRepo.InitializeUserOrders(context.Background(), joinReq.UserID, joinReq.ProjectID); err != nil {
-			s.logger.Warn("Failed to initialize user orders for new member",
-				zap.Error(err),
-				zap.String("project_id", joinReq.ProjectID.String()),
-				zap.String("user_id", joinReq.UserID.String()))
-			// Don't fail the join request if order initialization fails
 		}
 	}
 
@@ -956,4 +935,120 @@ func (s *projectService) toJoinRequestResponse(req *domain.ProjectJoinRequest) (
 	}
 
 	return response, nil
+}
+
+// initializeDefaultFields creates default custom fields for a new project
+func (s *projectService) initializeDefaultFields(projectID uuid.UUID) error {
+	// 1. Create Stage field
+	stageField := &domain.ProjectField{
+		ProjectID:       projectID,
+		Name:            "Stage",
+		FieldType:       domain.FieldTypeSingleSelect,
+		Description:     "작업 진행 단계",
+		DisplayOrder:    0,
+		IsRequired:      true,
+		IsSystemDefault: true,
+		Config:          "{}",
+	}
+	if err := s.fieldRepo.CreateField(stageField); err != nil {
+		return err
+	}
+
+	// Create Stage options
+	stageOptions := []struct {
+		label string
+		color string
+		order int
+	}{
+		{"대기", "#F59E0B", 0},
+		{"진행중", "#3B82F6", 1},
+		{"완료", "#10B981", 2},
+	}
+	for _, opt := range stageOptions {
+		option := &domain.FieldOption{
+			FieldID:      stageField.ID,
+			Label:        opt.label,
+			Color:        opt.color,
+			DisplayOrder: opt.order,
+		}
+		if err := s.fieldRepo.CreateOption(option); err != nil {
+			return err
+		}
+	}
+
+	// 2. Create Role field
+	roleField := &domain.ProjectField{
+		ProjectID:       projectID,
+		Name:            "Role",
+		FieldType:       domain.FieldTypeSingleSelect,
+		Description:     "담당 역할",
+		DisplayOrder:    1,
+		IsRequired:      false,
+		IsSystemDefault: true,
+		Config:          "{}",
+	}
+	if err := s.fieldRepo.CreateField(roleField); err != nil {
+		return err
+	}
+
+	// Create Role options
+	roleOptions := []struct {
+		label string
+		color string
+		order int
+	}{
+		{"프론트엔드", "#EC4899", 0},
+		{"백엔드", "#8B5CF6", 1},
+		{"디자인", "#F97316", 2},
+	}
+	for _, opt := range roleOptions {
+		option := &domain.FieldOption{
+			FieldID:      roleField.ID,
+			Label:        opt.label,
+			Color:        opt.color,
+			DisplayOrder: opt.order,
+		}
+		if err := s.fieldRepo.CreateOption(option); err != nil {
+			return err
+		}
+	}
+
+	// 3. Create Importance field
+	importanceField := &domain.ProjectField{
+		ProjectID:       projectID,
+		Name:            "Importance",
+		FieldType:       domain.FieldTypeSingleSelect,
+		Description:     "작업 중요도",
+		DisplayOrder:    2,
+		IsRequired:      false,
+		IsSystemDefault: true,
+		Config:          "{}",
+	}
+	if err := s.fieldRepo.CreateField(importanceField); err != nil {
+		return err
+	}
+
+	// Create Importance options
+	importanceOptions := []struct {
+		label string
+		color string
+		order int
+	}{
+		{"낮음", "#94A3B8", 0},
+		{"보통", "#FBBF24", 1},
+		{"높음", "#EF4444", 2},
+	}
+	for _, opt := range importanceOptions {
+		option := &domain.FieldOption{
+			FieldID:      importanceField.ID,
+			Label:        opt.label,
+			Color:        opt.color,
+			DisplayOrder: opt.order,
+		}
+		if err := s.fieldRepo.CreateOption(option); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
