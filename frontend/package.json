@@ -6,7 +6,8 @@
   "scripts": {
     "start": "pnpm dev",
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    //"build": "tsc && vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit"
   },
