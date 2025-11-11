@@ -1,0 +1,66 @@
+name: AWS ECR Image Push
+
+# 1. 트리거 설정: jaehyeong/aws 브랜치에 push 될 때만 실행
+on:
+  push:
+    branches:
+      - "jaehyeong/aws"
+
+# 2. 공통 환경 변수 설정 (본인 값으로 수정)
+env:
+  AWS_REGION: ap-northeast-2              # AWS 리전 (예: 서울)
+  AWS_ACCOUNT_ID: 290008131187             # 본인의 AWS 계정 ID
+  ECR_REPO_USER: user-service             # ECR 리포지토리 이름 (user-service)
+  ECR_REPO_BOARD: board-service           # ECR 리포지토리 이름 (board-service)
+  ECR_REPO_FRONTEND: frontend-service     # ECR 리포지토리 이름 (frontend-service)
+
+jobs:
+  build-and-push:
+    name: Build and Push to ECR
+    runs-on: ubuntu-latest # 작업이 실행될 환경
+    
+    steps:
+      # 1. 코드 체크아웃 (jaehyeong/aws 브랜치의 코드를 가져옴)
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # 2. AWS 자격 증명 설정 (GitHub Secrets에서 키를 가져옴)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 3. AWS ECR 로그인
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # 4. user-service 빌드, 태그, 푸시
+      # (ECR_REGISTRY 변수는 3단계(login-ecr)에서 자동으로 생성됨)
+      - name: Build, tag, and push user-service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPO_USER:latest -f ./user-service/Dockerfile ./user-service
+          docker push $ECR_REGISTRY/$ECR_REPO_USER:latest
+        # Dockerfile 경로(-f)와 컨텍스트(./user-service)를 본인 프로젝트 구조에 맞게 수정하세요.
+
+      # 5. board-service 빌드, 태그, 푸시
+      - name: Build, tag, and push board-service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPO_BOARD:latest -f ./board-service/docker/Dockerfile ./board-service
+          docker push $ECR_REGISTRY/$ECR_REPO_BOARD:latest
+        # Dockerfile 경로(-f)와 컨텍스트(./board-service)를 본인 프로젝트 구조에 맞게 수정하세요.
+
+      # 6. frontend-service 빌드, 태그, 푸시
+      - name: Build, tag, and push frontend-service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPO_FRONTEND:latest -f ./frontend/Dockerfile ./frontend
+          docker push $ECR_REGISTRY/$ECR_REPO_FRONTEND:latest
+        # Dockerfile 경로(-f)와 컨텍스트(./frontend)를 본인 프로젝트 구조에 맞게 수정하세요.
