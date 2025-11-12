@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -73,22 +73,20 @@ const SelectWorkspacePage: React.FC = () => {
     fetchWorkspaces();
   }, [navigate]);
 
-  // 2. 검색 API 호출 (Debounced)
-  useEffect(() => {
-    const query = searchQuery.trim();
-    if (!query) {
-      setSearchedWorkspaces([]);
-      return;
-    }
+  // 💡 [NEW] 검색 API 실행 함수
+  const executeSearch = useCallback(
+    async (query: string) => {
+      if (!query.trim()) {
+        setSearchedWorkspaces([]);
+        return;
+      }
 
-    const fetchSearch = async () => {
       setIsSearching(true);
       setError(null);
       try {
-        // 💡 API 호출: /api/workspaces/search?query={query}
         const results = await searchWorkspaces(query);
 
-        // 내 워크스페이스에 이미 속한 항목 제외 (옵션: UX 개선)
+        // 내 워크스페이스에 이미 속한 항목 제외
         const myIds = new Set(workspaces?.map((w) => w.workspaceId) || []);
         const filteredResults = results.filter((r) => !myIds.has(r.workspaceId));
 
@@ -96,28 +94,31 @@ const SelectWorkspacePage: React.FC = () => {
       } catch (e: any) {
         console.error('❌ 워크스페이스 검색 실패:', e);
         setSearchedWorkspaces([]);
-        // 검색 실패 에러는 UI에 표시하지 않고 콘솔에만 기록 (사용자 경험 유지)
+        setError('검색 중 오류가 발생했습니다.');
       } finally {
         setIsSearching(false);
       }
-    };
+    },
+    [workspaces],
+  );
 
-    const debounceTimer = setTimeout(() => {
-      fetchSearch();
-    }, 300); // 300ms 디바운싱
+  // 💡 [NEW] Enter 또는 버튼 클릭 시 검색 실행 핸들러
+  const handleSearchSubmit = () => {
+    executeSearch(searchQuery);
+  };
 
-    return () => clearTimeout(debounceTimer);
-  }, [searchQuery, workspaces]); // workspaces가 변경되면 검색 결과 목록도 갱신해야 함
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit();
+    }
+  };
 
-  // 3. 나의 워크스페이스 필터링 (검색 쿼리가 없는 경우만 해당)
-  // 💡 [수정] 로컬 필터링은 searchQuery가 없을 때만 유효합니다.
+  // 2. 나의 워크스페이스 필터링 (검색 쿼리가 없는 경우만 해당)
   const availableWorkspaces = useMemo(() => {
+    // 검색 중일 때는 내 워크스페이스 목록을 그대로 보여줍니다.
     if (!workspaces || searchQuery.trim()) return workspaces || [];
-
-    // 현재는 API 검색 결과를 별도로 표시하므로, 이 useMemo는 원래 기능(내 워크스페이스 목록)을 로드하는 역할만 수행
     return workspaces;
   }, [searchQuery, workspaces]);
-
   // 4. 이메일 유효성 검사 (동일)
   const isValidEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -298,17 +299,25 @@ const SelectWorkspacePage: React.FC = () => {
                 {error}
               </div>
             )}
-
-            {/* 검색 */}
+            {/* 검색 입력 필드 */}
             <div className="relative mb-4">
               <input
                 type="text"
                 placeholder="워크스페이스 이름 검색"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown} // 💡 [추가] 엔터 키 이벤트 핸들러
                 className={`w-full px-4 pl-10 py-3 ${theme.colors.secondary} ${theme.font.size.sm} rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition`}
               />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              {/* 검색 버튼 (클릭 시 실행) */}
+              <button
+                onClick={handleSearchSubmit}
+                className="absolute right-0 top-0 h-full px-4 text-gray-500 hover:text-blue-500 transition"
+                title="검색 실행"
+                disabled={isSearching}
+              >
+                <Search className="w-4 h-4" />
+              </button>
             </div>
 
             {/* 💡 [NEW] 검색된 워크스페이스 목록 (가입 요청 목록) */}

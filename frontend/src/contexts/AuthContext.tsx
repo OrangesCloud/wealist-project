@@ -35,7 +35,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 1. 초기 로딩 시 localStorage에서 토큰 및 ID 로드
   useEffect(() => {
-    console.log(localStorage);
     const storedToken = localStorage.getItem('accessToken');
     const storedReToken = localStorage.getItem('refreshToken');
     const storedNickName = localStorage.getItem('nickName');

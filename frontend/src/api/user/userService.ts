@@ -21,10 +21,10 @@ import { AxiosResponse } from 'axios';
  * [API] GET /api/workspaces/all
  */
 export const getMyWorkspaces = async (): Promise<WorkspaceResponse[]> => {
-  const response: AxiosResponse<{ data: WorkspaceResponse[] }> = await userRepoClient.get(
+  const response: AxiosResponse<WorkspaceResponse[]> = await userRepoClient.get(
     '/api/workspaces/all',
   );
-  return response.data.data;
+  return response.data;
 };
 
 /**
@@ -32,10 +32,8 @@ export const getMyWorkspaces = async (): Promise<WorkspaceResponse[]> => {
  * [API] GET /api/workspaces
  */
 export const getPublicWorkspaces = async (): Promise<WorkspaceResponse[]> => {
-  const response: AxiosResponse<{ data: WorkspaceResponse[] }> = await userRepoClient.get(
-    '/api/workspaces',
-  );
-  return response.data.data;
+  const response: AxiosResponse<WorkspaceResponse[]> = await userRepoClient.get('/api/workspaces');
+  return response.data;
 };
 
 /**
@@ -43,11 +41,11 @@ export const getPublicWorkspaces = async (): Promise<WorkspaceResponse[]> => {
  * [API] GET /api/workspaces/search?query={query}
  */
 export const searchWorkspaces = async (query: string): Promise<WorkspaceResponse[]> => {
-  const response: AxiosResponse<{ data: WorkspaceResponse[] }> = await userRepoClient.get(
+  const response: AxiosResponse<WorkspaceResponse[]> = await userRepoClient.get(
     '/api/workspaces/search',
     { params: { query } },
   );
-  return response.data.data;
+  return response.data;
 };
 
 /**
@@ -68,12 +66,11 @@ export const getWorkspace = async (workspaceId: string): Promise<WorkspaceRespon
  */
 export const createWorkspace = async (data: CreateWorkspaceRequest): Promise<WorkspaceResponse> => {
   try {
-    // 💡 응답 구조를 { data: WorkspaceResponse }로 가정하고 data 필드를 반환합니다.
-    const response: AxiosResponse<{ data: WorkspaceResponse }> = await userRepoClient.post(
+    const response: AxiosResponse<WorkspaceResponse> = await userRepoClient.post(
       '/api/workspaces',
       data,
     );
-    return response.data.data;
+    return response.data;
   } catch (error) {
     console.error('createWorkspace error:', error);
     throw error;

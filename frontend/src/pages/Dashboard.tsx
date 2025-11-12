@@ -207,14 +207,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
 
     setIsLoading(true);
     setError(null);
-    console.log(currentWorkspaceId);
     try {
-      console.log(`[Dashboard] 프로젝트 로드 시작 (Workspace: ${currentWorkspaceId})`);
-      // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
       const fetchedProjects = await getProjects(currentWorkspaceId);
-      
-      console.log('✅ Projects loaded:', fetchedProjects);
-
       setProjects(fetchedProjects);
 
       if (fetchedProjects.length > 0) {
@@ -237,19 +231,12 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
 
   // 2. 워크스페이스 회원 조회 함수
   const fetchWorkspaceMembers = React.useCallback(async () => {
-    // 💡 [수정] 인증은 인터셉터에 위임
     if (!currentWorkspaceId) return;
 
     try {
-      console.log(`[Dashboard] 워크스페이스 회원 로드 시작 (Workspace: ${currentWorkspaceId})`);
-      // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
       const members = await getWorkspaceMembers(currentWorkspaceId);
-      // 💡 DTO 타입 변경 반영: WorkspaceMemberResponse
       setWorkspaceMembers(members);
-      console.log('✅ Workspace members loaded:', members);
     } catch (err) {
-      const error = err as Error;
-      console.error('❌ 워크스페이스 회원 로드 실패:', error);
       setWorkspaceMembers([]);
     }
     // 💡 [수정] 의존성 배열에서 accessToken을 제거합니다.
@@ -281,7 +268,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
       // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
       // 💡 [수정] getBoards는 PaginatedBoardsResponse를 반환하므로, .boards를 사용해야 합니다.
       const boardsResponse = await getBoards(selectedProject.projectId);
-
+      console.log(boardsResponse);
       // 3. Stage별로 빈 컬럼 먼저 생성
       const stageMap = new Map<string, { stage: CustomStageResponse; boards: BoardResponse[] }>();
       stages.forEach((stage: CustomStageResponse) => {
@@ -289,10 +276,21 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
       });
 
       // 4. 보드를 해당 Stage 컬럼에 추가
-      boardsResponse.boards.forEach((board: BoardResponse) => {
+      boardsResponse?.boards?.forEach((board: BoardResponse) => {
+        // 💡 [수정]: customFields가 없을 경우 undefined가 됩니다.
         const stageId = board.customFields?.stageId;
-        if (stageId && stageMap.has(stageId)) {
-          stageMap.get(stageId)!.boards.push(board);
+
+        // 💡 [방어 로직 추가]: Stage ID가 없으면 기본 Stage (트리아지/MOCK_STAGES_LIST[0])에 할당
+        //    실제 API에서 customFields가 기본값으로라도 와야 하지만, 현재는 로컬에서 대체
+        const targetStageId = stageId || MOCK_STAGES_LIST[0].stageId;
+
+        // 💡 [수정]: targetStageId를 사용하여 stageMap에 추가
+        if (stageMap.has(targetStageId)) {
+          stageMap.get(targetStageId)!.boards.push(board);
+        } else {
+          console.warn(
+            `[Board Load] 보드 ${board.boardId}에 유효하지 않은 Stage ID (${targetStageId})가 할당되었습니다. 무시됨.`,
+          );
         }
       });
 

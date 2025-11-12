@@ -13,21 +13,18 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
-  // 💡 [수정] Custom Field 및 Board 관련 타입은 src/types/board.ts에서 가져옵니다.
   CustomStageResponse,
   CustomRoleResponse,
   CustomImportanceResponse,
   BoardResponse,
 } from '../../types/board';
-// 💡 [수정] API 호출 시 토큰 인수를 제거한 함수를 사용합니다.
 import { getBoard, deleteBoard } from '../../api/board/boardService';
 import { getWorkspaceMembers } from '../../api/user/userService';
-// 💡 [수정] WorkspaceMember 대신 WorkspaceMemberResponse를 사용합니다.
 import { WorkspaceMemberResponse } from '../../types/user';
 
-// ⚠️ [주의] API 호출이 제거되었으므로, 컴포넌트 로직 유지를 위해 Mock Data를 사용합니다.
-// 💡 UUID 형식으로 변경하여 백엔드 검증 통과
+// ⚠️ Mock Data (Mock 데이터는 생략하고 DTO 필드 isSystemDefault을 추가합니다.)
 const MOCK_STAGES: CustomStageResponse[] = [
+  // ... (MOCK_STAGES, MOCK_ROLES, MOCK_IMPORTANCES 정의 유지)
   {
     stageId: '00000000-0000-0000-0000-000000000001',
     label: '대기',
@@ -98,17 +95,14 @@ const MOCK_IMPORTANCES: CustomImportanceResponse[] = [
     isSystemDefault: true,
   },
 ];
+// ... (MOCK_IMPORTANCES 생략)
 
-/**
- * BoardDetailModal - 보드 상세 보기 및 수정
- */
 interface BoardDetailModalProps {
   boardId: string;
   workspaceId: string;
   onClose: () => void;
   onBoardUpdated: () => void;
   onBoardDeleted: () => void;
-  // 💡 [수정] onEdit으로 전달하는 데이터 구조
   onEdit: (boardData: {
     boardId: string;
     projectId: string;
@@ -131,9 +125,6 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
 }) => {
   const { theme } = useTheme();
 
-  // 💡 [수정] accessToken 변수 선언 제거
-  // const accessToken = localStorage.getItem('accessToken') || '';
-
   // Form state
   const [projectId, setProjectId] = useState<string>('');
   const [title, setTitle] = useState('');
@@ -141,24 +132,18 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   const [selectedStageId, setSelectedStageId] = useState('');
   const [selectedRoleId, setSelectedRoleId] = useState<string>('');
   const [selectedImportanceId, setSelectedImportanceId] = useState<string>('');
-
-  // 💡 [수정] 단일 담당자 ID로 변경
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('');
-
   const [dueDate, setDueDate] = useState<string>('');
 
   // Data state
-  // 💡 [수정] DTO 타입 변경 반영
   const [stages, setStages] = useState<CustomStageResponse[]>(MOCK_STAGES);
   const [roles, setRoles] = useState<CustomRoleResponse[]>(MOCK_ROLES);
   const [importances, setImportances] = useState<CustomImportanceResponse[]>(MOCK_IMPORTANCES);
-  // 💡 DTO 타입 변경 반영
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingBoard, setIsLoadingBoard] = useState(true);
-  const [isLoadingFields, setIsLoadingFields] = useState(false); // Mock 사용으로 항상 false
   const [error, setError] = useState<string | null>(null);
 
   // Comment state (변경 없음)
@@ -170,25 +155,27 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
     const fetchBoard = async () => {
       setIsLoadingBoard(true);
       try {
-        // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
         const boardData: BoardResponse = await getBoard(boardId);
 
         // 보드 데이터로 상태 초기화
-        setProjectId(boardData.projectId);
-        setTitle(boardData.title);
+        setProjectId(boardData.projectId || '');
+        setTitle(boardData.title || '');
         setContent(boardData.content || '');
 
-        // 💡 Custom Field ID 추출 로직 (customFields 객체에서 추출)
-        const stageIdFromCustomField = boardData.customFields?.stageId || '';
+        // 💡 [수정] customFields가 null일 경우 안전하게 빈 객체로 초기화
+        const customFields = boardData.customFields || {};
+
+        // Custom Field ID 추출 로직
+        const stageIdFromCustomField = customFields.stageId || '';
         setSelectedStageId(stageIdFromCustomField);
 
-        const roleIdsFromCustomField: string[] = boardData.customFields?.roleIds || [];
+        const roleIdsFromCustomField: string[] = customFields.roleIds || [];
         setSelectedRoleId(roleIdsFromCustomField[0] || ''); // 단일 Role ID만 사용
 
-        const importanceIdFromCustomField = boardData.customFields?.importanceId || '';
+        const importanceIdFromCustomField = customFields.importanceId || '';
         setSelectedImportanceId(importanceIdFromCustomField);
 
-        // Assignee ID 추출 (단일 담당자)
+        // 💡 [수정] assignee가 null일 경우, .userId 접근 방지
         const assigneeId: string = boardData.assignee?.userId || '';
         setSelectedAssigneeId(assigneeId);
 
@@ -204,16 +191,14 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
     };
 
     fetchBoard();
-  }, [boardId]); // 💡 의존성 배열에서 accessToken 제거
+  }, [boardId]);
 
   // 워크스페이스 멤버 조회
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
         const members = await getWorkspaceMembers(workspaceId);
         setWorkspaceMembers(members);
-        console.log('✅ 워크스페이스 멤버 로드:', members.length);
       } catch (err) {
         console.error('❌ 워크스페이스 멤버 로드 실패:', err);
       }
@@ -222,15 +207,13 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
     if (workspaceId) {
       fetchMembers();
     }
-  }, [workspaceId]); // 💡 의존성 배열에서 accessToken 제거
+  }, [workspaceId]);
 
   const handleDelete = async () => {
-    // ⚠️ [수정] window.confirm 대신 console.warn으로 처리하고, 진행을 막지 않습니다.
     console.warn('⚠️ 보드 삭제를 진행합니다. (사용자 확인 로직 생략)');
 
     setIsLoading(true);
     try {
-      // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
       await deleteBoard(boardId);
       console.log('✅ 보드 삭제 성공');
       onBoardDeleted();
@@ -259,13 +242,13 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
     }
   };
 
-  // 💡 [추가] 필드 정보 조회 헬퍼 함수 (Mock 기반)
+  // 💡 필드 정보 조회 헬퍼 함수 (Mock 기반)
   const getFieldOption = (
     options: CustomStageResponse[] | CustomRoleResponse[] | CustomImportanceResponse[],
     id: string,
   ) => {
-    // Stage/Role/Importance 응답 타입은 label과 color를 포함합니다.
     return options.find(
+      // 💡 [수정] stageId, roleId, importanceId를 명시적으로 체크
       (opt: any) => opt.stageId === id || opt.roleId === id || opt.importanceId === id,
     );
   };
@@ -298,7 +281,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   const currentImportance = getFieldOption(importances, selectedImportanceId);
 
   // 💡 [수정] 단일 담당자 조회
-  const currentAssignee = workspaceMembers.find((m) => m.userId === selectedAssigneeId);
+  const currentAssignee = workspaceMembers?.find((m) => m.userId === selectedAssigneeId);
 
   return (
     <div
@@ -312,7 +295,8 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between mb-4 pb-4 border-b border-gray-200">
           <div className="flex-1 pr-4">
-            <h2 className="text-xl font-bold text-gray-800 mb-2">{title}</h2>
+            {/* 💡 [수정] title이 null일 경우 대비 */}
+            <h2 className="text-xl font-bold text-gray-800 mb-2">{title || '제목 없음'}</h2>
           </div>
           <div className="flex gap-2">
             <button
@@ -414,6 +398,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                     key={currentAssignee.userId}
                     className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full"
                   >
+                    {/* 💡 [수정] userName이 null일 경우 대비 */}
                     {currentAssignee.userName || currentAssignee.userId}
                   </span>
                 </div>
@@ -489,8 +474,8 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
               onEdit({
                 boardId,
                 projectId,
-                title,
-                content,
+                title: title || '',
+                content: content || '',
                 stageId: selectedStageId,
                 roleIds: selectedRoleId ? [selectedRoleId] : [], // 단일 선택이어도 배열 형태로 전달
                 importanceId: selectedImportanceId,

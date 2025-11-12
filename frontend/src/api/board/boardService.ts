@@ -180,13 +180,6 @@ export const getBoards = async (
     limit?: number;
   },
 ): Promise<PaginatedBoardsResponse> => {
-  if (USE_MOCK_DATA) {
-    console.log('[MOCK] getBoards 호출:', projectId, filters);
-    return new Promise((resolve) => {
-      resolve({ boards: [], total: 0, page: 1, limit: 20 });
-    });
-  }
-
   try {
     const params = { projectId, ...filters };
     const response: AxiosResponse<{ data: PaginatedBoardsResponse }> = await boardServiceClient.get(
@@ -195,7 +188,6 @@ export const getBoards = async (
         params,
       },
     );
-    // API 문서 응답 구조: { data: { boards: [], total: 0, ... } }
     return response.data.data || { boards: [], total: 0, page: 1, limit: 20 };
   } catch (error) {
     console.error('getBoards error:', error);
