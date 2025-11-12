@@ -8,7 +8,10 @@ import (
 	"board-service/internal/dto"
 	"board-service/internal/repository"
 	"context"
+	"encoding/json"
 	"errors"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,6 +27,9 @@ type ProjectService interface {
 	DeleteProject(projectID, userID string) error
 	SearchProjects(userID string, token string, req *dto.SearchProjectsRequest) (*dto.PaginatedProjectsResponse, error)
 
+	// Init Data
+	GetProjectInitData(projectID, userID string) (*dto.ProjectInitDataResponse, error)
+
 	// Join Request
 	CreateJoinRequest(userID string, token string, req *dto.CreateProjectJoinRequestRequest) (*dto.ProjectJoinRequestResponse, error)
 	GetJoinRequests(projectID, userID string, status string) ([]dto.ProjectJoinRequestResponse, error)
@@ -36,20 +42,30 @@ type ProjectService interface {
 }
 
 type projectService struct {
-	repo           repository.ProjectRepository
-	roleRepo       repository.RoleRepository
-	fieldRepo      repository.FieldRepository
-	userClient     client.UserClient
-	workspaceCache cache.WorkspaceCache
-	userInfoCache  cache.UserInfoCache
-	logger         *zap.Logger
-	db             *gorm.DB
+	repo             repository.ProjectRepository
+	roleRepo         repository.RoleRepository
+	fieldRepo        repository.FieldRepository
+	boardRepo        repository.BoardRepository
+	projectFieldRepo repository.ProjectFieldRepository
+	fieldOptionRepo  repository.FieldOptionRepository
+	boardOrderRepo   repository.BoardOrderRepository
+	viewRepo         repository.ViewRepository
+	userClient       client.UserClient
+	workspaceCache   cache.WorkspaceCache
+	userInfoCache    cache.UserInfoCache
+	logger           *zap.Logger
+	db               *gorm.DB
 }
 
 func NewProjectService(
 	repo repository.ProjectRepository,
 	roleRepo repository.RoleRepository,
 	fieldRepo repository.FieldRepository,
+	boardRepo repository.BoardRepository,
+	projectFieldRepo repository.ProjectFieldRepository,
+	fieldOptionRepo repository.FieldOptionRepository,
+	boardOrderRepo repository.BoardOrderRepository,
+	viewRepo repository.ViewRepository,
 	userClient client.UserClient,
 	workspaceCache cache.WorkspaceCache,
 	userInfoCache cache.UserInfoCache,
@@ -57,14 +73,19 @@ func NewProjectService(
 	db *gorm.DB,
 ) ProjectService {
 	return &projectService{
-		repo:           repo,
-		roleRepo:       roleRepo,
-		fieldRepo:      fieldRepo,
-		userClient:     userClient,
-		workspaceCache: workspaceCache,
-		userInfoCache:  userInfoCache,
-		logger:         logger,
-		db:             db,
+		repo:             repo,
+		roleRepo:         roleRepo,
+		fieldRepo:        fieldRepo,
+		boardRepo:        boardRepo,
+		projectFieldRepo: projectFieldRepo,
+		fieldOptionRepo:  fieldOptionRepo,
+		boardOrderRepo:   boardOrderRepo,
+		viewRepo:         viewRepo,
+		userClient:       userClient,
+		workspaceCache:   workspaceCache,
+		userInfoCache:    userInfoCache,
+		logger:           logger,
+		db:               db,
 	}
 }
 
@@ -1056,4 +1077,271 @@ func (s *projectService) initializeDefaultFields(projectID uuid.UUID) error {
 	}
 
 	return nil
+}
+
+// GetProjectInitData retrieves all data needed for initial project page load
+func (s *projectService) GetProjectInitData(projectID, userID string) (*dto.ProjectInitDataResponse, error) {
+	projectUUID, err := uuid.Parse(projectID)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 프로젝트 ID", 400)
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
+	}
+
+	ctx := context.Background()
+
+	// 1. Fetch project information
+	project, err := s.repo.FindByID(projectUUID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.New(apperrors.ErrCodeNotFound, "프로젝트를 찾을 수 없습니다", 404)
+		}
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "프로젝트 조회 실패", 500)
+	}
+
+	// 2. Check project membership
+	_, err = s.repo.FindMemberByUserAndProject(userUUID, projectUUID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.New(apperrors.ErrCodeForbidden, "프로젝트 멤버가 아닙니다", 403)
+		}
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 확인 실패", 500)
+	}
+
+	// 3. Fetch members
+	members, err := s.repo.FindMembersByProject(projectUUID)
+	if err != nil {
+		s.logger.Error("Failed to fetch members", zap.Error(err))
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 조회 실패", 500)
+	}
+
+	// 4. Fetch default view (if exists)
+	var defaultViewID string
+	var boardOrderMap map[uuid.UUID]string
+	defaultView, err := s.viewRepo.FindDefault(projectUUID)
+	if err == nil && defaultView != nil {
+		defaultViewID = defaultView.ID.String()
+		// Fetch board orders for default view
+		orders, err := s.boardOrderRepo.FindByView(defaultView.ID, userUUID)
+		if err == nil {
+			boardOrderMap = make(map[uuid.UUID]string, len(orders))
+			for _, order := range orders {
+				boardOrderMap[order.BoardID] = order.Position
+			}
+		}
+	}
+
+	// 5. Fetch boards
+	boards, _, err := s.boardRepo.FindByProject(projectUUID, repository.BoardFilters{}, 1, 1000)
+	if err != nil {
+		s.logger.Error("Failed to fetch boards", zap.Error(err))
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 조회 실패", 500)
+	}
+
+	// 6. Fetch fields
+	fields, err := s.projectFieldRepo.FindByProject(projectUUID)
+	if err != nil {
+		s.logger.Error("Failed to fetch fields", zap.Error(err))
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "필드 조회 실패", 500)
+	}
+
+	// 7. Fetch options for each field and build response
+	fieldsWithOptions := make([]dto.FieldWithOptionsResponse, 0, len(fields))
+	for _, field := range fields {
+		// Get field options
+		options, err := s.fieldOptionRepo.FindByField(field.ID)
+		if err != nil {
+			s.logger.Error("Failed to fetch field options", zap.String("fieldID", field.ID.String()), zap.Error(err))
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "필드 옵션 조회 실패", 500)
+		}
+
+		// Convert options to DTO
+		optionResponses := make([]dto.OptionResponse, 0, len(options))
+		for _, opt := range options {
+			optionResponses = append(optionResponses, dto.OptionResponse{
+				OptionID:     opt.ID.String(),
+				FieldID:      opt.FieldID.String(),
+				Label:        opt.Label,
+				Color:        opt.Color,
+				Description:  opt.Description,
+				DisplayOrder: opt.DisplayOrder,
+				CreatedAt:    opt.CreatedAt,
+				UpdatedAt:    opt.UpdatedAt,
+			})
+		}
+
+		// Parse config
+		var config map[string]interface{}
+		if err := json.Unmarshal([]byte(field.Config), &config); err != nil {
+			config = make(map[string]interface{})
+		}
+
+		// Parse canEditRoles
+		var canEditRoles []string
+		if field.CanEditRoles != nil && *field.CanEditRoles != "" {
+			canEditRoles = strings.Split(*field.CanEditRoles, ",")
+		}
+
+		fieldsWithOptions = append(fieldsWithOptions, dto.FieldWithOptionsResponse{
+			FieldID:         field.ID.String(),
+			ProjectID:       field.ProjectID.String(),
+			Name:            field.Name,
+			FieldType:       string(field.FieldType),
+			Description:     field.Description,
+			DisplayOrder:    field.DisplayOrder,
+			IsRequired:      field.IsRequired,
+			IsSystemDefault: field.IsSystemDefault,
+			Config:          config,
+			CanEditRoles:    canEditRoles,
+			Options:         optionResponses,
+			CreatedAt:       field.CreatedAt,
+			UpdatedAt:       field.UpdatedAt,
+		})
+	}
+
+	// 8. Convert boards to DTO with position
+	type boardWithPosition struct {
+		response dto.BoardResponse
+		position string
+		hasOrder bool
+	}
+
+	boardsWithPos := make([]boardWithPosition, 0, len(boards))
+	for _, board := range boards {
+		// Get user info for assignee and author
+		var assigneeInfo *dto.UserInfo
+		if board.AssigneeID != nil {
+			assigneeInfo, _ = s.getUserInfoWithCache(ctx, board.AssigneeID.String())
+		}
+
+		authorInfo, err := s.getUserInfoWithCache(ctx, board.CreatedBy.String())
+		if err != nil {
+			s.logger.Warn("Failed to fetch author info", zap.String("userID", board.CreatedBy.String()))
+			authorInfo = &dto.UserInfo{
+				UserID: board.CreatedBy.String(),
+				Name:   "Unknown",
+				Email:  "",
+			}
+		}
+
+		// Parse custom_fields_cache
+		var customFields map[string]interface{}
+		if board.CustomFieldsCache != "" && board.CustomFieldsCache != "{}" {
+			if err := json.Unmarshal([]byte(board.CustomFieldsCache), &customFields); err != nil {
+				customFields = make(map[string]interface{})
+			}
+		}
+
+		// Get position from boardOrderMap
+		position, hasOrder := "", false
+		if boardOrderMap != nil {
+			if pos, ok := boardOrderMap[board.ID]; ok {
+				position = pos
+				hasOrder = true
+			}
+		}
+
+		boardResponse := dto.BoardResponse{
+			ID:           board.ID.String(),
+			ProjectID:    board.ProjectID.String(),
+			Title:        board.Title,
+			Content:      board.Description,
+			Assignee:     assigneeInfo,
+			Author:       *authorInfo,
+			DueDate:      board.DueDate,
+			CreatedAt:    board.CreatedAt,
+			UpdatedAt:    board.UpdatedAt,
+			CustomFields: customFields,
+			Position:     position,
+		}
+
+		boardsWithPos = append(boardsWithPos, boardWithPosition{
+			response: boardResponse,
+			position: position,
+			hasOrder: hasOrder,
+		})
+	}
+
+	// 9. Sort boards: ordered first (by position), then unordered (by createdAt)
+	sort.Slice(boardsWithPos, func(i, j int) bool {
+		// Both have order: compare by position (lexicographically)
+		if boardsWithPos[i].hasOrder && boardsWithPos[j].hasOrder {
+			return boardsWithPos[i].position < boardsWithPos[j].position
+		}
+		// Only i has order: i comes first
+		if boardsWithPos[i].hasOrder {
+			return true
+		}
+		// Only j has order: j comes first
+		if boardsWithPos[j].hasOrder {
+			return false
+		}
+		// Neither has order: sort by createdAt
+		return boardsWithPos[i].response.CreatedAt.Before(boardsWithPos[j].response.CreatedAt)
+	})
+
+	boardResponses := make([]dto.BoardResponse, 0, len(boardsWithPos))
+	for _, bwp := range boardsWithPos {
+		boardResponses = append(boardResponses, bwp.response)
+	}
+
+	// 10. Convert members to DTO
+	memberResponses := make([]dto.ProjectMemberBasicInfo, 0, len(members))
+	for _, member := range members {
+		userInfo, err := s.getUserInfoWithCache(ctx, member.UserID.String())
+		if err != nil {
+			s.logger.Warn("Failed to fetch member user info", zap.String("userID", member.UserID.String()))
+			// Skip members whose user info can't be fetched
+			continue
+		}
+
+		roleName := "MEMBER"
+		if member.Role != nil {
+			roleName = member.Role.Name
+		}
+
+		memberResponses = append(memberResponses, dto.ProjectMemberBasicInfo{
+			UserID:   member.UserID.String(),
+			Name:     userInfo.Name,
+			Email:    userInfo.Email,
+			Role:     roleName,
+			JoinedAt: member.JoinedAt.Format(time.RFC3339),
+		})
+	}
+
+	// 11. Build field type info
+	fieldTypes := []dto.FieldTypeInfo{
+		{Type: "text", DisplayName: "텍스트", Description: "짧은 텍스트 입력", HasOptions: false},
+		{Type: "number", DisplayName: "숫자", Description: "숫자 입력", HasOptions: false},
+		{Type: "single_select", DisplayName: "단일 선택", Description: "하나의 옵션 선택", HasOptions: true},
+		{Type: "multi_select", DisplayName: "다중 선택", Description: "여러 옵션 선택", HasOptions: true},
+		{Type: "date", DisplayName: "날짜", Description: "날짜 선택", HasOptions: false},
+		{Type: "datetime", DisplayName: "날짜/시간", Description: "날짜와 시간 선택", HasOptions: false},
+		{Type: "single_user", DisplayName: "담당자", Description: "한 명의 사용자 지정", HasOptions: false},
+		{Type: "multi_user", DisplayName: "다중 담당자", Description: "여러 사용자 지정", HasOptions: false},
+		{Type: "checkbox", DisplayName: "체크박스", Description: "예/아니오 선택", HasOptions: false},
+		{Type: "url", DisplayName: "URL", Description: "웹 링크", HasOptions: false},
+	}
+
+	// 12. Build response
+	return &dto.ProjectInitDataResponse{
+		Project: dto.ProjectBasicInfo{
+			ProjectID:   project.ID.String(),
+			Name:        project.Name,
+			Description: project.Description,
+			WorkspaceID: project.WorkspaceID.String(),
+			OwnerID:     project.OwnerID.String(),
+			IsPublic:    project.IsPublic,
+			CreatedAt:   project.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   project.UpdatedAt.Format(time.RFC3339),
+		},
+		Boards:        boardResponses,
+		Fields:        fieldsWithOptions,
+		FieldTypes:    fieldTypes,
+		Members:       memberResponses,
+		DefaultViewID: defaultViewID,
+	}, nil
 }
