@@ -37,7 +37,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-    localStorage.removeItem('userId');
+    localStorage.removeItem('nickName');
     localStorage.removeItem('userEmail');
     // 로그아웃 후 로그인 페이지로 이동
     navigate('/', { replace: true });

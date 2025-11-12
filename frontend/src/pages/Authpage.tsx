@@ -27,7 +27,7 @@ const AuthPage: React.FC = () => {
       // 불완전한 인증 정보가 있으면 정리
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
-      localStorage.removeItem('userId');
+      localStorage.removeItem('nickName');
       localStorage.removeItem('userEmail');
     }
   }, [navigate]);
