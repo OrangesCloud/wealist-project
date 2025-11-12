@@ -2,8 +2,10 @@ name: Frontend CI/CD to S3/CloudFront
 
 on:
   push:
-    branches:
-      - 11-frontend
+    branches: main
+    paths:
+      - "frontend/**" # frontend 폴더 내 변경 시에만 실행
+      - ".github/workflows/ci/frontend-ci.yml" # 워크플로우 파일 변경 시에도 실행
   workflow_dispatch:
 
 jobs:

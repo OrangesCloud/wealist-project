@@ -1,0 +1,80 @@
+name: User Service CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "user-service/**" # user-service 폴더 내 변경 시에만 실행
+      - ".github/workflows/ci/user-service-ci.yml" # 워크플로우 파일 변경 시에도 실행
+
+jobs:
+  build_and_push:
+    name: Build & Push User Service Image
+    runs-on: ubuntu-latest
+
+    # Git Checkout 시 전체 모노레포를 가져옵니다.
+    steps:
+      - name: Checkout Monorepo Code
+        uses: actions/checkout@v4
+
+      # 1. Java 환경 설정 (!!! JDK 21로 수정 !!!)
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21" # ⭐ 17 -> 21로 변경
+          cache: "gradle"
+
+      # 2. Gradle Build 및 테스트
+      # JaCoCo 리포트가 함께 생성됩니다.
+      - name: Build with Gradle & Run Tests
+        run: |
+          # user-service 폴더로 이동하여 빌드 실행
+          cd user-service
+          chmod +x gradlew
+          ./gradlew clean build 
+          # 빌드 아티팩트 및 JaCoCo 리포트(build/reports)가 생성됨
+
+      # 3. JaCoCo 커버리지 리포트 아티팩트 저장 (추가)
+      # CI가 끝난 후 커버리지 결과를 확인할 수 있도록 저장합니다.
+      - name: Upload JaCoCo Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report-user-service
+          path: user-service/build/reports/jacocoHtml
+          # reports/jacocoHtml 폴더 전체를 아티팩트로 저장
+
+      # 4. Docker 로그인 (Secret 사용)
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 5. 이미지 태그 정의
+      - name: Define Image Tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/user-service
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+      # 6. Docker Build (Dockerfile은 user-service/에 있다고 가정)
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./user-service
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # (선택) 7. CD 트리거 (별도 CD 워크플로우가 있다면)
+      # - name: Trigger CD Workflow
+      #   if: github.ref == 'refs/heads/main'
+      #   uses: <repo>/workflow-dispatch-action@v1
+      #   with:
+      #     image-tag: ${{ steps.meta.outputs.version }}

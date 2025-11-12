@@ -1,0 +1,88 @@
+name: Backend EC2 Continuous Deployment
+
+on:
+  # User/Board Service CI 워크플로우 성공 시 트리거
+  workflow_run:
+    workflows: ["User Service CI/CD", "Board Service CI/CD"] # CI 워크플로우 이름 지정
+    types:
+      - completed
+    branches:
+      - main # main 브랜치에서 CI가 성공했을 때만 CD 실행
+
+jobs:
+  deploy_to_ec2:
+    # CI 워크플로우가 성공적으로 완료되었을 때만 실행
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: development # GitHub 환경 설정 (Secrets 관리 용이)
+
+    steps:
+      - name: ⬇️ Checkout Monorepo Code
+        uses: actions/checkout@v4
+        # EC2에 전송할 Docker Compose 파일 및 dev.sh 스크립트 확보
+
+      # 1. Terraform Output 가져오기 (EC2 Public IP 확보)
+      # - 인프라 구축 후 Outputs 파일이 생성되어 있어야 함
+      - name: 🖥️ Get EC2 Public IP from Terraform Output
+        id: terraform_output
+        uses: hashicorp/terraform-github-actions/github-action@v2
+        with:
+          tf_actions_state: ${{ secrets.TF_STATE_CONTENT }} # (선택) 상태 파일 직접 전달
+          tf_actions_state_backend_config: |
+            bucket = "wealist-terraform-state-dev"
+            key = "dev/wealist.tfstate"
+            region = "ap-northeast-2"
+          tf_actions_subcommand: "output"
+
+      - name: 🎯 Set EC2_HOST Variable
+        id: set_host
+        run: echo "EC2_HOST=$(echo '${{ steps.terraform_output.outputs.ec2_public_ip }}')" >> $GITHUB_ENV
+        # Outputs에서 IP 주소를 가져와 환경 변수에 저장
+
+      # 2. SSH 접속 키 설정
+      - name: 🔑 Setup SSH Private Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          # EC2 접속용 프라이빗 키 (GitHub Secrets에 저장)
+
+      # 3. EC2 접속 및 배포 명령 실행 (CD 핵심)
+      - name: 🚀 Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ec2-user # Amazon Linux 기본 사용자
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          script: |
+            # 1. EC2 서버 준비 (Docker Compose 파일 확보)
+            APP_DIR="/home/ec2-user/wealist-project"
+            if [ ! -d "$APP_DIR" ]; then
+              echo "Cloning repository..."
+              git clone https://github.com/your-repo/wealist-project.git "$APP_DIR"
+            fi
+            cd "$APP_DIR"
+            git pull # 최신 Docker Compose 파일 및 스크립트 확보
+
+            # 2. 환경변수 파일 생성/업데이트 (Secrets에서 주입 필요)
+            # AWS Secrets Manager를 사용하지 않으므로, 환경변수 파일을 여기서 생성해야 합니다.
+            # 이 단계는 민감 정보 관리가 필요하여 추후 Secrets Manager 사용을 권장합니다.
+
+            # (임시) CI 환경 변수를 기반으로 .env.dev 파일을 생성/업데이트한다고 가정
+            cp docker/env/.env.dev.example docker/env/.env.dev
+            # 실제 값은 Secrets에서 가져와 sed 등으로 치환해야 함
+
+            # 3. 최신 이미지 Pull 및 서비스 재시작
+            # 기존에 정의된 dev.sh 스크립트의 pull/update 명령을 활용하여 재사용성 극대화
+            ./docker/scripts/dev.sh pull # dev.sh에 pull 명령 추가가 필요합니다.
+
+            # 현재 dev.sh에 pull이 없으므로 직접 명령 실행 (prod.sh update 참고)
+            COMPOSE_FILES="-f docker/compose/docker-compose.yml -f docker/compose/docker-compose.dev.yml"
+            ENV_FILE="docker/env/.env.dev"
+            ENV_FILE_OPTION="--env-file $ENV_FILE"
+
+            echo "Pulling latest images..."
+            docker compose $ENV_FILE_OPTION $COMPOSE_FILES pull user-service board-service postgres redis
+
+            echo "Restarting services for deployment..."
+            docker compose $ENV_FILE_OPTION $COMPOSE_FILES up -d --remove-orphans --no-build
+            echo "Deployment complete."
