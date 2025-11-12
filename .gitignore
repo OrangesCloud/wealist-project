@@ -50,6 +50,7 @@ Thumbs.db
 .claudeignore
 CLAUDE.md
 
+
 # Grafana
 grafana/volume/
 grafana/volume/**
