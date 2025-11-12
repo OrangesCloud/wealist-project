@@ -26,9 +26,8 @@ import {
   getWorkspaceProfile,
   updateWorkspaceProfile,
   getWorkspaces,
-  WorkspaceResponse,
-  UserProfileResponse,
 } from '../../api/user/userService';
+import { UserProfileResponse, WorkspaceResponse } from '../../types/user';
 
 interface UserProfileModalProps {
   user: UserProfile;

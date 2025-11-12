@@ -4,14 +4,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom'; // 1. useNavigate 임포트
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  WorkspaceResponse,
-  CreateWorkspaceRequest,
-  getWorkspaces,
-  createWorkspace,
-} from '../api/user/userService';
+import { getWorkspaces, createWorkspace } from '../api/user/userService';
 import { Search, Plus, X, AlertCircle, Settings, LogOut } from 'lucide-react';
 import WorkspaceManagementModal from './modals/WorkspaceManagementModal';
+import { CreateWorkspaceRequest, WorkspaceResponse } from '../types/user';
 
 // 2. Props 인터페이스 제거 (더 이상 App.tsx에서 props를 받지 않음)
 /*
