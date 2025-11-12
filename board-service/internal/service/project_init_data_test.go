@@ -1,8 +1,8 @@
 package service
 
 import (
+	"board-service/internal/cache"
 	"board-service/internal/domain"
-	"board-service/internal/dto"
 	"board-service/internal/repository"
 	"board-service/internal/testutil"
 	"testing"
@@ -288,7 +288,7 @@ func TestProjectService_GetProjectInitData_Success(t *testing.T) {
 	projectFieldRepo.On("FindByProject", projectID).Return(fields, nil)
 	fieldOptionRepo.On("FindByField", fieldID).Return(options, nil)
 
-	userInfoCache.On("GetUserInfo", mock.Anything, mock.Anything).Return(&dto.UserInfo{
+	userInfoCache.On("GetUserInfo", mock.Anything, mock.Anything).Return(true, &cache.UserInfo{
 		UserID: userID.String(),
 		Name:   "Test User",
 		Email:  "test@example.com",
@@ -433,13 +433,13 @@ func TestProjectService_GetProjectInitData_BoardsSortedByPosition(t *testing.T) 
 	// Mock expectations
 	projectRepo.On("FindByID", projectID).Return(project, nil)
 	projectRepo.On("FindMemberByUserAndProject", userID, projectID).Return(member, nil)
-	projectRepo.On("FindMembersByProject", projectID).Return([]*domain.ProjectMember{member}, nil)
+	projectRepo.On("FindMembersByProject", projectID).Return([]domain.ProjectMember{*member}, nil)
 	viewRepo.On("FindDefault", projectID).Return(defaultView, nil)
 	boardOrderRepo.On("FindByView", viewID, userID).Return(boardOrders, nil)
 	boardRepo.On("FindByProject", projectID, repository.BoardFilters{}, 1, 1000).Return(boards, int64(3), nil)
 	projectFieldRepo.On("FindByProject", projectID).Return([]domain.ProjectField{}, nil)
 
-	userInfoCache.On("GetUserInfo", mock.Anything, mock.Anything).Return(&dto.UserInfo{
+	userInfoCache.On("GetUserInfo", mock.Anything, mock.Anything).Return(true, &cache.UserInfo{
 		UserID: userID.String(),
 		Name:   "Test User",
 		Email:  "test@example.com",

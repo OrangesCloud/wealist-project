@@ -51,7 +51,7 @@ func setupProjectServiceTest(t *testing.T) *ProjectServiceTestSuite {
 		workspaceCache,
 		userInfoCache,
 		logger,
-		nil, // db는 테스트에서 사용 안 함
+		NewMockDB(), // in-memory DB for transactions
 	)
 
 	return &ProjectServiceTestSuite{
@@ -109,8 +109,8 @@ func TestProjectService_CreateProject_Success(t *testing.T) {
 	}
 
 	// Mocks
-	suite.workspaceCache.On("ValidateWorkspace", mock.Anything, workspaceID.String(), userID, token).
-		Return(true, nil)
+	suite.workspaceCache.On("GetMembership", mock.Anything, workspaceID.String(), userID).
+		Return(true, true, nil)
 
 	suite.projectRepo.On("Create", mock.AnythingOfType("*domain.Project")).
 		Run(func(args mock.Arguments) {
@@ -124,14 +124,35 @@ func TestProjectService_CreateProject_Success(t *testing.T) {
 	suite.roleRepo.On("FindByName", "OWNER").
 		Return(ownerRole, nil)
 
-	suite.projectRepo.On("AddMember", mock.AnythingOfType("*domain.ProjectMember")).
+	suite.projectRepo.On("CreateMember", mock.AnythingOfType("*domain.ProjectMember")).
 		Return(nil)
+
+	// Mock field initialization
+	suite.fieldRepo.On("CreateField", mock.AnythingOfType("*domain.ProjectField")).
+		Return(nil).
+		Maybe()
+	suite.fieldRepo.On("CreateOption", mock.AnythingOfType("*domain.FieldOption")).
+		Return(nil).
+		Maybe()
 
 	userMap := map[string]client.UserInfo{
 		userID: *expectedUserInfo,
 	}
 	suite.userClient.On("GetUsersBatch", mock.Anything, []string{userID}).
-		Return(userMap, nil)
+		Return(userMap, nil).
+		Maybe()
+
+	suite.userInfoCache.On("GetUserInfo", mock.Anything, userID).
+		Return(false, nil, nil).
+		Maybe()
+
+	suite.userClient.On("GetUser", mock.Anything, userID).
+		Return(expectedUserInfo, nil).
+		Maybe()
+
+	suite.userInfoCache.On("SetUserInfo", mock.Anything, mock.AnythingOfType("*cache.UserInfo")).
+		Return(nil).
+		Maybe()
 
 	// When
 	result, err := suite.service.CreateProject(userID, token, req)
@@ -164,8 +185,8 @@ func TestProjectService_CreateProject_InvalidWorkspace(t *testing.T) {
 	}
 
 	// Mock: Workspace validation fails
-	suite.workspaceCache.On("ValidateWorkspace", mock.Anything, workspaceID.String(), userID, token).
-		Return(false, nil)
+	suite.workspaceCache.On("GetMembership", mock.Anything, workspaceID.String(), userID).
+		Return(true, false, nil)
 
 	// When
 	result, err := suite.service.CreateProject(userID, token, req)
@@ -173,7 +194,7 @@ func TestProjectService_CreateProject_InvalidWorkspace(t *testing.T) {
 	// Then
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "워크스페이스 접근 권한이 없습니다")
+	assert.Contains(t, err.Error(), "워크스페이스 멤버가 아닙니다")
 
 	suite.workspaceCache.AssertExpectations(t)
 }
@@ -250,7 +271,14 @@ func TestProjectService_GetProject_Success(t *testing.T) {
 		ownerID.String(): *ownerInfo,
 	}
 	suite.userClient.On("GetUsersBatch", mock.Anything, []string{ownerID.String()}).
-		Return(userMap, nil)
+		Return(userMap, nil).Maybe()
+
+	suite.userInfoCache.On("GetUserInfo", mock.Anything, ownerID.String()).
+		Return(false, nil, nil).Maybe()
+	suite.userClient.On("GetUser", mock.Anything, ownerID.String()).
+		Return(ownerInfo, nil).Maybe()
+	suite.userInfoCache.On("SetUserInfo", mock.Anything, mock.AnythingOfType("*cache.UserInfo")).
+		Return(nil).Maybe()
 
 	// When
 	result, err := suite.service.GetProject(projectID.String(), userID.String())
