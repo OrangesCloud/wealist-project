@@ -1,6 +1,8 @@
 # Environments
 .env
 .env.local
+.env.dev
+.env.prod
 
 # Docker
 postgres-data/
@@ -26,7 +28,6 @@ htmlcov/
 
 # Virtual Environments
 .venv/
-env/
 venv/
 
 # IDEs
@@ -58,13 +59,13 @@ grafana/volume/plugins/
 grafana/volume/log/
 grafana/volume/png/
 prometheus/volume/
-prometheus/data/ 
-prometheus/volume/ 
+prometheus/data/
+prometheus/volume/
 
 
 
 
-# 모놀리식 프론트엔드 
+# 모놀리식 프론트엔드
 frontend/dist/
 frontend/node_modules/
 frontend/.pnp
