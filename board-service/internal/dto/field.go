@@ -204,3 +204,72 @@ type BoardOrder struct {
 	BoardID  string `json:"boardId" binding:"required,uuid"`
 	Position string `json:"position" binding:"required"` // Fractional index position
 }
+
+// ==================== Project Init Data DTOs ====================
+
+// FieldWithOptionsResponse represents a field with its options (for select types)
+type FieldWithOptionsResponse struct {
+	FieldID         string                 `json:"fieldId"`
+	ProjectID       string                 `json:"projectId"`
+	Name            string                 `json:"name"`
+	FieldType       string                 `json:"fieldType"`
+	Description     string                 `json:"description"`
+	DisplayOrder    int                    `json:"displayOrder"`
+	IsRequired      bool                   `json:"isRequired"`
+	IsSystemDefault bool                   `json:"isSystemDefault"`
+	Config          map[string]interface{} `json:"config"`
+	CanEditRoles    []string               `json:"canEditRoles"`
+	Options         []OptionResponse       `json:"options"`         // Field options (for single_select, multi_select)
+	CreatedAt       time.Time              `json:"createdAt"`
+	UpdatedAt       time.Time              `json:"updatedAt"`
+}
+
+// FieldTypeInfo represents available field type information
+type FieldTypeInfo struct {
+	Type        string `json:"type"`        // text, number, date, etc.
+	DisplayName string `json:"displayName"` // Human-readable name
+	Description string `json:"description"` // Type description
+	HasOptions  bool   `json:"hasOptions"`  // Whether this type supports options
+}
+
+// ProjectInitDataResponse contains all data needed for initial project page load
+type ProjectInitDataResponse struct {
+	// Project basic information
+	Project ProjectBasicInfo `json:"project"`
+
+	// All boards in the project (sorted by position if available, otherwise by createdAt)
+	Boards []BoardResponse `json:"boards"`
+
+	// All field definitions with their options
+	Fields []FieldWithOptionsResponse `json:"fields"`
+
+	// Available field types (text, number, date, etc.)
+	FieldTypes []FieldTypeInfo `json:"fieldTypes"`
+
+	// Project members (for assignee dropdown)
+	Members []ProjectMemberBasicInfo `json:"members"`
+
+	// Default view ID (if exists)
+	DefaultViewID string `json:"defaultViewId,omitempty"`
+}
+
+// ProjectBasicInfo represents basic project information
+type ProjectBasicInfo struct {
+	ProjectID   string `json:"projectId"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	WorkspaceID string `json:"workspaceId"`
+	OwnerID     string `json:"ownerId"`
+	IsPublic    bool   `json:"isPublic"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
+// ProjectMemberBasicInfo represents basic member information for dropdowns
+type ProjectMemberBasicInfo struct {
+	UserID   string `json:"userId"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Role     string `json:"role"`     // OWNER, ADMIN, MEMBER
+	JoinedAt string `json:"joinedAt"`
+}
