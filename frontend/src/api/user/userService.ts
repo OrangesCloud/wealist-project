@@ -13,73 +13,7 @@ import { userRepoClient } from '../apiConfig';
 import { AxiosResponse } from 'axios';
 
 // ========================================
-// Mock Data (실제 API 구현 시 이 블록은 삭제됩니다.)
-// ========================================
-
-const USE_MOCK_DATA = false;
-
-// Mock 데이터는 실제 사용되지 않지만, Mock 모드를 활성화할 경우를 대비하여 유지
-const MOCK_WORKSPACES: WorkspaceResponse[] = [
-  {
-    workspaceId: 'workspace-1',
-    workspaceName: '오렌지클라우드',
-    workspaceDescription: '메인 워크스페이스',
-    ownerId: 'user-123',
-    ownerName: '김개발',
-    ownerEmail: 'dev.kim@example.com',
-    isPublic: true,
-    needApproved: true,
-    createdAt: '2024-01-01T00:00:00Z',
-  },
-  {
-    workspaceId: 'workspace-2',
-    workspaceName: '데이터랩',
-    workspaceDescription: '데이터 분석 팀',
-    ownerId: 'user-123',
-    ownerName: '김개발',
-    ownerEmail: 'dev.kim@example.com',
-    isPublic: false,
-    needApproved: false,
-    createdAt: '2024-01-02T00:00:00Z',
-  },
-];
-
-let MOCK_DEFAULT_PROFILE: UserProfileResponse = {
-  profileId: 'profile-default-001',
-  userId: 'user-123',
-  workspaceId: null,
-  nickName: '김개발',
-  email: 'dev.kim@example.com',
-  profileImageUrl: null,
-};
-
-const MOCK_ALL_PROFILES: UserProfileResponse[] = [
-  MOCK_DEFAULT_PROFILE,
-  {
-    profileId: 'profile-ws-001',
-    userId: 'user-123',
-    workspaceId: 'workspace-1',
-    nickName: '김개발 (오렌지클라우드)',
-    email: 'dev.kim@orangecloud.com',
-    profileImageUrl: null,
-  },
-];
-
-let MOCK_WORKSPACE_SETTINGS: Record<string, WorkspaceSettingsResponse> = {
-  'workspace-1': {
-    workspaceId: 'workspace-1',
-    workspaceName: '오렌지클라우드',
-    workspaceDescription: '메인 워크스페이스',
-    isPublic: true,
-    requiresApproval: true,
-    onlyOwnerCanInvite: false,
-  },
-};
-
-let MOCK_PENDING_MEMBERS: Record<string, JoinRequestResponse[]> = {};
-
-// ========================================
-// Workspace API Functions
+// Workspace API Functions (워크스페이스 전체 관리)
 // ========================================
 
 /**
@@ -87,10 +21,44 @@ let MOCK_PENDING_MEMBERS: Record<string, JoinRequestResponse[]> = {};
  * [API] GET /api/workspaces/all
  */
 export const getMyWorkspaces = async (): Promise<WorkspaceResponse[]> => {
-  const response: AxiosResponse<WorkspaceResponse[]> = await userRepoClient.get(
+  const response: AxiosResponse<{ data: WorkspaceResponse[] }> = await userRepoClient.get(
     '/api/workspaces/all',
   );
-  return response.data;
+  return response.data.data;
+};
+
+/**
+ * 퍼블릭 워크스페이스 목록 조회
+ * [API] GET /api/workspaces
+ */
+export const getPublicWorkspaces = async (): Promise<WorkspaceResponse[]> => {
+  const response: AxiosResponse<{ data: WorkspaceResponse[] }> = await userRepoClient.get(
+    '/api/workspaces',
+  );
+  return response.data.data;
+};
+
+/**
+ * 워크스페이스 검색
+ * [API] GET /api/workspaces/search?query={query}
+ */
+export const searchWorkspaces = async (query: string): Promise<WorkspaceResponse[]> => {
+  const response: AxiosResponse<{ data: WorkspaceResponse[] }> = await userRepoClient.get(
+    '/api/workspaces/search',
+    { params: { query } },
+  );
+  return response.data.data;
+};
+
+/**
+ * 특정 워크스페이스 조회
+ * [API] GET /api/workspaces/{workspaceId}
+ */
+export const getWorkspace = async (workspaceId: string): Promise<WorkspaceResponse> => {
+  const response: AxiosResponse<{ data: WorkspaceResponse }> = await userRepoClient.get(
+    `/api/workspaces/${workspaceId}`,
+  );
+  return response.data.data;
 };
 
 /**
@@ -100,16 +68,40 @@ export const getMyWorkspaces = async (): Promise<WorkspaceResponse[]> => {
  */
 export const createWorkspace = async (data: CreateWorkspaceRequest): Promise<WorkspaceResponse> => {
   try {
-    // 💡 [수정]: 응답 구조를 { data: WorkspaceResponse }로 가정하고, response.data.data에서 추출합니다.
-    const response: AxiosResponse<WorkspaceResponse> = await userRepoClient.post(
+    // 💡 응답 구조를 { data: WorkspaceResponse }로 가정하고 data 필드를 반환합니다.
+    const response: AxiosResponse<{ data: WorkspaceResponse }> = await userRepoClient.post(
       '/api/workspaces',
       data,
     );
-    return response.data;
+    return response.data.data;
   } catch (error) {
     console.error('createWorkspace error:', error);
     throw error;
   }
+};
+
+/**
+ * 워크스페이스 수정
+ * [API] PUT /api/workspaces/{workspaceId}
+ * [Body] UpdateWorkspaceRequest (UpdateWorkspaceRequest DTO는 DTO 파일에 정의 필요)
+ */
+export const updateWorkspace = async (
+  workspaceId: string,
+  data: { workspaceName?: string; workspaceDescription?: string },
+): Promise<WorkspaceResponse> => {
+  const response: AxiosResponse<{ data: WorkspaceResponse }> = await userRepoClient.put(
+    `/api/workspaces/${workspaceId}`,
+    data,
+  );
+  return response.data.data;
+};
+
+/**
+ * 워크스페이스 삭제 (소프트 삭제)
+ * [API] DELETE /api/workspaces/{workspaceId}
+ */
+export const deleteWorkspace = async (workspaceId: string): Promise<void> => {
+  await userRepoClient.delete(`/api/workspaces/${workspaceId}`);
 };
 
 /**
@@ -119,13 +111,6 @@ export const createWorkspace = async (data: CreateWorkspaceRequest): Promise<Wor
 export const getWorkspaceSettings = async (
   workspaceId: string,
 ): Promise<WorkspaceSettingsResponse> => {
-  if (USE_MOCK_DATA) {
-    const settings = MOCK_WORKSPACE_SETTINGS[workspaceId] || MOCK_WORKSPACE_SETTINGS['workspace-1'];
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(settings), 300);
-    });
-  }
-
   const response: AxiosResponse<{ data: WorkspaceSettingsResponse }> = await userRepoClient.get(
     `/api/workspaces/${workspaceId}/settings`,
   );
@@ -140,21 +125,16 @@ export const updateWorkspaceSettings = async (
   workspaceId: string,
   data: UpdateWorkspaceSettingsRequest,
 ): Promise<WorkspaceSettingsResponse> => {
-  if (USE_MOCK_DATA) {
-    const current = MOCK_WORKSPACE_SETTINGS[workspaceId] || MOCK_WORKSPACE_SETTINGS['workspace-1'];
-    const updated = { ...current, ...data, workspaceId };
-    MOCK_WORKSPACE_SETTINGS[workspaceId] = updated;
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(updated), 300);
-    });
-  }
-
   const response: AxiosResponse<{ data: WorkspaceSettingsResponse }> = await userRepoClient.put(
     `/api/workspaces/${workspaceId}/settings`,
     data,
   );
   return response.data.data;
 };
+
+// ========================================
+// Member & Join Request API Functions
+// ========================================
 
 /**
  * 워크스페이스 회원 목록 조회
@@ -174,15 +154,23 @@ export const getWorkspaceMembers = async (
  * [API] GET /api/workspaces/{workspaceId}/pendingMembers
  */
 export const getPendingMembers = async (workspaceId: string): Promise<JoinRequestResponse[]> => {
-  if (USE_MOCK_DATA) {
-    const pending = MOCK_PENDING_MEMBERS[workspaceId] || [];
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(pending), 300);
-    });
-  }
-
   const response: AxiosResponse<{ data: JoinRequestResponse[] }> = await userRepoClient.get(
     `/api/workspaces/${workspaceId}/pendingMembers`,
+  );
+  return response.data.data;
+};
+
+/**
+ * 가입 신청 목록 조회 (status 필터 가능)
+ * [API] GET /api/workspaces/{workspaceId}/joinRequests
+ */
+export const getJoinRequests = async (
+  workspaceId: string,
+  status?: string, // 'PENDING', 'APPROVED', 'REJECTED'
+): Promise<JoinRequestResponse[]> => {
+  const response: AxiosResponse<{ data: JoinRequestResponse[] }> = await userRepoClient.get(
+    `/api/workspaces/${workspaceId}/joinRequests`,
+    { params: { status } },
   );
   return response.data.data;
 };
@@ -226,13 +214,6 @@ export const approveMember = async (workspaceId: string, userId: string): Promis
  * [API] POST /api/workspaces/{workspaceId}/members/{userId}/reject
  */
 export const rejectMember = async (workspaceId: string, userId: string): Promise<void> => {
-  if (USE_MOCK_DATA) {
-    const pending = MOCK_PENDING_MEMBERS[workspaceId] || [];
-    // MOCK_PENDING_MEMBERS[workspaceId] = pending.filter((m) => m.userId !== userId); // Mock 로직 제거
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(), 300);
-    });
-  }
   await userRepoClient.post(`/api/workspaces/${workspaceId}/members/${userId}/reject`, {});
 };
 
@@ -253,96 +234,6 @@ export const inviteUser = async (
   return response.data.data;
 };
 
-// ========================================
-// UserProfile API Functions (수정됨)
-// ========================================
-
-/**
- * 내 프로필 조회 (기본 프로필)
- * [API] GET /api/profiles/me
- */
-export const getMyProfile = async (): Promise<UserProfileResponse> => {
-  if (USE_MOCK_DATA) {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(MOCK_DEFAULT_PROFILE), 300);
-    });
-  }
-
-  const response: AxiosResponse<{ data: UserProfileResponse }> = await userRepoClient.get(
-    '/api/profiles/me',
-  );
-  return response.data.data;
-};
-
-/**
- * 내 모든 프로필 조회 (기본 프로필 + 워크스페이스별 프로필)
- * [API] GET /api/profiles/all/me 💡 신규 엔드포인트
- */
-export const getAllMyProfiles = async (): Promise<UserProfileResponse[]> => {
-  if (USE_MOCK_DATA) {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(MOCK_ALL_PROFILES), 300);
-    });
-  }
-
-  const response: AxiosResponse<{ data: UserProfileResponse[] }> = await userRepoClient.get(
-    '/api/profiles/all/me',
-  );
-  return response.data.data;
-};
-
-/**
- * 내 프로필 정보 통합 업데이트 (기본 프로필)
- * [API] PUT /api/profiles/me
- */
-export const updateMyProfile = async (data: UpdateProfileRequest): Promise<UserProfileResponse> => {
-  if (USE_MOCK_DATA) {
-    MOCK_DEFAULT_PROFILE = { ...MOCK_DEFAULT_PROFILE, ...data };
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(MOCK_DEFAULT_PROFILE), 300);
-    });
-  }
-
-  const response: AxiosResponse<{ data: UserProfileResponse }> = await userRepoClient.put(
-    '/api/profiles/me',
-    data,
-  );
-  return response.data.data;
-};
-
-// ========================================
-// [제거/대체됨] 워크스페이스 프로필 관리 함수
-// ========================================
-
-/**
- * [제거됨] 워크스페이스 프로필 조회 (GET /api/profiles/workspace/{workspaceId})
- * @deprecated 프론트엔드에서 `getAllMyProfiles()`를 호출하여 필터링해야 합니다.
- */
-export const getWorkspaceProfile = async (
-  workspaceId: string,
-): Promise<UserProfileResponse | null> => {
-  // 💡 실제 서비스에서는 이 함수를 호출하지 않거나,
-  //    getAllMyProfiles()를 호출하여 로컬에서 필터링해야 합니다.
-  return null;
-};
-
-/**
- * [제거됨] 워크스페이스 프로필 생성/수정 (PUT /api/profiles/workspace/{workspaceId})
- * @deprecated 프론트엔드는 이 엔드포인트에 직접 접근할 수 없으며, 백엔드에서 별도의 엔드포인트를 구현하거나
- * 다른 방식으로 워크스페이스 프로필을 업데이트해야 합니다.
- */
-export const updateWorkspaceProfile = async (
-  workspaceId: string,
-  data: UpdateProfileRequest,
-): Promise<UserProfileResponse> => {
-  // 💡 실제 서비스에서는 이 함수를 사용하지 않아야 합니다.
-  throw new Error('워크스페이스별 프로필 업데이트 엔드포인트가 제거되었습니다. (백엔드 구현 필요)');
-};
-
-// ========================================
-// New API Functions (기타)
-// ========================================
-
 /**
  * 워크스페이스 가입 신청
  * [API] POST /api/workspaces/join-requests
@@ -355,6 +246,73 @@ export const createJoinRequest = async (workspaceId: string): Promise<JoinReques
   );
   return response.data.data;
 };
+
+// ========================================
+// UserProfile API Functions
+// ========================================
+
+/**
+ * 내 프로필 조회 (기본 프로필)
+ * [API] GET /api/profiles/me
+ */
+export const getMyProfile = async (): Promise<UserProfileResponse> => {
+  const response: AxiosResponse<{ data: UserProfileResponse }> = await userRepoClient.get(
+    '/api/profiles/me',
+  );
+  return response.data.data;
+};
+
+/**
+ * 내 모든 프로필 조회 (기본 프로필 + 워크스페이스별 프로필)
+ * [API] GET /api/profiles/all/me
+ */
+export const getAllMyProfiles = async (): Promise<UserProfileResponse[]> => {
+  const response: AxiosResponse<{ data: UserProfileResponse[] }> = await userRepoClient.get(
+    '/api/profiles/all/me',
+  );
+  return response.data.data;
+};
+
+/**
+ * 내 프로필 정보 통합 업데이트 (기본 프로필)
+ * [API] PUT /api/profiles/me
+ */
+export const updateMyProfile = async (data: UpdateProfileRequest): Promise<UserProfileResponse> => {
+  const response: AxiosResponse<{ data: UserProfileResponse }> = await userRepoClient.put(
+    '/api/profiles/me',
+    data,
+  );
+  return response.data.data;
+};
+
+// ========================================
+// [제거/대체됨] 워크스페이스 프로필 관리 함수 (호환성 유지용)
+// ========================================
+
+/**
+ * [제거됨] 워크스페이스 프로필 조회 (GET /api/profiles/workspace/{workspaceId})
+ * @deprecated 프론트엔드에서 `getAllMyProfiles()`를 호출하여 필터링해야 합니다.
+ */
+export const getWorkspaceProfile = async (
+  workspaceId: string,
+): Promise<UserProfileResponse | null> => {
+  return null;
+};
+
+/**
+ * [제거됨] 워크스페이스 프로필 생성/수정 (PUT /api/profiles/workspace/{workspaceId})
+ * @deprecated 이 엔드포인트는 제거되었으며, 백엔드 구현이 필요합니다.
+ */
+export const updateWorkspaceProfile = async (
+  workspaceId: string,
+  data: UpdateProfileRequest,
+): Promise<UserProfileResponse> => {
+  throw new Error('워크스페이스별 프로필 업데이트 엔드포인트가 제거되었습니다. (백엔드 구현 필요)');
+};
+
+// ========================================
+// New API Functions (기타)
+// ========================================
 
 /**
  * 기본 워크스페이스 설정
