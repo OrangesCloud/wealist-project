@@ -1275,6 +1275,79 @@
                 }
             }
         },
+        "/api/projects/{projectId}/init-data": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all data needed for initial project page load (boards, fields with options, field types)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Get project init data",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Project ID",
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ProjectInitDataResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/projects/{projectId}/join-requests": {
             "get": {
                 "security": [
@@ -3558,6 +3631,79 @@
                 }
             }
         },
+        "dto.FieldTypeInfo": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "Type description",
+                    "type": "string"
+                },
+                "displayName": {
+                    "description": "Human-readable name",
+                    "type": "string"
+                },
+                "hasOptions": {
+                    "description": "Whether this type supports options",
+                    "type": "boolean"
+                },
+                "type": {
+                    "description": "text, number, date, etc.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.FieldWithOptionsResponse": {
+            "type": "object",
+            "properties": {
+                "canEditRoles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "displayOrder": {
+                    "type": "integer"
+                },
+                "fieldId": {
+                    "type": "string"
+                },
+                "fieldType": {
+                    "type": "string"
+                },
+                "isRequired": {
+                    "type": "boolean"
+                },
+                "isSystemDefault": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "description": "Field options (for single_select, multi_select)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.OptionResponse"
+                    }
+                },
+                "projectId": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.MoveBoardRequest": {
             "type": "object",
             "required": [
@@ -3705,6 +3851,80 @@
                 }
             }
         },
+        "dto.ProjectBasicInfo": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "isPublic": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ownerId": {
+                    "type": "string"
+                },
+                "projectId": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "workspaceId": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ProjectInitDataResponse": {
+            "type": "object",
+            "properties": {
+                "boards": {
+                    "description": "All boards in the project (sorted by position if available, otherwise by createdAt)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BoardResponse"
+                    }
+                },
+                "defaultViewId": {
+                    "description": "Default view ID (if exists)",
+                    "type": "string"
+                },
+                "fieldTypes": {
+                    "description": "Available field types (text, number, date, etc.)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.FieldTypeInfo"
+                    }
+                },
+                "fields": {
+                    "description": "All field definitions with their options",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.FieldWithOptionsResponse"
+                    }
+                },
+                "members": {
+                    "description": "Project members (for assignee dropdown)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ProjectMemberBasicInfo"
+                    }
+                },
+                "project": {
+                    "description": "Project basic information",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.ProjectBasicInfo"
+                        }
+                    ]
+                }
+            }
+        },
         "dto.ProjectJoinRequestResponse": {
             "type": "object",
             "properties": {
@@ -3730,6 +3950,27 @@
                     "type": "string"
                 },
                 "userName": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ProjectMemberBasicInfo": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "joinedAt": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "description": "OWNER, ADMIN, MEMBER",
+                    "type": "string"
+                },
+                "userId": {
                     "type": "string"
                 }
             }

@@ -262,6 +262,56 @@ definitions:
       updatedAt:
         type: string
     type: object
+  dto.FieldTypeInfo:
+    properties:
+      description:
+        description: Type description
+        type: string
+      displayName:
+        description: Human-readable name
+        type: string
+      hasOptions:
+        description: Whether this type supports options
+        type: boolean
+      type:
+        description: text, number, date, etc.
+        type: string
+    type: object
+  dto.FieldWithOptionsResponse:
+    properties:
+      canEditRoles:
+        items:
+          type: string
+        type: array
+      config:
+        additionalProperties: true
+        type: object
+      createdAt:
+        type: string
+      description:
+        type: string
+      displayOrder:
+        type: integer
+      fieldId:
+        type: string
+      fieldType:
+        type: string
+      isRequired:
+        type: boolean
+      isSystemDefault:
+        type: boolean
+      name:
+        type: string
+      options:
+        description: Field options (for single_select, multi_select)
+        items:
+          $ref: '#/definitions/dto.OptionResponse'
+        type: array
+      projectId:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   dto.MoveBoardRequest:
     properties:
       afterPosition:
@@ -361,6 +411,56 @@ definitions:
       total:
         type: integer
     type: object
+  dto.ProjectBasicInfo:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      isPublic:
+        type: boolean
+      name:
+        type: string
+      ownerId:
+        type: string
+      projectId:
+        type: string
+      updatedAt:
+        type: string
+      workspaceId:
+        type: string
+    type: object
+  dto.ProjectInitDataResponse:
+    properties:
+      boards:
+        description: All boards in the project (sorted by position if available, otherwise
+          by createdAt)
+        items:
+          $ref: '#/definitions/dto.BoardResponse'
+        type: array
+      defaultViewId:
+        description: Default view ID (if exists)
+        type: string
+      fieldTypes:
+        description: Available field types (text, number, date, etc.)
+        items:
+          $ref: '#/definitions/dto.FieldTypeInfo'
+        type: array
+      fields:
+        description: All field definitions with their options
+        items:
+          $ref: '#/definitions/dto.FieldWithOptionsResponse'
+        type: array
+      members:
+        description: Project members (for assignee dropdown)
+        items:
+          $ref: '#/definitions/dto.ProjectMemberBasicInfo'
+        type: array
+      project:
+        allOf:
+        - $ref: '#/definitions/dto.ProjectBasicInfo'
+        description: Project basic information
+    type: object
   dto.ProjectJoinRequestResponse:
     properties:
       projectId:
@@ -378,6 +478,20 @@ definitions:
       userId:
         type: string
       userName:
+        type: string
+    type: object
+  dto.ProjectMemberBasicInfo:
+    properties:
+      email:
+        type: string
+      joinedAt:
+        type: string
+      name:
+        type: string
+      role:
+        description: OWNER, ADMIN, MEMBER
+        type: string
+      userId:
         type: string
     type: object
   dto.ProjectMemberResponse:
@@ -1278,6 +1392,51 @@ paths:
       security:
       - BearerAuth: []
       summary: Update project
+      tags:
+      - projects
+  /api/projects/{projectId}/init-data:
+    get:
+      consumes:
+      - application/json
+      description: Get all data needed for initial project page load (boards, fields
+        with options, field types)
+      parameters:
+      - description: Project ID
+        in: path
+        name: projectId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ProjectInitDataResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get project init data
       tags:
       - projects
   /api/projects/{projectId}/join-requests:
