@@ -135,7 +135,7 @@ func (app *Application) RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 
 	// API routes group (authentication required)
 	api := r.Group("/api")
-	// Uncomment when needed: api.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	api.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
 	{
 		// Project routes
 		projects := api.Group("/projects")
