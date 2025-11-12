@@ -6,6 +6,8 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 // ==================== Mock UserClient ====================
@@ -144,4 +146,17 @@ func (m *MockWorkspaceCache) ValidateWorkspace(ctx context.Context, workspaceID 
 func (m *MockWorkspaceCache) InvalidateWorkspace(ctx context.Context, workspaceID string) error {
 	args := m.Called(ctx, workspaceID)
 	return args.Error(0)
+}
+
+// ==================== Mock DB ====================
+
+// NewMockDB creates an in-memory SQLite DB for testing transactions
+func NewMockDB() *gorm.DB {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		SkipDefaultTransaction: true,
+	})
+	if err != nil {
+		panic("failed to create mock database: " + err.Error())
+	}
+	return db
 }
