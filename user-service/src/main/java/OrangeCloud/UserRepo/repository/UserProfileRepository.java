@@ -1,5 +1,6 @@
 package OrangeCloud.UserRepo.repository;
 
+import OrangeCloud.UserRepo.entity.User;
 import OrangeCloud.UserRepo.entity.UserProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
 

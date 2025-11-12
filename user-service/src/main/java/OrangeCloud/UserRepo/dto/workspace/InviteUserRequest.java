@@ -1,13 +1,16 @@
 package OrangeCloud.UserRepo.dto.workspace;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class UpdateWorkspaceRequest {
-    private String workspaceName;
-    private String workspaceDescription;
+public class InviteUserRequest {
+    @NotNull
+    private UUID userId;
 }

@@ -70,7 +70,7 @@ springdoc:
     disable-swagger-default-url: true
 
 server:
-  port: ${USER_SERVICE_PORT}
+  port: ${USER_SERVICE_PORT:8080}
   error:
     whitelabel.enabled: false
     include-exception: true

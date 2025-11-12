@@ -100,4 +100,9 @@ public interface WorkspaceRepository extends JpaRepository<Workspace, UUID> {
      */
     @Query("SELECT w FROM Workspace w WHERE w.isActive = false ORDER BY w.deletedAt DESC")
     List<Workspace> findInactiveWorkspaces();
+
+    @Query("SELECT w FROM Workspace w WHERE w.isPublic = true AND w.workspaceName LIKE %:name%")
+    List<Workspace> findPublicWorkspacesByNameContaining(@Param("name") String name);
+
+
 }

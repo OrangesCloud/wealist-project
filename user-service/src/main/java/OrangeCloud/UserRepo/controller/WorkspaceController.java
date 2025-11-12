@@ -27,13 +27,32 @@ public class WorkspaceController {
     // 기본 CRUD 및 조회 API
     // ============================================================================
 
+
+//    @GetMapping
+//    @Operation(summary = "워크스페이스 목록 조회", description = "워크스페이스 검색")
+//    public ResponseEntity<List<WorkspaceResponse>> getWorkspaces(Authentication authentication) {
+//        UUID userId = UUID.fromString(authentication.getName());
+//        log.debug("Fetching workspaces for user: {}", userId);
+//        List<WorkspaceResponse> workspaces = workspaceService.SearchgetUserWorkspaces(userId);
+//        return ResponseEntity.ok(workspaces);
+//    }
+    // public 워크 스페이스
+    @GetMapping
+    @Operation(summary = "퍼블릭인 워크스페이스 목록 조회", description = "퍼블릭 워크스페이스 검색")
+    public ResponseEntity<List<WorkspaceResponse>> getPublicWorkspaces(@PathVariable String workspaceName, Authentication authentication) {
+        UUID userId = UUID.fromString(authentication.getName());
+        log.debug("Fetching workspaces for user: {}", userId);
+        List<WorkspaceResponse> workspaces = workspaceService.searchPublicWorkspaces(workspaceName);
+        return ResponseEntity.ok(workspaces);
+    }
+
     /**
      * 사용자가 속한 모든 워크스페이스 조회
      * GET /api/workspaces
      */
-    @GetMapping
+    @GetMapping("/all")
     @Operation(summary = "워크스페이스 목록 조회", description = "현재 사용자가 속한 모든 워크스페이스를 조회합니다.")
-    public ResponseEntity<List<WorkspaceResponse>> getWorkspaces(Authentication authentication) {
+    public ResponseEntity<List<WorkspaceResponse>> userGetWorkspaces(Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         log.debug("Fetching workspaces for user: {}", userId);
         List<WorkspaceResponse> workspaces = workspaceService.getUserWorkspaces(userId);
@@ -50,6 +69,7 @@ public class WorkspaceController {
             Authentication authentication,
             @Valid @RequestBody CreateWorkspaceRequest request) {
         UUID userId = UUID.fromString(authentication.getName());
+
         log.info("Creating workspace: name={}, creator={}", request.getWorkspaceName(), userId);
         WorkspaceResponse workspace = workspaceService.createWorkspace(request, userId);
         return ResponseEntity.ok(workspace);
@@ -170,9 +190,22 @@ public class WorkspaceController {
         return ResponseEntity.ok().build();
     }
 
+
     // ============================================================================
     // 워크스페이스 멤버 관리
     // ============================================================================
+
+    @PostMapping("/{workspaceId}/members/invite")
+    @Operation(summary = "워크스페이스에 사용자 초대", description = "워크스페이스에 사용자를 초대합니다. (OWNER/ADMIN만 가능)")
+    public ResponseEntity<WorkspaceMemberResponse> inviteUser(
+            @PathVariable UUID workspaceId,
+            @Valid @RequestBody InviteUserRequest request,
+            Authentication authentication) {
+        UUID requesterId = UUID.fromString(authentication.getName());
+        log.info("Inviting user to workspace: workspaceId={}, userId={}", workspaceId, request.getUserId());
+        WorkspaceMemberResponse newMember = workspaceService.inviteUser(workspaceId, request, requesterId);
+        return ResponseEntity.ok(newMember);
+    }
 
     /**
      * 워크스페이스 멤버 목록 조회

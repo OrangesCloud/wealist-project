@@ -1,6 +1,8 @@
 package OrangeCloud.UserRepo.controller;
 
 import OrangeCloud.UserRepo.dto.MessageApiResponse;
+import OrangeCloud.UserRepo.dto.user.CreateUserRequest;
+import OrangeCloud.UserRepo.dto.user.UpdateUserRequest;
 import OrangeCloud.UserRepo.entity.User;
 import OrangeCloud.UserRepo.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,10 +24,14 @@ public class UserController {
 
     private final UserService userService;
 
-    /**
-     * 내 정보 조회
-     * GET /api/users/me
-     */
+    @PostMapping
+    @Operation(summary = "사용자 생성", description = "새로운 사용자를 생성합니다.")
+    public ResponseEntity<User> createUser(@RequestBody CreateUserRequest request) {
+        log.info("Creating user: {}", request.getEmail());
+        User user = userService.findOrCreateUserByGoogle(request.getEmail(), request.getGoogleId(), null);
+        return ResponseEntity.ok(user);
+    }
+
     @GetMapping("/me")
     @Operation(summary = "내 정보 조회", description = "현재 인증된 사용자의 정보를 조회합니다.")
     public ResponseEntity<User> getMyInfo(Authentication authentication) {
@@ -35,10 +41,6 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    /**
-     * 특정 사용자 정보 조회
-     * GET /api/users/{userId}
-     */
     @GetMapping("/{userId}")
     @Operation(summary = "사용자 정보 조회", description = "특정 사용자의 정보를 조회합니다.")
     public ResponseEntity<User> getUserInfo(@PathVariable UUID userId) {
@@ -47,10 +49,14 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    /**
-     * 사용자 소프트 삭제
-     * DELETE /api/users/me
-     */
+    @PutMapping("/{userId}")
+    @Operation(summary = "사용자 정보 수정", description = "특정 사용자의 정보를 수정합니다.")
+    public ResponseEntity<User> updateUser(@PathVariable UUID userId, @RequestBody UpdateUserRequest request) {
+        log.info("Updating user: {}", userId);
+        User user = userService.updateUser(userId, request);
+        return ResponseEntity.ok(user);
+    }
+
     @DeleteMapping("/me")
     @Operation(summary = "계정 삭제", description = "현재 사용자 계정을 삭제합니다.")
     public ResponseEntity<MessageApiResponse> deleteMyAccount(Authentication authentication) {
@@ -60,10 +66,6 @@ public class UserController {
         return ResponseEntity.ok(MessageApiResponse.success("계정이 삭제되었습니다."));
     }
 
-    /**
-     * 사용자 소프트 삭제 (Admin)
-     * DELETE /api/users/{userId}
-     */
     @DeleteMapping("/{userId}")
     @Operation(summary = "사용자 삭제 (관리자용)", description = "특정 사용자를 삭제합니다.")
     public ResponseEntity<MessageApiResponse> deleteUser(@PathVariable UUID userId) {
@@ -72,10 +74,6 @@ public class UserController {
         return ResponseEntity.ok(MessageApiResponse.success("사용자가 삭제되었습니다."));
     }
 
-    /**
-     * 사용자 복구
-     * PUT /api/users/{userId}/restore
-     */
     @PutMapping("/{userId}/restore")
     @Operation(summary = "사용자 복구", description = "삭제된 사용자를 복구합니다.")
     public ResponseEntity<MessageApiResponse> restoreUser(@PathVariable UUID userId) {
