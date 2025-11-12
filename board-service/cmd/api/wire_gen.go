@@ -11,6 +11,7 @@ import (
 	"board-service/internal/client"
 	"board-service/internal/config"
 	"board-service/internal/handler"
+	"board-service/internal/middleware"
 	"board-service/internal/repository"
 	"board-service/internal/service"
 	"github.com/gin-gonic/gin"
@@ -117,7 +118,7 @@ func (app *Application) RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 	handler.RegisterRoutes(r, app.HealthHandler)
 
 	api := r.Group("/api")
-
+	api.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
 	{
 
 		projects := api.Group("/projects")
