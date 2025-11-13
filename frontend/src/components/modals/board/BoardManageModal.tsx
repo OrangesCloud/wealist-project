@@ -1,14 +1,18 @@
 // src/components/modals/BoardManageModal.tsx
 
 import React, { useState, useEffect } from 'react';
-import { X, Tag, CheckSquare, AlertCircle, Calendar, User, Plus, Settings } from 'lucide-react';
+import { X, Tag, CheckSquare, AlertCircle, Plus, Settings } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { CUSTOM_FIELD_COLORS, ColorOption } from '../../../constants/colors';
-import { CreateBoardRequest, FieldOptionsLookup, UpdateBoardRequest } from '../../../types/board';
+import {
+  CreateBoardRequest,
+  FieldOptionsLookup,
+  IEditCustomFields,
+  UpdateBoardRequest,
+} from '../../../types/board';
 import { createBoard, updateBoard } from '../../../api/board/boardService';
 import { getWorkspaceMembers } from '../../../api/user/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
-import { IFieldOption } from '../../../types/common';
 
 interface BoardManageModalProps {
   projectId: string;
@@ -25,8 +29,8 @@ interface BoardManageModalProps {
   workspaceId: string;
   onClose: () => void;
   onBoardCreated: () => void;
-  onAddFieldsClick: () => void;
   fieldOptionsLookup: FieldOptionsLookup;
+  handleCustomField: (editFieldData: IEditCustomFields | null) => void;
 }
 
 export const BoardManageModal: React.FC<BoardManageModalProps> = ({
@@ -35,8 +39,8 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   workspaceId,
   onClose,
   onBoardCreated,
-  onAddFieldsClick,
   fieldOptionsLookup,
+  handleCustomField,
 }) => {
   const { theme } = useTheme();
   // Form state
@@ -59,16 +63,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // 💡 [제거] fieldRefreshKey 상태 제거
-
-  // Inline creation state (API 미지원으로 임시 비활성화)
-  const [showCreateStage, setShowCreateStage] = useState(false);
-  const [showCreateRole, setShowCreateRole] = useState(false);
-  const [showCreateImportance, setShowCreateImportance] = useState(false);
-  const [newFieldName, setNewFieldName] = useState('');
-  const [newFieldColor, setNewFieldColor] = useState(CUSTOM_FIELD_COLORS[0].hex);
-  const [newImportanceLevel, setNewImportanceLevel] = useState(1);
 
   // Dropdown states (변경 없음)
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
@@ -117,24 +111,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showRoleDropdown, showStageDropdown, showImportanceDropdown, assigneeSearch]);
-
-  // 2. Inline custom field creation handlers (유지)
-  const handleCreateCustomField = async (type: 'stage' | 'role' | 'importance') => {
-    setError(
-      `새 ${type} 필드 추가 기능은 현재 API 스펙 변경으로 인해 비활성화되었습니다. (API 미지원)`,
-    );
-    setIsLoading(false);
-    cancelInlineCreation();
-  };
-
-  const cancelInlineCreation = () => {
-    setShowCreateStage(false);
-    setShowCreateRole(false);
-    setShowCreateImportance(false);
-    setNewFieldName('');
-    setNewFieldColor(CUSTOM_FIELD_COLORS[0].hex);
-    setNewImportanceLevel(1);
-  };
 
   // 3. 제출 핸들러 (유지)
   const handleSubmit = async (e: React.FormEvent) => {
@@ -202,81 +178,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
           disabled={isLoading}
         />
       ))}
-    </div>
-  );
-
-  // Helper: Creation Modal (작은 모달로 표시) - 인라인 생성 기능 비활성화 (유지)
-  const renderCreationModal = (
-    type: 'stage' | 'role' | 'importance' | 'importance',
-    title: string,
-  ) => (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-[100]"
-      onClick={cancelInlineCreation}
-    >
-      <div
-        className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-bold text-gray-800 mb-4">새 {title} 추가</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-2">
-              {title} 이름 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={newFieldName}
-              onChange={(e) => setNewFieldName(e.target.value)}
-              placeholder={`예: ${
-                type === 'stage' ? '진행중' : type === 'role' ? '디자이너' : '매우 높음'
-              }`}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              disabled={isLoading}
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-2">색상 선택</label>
-            {renderColorPicker(newFieldColor, setNewFieldColor)}
-          </div>
-          {type === 'importance' && (
-            <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-2">
-                중요도 레벨 (1-5)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="5"
-                value={newImportanceLevel}
-                onChange={(e) => setNewImportanceLevel(parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                disabled={isLoading}
-              />
-            </div>
-          )}
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={cancelInlineCreation}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition"
-              disabled={isLoading}
-            >
-              취소
-            </button>
-            <button
-              type="button"
-              onClick={() => handleCreateCustomField(type)}
-              className="flex-1 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition"
-              // 💡 인라인 생성 기능을 임시로 막음
-              disabled={true}
-            >
-              추가
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 
@@ -415,7 +316,11 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                         // 💡 [수정] 인라인 생성 기능 비활성화
                         onClick={() => {
                           setShowStageDropdown(false);
-                          handleCreateCustomField('stage');
+                          handleCustomField({
+                            name: '진행 단계',
+                            fieldType: 'multi_select',
+                            options: fieldOptionsLookup?.stages,
+                          });
                         }}
                         className="w-full px-3 py-2 text-left transition text-sm text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2 disabled:text-gray-400 disabled:cursor-not-allowed"
                       >
@@ -485,7 +390,11 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                         // 💡 [수정] 인라인 생성 기능 비활성화
                         onClick={() => {
                           setShowRoleDropdown(false);
-                          handleCreateCustomField('role');
+                          handleCustomField({
+                            name: '역할',
+                            fieldType: 'multi_select',
+                            options: fieldOptionsLookup?.roles,
+                          });
                         }}
                         className="w-full px-3 py-2 text-left transition text-sm text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2 disabled:text-gray-400 disabled:cursor-not-allowed"
                       >
@@ -565,7 +474,11 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                         // 💡 [수정] 인라인 생성 기능 비활성화
                         onClick={() => {
                           setShowImportanceDropdown(false);
-                          handleCreateCustomField('importance');
+                          handleCustomField({
+                            name: '중요도',
+                            fieldType: 'multi_select',
+                            options: fieldOptionsLookup?.importances,
+                          });
                         }}
                         className="w-full px-3 py-2 text-left transition text-sm text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2 disabled:text-gray-400 disabled:cursor-not-allowed"
                       >
@@ -582,12 +495,12 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   </label>
                   <button
                     type="button" // 💡 [수정] 명시적으로 버튼 타입 지정 (폼 충돌 방지)
-                    onClick={onAddFieldsClick} // 💡 [수정] Prop 호출
+                    onClick={() => handleCustomField(null)} // 💡 [수정] Prop 호출
                     className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between font-medium"
                     disabled={isLoading}
                   >
                     {/* 💡 [수정] 텍스트 및 아이콘 수정 */}
-                    <span className="text-gray-600">+ 새 필드 유형 정의</span>
+                    <span className="text-gray-600">필드 생성하기</span>
                     <Settings className="w-4 h-4 text-gray-400" />
                   </button>
                 </div>
@@ -623,11 +536,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
           )}
         </div>
       </div>
-
-      {/* Creation Modals (API 제거로 임시 비활성화) */}
-      {showCreateStage && renderCreationModal('stage', '진행 단계')}
-      {showCreateRole && renderCreationModal('role', '역할')}
-      {showCreateImportance && renderCreationModal('importance', '중요도')}
     </div>
   );
 };

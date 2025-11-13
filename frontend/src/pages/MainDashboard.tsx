@@ -22,10 +22,11 @@ import {
   CustomImportanceResponse,
   FieldWithOptionsResponse,
   FieldOptionsLookup,
-  CustomStageResponse, // 💡 필드와 옵션 정보를 담는 통합 DTO
+  CustomStageResponse,
+  FieldTypeInfo, // 💡 필드와 옵션 정보를 담는 통합 DTO
 } from '../types/board';
 import { WorkspaceMemberResponse } from '../types/user';
-import { CustomFieldAddModal } from '../components/modals/board/customFields/CustomFieldAddModal';
+import { CustomFieldManageModal } from '../components/modals/board/customFields/CustomFieldManageModal';
 import { BoardManageModal } from '../components/modals/board/BoardManageModal';
 import { ProjectModal } from '../components/modals/board/ProjectModal';
 import { IROLES } from '../types/common';
@@ -63,6 +64,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
 
   const [uiState, setUiState] = useState<UIState>({});
   const [editBoardData, setEditBoardData] = useState<any>(null);
+  const [editFieldData, setEditFieldData] = useState<any>(null);
 
   // 💡 [추가] 초기 옵션 데이터를 저장할 상태 (ProjectContent로 전달)
   const [fieldOptionsLookup, setFieldOptionsLookup] = useState<FieldOptionsLookup>({
@@ -70,6 +72,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     importances: [],
     stages: [], // Stage도 룩업에 포함
   });
+
+  const [filedTypesLookup, setFieldTypesLookup] = useState<FieldTypeInfo[]>([]);
 
   const toggleUiState = useCallback((key: keyof UIState, show?: boolean) => {
     setUiState((prev) => ({
@@ -153,6 +157,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
       const initData = await getProjectInitSettings(selectedProject.projectId);
       // 2. 필드 옵션 룩업 테이블 생성
       const fieldLookup = mapFieldOptions(initData.fields);
+      setFieldTypesLookup(initData.fieldTypes);
       setFieldOptionsLookup(fieldLookup);
 
       // 3. 멤버 업데이트 (InitData에서 멤버가 제공된다고 가정하면 이 호출로 대체 가능)
@@ -167,7 +172,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   useEffect(() => {
     fetchProjects();
     fetchWorkspaceMembers();
-  }, [fetchProjects, fetchWorkspaceMembers]); // 💡 [핵심] selectedProject 변경 시 InitSettings 로드 트리거
+  }, []); // 💡 [핵심] selectedProject 변경 시 InitSettings 로드 트리거
+
   useEffect(() => {
     if (selectedProject) {
       // ⚠️ 루프 방지: ProjectContent가 fetchBoards를 완료해도 이 함수가 재실행되지 않도록,
@@ -184,13 +190,21 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   }, [fetchProjectContentInitSettings]);
 
   // 💡 필드가 생성된 후 호출될 핸들러
-  const handleFieldCreated = useCallback(
+  const afterFieldCreated = useCallback(
     (newField: any) => {
       toggleUiState('showManageModal', false);
+      setEditFieldData(null);
       handleBoardContentUpdate(); // 💡 데이터 변경 알림 -> InitSettings 재실행
-      console.log(`✅ New field created and propagated: ${newField?.name}`);
     },
     [handleBoardContentUpdate, toggleUiState],
+  );
+
+  const handleCustomField = useCallback(
+    (editFieldData: any) => {
+      toggleUiState('showManageModal', true);
+      setEditFieldData(editFieldData);
+    },
+    [toggleUiState],
   );
 
   return (
@@ -266,10 +280,12 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
       )}
       {/* 💡 Custom Field Add Modal (필드 추가/정의) */}
       {uiState?.showManageModal && selectedProject && (
-        <CustomFieldAddModal
+        <CustomFieldManageModal
+          editFieldData={editFieldData}
+          filedTypesLookup={filedTypesLookup}
           projectId={selectedProject.projectId}
           onClose={() => toggleUiState('showManageModal', false)}
-          onFieldCreated={handleFieldCreated} // 필드 생성 후 갱신 트리거
+          afterFieldCreated={afterFieldCreated} // 필드 생성 후 갱신 트리거
         />
       )}
       {/* Create/Edit Board Modal */}
@@ -282,10 +298,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
             setEditBoardData(null);
             toggleUiState('showCreateBoard', false);
           }}
+          handleCustomField={handleCustomField}
           onBoardCreated={handleBoardContentUpdate}
-          onAddFieldsClick={() => {
-            toggleUiState('showManageModal', true);
-          }}
           // 💡 [추가] 필드 옵션 룩업 데이터 전달
           fieldOptionsLookup={fieldOptionsLookup}
         />

@@ -450,3 +450,25 @@ export interface UpdateViewRequest {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
 }
+
+// =======================================================
+// 프론트용 DTO
+// =======================================================
+
+export interface IEditCustomFields {
+  name: string;
+  fieldType:
+    | 'text'
+    | 'number'
+    | 'single_select'
+    | 'multi_select'
+    | 'date'
+    | 'single_user'
+    | 'multi_user';
+  options?: any[];
+  value?: string | number | null;
+  // options?: Array<{
+  //   label: string;
+  //   color: string;
+  // }>;
+}

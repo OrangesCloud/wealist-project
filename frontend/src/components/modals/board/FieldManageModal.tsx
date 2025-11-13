@@ -161,7 +161,7 @@ export const CustomFieldManagerModal: React.FC<CustomFieldManagerModalProps> = (
   // 3. 옵션 수정 핸들러 (Mocking/API)
   // ========================================
 
-  // 💡 TODO: 이 부분은 CustomFieldAddModal 로직을 가져와 옵션 CRUD를 구현해야 합니다.
+  // 💡 TODO: 이 부분은 CustomFieldManageModal 로직을 가져와 옵션 CRUD를 구현해야 합니다.
   const handleOptionUpdate = async (optionId: string, updates: Partial<FieldOptionResponse>) => {
     if (!selectedField) return;
 
@@ -242,10 +242,10 @@ export const CustomFieldManagerModal: React.FC<CustomFieldManagerModalProps> = (
               </div>
             ))}
 
-            {/* 💡 [추가] 새 필드 정의 버튼 (CustomFieldAddModal로 이동) */}
+            {/* 💡 [추가] 새 필드 정의 버튼 (CustomFieldManageModal로 이동) */}
             <button
-              // ⚠️ 여기서는 CustomFieldAddModal을 열지 않고, MainDashboard로 돌아가도록 유도
-              // (CustomFieldAddModal의 진입점은 CreateBoardModal 내부여야 함)
+              // ⚠️ 여기서는 CustomFieldManageModal을 열지 않고, MainDashboard로 돌아가도록 유도
+              // (CustomFieldManageModal의 진입점은 CreateBoardModal 내부여야 함)
               onClick={() => alert('새 필드 추가는 보드 생성/수정 모달에서 접근해주세요.')}
               className="mt-4 w-full py-2 border-2 border-dashed border-gray-300 rounded-md text-gray-600 hover:border-blue-500 transition-colors flex items-center justify-center gap-2 text-sm"
             >
@@ -308,7 +308,7 @@ export const CustomFieldManagerModal: React.FC<CustomFieldManagerModalProps> = (
                   <div className="space-y-4 pt-4 border-t">
                     <h4 className="font-semibold">옵션 목록 ({fieldOptions.length})</h4>
 
-                    {/* 💡 [TODO] 옵션 추가 인풋 (CustomFieldAddModal에서 가져온 로직 필요) */}
+                    {/* 💡 [TODO] 옵션 추가 인풋 (CustomFieldManageModal에서 가져온 로직 필요) */}
                     <div className="p-3 border rounded-md bg-gray-50">
                       <p className="text-sm text-gray-600">옵션 추가 영역</p>
                     </div>
