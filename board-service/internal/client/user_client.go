@@ -267,70 +267,67 @@ func (c *userClient) SearchUsers(ctx context.Context, query string) ([]UserInfo,
 }
 
 // CheckWorkspaceExists checks if a workspace exists in User Service
+// Note: This now relies on ValidateWorkspaceMembership to check both existence and membership
 func (c *userClient) CheckWorkspaceExists(ctx context.Context, workspaceID string, token string) (bool, error) {
-	url := fmt.Sprintf("%s/api/workspaces/%s", c.baseURL, workspaceID)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return false, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Add Bearer token for authentication
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return false, fmt.Errorf("failed to send request to user service: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// If workspace exists, return true
-	if resp.StatusCode == http.StatusOK {
-		return true, nil
-	}
-
-	// If workspace not found, return false
-	if resp.StatusCode == http.StatusNotFound {
-		return false, nil
-	}
-
-	// Any other status is an error
-	return false, fmt.Errorf("user service returned unexpected status %d", resp.StatusCode)
+	// We don't need a separate existence check anymore
+	// ValidateWorkspaceMembership will handle both workspace existence and membership
+	return true, nil
 }
 
-// ValidateWorkspaceMembership validates if a user is a member of a workspace
-// User Service doesn't have a direct membership check endpoint, so we verify by attempting to get workspace info
-// If the user is a member, the request succeeds; otherwise, it returns 403
+// WorkspaceValidationResponse represents the response from User Service workspace validation endpoint
+type WorkspaceValidationResponse struct {
+	WorkspaceID string `json:"workspaceId"`
+	UserID      string `json:"userId"`
+	IsValid     bool   `json:"isValid"`
+}
+
+// ValidateWorkspaceMembership validates if a user has access to a workspace
+// Uses the User Service endpoint: GET /api/workspaces/{workspaceId}/validate-member/{userId}
+// Returns true if the user is a member of the workspace, false otherwise
 func (c *userClient) ValidateWorkspaceMembership(ctx context.Context, workspaceID string, userID string, token string) (bool, error) {
-	// Simply try to get the workspace - if user is a member, it will succeed
-	url := fmt.Sprintf("%s/api/workspaces/%s", c.baseURL, workspaceID)
+	// Use the new workspace validation endpoint
+	url := fmt.Sprintf("%s/api/workspaces/%s/validate-member/%s", c.baseURL, workspaceID, userID)
+
+	// Log the request details
+	fmt.Printf("[DEBUG] Calling User Service: %s\n", url)
+	fmt.Printf("[DEBUG] WorkspaceID: %s, UserID: %s\n", workspaceID, userID)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add Bearer token for authentication
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	// Add Bearer token for authentication (optional, but included for consistency)
+	if token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
 
 	resp, err := c.client.Do(req)
 	if err != nil {
+		fmt.Printf("[DEBUG] Request failed: %v\n", err)
 		return false, fmt.Errorf("failed to send request to user service: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// If user is a member, return true
-	if resp.StatusCode == http.StatusOK {
-		return true, nil
+	fmt.Printf("[DEBUG] User Service response status: %d\n", resp.StatusCode)
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := json.Marshal(resp.Body)
+		fmt.Printf("[DEBUG] Non-200 response body: %s\n", string(bodyBytes))
+		return false, fmt.Errorf("user service returned status %d", resp.StatusCode)
 	}
 
-	// If not a member or not found, return false
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
-		return false, nil
+	// Parse response
+	var validationResp WorkspaceValidationResponse
+	if err := json.NewDecoder(resp.Body).Decode(&validationResp); err != nil {
+		fmt.Printf("[DEBUG] Failed to decode response: %v\n", err)
+		return false, fmt.Errorf("failed to decode workspace validation response: %w", err)
 	}
 
-	// Any other status is an error
-	return false, fmt.Errorf("user service returned unexpected status %d", resp.StatusCode)
+	fmt.Printf("[DEBUG] Validation response: workspaceId=%s, userId=%s, isValid=%v\n",
+		validationResp.WorkspaceID, validationResp.UserID, validationResp.IsValid)
+
+	return validationResp.IsValid, nil
 }
 
 // GetWorkspace retrieves workspace information from User Service

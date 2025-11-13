@@ -11,17 +11,17 @@ import {
   Edit2,
   Trash2,
 } from 'lucide-react';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useTheme } from '../../../contexts/ThemeContext';
 import {
   CustomStageResponse,
   CustomRoleResponse,
   CustomImportanceResponse,
   BoardResponse,
-} from '../../types/board';
-import { getBoard, deleteBoard } from '../../api/board/boardService';
-import { getWorkspaceMembers } from '../../api/user/userService';
-import { WorkspaceMemberResponse } from '../../types/user';
-import { MOCK_STAGES, MOCK_ROLES, MOCK_IMPORTANCES } from '../../mocks/board';
+} from '../../../types/board';
+import { getBoard, deleteBoard } from '../../../api/board/boardService';
+import { getWorkspaceMembers } from '../../../api/user/userService';
+import { WorkspaceMemberResponse } from '../../../types/user';
+import { MOCK_STAGES, MOCK_ROLES, MOCK_IMPORTANCES } from '../../../mocks/board';
 interface BoardDetailModalProps {
   boardId: string;
   workspaceId: string;
@@ -140,7 +140,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
     setIsLoading(true);
     try {
       await deleteBoard(boardId);
-      console.log('✅ 보드 삭제 성공');
+      alert('보드가 삭제되었습니다.');
       onBoardDeleted();
       onClose();
     } catch (err: any) {
@@ -307,39 +307,6 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
               ) : (
                 <span className="text-sm text-gray-500">없음</span>
               )}
-            </div>
-          </div>
-
-          {/* Assignee and Due Date */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <User className="w-4 h-4 inline mr-1" />
-                담당자
-              </label>
-              {currentAssignee ? (
-                <div className="flex flex-wrap gap-1">
-                  <span
-                    key={currentAssignee.userId}
-                    className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full"
-                  >
-                    {/* 💡 [수정] userName이 null일 경우 대비 */}
-                    {currentAssignee.userName || currentAssignee.userId}
-                  </span>
-                </div>
-              ) : (
-                <p className="text-sm text-gray-600">없음</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <Calendar className="w-4 h-4 inline mr-1" />
-                마감일
-              </label>
-              <p className="text-sm text-gray-600">
-                {dueDate ? new Date(dueDate).toLocaleDateString('ko-KR') : '없음'}
-              </p>
             </div>
           </div>
         </div>

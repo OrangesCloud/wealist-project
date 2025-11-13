@@ -6,12 +6,17 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   getMyWorkspaces,
   createWorkspace,
-  searchWorkspaces,
   createJoinRequest,
+  getPublicWorkspaces,
 } from '../api/user/userService';
 import { Search, Plus, X, AlertCircle, Settings, LogOut } from 'lucide-react';
-import WorkspaceManagementModal from './modals/wsManager/WorkspaceManagementModal';
-import { CreateWorkspaceRequest, WorkspaceResponse, JoinRequestResponse } from '../types/user';
+import {
+  CreateWorkspaceRequest,
+  WorkspaceResponse,
+  JoinRequestResponse,
+  UserWorkspaceResponse,
+} from '../types/user';
+import WorkspaceManagementModal from '../components/modals/user/wsManager/WorkspaceManagementModal';
 
 type WorkspacePageStep = 'list' | 'create-form' | 'add-members' | 'loading';
 
@@ -27,7 +32,7 @@ const SelectWorkspacePage: React.FC = () => {
 
   // 페이지 상태
   const [step, setStep] = useState<WorkspacePageStep>('list');
-  const [workspaces, setWorkspaces] = useState<WorkspaceResponse[] | null>(null);
+  const [workspaces, setWorkspaces] = useState<UserWorkspaceResponse[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,7 +53,7 @@ const SelectWorkspacePage: React.FC = () => {
   const [_createdWorkspaceId, setCreatedWorkspaceId] = useState<string | null>(null);
 
   // 워크스페이스 관리 모달
-  const [managingWorkspace, setManagingWorkspace] = useState<WorkspaceResponse | null>(null);
+  const [managingWorkspace, setManagingWorkspace] = useState<UserWorkspaceResponse | null>(null);
 
   // 1. 초기 워크스페이스 로드/새로고침 함수
   const fetchWorkspaces = async () => {
@@ -84,7 +89,7 @@ const SelectWorkspacePage: React.FC = () => {
       setIsSearching(true);
       setError(null);
       try {
-        const results = await searchWorkspaces(query);
+        const results = await getPublicWorkspaces(query);
 
         // 내 워크스페이스에 이미 속한 항목 제외
         const myIds = new Set(workspaces?.map((w) => w.workspaceId) || []);
@@ -113,12 +118,6 @@ const SelectWorkspacePage: React.FC = () => {
     }
   };
 
-  // 2. 나의 워크스페이스 필터링 (검색 쿼리가 없는 경우만 해당)
-  const availableWorkspaces = useMemo(() => {
-    // 검색 중일 때는 내 워크스페이스 목록을 그대로 보여줍니다.
-    if (!workspaces || searchQuery.trim()) return workspaces || [];
-    return workspaces;
-  }, [searchQuery, workspaces]);
   // 4. 이메일 유효성 검사 (동일)
   const isValidEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -186,7 +185,9 @@ const SelectWorkspacePage: React.FC = () => {
   };
 
   // 7. 기존 워크스페이스 선택 (동일)
-  const handleSelectExistingWorkspace = async (workspace: WorkspaceResponse) => {
+  const handleSelectExistingWorkspace = async (workspace: UserWorkspaceResponse) => {
+    if (workspace?.role == 'PENDING') return;
+
     setIsLoading(true);
     setError(null);
     try {
@@ -226,7 +227,7 @@ const SelectWorkspacePage: React.FC = () => {
   };
 
   // 9. 워크스페이스 관리 모달 열기 (동일)
-  const handleManageWorkspace = (workspace: WorkspaceResponse) => {
+  const handleManageWorkspace = (workspace: UserWorkspaceResponse) => {
     setManagingWorkspace(workspace);
   };
 
@@ -354,7 +355,6 @@ const SelectWorkspacePage: React.FC = () => {
               </div>
             )}
 
-            {/* 💡 [OLD] 나의 워크스페이스 목록 */}
             <div className="mb-2">
               <h3 className="font-semibold text-sm text-gray-700 mb-2">
                 나의 워크스페이스 ({workspaces?.length || 0}개)
@@ -363,40 +363,47 @@ const SelectWorkspacePage: React.FC = () => {
             <div
               className={`max-h-60 overflow-y-auto border-2 ${theme.colors.border} rounded-lg mb-4`}
             >
-              {workspaces && workspaces.length > 0 ? (
+              {workspaces && workspaces?.length > 0 ? (
                 workspaces.map((ws) => (
                   <div
                     key={ws.workspaceId}
+                    aria-disabled={ws?.role === 'PENDING'}
                     onClick={() => !isLoading && handleSelectExistingWorkspace(ws)}
                     className={`w-full text-left p-4 hover:bg-blue-50 border-b border-gray-100 ${
                       theme.colors.text
                     } ${
                       theme.font.size.sm
                     } transition flex justify-between items-center last:border-b-0 ${
-                      isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      isLoading
+                        ? 'opacity-50 cursor-not-allowed'
+                        : ws?.role === 'PENDING'
+                        ? 'bg-gray-50 text-gray-400 cursor-not-allowed pointer-events-none'
+                        : 'hover:bg-blue-50 cursor-pointer'
                     }`}
                   >
                     <div>
                       <span className="font-semibold">{ws.workspaceName}</span>
                       <p className={`${theme.colors.subText} ${theme.font.size.xs}`}>
-                        {ws.workspaceDescription}
+                        {ws?.workspaceDescription}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleManageWorkspace(ws);
-                        }}
-                        className="p-2 hover:bg-gray-200 rounded-lg transition"
-                        title="워크스페이스 관리"
-                      >
-                        <Settings className="w-4 h-4 text-gray-600" />
-                      </button>
+                      {ws?.owner && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleManageWorkspace(ws);
+                          }}
+                          className="p-2 hover:bg-gray-200 rounded-lg transition"
+                          title="워크스페이스 관리"
+                        >
+                          <Settings className="w-4 h-4 text-gray-600" />
+                        </button>
+                      )}
                       <span
                         className={`${theme.colors.info} ${theme.font.size.xs} px-2 py-1 border border-blue-200 rounded`}
                       >
-                        선택
+                        {ws?.role === 'PENDING' ? '승인 대기' : '선택'}
                       </span>
                     </div>
                   </div>

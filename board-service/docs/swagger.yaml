@@ -34,10 +34,15 @@ definitions:
         type: string
       customFields:
         additionalProperties: true
-        description: Parsed custom_fields_cache
+        description: Parsed custom_fields_cache (legacy)
         type: object
       dueDate:
         type: string
+      fieldValues:
+        description: Field values with field metadata
+        items:
+          $ref: '#/definitions/dto.FieldValueWithInfo'
+        type: array
       position:
         description: Board position in view
         type: string
@@ -190,8 +195,10 @@ definitions:
       groupByFieldId:
         type: string
       isDefault:
+        description: 'Default: false (only one default view per project)'
         type: boolean
       isShared:
+        description: 'Default: true if nil (team-shared view, most common)'
         type: boolean
       name:
         maxLength: 255
@@ -275,6 +282,24 @@ definitions:
         type: boolean
       type:
         description: text, number, date, etc.
+        type: string
+    type: object
+  dto.FieldValueWithInfo:
+    properties:
+      createdAt:
+        type: string
+      displayOrder:
+        type: integer
+      fieldId:
+        type: string
+      fieldName:
+        type: string
+      fieldType:
+        type: string
+      updatedAt:
+        type: string
+      value: {}
+      valueId:
         type: string
     type: object
   dto.FieldWithOptionsResponse:
@@ -430,14 +455,8 @@ definitions:
       workspaceId:
         type: string
     type: object
-  dto.ProjectInitDataResponse:
+  dto.ProjectInitSettingsResponse:
     properties:
-      boards:
-        description: All boards in the project (sorted by position if available, otherwise
-          by createdAt)
-        items:
-          $ref: '#/definitions/dto.BoardResponse'
-        type: array
       defaultViewId:
         description: Default view ID (if exists)
         type: string
@@ -450,11 +469,6 @@ definitions:
         description: All field definitions with their options
         items:
           $ref: '#/definitions/dto.FieldWithOptionsResponse'
-        type: array
-      members:
-        description: Project members (for assignee dropdown)
-        items:
-          $ref: '#/definitions/dto.ProjectMemberBasicInfo'
         type: array
       project:
         allOf:
@@ -478,20 +492,6 @@ definitions:
       userId:
         type: string
       userName:
-        type: string
-    type: object
-  dto.ProjectMemberBasicInfo:
-    properties:
-      email:
-        type: string
-      joinedAt:
-        type: string
-      name:
-        type: string
-      role:
-        description: OWNER, ADMIN, MEMBER
-        type: string
-      userId:
         type: string
     type: object
   dto.ProjectMemberResponse:
@@ -1394,12 +1394,12 @@ paths:
       summary: Update project
       tags:
       - projects
-  /api/projects/{projectId}/init-data:
+  /api/projects/{projectId}/init-settings:
     get:
       consumes:
       - application/json
-      description: Get all data needed for initial project page load (boards, fields
-        with options, field types)
+      description: Get static configuration data needed for project initialization
+        (project info, fields with options, field types)
       parameters:
       - description: Project ID
         in: path
@@ -1416,7 +1416,7 @@ paths:
             - $ref: '#/definitions/dto.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/dto.ProjectInitDataResponse'
+                  $ref: '#/definitions/dto.ProjectInitSettingsResponse'
               type: object
         "400":
           description: Bad Request
@@ -1436,7 +1436,7 @@ paths:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Get project init data
+      summary: Get project init settings
       tags:
       - projects
   /api/projects/{projectId}/join-requests:

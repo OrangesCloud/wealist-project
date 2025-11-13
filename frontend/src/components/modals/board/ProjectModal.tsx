@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { useTheme } from '../../contexts/ThemeContext';
-import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../../contexts/ThemeContext';
+import { useAuth } from '../../../contexts/AuthContext';
 // 💡 [수정] 정적 Import로 변경하고, 토큰 인수가 제거된 함수를 사용합니다.
-import { createProject, updateProject } from '../../api/board/boardService';
+import { createProject, updateProject } from '../../../api/board/boardService';
 // 💡 [수정] types/board.ts에서 ProjectResponse를 가져옵니다.
-import { ProjectResponse } from '../../types/board';
+import { ProjectResponse } from '../../../types/board';
 
 /**
  * ProjectModal - 프로젝트 생성 및 편집을 위한 통합 모달

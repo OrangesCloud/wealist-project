@@ -8,6 +8,7 @@ import (
 	"board-service/internal/client"
 	"board-service/internal/config"
 	"board-service/internal/handler"
+	"board-service/internal/middleware"
 	"board-service/internal/repository"
 	"board-service/internal/service"
 
@@ -145,7 +146,7 @@ func (app *Application) RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 			projects.GET("", app.ProjectHandler.GetProjects)
 			projects.GET("/search", app.ProjectHandler.SearchProjects)
 			projects.GET("/:projectId", app.ProjectHandler.GetProject)
-			projects.GET("/:projectId/init-data", app.ProjectHandler.GetProjectInitData)
+			projects.GET("/:projectId/init-settings", app.ProjectHandler.GetProjectInitSettings)
 			projects.PUT("/:projectId", app.ProjectHandler.UpdateProject)
 			projects.DELETE("/:projectId", app.ProjectHandler.DeleteProject)
 

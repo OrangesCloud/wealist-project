@@ -42,8 +42,21 @@ export interface UpdateProfileRequest {
 // --- 2. 워크스페이스 DTO ---
 
 /**
- * @summary 워크스페이스 조회/생성 응답 DTO (WorkspaceResponse)
- * [API: GET /api/workspaces/all, POST /api/workspaces]
+ * @summary 워크스페이스 조회/생성 응답 DTO (UserWorkspaceResponse)
+ * [API: GET /api/workspaces/all]
+ */
+export interface UserWorkspaceResponse {
+  workspaceId: string;
+  workspaceName: string;
+  workspaceDescription: string;
+  owner: boolean;
+  role: string;
+  createdAt: string;
+}
+
+/**
+ * @summary 워크스페이스 생성 응답 DTO (WorkspaceResponse)
+ * [ POST /api/workspaces]
  */
 export interface WorkspaceResponse {
   workspaceId: string;
@@ -157,7 +170,7 @@ export interface CreateJoinRequestRequest {
  * [API: POST /api/workspaces/{workspaceId}/members/invite]
  */
 export interface InviteUserRequest {
-  userId: string;
+  query: string;
 }
 
 /**

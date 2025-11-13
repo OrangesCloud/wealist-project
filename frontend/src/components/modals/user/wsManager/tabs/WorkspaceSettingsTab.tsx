@@ -1,6 +1,6 @@
 import React from 'react';
-import { WorkspaceSettingsResponse, UpdateWorkspaceSettingsRequest } from '../../../../types/user';
-import { useTheme } from '../../../../contexts/ThemeContext';
+import { WorkspaceSettingsResponse, UpdateWorkspaceSettingsRequest } from '../../../../../types/user';
+import { useTheme } from '../../../../../contexts/ThemeContext';
 
 interface WorkspaceSettingsTabProps {
   settings: WorkspaceSettingsResponse;

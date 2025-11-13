@@ -4,17 +4,17 @@
  * [메인 셸] 데이터 로드, 상태 관리, 탭 전환을 담당
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { X, Search } from 'lucide-react';
-import { useTheme } from '../../../contexts/ThemeContext';
-import { useAuth } from '../../../contexts/AuthContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X } from 'lucide-react';
+import { useTheme } from '../../../../contexts/ThemeContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { WorkspaceSettingsTab } from './tabs/WorkspaceSettingsTab'; // 💡 분리된 컴포넌트
 import { WorkspaceMembersTab } from './tabs/WorkspaceMembersTab'; // 💡 분리된 컴포넌트
 
 // 💡 API 함수 Import
-import { getWorkspaceSettings, updateWorkspaceSettings } from '../../../api/user/userService';
+import { getWorkspaceSettings, updateWorkspaceSettings } from '../../../../api/user/userService';
 
-import { WorkspaceSettingsResponse, UpdateWorkspaceSettingsRequest } from '../../../types/user';
+import { WorkspaceSettingsResponse, UpdateWorkspaceSettingsRequest } from '../../../../types/user';
 
 interface WorkspaceManagementModalProps {
   workspaceId: string;

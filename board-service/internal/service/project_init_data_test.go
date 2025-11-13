@@ -1,9 +1,7 @@
 package service
 
 import (
-	"board-service/internal/cache"
 	"board-service/internal/domain"
-	"board-service/internal/repository"
 	"board-service/internal/testutil"
 	"testing"
 	"time"
@@ -175,9 +173,9 @@ func (m *MockViewRepository) FindDefault(projectID uuid.UUID) (*domain.SavedView
 	return args.Get(0).(*domain.SavedView), args.Error(1)
 }
 
-// ==================== GetProjectInitData Tests ====================
+// ==================== GetProjectInitSettings Tests ====================
 
-func TestProjectService_GetProjectInitData_Success(t *testing.T) {
+func TestProjectService_GetProjectInitSettings_Success(t *testing.T) {
 	// Setup
 	projectRepo := new(testutil.MockProjectRepository)
 	roleRepo := new(testutil.MockRoleRepository)
@@ -215,7 +213,6 @@ func TestProjectService_GetProjectInitData_Success(t *testing.T) {
 	ownerID := uuid.New()
 	fieldID := uuid.New()
 	optionID := uuid.New()
-	boardID := uuid.New()
 	viewID := uuid.New()
 
 	project := &domain.Project{
@@ -235,26 +232,10 @@ func TestProjectService_GetProjectInitData_Success(t *testing.T) {
 		JoinedAt:  time.Now(),
 	}
 
-	members := []domain.ProjectMember{*member}
-
 	defaultView := &domain.SavedView{
 		BaseModel: domain.BaseModel{ID: viewID},
 		ProjectID: projectID,
 		IsDefault: true,
-	}
-
-	boardOrders := []domain.UserBoardOrder{
-		{BoardID: boardID, Position: "a0"},
-	}
-
-	boards := []domain.Board{
-		{
-			BaseModel:   domain.BaseModel{ID: boardID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			ProjectID:   projectID,
-			Title:       "Test Board",
-			Description: "Test Description",
-			CreatedBy:   userID,
-		},
 	}
 
 	fields := []domain.ProjectField{
@@ -281,21 +262,12 @@ func TestProjectService_GetProjectInitData_Success(t *testing.T) {
 	// Mock expectations
 	projectRepo.On("FindByID", projectID).Return(project, nil)
 	projectRepo.On("FindMemberByUserAndProject", userID, projectID).Return(member, nil)
-	projectRepo.On("FindMembersByProject", projectID).Return(members, nil)
 	viewRepo.On("FindDefault", projectID).Return(defaultView, nil)
-	boardOrderRepo.On("FindByView", viewID, userID).Return(boardOrders, nil)
-	boardRepo.On("FindByProject", projectID, repository.BoardFilters{}, 1, 1000).Return(boards, int64(1), nil)
 	projectFieldRepo.On("FindByProject", projectID).Return(fields, nil)
 	fieldOptionRepo.On("FindByField", fieldID).Return(options, nil)
 
-	userInfoCache.On("GetUserInfo", mock.Anything, mock.Anything).Return(true, &cache.UserInfo{
-		UserID: userID.String(),
-		Name:   "Test User",
-		Email:  "test@example.com",
-	}, nil)
-
 	// When
-	result, err := service.GetProjectInitData(projectID.String(), userID.String())
+	result, err := service.GetProjectInitSettings(projectID.String(), userID.String())
 
 	// Then
 	assert.NoError(t, err)
@@ -306,12 +278,6 @@ func TestProjectService_GetProjectInitData_Success(t *testing.T) {
 	assert.Equal(t, "Test Project", result.Project.Name)
 	assert.Equal(t, "Test Description", result.Project.Description)
 	assert.False(t, result.Project.IsPublic)
-
-	// Verify boards
-	assert.Len(t, result.Boards, 1)
-	assert.Equal(t, boardID.String(), result.Boards[0].ID)
-	assert.Equal(t, "Test Board", result.Boards[0].Title)
-	assert.Equal(t, "a0", result.Boards[0].Position) // Check position from board order
 
 	// Verify fields with options
 	assert.Len(t, result.Fields, 1)
@@ -328,142 +294,43 @@ func TestProjectService_GetProjectInitData_Success(t *testing.T) {
 	assert.Equal(t, "text", result.FieldTypes[0].Type)
 	assert.Equal(t, "텍스트", result.FieldTypes[0].DisplayName)
 
-	// Verify members
-	assert.Len(t, result.Members, 1)
-	assert.Equal(t, userID.String(), result.Members[0].UserID)
-	assert.Equal(t, "Test User", result.Members[0].Name)
-	assert.Equal(t, "MEMBER", result.Members[0].Role)
-
 	// Verify default view ID
 	assert.Equal(t, viewID.String(), result.DefaultViewID)
 
 	// Verify all mocks were called
 	projectRepo.AssertExpectations(t)
-	boardRepo.AssertExpectations(t)
 	projectFieldRepo.AssertExpectations(t)
 	fieldOptionRepo.AssertExpectations(t)
 	viewRepo.AssertExpectations(t)
-	boardOrderRepo.AssertExpectations(t)
 }
 
-func TestProjectService_GetProjectInitData_BoardsSortedByPosition(t *testing.T) {
+func TestProjectService_GetProjectInitSettings_ProjectNotFound(t *testing.T) {
 	// Setup
 	projectRepo := new(testutil.MockProjectRepository)
-	roleRepo := new(testutil.MockRoleRepository)
-	fieldRepo := new(testutil.MockFieldRepository)
-	boardRepo := new(testutil.MockBoardRepository)
-	projectFieldRepo := new(MockProjectFieldRepository)
-	fieldOptionRepo := new(MockFieldOptionRepository)
-	boardOrderRepo := new(MockBoardOrderRepository)
-	viewRepo := new(MockViewRepository)
-	userClient := new(MockUserClient)
-	workspaceCache := new(MockWorkspaceCache)
-	userInfoCache := new(MockUserInfoCache)
 	logger := zaptest.NewLogger(t)
 
 	service := NewProjectService(
 		projectRepo,
-		roleRepo,
-		fieldRepo,
-		boardRepo,
-		projectFieldRepo,
-		fieldOptionRepo,
-		boardOrderRepo,
-		viewRepo,
-		userClient,
-		workspaceCache,
-		userInfoCache,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		logger,
 		nil,
 	)
 
-	// Test data
 	projectID := uuid.New()
 	userID := uuid.New()
-	viewID := uuid.New()
-	boardID1 := uuid.New()
-	boardID2 := uuid.New()
-	boardID3 := uuid.New()
 
-	project := &domain.Project{
-		BaseModel: domain.BaseModel{ID: projectID},
-		Name:      "Test Project",
-		OwnerID:   uuid.New(),
-	}
-
-	member := &domain.ProjectMember{
-		ProjectID: projectID,
-		UserID:    userID,
-	}
-
-	defaultView := &domain.SavedView{
-		BaseModel: domain.BaseModel{ID: viewID},
-		ProjectID: projectID,
-		IsDefault: true,
-	}
-
-	// Board orders: board2 has "a0", board1 has "a1", board3 has no order
-	boardOrders := []domain.UserBoardOrder{
-		{BoardID: boardID2, Position: "a0"}, // Should be first
-		{BoardID: boardID1, Position: "a1"}, // Should be second
-	}
-
-	// Boards returned in random order from DB
-	boards := []domain.Board{
-		{
-			BaseModel: domain.BaseModel{ID: boardID1, CreatedAt: time.Now().Add(-2 * time.Hour)},
-			ProjectID: projectID,
-			Title:     "Board 1",
-			CreatedBy: userID,
-		},
-		{
-			BaseModel: domain.BaseModel{ID: boardID3, CreatedAt: time.Now().Add(-1 * time.Hour)}, // Newer, no position
-			ProjectID: projectID,
-			Title:     "Board 3",
-			CreatedBy: userID,
-		},
-		{
-			BaseModel: domain.BaseModel{ID: boardID2, CreatedAt: time.Now().Add(-3 * time.Hour)},
-			ProjectID: projectID,
-			Title:     "Board 2",
-			CreatedBy: userID,
-		},
-	}
-
-	// Mock expectations
-	projectRepo.On("FindByID", projectID).Return(project, nil)
-	projectRepo.On("FindMemberByUserAndProject", userID, projectID).Return(member, nil)
-	projectRepo.On("FindMembersByProject", projectID).Return([]domain.ProjectMember{*member}, nil)
-	viewRepo.On("FindDefault", projectID).Return(defaultView, nil)
-	boardOrderRepo.On("FindByView", viewID, userID).Return(boardOrders, nil)
-	boardRepo.On("FindByProject", projectID, repository.BoardFilters{}, 1, 1000).Return(boards, int64(3), nil)
-	projectFieldRepo.On("FindByProject", projectID).Return([]domain.ProjectField{}, nil)
-
-	userInfoCache.On("GetUserInfo", mock.Anything, mock.Anything).Return(true, &cache.UserInfo{
-		UserID: userID.String(),
-		Name:   "Test User",
-		Email:  "test@example.com",
-	}, nil)
+	projectRepo.On("FindByID", projectID).Return(nil, gorm.ErrRecordNotFound)
 
 	// When
-	result, err := service.GetProjectInitData(projectID.String(), userID.String())
+	result, err := service.GetProjectInitSettings(projectID.String(), userID.String())
 
 	// Then
-	assert.NoError(t, err)
-	assert.Len(t, result.Boards, 3)
-
-	// Verify sort order: position first (a0 < a1), then no position (by createdAt)
-	assert.Equal(t, boardID2.String(), result.Boards[0].ID) // a0
-	assert.Equal(t, "a0", result.Boards[0].Position)
-
-	assert.Equal(t, boardID1.String(), result.Boards[1].ID) // a1
-	assert.Equal(t, "a1", result.Boards[1].Position)
-
-	assert.Equal(t, boardID3.String(), result.Boards[2].ID) // no position (newer createdAt)
-	assert.Equal(t, "", result.Boards[2].Position)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "프로젝트를 찾을 수 없습니다")
 }
 
-func TestProjectService_GetProjectInitData_NotProjectMember(t *testing.T) {
+func TestProjectService_GetProjectInitSettings_NotProjectMember(t *testing.T) {
 	// Setup
 	projectRepo := new(testutil.MockProjectRepository)
 	logger := zaptest.NewLogger(t)
@@ -486,7 +353,7 @@ func TestProjectService_GetProjectInitData_NotProjectMember(t *testing.T) {
 	projectRepo.On("FindMemberByUserAndProject", userID, projectID).Return(nil, gorm.ErrRecordNotFound)
 
 	// When
-	result, err := service.GetProjectInitData(projectID.String(), userID.String())
+	result, err := service.GetProjectInitSettings(projectID.String(), userID.String())
 
 	// Then
 	assert.Error(t, err)

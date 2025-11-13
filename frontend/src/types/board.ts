@@ -83,12 +83,14 @@ export interface CreateBoardRequest {
   projectId: string;
   title: string;
   content?: string;
-  assigneeId?: string; // 단일 사용자 ID
-  dueDate?: string;
-  // 레거시 필드 (백엔드 호환을 위해 유지)
   stageId?: string;
   importanceId?: string;
+  roleId?: string;
+
+  // 레거시 필드 (백엔드 호환을 위해 유지)
+  dueDate?: string;
   roleIds?: string[]; // 멀티 셀렉트
+  assigneeId?: string; // 단일 사용자 ID
 }
 
 /**
@@ -154,12 +156,14 @@ export interface FieldOptionResponse {
 
 // 💡 Mock Data 호환성 및 프론트엔드 LookUp용 타입 (FieldOptionResponse 기반)
 
-interface BaseFieldOption {
+export interface BaseFieldOption {
   label: string;
   color: string;
   displayOrder: number;
+  level?: number;
   fieldId: string; // 소속 필드 ID
   isSystemDefault: boolean;
+  description: string;
 }
 
 /**
@@ -167,7 +171,6 @@ interface BaseFieldOption {
  */
 export interface CustomStageResponse extends BaseFieldOption {
   stageId: string; // FieldOptionResponse.optionId와 동일
-  description: string;
 }
 
 /**
@@ -175,7 +178,6 @@ export interface CustomStageResponse extends BaseFieldOption {
  */
 export interface CustomRoleResponse extends BaseFieldOption {
   roleId: string; // FieldOptionResponse.optionId와 동일
-  description: string;
 }
 
 /**
@@ -183,8 +185,6 @@ export interface CustomRoleResponse extends BaseFieldOption {
  */
 export interface CustomImportanceResponse extends BaseFieldOption {
   importanceId: string; // FieldOptionResponse.optionId와 동일
-  level: number; // Importance DTO에 level이 포함되어 있다고 가정
-  description: string;
 }
 
 // =======================================================
@@ -272,8 +272,41 @@ export interface UpdateCommentRequest {
 // 💡 기존의 프론트엔드 컴포넌트에서 사용하던 타입은 BoardResponse로 대체하거나,
 //    필요에 따라 BoardResponse를 확장하여 사용합니다.
 export type Priority = 'HIGH' | 'MEDIUM' | 'LOW' | '';
+// 💡 [통합된 View/Filter 상태 인터페이스]
+export interface Column {
+  stageId: string;
+  title: string;
+  color?: string;
+  boards: BoardResponse[];
+}
+export type TLayout = 'table' | 'board' | undefined;
+export type TView = 'stage' | 'role' | 'importance' | undefined;
 
+export interface ViewState {
+  currentView?: TView;
+  searchQuery?: string;
+  filterOption?: string;
+  currentLayout?: TLayout;
+  showCompleted?: boolean;
+  sortColumn?:
+    | 'title'
+    | 'stage'
+    | 'role'
+    | 'importance'
+    | 'importance'
+    | 'assignee'
+    | 'dueDate'
+    | null;
+  sortDirection?: 'asc' | 'desc';
+}
 // --- 필드/옵션 요청 DTO ---
+
+// 💡 [추가] 룩업 데이터 인터페이스
+export interface FieldOptionsLookup {
+  stages?: CustomStageResponse[];
+  roles?: CustomRoleResponse[];
+  importances?: CustomImportanceResponse[];
+}
 
 /**
  * @summary 필드 옵션 생성 요청 (dto.CreateOptionRequest)
@@ -294,6 +327,38 @@ export interface UpdateFieldOptionRequest {
   label?: string;
   description?: string;
   color?: string;
+}
+
+// =======================================================
+// 프로젝트 초기화 데이터 DTO (Init Data)
+// =======================================================
+
+/**
+ * @summary 필드 유형 정보 (dto.FieldTypeInfo)
+ */
+export interface FieldTypeInfo {
+  type: string;
+  displayName: string;
+  description: string;
+  hasOptions: boolean;
+}
+
+/**
+ * @summary 필드 및 옵션 정보 통합 (dto.FieldWithOptionsResponse)
+ */
+export interface FieldWithOptionsResponse extends FieldResponse {
+  options: FieldOptionResponse[];
+}
+
+/**
+ * @summary 프로젝트 초기화 응답 DTO (dto.ProjectInitSettingResponse)
+ * [API: GET /api/projects/{projectId}/init-settings]
+ */
+export interface ProjectInitSettingResponse {
+  project: ProjectResponse; // Project Basic Info
+  fields: FieldWithOptionsResponse[]; // 모든 필드 정의와 그 옵션
+  fieldTypes: FieldTypeInfo[]; // 사용 가능한 필드 유형 목록
+  defaultViewId?: string;
 }
 
 /**

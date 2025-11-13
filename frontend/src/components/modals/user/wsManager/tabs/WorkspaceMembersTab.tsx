@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Search, Plus } from 'lucide-react';
-import { useTheme } from '../../../../contexts/ThemeContext';
-import { useAuth } from '../../../../contexts/AuthContext';
+import { useTheme } from '../../../../../contexts/ThemeContext';
+import { useAuth } from '../../../../../contexts/AuthContext';
 import {
   JoinRequestResponse,
   WorkspaceMemberResponse,
   WorkspaceMemberRole,
   // 💡 가상의 UserSearchResponse 타입 필요 (임시로 any 사용)
-} from '../../../../types/user'; 
+} from '../../../../../types/user';
 import {
   getWorkspaceMembers,
   getPendingMembers,
@@ -18,7 +18,7 @@ import {
   updateMemberRole,
   removeMember,
   inviteUser,
-} from '../../../../api/user/userService';
+} from '../../../../../api/user/userService';
 
 interface WorkspaceMembersTabProps {
   workspaceId: string;
@@ -97,26 +97,29 @@ export const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({
     // 백엔드 개발자에게 해당 API를 요청해야 합니다.
 
     if (inviteSearchQuery.trim().length > 0) {
-        // 임시 목업: 검색어와 ID가 같은 사용자를 선택된 것으로 간주
-        setSelectedUserId(inviteSearchQuery.trim());
-        setSearchResults([
-            { id: inviteSearchQuery, userName: '검색된 사용자', userEmail: `${inviteSearchQuery}@example.com` }
-        ]);
+      // 임시 목업: 검색어와 ID가 같은 사용자를 선택된 것으로 간주
+      setSelectedUserId(inviteSearchQuery.trim());
+      setSearchResults([
+        {
+          id: inviteSearchQuery,
+          userName: '검색된 사용자',
+          userEmail: `${inviteSearchQuery}@example.com`,
+        },
+      ]);
     } else {
-        setSearchResults([]);
-        setSelectedUserId('');
+      setSearchResults([]);
+      setSelectedUserId('');
     }
   }, [inviteSearchQuery]);
 
   useEffect(() => {
     // 💡 검색어가 변경될 때마다 검색 로직 실행 (debounce 적용 권장)
     const delayDebounceFn = setTimeout(() => {
-        // handleSearchUser(); // ⚠️ 실제 API 호출 시 주석 해제
+      // handleSearchUser(); // ⚠️ 실제 API 호출 시 주석 해제
     }, 500);
 
     return () => clearTimeout(delayDebounceFn);
   }, [inviteSearchQuery]);
-
 
   /**
    * 💡 [이름 변경] 사용자 ID를 통해 최종 초대 실행
@@ -255,7 +258,7 @@ export const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({
           {/* 1. 검색 입력창 */}
           <input
             type="text"
-            placeholder="사용자 이메일 또는 ID 검색"
+            placeholder="사용자 이메일으로 검색"
             value={inviteSearchQuery}
             onChange={(e) => setInviteSearchQuery(e.target.value)}
             className={`w-full px-3 py-2 ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.colors.card} ${theme.font.size.xs} ${theme.effects.borderRadius} focus:outline-none focus:ring-2 focus:ring-blue-500`}
@@ -264,32 +267,36 @@ export const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({
           {/* 2. 초대 버튼 (선택된 사용자가 있을 경우 활성화) */}
           <button
             // 💡 현재는 inviteSearchQuery가 userId 역할을 하도록 임시 설정
-            onClick={() => handleInviteUser(inviteSearchQuery)} 
+            onClick={() => handleInviteUser(inviteSearchQuery)}
             disabled={displayLoading || !inviteSearchQuery.trim()}
             className="px-4 py-2 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition disabled:opacity-50 font-semibold"
           >
             초대
           </button>
         </div>
-        
+
         {/* 3. 검색 결과 드롭다운 (현재는 임시 UI) */}
         {searchResults.length > 0 && (
-            <div className={`absolute z-10 w-full mt-1 ${theme.colors.card} border ${theme.colors.border} rounded-md shadow-lg max-h-40 overflow-y-auto`}>
-                {searchResults.map((user) => (
-                    <div
-                        key={user.id}
-                        onClick={() => {
-                            setSelectedUserId(user.id);
-                            setInviteSearchQuery(user.id); // 선택된 ID로 검색창 업데이트 (선택 완료 시)
-                            setSearchResults([]); // 드롭다운 닫기
-                        }}
-                        className={`p-3 cursor-pointer hover:bg-gray-100 ${selectedUserId === user.id ? 'bg-blue-50' : ''}`}
-                    >
-                        <p className="text-sm font-medium">{user.userName}</p>
-                        <p className="text-xs text-gray-500">{user.userEmail}</p>
-                    </div>
-                ))}
-            </div>
+          <div
+            className={`absolute z-10 w-full mt-1 ${theme.colors.card} border ${theme.colors.border} rounded-md shadow-lg max-h-40 overflow-y-auto`}
+          >
+            {searchResults.map((user) => (
+              <div
+                key={user.id}
+                onClick={() => {
+                  setSelectedUserId(user.id);
+                  setInviteSearchQuery(user.id); // 선택된 ID로 검색창 업데이트 (선택 완료 시)
+                  setSearchResults([]); // 드롭다운 닫기
+                }}
+                className={`p-3 cursor-pointer hover:bg-gray-100 ${
+                  selectedUserId === user.id ? 'bg-blue-50' : ''
+                }`}
+              >
+                <p className="text-sm font-medium">{user.userName}</p>
+                <p className="text-xs text-gray-500">{user.userEmail}</p>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"sort"
 	"strings"
 	"time"
 
@@ -27,8 +26,8 @@ type ProjectService interface {
 	DeleteProject(projectID, userID string) error
 	SearchProjects(userID string, token string, req *dto.SearchProjectsRequest) (*dto.PaginatedProjectsResponse, error)
 
-	// Init Data
-	GetProjectInitData(projectID, userID string) (*dto.ProjectInitDataResponse, error)
+	// Init Settings
+	GetProjectInitSettings(projectID, userID string) (*dto.ProjectInitSettingsResponse, error)
 
 	// Join Request
 	CreateJoinRequest(userID string, token string, req *dto.CreateProjectJoinRequestRequest) (*dto.ProjectJoinRequestResponse, error)
@@ -698,20 +697,36 @@ func (s *projectService) RemoveMember(projectID, memberID, requestUserID string)
 
 // validateWorkspaceMembership checks workspace membership with caching
 func (s *projectService) validateWorkspaceMembership(ctx context.Context, workspaceID, userID, token string) error {
-	// Try cache first
-	cacheExists, isMember, err := s.workspaceCache.GetMembership(ctx, workspaceID, userID)
-	if err != nil {
-		s.logger.Warn("Failed to get workspace membership from cache", zap.Error(err))
-		// Continue to User Service call on cache error
-	}
+	// TODO: Temporarily skip cache for debugging
+	s.logger.Info("Skipping cache, calling User Service directly for debugging",
+		zap.String("workspace_id", workspaceID),
+		zap.String("user_id", userID))
 
-	if cacheExists {
-		// Cache hit
-		if !isMember {
-			return apperrors.New(apperrors.ErrCodeWorkspaceAccessDenied, "워크스페이스 멤버가 아닙니다", 403)
-		}
-		return nil
-	}
+	var isMember bool
+	var err error
+
+	// Try cache first (commented out for debugging)
+	// cacheExists, isMember, err := s.workspaceCache.GetMembership(ctx, workspaceID, userID)
+	// if err != nil {
+	// 	s.logger.Warn("Failed to get workspace membership from cache", zap.Error(err))
+	// 	// Continue to User Service call on cache error
+	// }
+
+	// if cacheExists {
+	// 	// Cache hit
+	// 	s.logger.Info("Cache hit for workspace membership",
+	// 		zap.String("workspace_id", workspaceID),
+	// 		zap.String("user_id", userID),
+	// 		zap.Bool("is_member", isMember))
+	// 	if !isMember {
+	// 		return apperrors.New(apperrors.ErrCodeWorkspaceAccessDenied, "워크스페이스 멤버가 아닙니다", 403)
+	// 	}
+	// 	return nil
+	// }
+
+	// s.logger.Info("Cache miss for workspace membership, calling User Service",
+	// 	zap.String("workspace_id", workspaceID),
+	// 	zap.String("user_id", userID))
 
 	// Cache miss - validate via User Service
 	// First check if workspace exists
@@ -725,11 +740,18 @@ func (s *projectService) validateWorkspaceMembership(ctx context.Context, worksp
 	}
 
 	// Check membership
+	s.logger.Info("Validating workspace membership via User Service",
+		zap.String("workspace_id", workspaceID),
+		zap.String("user_id", userID))
 	isMember, err = s.userClient.ValidateWorkspaceMembership(ctx, workspaceID, userID, token)
 	if err != nil {
 		s.logger.Error("Failed to validate workspace membership", zap.Error(err), zap.String("workspace_id", workspaceID), zap.String("user_id", userID))
 		return apperrors.Wrap(err, apperrors.ErrCodeWorkspaceValidationFailed, "워크스페이스 멤버십 확인 실패", 500)
 	}
+	s.logger.Info("Workspace membership validation result",
+		zap.String("workspace_id", workspaceID),
+		zap.String("user_id", userID),
+		zap.Bool("is_member", isMember))
 
 	// Cache the result
 	if cacheErr := s.workspaceCache.SetMembership(ctx, workspaceID, userID, isMember); cacheErr != nil {
@@ -738,6 +760,9 @@ func (s *projectService) validateWorkspaceMembership(ctx context.Context, worksp
 	}
 
 	if !isMember {
+		s.logger.Warn("User is not a member of workspace",
+			zap.String("workspace_id", workspaceID),
+			zap.String("user_id", userID))
 		return apperrors.New(apperrors.ErrCodeWorkspaceAccessDenied, "워크스페이스 멤버가 아닙니다", 403)
 	}
 
@@ -1079,8 +1104,8 @@ func (s *projectService) initializeDefaultFields(projectID uuid.UUID) error {
 	return nil
 }
 
-// GetProjectInitData retrieves all data needed for initial project page load
-func (s *projectService) GetProjectInitData(projectID, userID string) (*dto.ProjectInitDataResponse, error) {
+// GetProjectInitSettings retrieves static configuration data needed for project initialization
+func (s *projectService) GetProjectInitSettings(projectID, userID string) (*dto.ProjectInitSettingsResponse, error) {
 	projectUUID, err := uuid.Parse(projectID)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 프로젝트 ID", 400)
@@ -1090,8 +1115,6 @@ func (s *projectService) GetProjectInitData(projectID, userID string) (*dto.Proj
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeBadRequest, "잘못된 사용자 ID", 400)
 	}
-
-	ctx := context.Background()
 
 	// 1. Fetch project information
 	project, err := s.repo.FindByID(projectUUID)
@@ -1111,44 +1134,21 @@ func (s *projectService) GetProjectInitData(projectID, userID string) (*dto.Proj
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 확인 실패", 500)
 	}
 
-	// 3. Fetch members
-	members, err := s.repo.FindMembersByProject(projectUUID)
-	if err != nil {
-		s.logger.Error("Failed to fetch members", zap.Error(err))
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "멤버 조회 실패", 500)
-	}
-
-	// 4. Fetch default view (if exists)
+	// 3. Fetch default view ID (if exists)
 	var defaultViewID string
-	var boardOrderMap map[uuid.UUID]string
 	defaultView, err := s.viewRepo.FindDefault(projectUUID)
 	if err == nil && defaultView != nil {
 		defaultViewID = defaultView.ID.String()
-		// Fetch board orders for default view
-		orders, err := s.boardOrderRepo.FindByView(defaultView.ID, userUUID)
-		if err == nil {
-			boardOrderMap = make(map[uuid.UUID]string, len(orders))
-			for _, order := range orders {
-				boardOrderMap[order.BoardID] = order.Position
-			}
-		}
 	}
 
-	// 5. Fetch boards
-	boards, _, err := s.boardRepo.FindByProject(projectUUID, repository.BoardFilters{}, 1, 1000)
-	if err != nil {
-		s.logger.Error("Failed to fetch boards", zap.Error(err))
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "보드 조회 실패", 500)
-	}
-
-	// 6. Fetch fields
+	// 4. Fetch fields
 	fields, err := s.projectFieldRepo.FindByProject(projectUUID)
 	if err != nil {
 		s.logger.Error("Failed to fetch fields", zap.Error(err))
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "필드 조회 실패", 500)
 	}
 
-	// 7. Fetch options for each field and build response
+	// 5. Fetch options for each field and build response
 	fieldsWithOptions := make([]dto.FieldWithOptionsResponse, 0, len(fields))
 	for _, field := range fields {
 		// Get field options
@@ -1202,117 +1202,7 @@ func (s *projectService) GetProjectInitData(projectID, userID string) (*dto.Proj
 		})
 	}
 
-	// 8. Convert boards to DTO with position
-	type boardWithPosition struct {
-		response dto.BoardResponse
-		position string
-		hasOrder bool
-	}
-
-	boardsWithPos := make([]boardWithPosition, 0, len(boards))
-	for _, board := range boards {
-		// Get user info for assignee and author
-		var assigneeInfo *dto.UserInfo
-		if board.AssigneeID != nil {
-			assigneeInfo, _ = s.getUserInfoWithCache(ctx, board.AssigneeID.String())
-		}
-
-		authorInfo, err := s.getUserInfoWithCache(ctx, board.CreatedBy.String())
-		if err != nil {
-			s.logger.Warn("Failed to fetch author info", zap.String("userID", board.CreatedBy.String()))
-			authorInfo = &dto.UserInfo{
-				UserID: board.CreatedBy.String(),
-				Name:   "Unknown",
-				Email:  "",
-			}
-		}
-
-		// Parse custom_fields_cache
-		var customFields map[string]interface{}
-		if board.CustomFieldsCache != "" && board.CustomFieldsCache != "{}" {
-			if err := json.Unmarshal([]byte(board.CustomFieldsCache), &customFields); err != nil {
-				customFields = make(map[string]interface{})
-			}
-		}
-
-		// Get position from boardOrderMap
-		position, hasOrder := "", false
-		if boardOrderMap != nil {
-			if pos, ok := boardOrderMap[board.ID]; ok {
-				position = pos
-				hasOrder = true
-			}
-		}
-
-		boardResponse := dto.BoardResponse{
-			ID:           board.ID.String(),
-			ProjectID:    board.ProjectID.String(),
-			Title:        board.Title,
-			Content:      board.Description,
-			Assignee:     assigneeInfo,
-			Author:       *authorInfo,
-			DueDate:      board.DueDate,
-			CreatedAt:    board.CreatedAt,
-			UpdatedAt:    board.UpdatedAt,
-			CustomFields: customFields,
-			Position:     position,
-		}
-
-		boardsWithPos = append(boardsWithPos, boardWithPosition{
-			response: boardResponse,
-			position: position,
-			hasOrder: hasOrder,
-		})
-	}
-
-	// 9. Sort boards: ordered first (by position), then unordered (by createdAt)
-	sort.Slice(boardsWithPos, func(i, j int) bool {
-		// Both have order: compare by position (lexicographically)
-		if boardsWithPos[i].hasOrder && boardsWithPos[j].hasOrder {
-			return boardsWithPos[i].position < boardsWithPos[j].position
-		}
-		// Only i has order: i comes first
-		if boardsWithPos[i].hasOrder {
-			return true
-		}
-		// Only j has order: j comes first
-		if boardsWithPos[j].hasOrder {
-			return false
-		}
-		// Neither has order: sort by createdAt
-		return boardsWithPos[i].response.CreatedAt.Before(boardsWithPos[j].response.CreatedAt)
-	})
-
-	boardResponses := make([]dto.BoardResponse, 0, len(boardsWithPos))
-	for _, bwp := range boardsWithPos {
-		boardResponses = append(boardResponses, bwp.response)
-	}
-
-	// 10. Convert members to DTO
-	memberResponses := make([]dto.ProjectMemberBasicInfo, 0, len(members))
-	for _, member := range members {
-		userInfo, err := s.getUserInfoWithCache(ctx, member.UserID.String())
-		if err != nil {
-			s.logger.Warn("Failed to fetch member user info", zap.String("userID", member.UserID.String()))
-			// Skip members whose user info can't be fetched
-			continue
-		}
-
-		roleName := "MEMBER"
-		if member.Role != nil {
-			roleName = member.Role.Name
-		}
-
-		memberResponses = append(memberResponses, dto.ProjectMemberBasicInfo{
-			UserID:   member.UserID.String(),
-			Name:     userInfo.Name,
-			Email:    userInfo.Email,
-			Role:     roleName,
-			JoinedAt: member.JoinedAt.Format(time.RFC3339),
-		})
-	}
-
-	// 11. Build field type info
+	// 6. Build field type info
 	fieldTypes := []dto.FieldTypeInfo{
 		{Type: "text", DisplayName: "텍스트", Description: "짧은 텍스트 입력", HasOptions: false},
 		{Type: "number", DisplayName: "숫자", Description: "숫자 입력", HasOptions: false},
@@ -1326,8 +1216,8 @@ func (s *projectService) GetProjectInitData(projectID, userID string) (*dto.Proj
 		{Type: "url", DisplayName: "URL", Description: "웹 링크", HasOptions: false},
 	}
 
-	// 12. Build response
-	return &dto.ProjectInitDataResponse{
+	// 7. Build response
+	return &dto.ProjectInitSettingsResponse{
 		Project: dto.ProjectBasicInfo{
 			ProjectID:   project.ID.String(),
 			Name:        project.Name,
@@ -1338,10 +1228,8 @@ func (s *projectService) GetProjectInitData(projectID, userID string) (*dto.Proj
 			CreatedAt:   project.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:   project.UpdatedAt.Format(time.RFC3339),
 		},
-		Boards:        boardResponses,
 		Fields:        fieldsWithOptions,
 		FieldTypes:    fieldTypes,
-		Members:       memberResponses,
 		DefaultViewID: defaultViewID,
 	}, nil
 }

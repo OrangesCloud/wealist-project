@@ -11,6 +11,7 @@ import {
   WorkspaceSettingsResponse,
   JoinRequestResponse,
   InviteUserRequest,
+  UserWorkspaceResponse,
   // UpdateWorkspaceRequest DTO가 명시되지 않아 임시로 구조를 정의함
 } from '../../types/user';
 import { userRepoClient } from '../apiConfig';
@@ -24,30 +25,25 @@ import { AxiosResponse } from 'axios';
  * 워크스페이스 목록 조회 (현재 사용자가 속한 모든 워크스페이스)
  * [API] GET /api/workspaces/all
  */
-export const getMyWorkspaces = async (): Promise<WorkspaceResponse[]> => {
-  const response: AxiosResponse<WorkspaceResponse[]> = await userRepoClient.get(
+export const getMyWorkspaces = async (): Promise<UserWorkspaceResponse[]> => {
+  const response: AxiosResponse<UserWorkspaceResponse[]> = await userRepoClient.get(
     '/api/workspaces/all',
   );
+  console.log(response.data);
   return response.data;
 };
 
 /**
- * 퍼블릭 워크스페이스 목록 조회
- * [API] GET /api/workspaces
+ * 퍼블릭 워크스페이스 목록 조회 (GET /api/workspaces/public/{workspaceName})
+ * (참고: API 설명에 따르면 '퍼블릭 워크스페이스 검색'이 목적이므로,
+ * path parameter인 workspaceName을 검색어로 사용하여 필터링하는 것으로 해석됩니다.)
+ *
+ * @param workspaceName 검색/필터링할 워크스페이스 이름
+ * @returns WorkspaceResponse 배열을 담은 Promise
  */
-export const getPublicWorkspaces = async (): Promise<WorkspaceResponse[]> => {
-  const response: AxiosResponse<WorkspaceResponse[]> = await userRepoClient.get('/api/workspaces');
-  return response.data;
-};
-
-/**
- * 워크스페이스 검색
- * [API] GET /api/workspaces/search?query={query}
- */
-export const searchWorkspaces = async (query: string): Promise<WorkspaceResponse[]> => {
+export const getPublicWorkspaces = async (workspaceName: string): Promise<WorkspaceResponse[]> => {
   const response: AxiosResponse<WorkspaceResponse[]> = await userRepoClient.get(
-    '/api/workspaces/search',
-    { params: { query } },
+    `/api/workspaces/public/${workspaceName}`,
   );
   return response.data;
 };
@@ -182,9 +178,9 @@ export const rejectMember = async (workspaceId: string, userId: string): Promise
  */
 export const inviteUser = async (
   workspaceId: string,
-  userId: string,
+  query: string,
 ): Promise<WorkspaceMemberResponse> => {
-  const data: InviteUserRequest = { userId };
+  const data: InviteUserRequest = { query };
 
   const response: AxiosResponse<{ data: WorkspaceMemberResponse }> = await userRepoClient.post(
     `/api/workspaces/${workspaceId}/members/invite`,
@@ -243,11 +239,12 @@ export const getJoinRequests = async (
  */
 export const createJoinRequest = async (workspaceId: string): Promise<JoinRequestResponse> => {
   const data = { workspaceId };
-  const response: AxiosResponse<{ data: JoinRequestResponse }> = await userRepoClient.post(
+  const response: AxiosResponse<JoinRequestResponse> = await userRepoClient.post(
     '/api/workspaces/join-requests',
     data,
   );
-  return response.data.data; // data 필드 추출
+  console.log(response.data);
+  return response.data; // data 필드 추출
 };
 
 // ========================================

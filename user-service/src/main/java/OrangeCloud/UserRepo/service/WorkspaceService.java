@@ -17,9 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -86,41 +84,6 @@ public class WorkspaceService {
         return convertToWorkspaceResponse(savedWorkspace, creator, creatorProfile);
     }
 
-    /**
-     * 테스트용 또는 신규 가입 사용자를 위한 기본 Workspace 생성
-     */
-//    public UUID createDefaultWorkspaceForUser(User user) {
-//        log.info("Creating default workspace for user: {}", user.getUserId());
-//
-//        String defaultWorkspaceName = user.getNickName() != null && !user.getNickName().isEmpty() ?
-//                user.getNickName() + "'s Workspace" :
-//                user.getEmail().split("@")[0] + "'s Workspace";
-//
-//        Workspace workspace = Workspace.builder()
-//                .ownerId(user.getUserId())
-//                .workspaceName(defaultWorkspaceName)
-//                .workspaceDescription("Default personal workspace")
-//                .isPublic(false) // 기본적으로 비공개
-//                .needApproved(false) // 승인 필요 없음
-//                .isActive(true)
-//                .build();
-//
-//        Workspace savedWorkspace = workspaceRepository.save(workspace);
-//        log.info("Default workspace created: workspaceId={}", savedWorkspace.getWorkspaceId());
-//
-//        WorkspaceMember ownerMember = WorkspaceMember.builder()
-//                .workspaceId(savedWorkspace.getWorkspaceId())
-//                .userId(user.getUserId())
-//                .role(WorkspaceMember.WorkspaceRole.OWNER)
-//                .isDefault(true)
-//                .isActive(true)
-//                .build();
-//
-//        workspaceMemberRepository.save(ownerMember);
-//        log.info("User {} added as OWNER of default workspace {}", user.getUserId(), savedWorkspace.getWorkspaceId());
-//
-//        return savedWorkspace.getWorkspaceId();
-//    }
 
     /**
      * Workspace 정보 수정 (OWNER만)
@@ -243,107 +206,82 @@ public class WorkspaceService {
     // ============================================================================
 
     /**
-     * Workspace 조회 (멤버만 가능)
+     * 사용자의 모든 Workspace 조회 (멤버,owner 가능)
+     * 워크스페이스 , 설명, 가입 상태, 역할
      */
+    //사용자가 갖고있는 모든 워크스페이스, 신청
     @Transactional(readOnly = true)
-    public WorkspaceResponse getWorkspace(UUID workspaceId, UUID requesterId) {
-        log.debug("Fetching workspace: workspaceId={}", workspaceId);
+    public List<UserWorkspaceResponse> getUserWorkspaces(UUID userId) {
+        log.debug("Fetching workspaces for user: userId={}", userId);
 
-        checkWorkspaceMember(workspaceId, requesterId);
+        // 1️⃣ 가입한 워크스페이스 (WorkspaceMember)
+        List<WorkspaceMember> activeMemberships = workspaceMemberRepository.findActiveByUserId(userId);
 
-        Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> {
-                    log.warn("Workspace not found: {}", workspaceId);
-                    return new IllegalArgumentException("Workspace not found");
-                });
+        // 2️⃣ 신청한 워크스페이스 (WorkspaceJoinRequest)
+        List<WorkspaceJoinRequest> approvedOrPendingRequests = workspaceJoinRequestRepository
+                .findByUserIdAndStatusIn(userId, List.of(
+                        WorkspaceJoinRequest.JoinRequestStatus.APPROVED,
+                        WorkspaceJoinRequest.JoinRequestStatus.PENDING
+                ));
 
-        WorkspaceMember ownerMember = workspaceMemberRepository.findOwnerByWorkspaceId(workspaceId)
-                .orElseThrow(() -> {
-                    log.warn("Workspace owner not found: {}", workspaceId);
-                    return new IllegalArgumentException("Workspace owner not found");
-                });
+        // 3️⃣ 워크스페이스 ID 합치기
+        Set<UUID> workspaceIds = new HashSet<>();
+        activeMemberships.forEach(member -> workspaceIds.add(member.getWorkspaceId()));
+        approvedOrPendingRequests.forEach(req -> workspaceIds.add(req.getWorkspaceId()));
 
-        User owner = userRepository.findById(ownerMember.getUserId())
-                .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다."));
+        // 4️⃣ Workspace + 상태정보 변환
+        return workspaceIds.stream()
+                .map(workspaceId -> {
+                    Workspace workspace = workspaceRepository.findById(workspaceId)
+                            .orElseThrow(() -> new IllegalArgumentException("Workspace not found: " + workspaceId));
 
-        UserProfile ownerProfile = userProfileRepository.findByUserId(ownerMember.getUserId())
-                .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
+                    // 기본 role은 "UNKNOWN"
+                    String role = "UNKNOWN";
+                    boolean isOwner = workspace.getOwnerId().equals(userId);
 
-        return convertToWorkspaceResponse(workspace, owner, ownerProfile);
+                    // ✅ Owner인 경우
+                    if (isOwner) {
+                        role = "OWNER";
+                    }
+                    // ✅ 멤버로 등록된 경우
+                    else {
+                        Optional<WorkspaceMember> membership = activeMemberships.stream()
+                                .filter(m -> m.getWorkspaceId().equals(workspaceId))
+                                .findFirst();
+
+                        if (membership.isPresent()) {
+                            role = membership.get().getRole().name(); // MEMBER / ADMIN 등
+                        } else {
+                            // ✅ 가입 신청 중인 경우
+                            Optional<WorkspaceJoinRequest> request = approvedOrPendingRequests.stream()
+                                    .filter(r -> r.getWorkspaceId().equals(workspaceId))
+                                    .findFirst();
+                            if (request.isPresent()) {
+                                role = request.get().getStatus().name(); // APPROVED / PENDING 등
+                            }
+                        }
+                    }
+
+                    return UserWorkspaceResponse.builder()
+                            .workspaceId(workspace.getWorkspaceId())
+                            .workspaceName(workspace.getWorkspaceName())
+                            .workspaceDescription(workspace.getWorkspaceDescription())
+                            .createdAt(workspace.getCreatedAt())
+                            .role(role)
+                            .isOwner(isOwner)
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
-    @Transactional(readOnly = true)
-    public WorkspaceResponse getWorkspaceByQuery(String workspaceName,UUID workspaceId, UUID requesterId) {
-        log.debug("Fetching workspace: workspaceId={}", workspaceId);
 
-        checkWorkspaceMember(workspaceId, requesterId);
 
-        Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> {
-                    log.warn("Workspace not found: {}", workspaceId);
-                    return new IllegalArgumentException("Workspace not found");
-                });
 
-        WorkspaceMember ownerMember = workspaceMemberRepository.findOwnerByWorkspaceId(workspaceId)
-                .orElseThrow(() -> {
-                    log.warn("Workspace owner not found: {}", workspaceId);
-                    return new IllegalArgumentException("Workspace owner not found");
-                });
-
-        User owner = userRepository.findById(ownerMember.getUserId())
-                .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다."));
-
-        UserProfile ownerProfile = userProfileRepository.findByUserId(ownerMember.getUserId())
-                .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
-
-        return convertToWorkspaceResponse(workspace, owner, ownerProfile);
-    }
 
     /**
-     * 사용자가 속한 모든 Workspace 조회
+     * 이름에 해당하는 모든 public Workspace 조회
+     * 이름 없으면 다 가져옴
      */
-    @Transactional(readOnly = true)
-    public List<WorkspaceResponse> getUserWorkspaces(UUID userId) {
-        log.debug("Fetching workspaces for user: userId={}", userId);
-
-        List<WorkspaceMember> members = workspaceMemberRepository.findActiveByUserId(userId);
-
-        return members.stream()
-                .map(member -> {
-                    Workspace workspace = workspaceRepository.findById(member.getWorkspaceId())
-                            .orElseThrow(() -> new IllegalArgumentException("Workspace not found"));
-                    WorkspaceMember owner = workspaceMemberRepository.findOwnerByWorkspaceId(member.getWorkspaceId())
-                            .orElseThrow(() -> new IllegalArgumentException("Workspace owner not found"));
-                    User ownerUser = userRepository.findById(owner.getUserId())
-                            .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다."));
-                    UserProfile ownerProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, ownerUser.getUserId())
-                            .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
-                    return convertToWorkspaceResponse(workspace, ownerUser, ownerProfile);
-                })
-                .collect(Collectors.toList());
-    }
-
-
-    @Transactional(readOnly = true)
-    public List<WorkspaceResponse> SearchgetUserWorkspaces(UUID userId) {
-        log.debug("Fetching workspaces for user: userId={}", userId);
-
-        List<WorkspaceMember> members = workspaceMemberRepository.findActiveByUserId(userId);
-
-        return members.stream()
-                .map(member -> {
-                    Workspace workspace = workspaceRepository.findById(member.getWorkspaceId())
-                            .orElseThrow(() -> new IllegalArgumentException("Workspace not found"));
-                    WorkspaceMember owner = workspaceMemberRepository.findOwnerByWorkspaceId(member.getWorkspaceId())
-                            .orElseThrow(() -> new IllegalArgumentException("Workspace owner not found"));
-                    User ownerUser = userRepository.findById(owner.getUserId())
-                            .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다."));
-                    UserProfile ownerProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, ownerUser.getUserId())
-                            .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
-                    return convertToWorkspaceResponse(workspace, ownerUser, ownerProfile);
-                })
-                .collect(Collectors.toList());
-    }
-
+    // 이름에 해당하는 모든 워크스페이스 가져오기
     @Transactional(readOnly = true)
     public List<WorkspaceResponse> searchPublicWorkspaces(String query) {
         log.debug("Searching public workspaces with query: {}", query);
@@ -351,25 +289,60 @@ public class WorkspaceService {
         List<Workspace> publicWorkspaces;
 
         if (query != null && !query.trim().isEmpty()) {
-            // 쿼리가 있는 경우 이름으로 검색
-            publicWorkspaces = workspaceRepository.findPublicWorkspacesByNameContaining(query.trim());
+            // 이름으로 검색된 공개 워크스페이스 조회
+            publicWorkspaces = workspaceRepository.findAllPublicWorkspacesByNameContaining(query.trim());
         } else {
-            // 쿼리가 없는 경우 모든 공개 워크스페이스 조회
+            // 모든 공개 워크스페이스 조회
             publicWorkspaces = workspaceRepository.findAllPublicWorkspaces();
         }
 
+        // owner 정보 없이 WorkspaceResponse로 변환
         return publicWorkspaces.stream()
+                .map(workspace -> WorkspaceResponse.builder()
+                        .workspaceId(workspace.getWorkspaceId())
+                        .workspaceName(workspace.getWorkspaceName())
+                        .needApproved(workspace.getNeedApproved())
+                        .workspaceDescription(workspace.getWorkspaceDescription())
+                        .createdAt(workspace.getCreatedAt())
+
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * owner인 모든 워크스페이스 조회
+     *
+     */
+    //사용자 owner 등급 모든 워크스페이스 query 없으면 모든 워크스페이스 가져옴 private도
+    @Transactional(readOnly = true)
+    public List<WorkspaceResponse> getWorkspacesByOwner(UUID ownerId, String query) {
+        log.debug("Fetching workspaces created by ownerId={} with query={}", ownerId, query);
+
+        // 1️⃣ 한 번만 owner 조회
+        User ownerUser = userRepository.findById(ownerId)
+                .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다."));
+
+        List<Workspace> workspaces;
+
+        // 2️⃣ 조건 분기
+        if (query != null && !query.trim().isEmpty()) {
+            workspaces = workspaceRepository.findByOwnerIdAndWorkspaceNameContainingIgnoreCase(ownerId, query.trim());
+        } else {
+            workspaces = workspaceRepository.findByOwnerId(ownerId);
+        }
+
+        // 3️⃣ 변환
+        return workspaces.stream()
                 .map(workspace -> {
-                    WorkspaceMember owner = workspaceMemberRepository.findOwnerByWorkspaceId(workspace.getWorkspaceId())
-                            .orElseThrow(() -> new IllegalArgumentException("Workspace owner not found"));
-                    User ownerUser = userRepository.findById(owner.getUserId())
-                            .orElseThrow(() -> new UserNotFoundException("사용자를 찾을 수 없습니다."));
-                    UserProfile ownerProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, ownerUser.getUserId())
+                    UserProfile ownerProfile = userProfileRepository.findByWorkspaceIdAndUserId(workspace.getWorkspaceId(), ownerId)
                             .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
+
                     return convertToWorkspaceResponse(workspace, ownerUser, ownerProfile);
                 })
                 .collect(Collectors.toList());
     }
+
+
 
     /**
      * 기본 Workspace 설정
@@ -401,7 +374,7 @@ public class WorkspaceService {
     // ============================================================================
 
     /**
-     * 워크스페이스에 사용자 초대
+     * 워크스페이스에 이메일 기반 사용자 초대
      */
     @Transactional
     public WorkspaceMemberResponse inviteUser(UUID workspaceId, InviteUserRequest request, UUID requesterId) {
@@ -557,7 +530,7 @@ public class WorkspaceService {
             throw new IllegalArgumentException("User is already a member of this workspace");
         }
 
-        // TODO: 이미 PENDING 상태의 요청이 있는지 확인하는 로직 추가 필요
+
 
         WorkspaceJoinRequest request = WorkspaceJoinRequest.builder()
                 .workspaceId(workspaceId)
@@ -717,6 +690,32 @@ public class WorkspaceService {
 
 
     // ============================================================================
+    // 워크스페이스 접근 확인 (Public API for Board Service)
+    // ============================================================================
+
+    /**
+     * 워크스페이스 접근 권한 확인 (Board Service용 Public API)
+     */
+    @Transactional(readOnly = true)
+    public boolean validateWorkspaceAccess(UUID workspaceId, UUID userId) {
+        log.info("Validating workspace access: workspaceId={}, userId={}", workspaceId, userId);
+
+        // 워크스페이스 존재 여부 확인
+        boolean workspaceExists = workspaceRepository.existsById(workspaceId);
+        log.info("Workspace exists check: workspaceId={}, exists={}", workspaceId, workspaceExists);
+        if (!workspaceExists) {
+            log.warn("Workspace not found: workspaceId={}", workspaceId);
+            return false;
+        }
+
+        // 사용자가 워크스페이스 멤버인지 확인
+        boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId);
+        log.info("Workspace membership check: workspaceId={}, userId={}, isMember={}", workspaceId, userId, isMember);
+        log.info("Workspace access validation result: workspaceId={}, userId={}, isValid={}", workspaceId, userId, isMember);
+        return isMember;
+    }
+
+    // ============================================================================
     // 권한 확인 (Private Methods)
     // ============================================================================
 
@@ -847,4 +846,5 @@ public class WorkspaceService {
                 .updatedAt(request.getUpdatedAt())
                 .build();
     }
+
 }
