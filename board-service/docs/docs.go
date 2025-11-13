@@ -1281,14 +1281,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/projects/{projectId}/init-data": {
+        "/api/projects/{projectId}/init-settings": {
             "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get all data needed for initial project page load (boards, fields with options, field types)",
+                "description": "Get static configuration data needed for project initialization (project info, fields with options, field types)",
                 "consumes": [
                     "application/json"
                 ],
@@ -1298,7 +1298,7 @@ const docTemplate = `{
                 "tags": [
                     "projects"
                 ],
-                "summary": "Get project init data",
+                "summary": "Get project init settings",
                 "parameters": [
                     {
                         "type": "string",
@@ -1320,7 +1320,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/dto.ProjectInitDataResponse"
+                                            "$ref": "#/definitions/dto.ProjectInitSettingsResponse"
                                         }
                                     }
                                 }
@@ -3308,12 +3308,19 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "customFields": {
-                    "description": "Parsed custom_fields_cache",
+                    "description": "Parsed custom_fields_cache (legacy)",
                     "type": "object",
                     "additionalProperties": true
                 },
                 "dueDate": {
                     "type": "string"
+                },
+                "fieldValues": {
+                    "description": "Field values with field metadata",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.FieldValueWithInfo"
+                    }
                 },
                 "position": {
                     "description": "Board position in view",
@@ -3533,9 +3540,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "isDefault": {
+                    "description": "Default: false (only one default view per project)",
                     "type": "boolean"
                 },
                 "isShared": {
+                    "description": "Default: true if nil (team-shared view, most common)",
                     "type": "boolean"
                 },
                 "name": {
@@ -3654,6 +3663,33 @@ const docTemplate = `{
                 },
                 "type": {
                     "description": "text, number, date, etc.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.FieldValueWithInfo": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "displayOrder": {
+                    "type": "integer"
+                },
+                "fieldId": {
+                    "type": "string"
+                },
+                "fieldName": {
+                    "type": "string"
+                },
+                "fieldType": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "value": {},
+                "valueId": {
                     "type": "string"
                 }
             }
@@ -3886,16 +3922,9 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ProjectInitDataResponse": {
+        "dto.ProjectInitSettingsResponse": {
             "type": "object",
             "properties": {
-                "boards": {
-                    "description": "All boards in the project (sorted by position if available, otherwise by createdAt)",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.BoardResponse"
-                    }
-                },
                 "defaultViewId": {
                     "description": "Default view ID (if exists)",
                     "type": "string"
@@ -3912,13 +3941,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/dto.FieldWithOptionsResponse"
-                    }
-                },
-                "members": {
-                    "description": "Project members (for assignee dropdown)",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.ProjectMemberBasicInfo"
                     }
                 },
                 "project": {
@@ -3956,27 +3978,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "userName": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.ProjectMemberBasicInfo": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "joinedAt": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "role": {
-                    "description": "OWNER, ADMIN, MEMBER",
-                    "type": "string"
-                },
-                "userId": {
                     "type": "string"
                 }
             }

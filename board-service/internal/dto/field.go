@@ -218,7 +218,7 @@ type BoardOrder struct {
 	Position string `json:"position" binding:"required"` // Fractional index position
 }
 
-// ==================== Project Init Data DTOs ====================
+// ==================== Project Init Settings DTOs ====================
 
 // FieldWithOptionsResponse represents a field with its options (for select types)
 type FieldWithOptionsResponse struct {
@@ -245,22 +245,17 @@ type FieldTypeInfo struct {
 	HasOptions  bool   `json:"hasOptions"`  // Whether this type supports options
 }
 
-// ProjectInitDataResponse contains all data needed for initial project page load
-type ProjectInitDataResponse struct {
+// ProjectInitSettingsResponse contains static configuration data needed for project initialization
+// This includes project info, field definitions, and field types (but not dynamic data like boards/members)
+type ProjectInitSettingsResponse struct {
 	// Project basic information
 	Project ProjectBasicInfo `json:"project"`
-
-	// All boards in the project (sorted by position if available, otherwise by createdAt)
-	Boards []BoardResponse `json:"boards"`
 
 	// All field definitions with their options
 	Fields []FieldWithOptionsResponse `json:"fields"`
 
 	// Available field types (text, number, date, etc.)
 	FieldTypes []FieldTypeInfo `json:"fieldTypes"`
-
-	// Project members (for assignee dropdown)
-	Members []ProjectMemberBasicInfo `json:"members"`
 
 	// Default view ID (if exists)
 	DefaultViewID string `json:"defaultViewId,omitempty"`

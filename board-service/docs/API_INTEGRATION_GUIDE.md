@@ -1,21 +1,24 @@
 # API 통합 가이드 - 프로젝트 페이지 로딩부터 보드 표시까지
 
-> **이 문서의 목적**: Project Init API와 View API를 어떻게 함께 사용하는지, 언제 무엇을 호출해야 하는지 명확하게 설명합니다.
+> **이 문서의 목적**: Project Init Settings API와 View API를 어떻게 함께 사용하는지, 언제 무엇을 호출해야 하는지 명확하게 설명합니다.
 
 ---
 
 ## 핵심 요약
 
-**프로젝트 페이지를 로딩할 때 3단계**:
+**프로젝트 페이지를 로딩할 때 4단계**:
 
 ```
-1. Project Init API 호출
-   → 프로젝트 메타데이터 (필드, 멤버, 프로젝트 정보)
+1. Project Init Settings API 호출
+   → 프로젝트 설정 데이터 (프로젝트 정보, 필드 정의, 필드 타입)
 
-2. View List API 호출
+2. Members API 호출
+   → 프로젝트 멤버 목록 (담당자 할당용)
+
+3. View List API 호출
    → 사용 가능한 뷰 목록
 
-3. View Apply API 호출
+4. View Apply API 호출
    → 실제 보드 데이터 (필터링/정렬/페이징)
 ```
 
@@ -35,32 +38,49 @@
 
 ## API 역할 구분
 
-### 1. Project Init API
+### 1. Project Init Settings API
 
 ```
-GET /api/projects/{projectId}/init-data
+GET /api/projects/{projectId}/init-settings
 ```
 
-**역할**: 프로젝트의 **메타데이터** 가져오기
+**역할**: 프로젝트의 **정적 설정 데이터** 가져오기
 
 **무엇을 가져오나**:
 - ✅ 프로젝트 기본 정보 (이름, 설명, 소유자 등)
 - ✅ **필드 정의** (상태, 우선순위 등 커스텀 필드 + 옵션)
-- ✅ **멤버 목록** (담당자 할당 드롭다운용)
 - ✅ 필드 타입 정보 (새 필드 만들 때 사용)
 - ✅ 기본 뷰 ID
-- ⚠️ 전체 보드 목록 (최대 1000개, 필터링 없음)
 
 **언제 호출**: 프로젝트 진입 시 **1회만**
 
 **왜 필요한가**:
 - 필드 정의 없이는 보드의 커스텀 필드 값을 해석할 수 없음
-- 멤버 목록 없이는 담당자 할당 불가능
 - 프로젝트 기본 정보 필요
+- 변하지 않는 설정값만 포함
 
 ---
 
-### 2. View List API
+### 2. Members API
+
+```
+GET /api/projects/{projectId}/members
+```
+
+**역할**: 프로젝트 **멤버 목록** 가져오기
+
+**무엇을 가져오나**:
+- ✅ 멤버 목록 (ID, 이름, 이메일, 역할)
+
+**언제 호출**: 프로젝트 진입 시 **1회만** (또는 멤버 변경 시)
+
+**왜 필요한가**:
+- 담당자 할당 드롭다운용
+- 멤버는 동적으로 변할 수 있어 별도 API로 분리
+
+---
+
+### 3. View List API
 
 ```
 GET /api/views?projectId={projectId}
@@ -80,7 +100,7 @@ GET /api/views?projectId={projectId}
 
 ---
 
-### 3. View Apply API
+### 4. View Apply API
 
 ```
 GET /api/views/{viewId}/apply?page=1&limit=20
@@ -96,9 +116,9 @@ GET /api/views/{viewId}/apply?page=1&limit=20
 **언제 호출**: **뷰를 선택/변경할 때마다**
 
 **왜 필요한가**:
-- Project Init의 boards는 필터링 없이 전체가 옴 (무거움)
-- 페이지네이션 없음
-- 뷰별 순서, 필터, 그룹핑 적용 불가
+- 보드 데이터는 View API를 통해서만 조회 (Init Settings에는 보드 없음)
+- 페이지네이션 지원
+- 뷰별 순서, 필터, 그룹핑 적용
 
 ---
 
@@ -112,20 +132,26 @@ GET /api/views/{viewId}/apply?page=1&limit=20
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 2. Project Init API 호출                                 │
-│    GET /api/projects/{projectId}/init-data              │
+│ 2. Project Init Settings API 호출                        │
+│    GET /api/projects/{projectId}/init-settings          │
 │                                                          │
 │    응답:                                                 │
 │    - project (프로젝트 정보)                              │
 │    - fields (필드 정의)   ← 전역 상태에 저장!             │
-│    - members (멤버 목록)  ← 전역 상태에 저장!             │
 │    - fieldTypes           ← 전역 상태에 저장!             │
 │    - defaultViewId                                       │
-│    - boards (전체 보드, 사용 안 함)                       │
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 3. View List API 호출                                    │
+│ 3. Members API 호출                                      │
+│    GET /api/projects/{projectId}/members                │
+│                                                          │
+│    응답:                                                 │
+│    - members[] (멤버 목록)  ← 전역 상태에 저장!           │
+└─────────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────────┐
+│ 4. View List API 호출                                    │
 │    GET /api/views?projectId={projectId}                 │
 │                                                          │
 │    응답:                                                 │
@@ -133,13 +159,13 @@ GET /api/views/{viewId}/apply?page=1&limit=20
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 4. 기본 뷰 찾기                                           │
+│ 5. 기본 뷰 찾기                                           │
 │    - defaultViewId에 해당하는 뷰 찾기                     │
 │    - 없으면 첫 번째 뷰 선택                               │
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 5. View Apply API 호출                                   │
+│ 6. View Apply API 호출                                   │
 │    GET /api/views/{viewId}/apply?page=1&limit=20        │
 │                                                          │
 │    응답:                                                 │
@@ -149,9 +175,10 @@ GET /api/views/{viewId}/apply?page=1&limit=20
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
-│ 6. 보드 렌더링                                            │
+│ 7. 보드 렌더링                                            │
 │    - Step 2의 fields 정의 사용                           │
-│    - Step 5의 boards 데이터 사용                         │
+│    - Step 3의 members 목록 사용                          │
+│    - Step 6의 boards 데이터 사용                         │
 │    - 커스텀 필드 값 해석                                  │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -163,22 +190,26 @@ GET /api/views/{viewId}/apply?page=1&limit=20
 ### 초기 로딩
 
 ```typescript
-// 1. Project Init API (메타데이터)
-const initData = await getProjectInitData(projectId);
-// → fields, members, project 저장
+// 1. Project Init Settings API (프로젝트 설정)
+const initSettings = await getProjectInitSettings(projectId);
+// → fields, project, fieldTypes 저장
 
-// 2. View List API (뷰 목록)
+// 2. Members API (멤버 목록)
+const members = await getProjectMembers(projectId);
+// → members 저장
+
+// 3. View List API (뷰 목록)
 const views = await getViews(projectId);
 
-// 3. 기본 뷰 선택
-const defaultView = views.find(v => v.viewId === initData.defaultViewId)
+// 4. 기본 뷰 선택
+const defaultView = views.find(v => v.viewId === initSettings.defaultViewId)
                     || views[0];
 
-// 4. View Apply API (보드 데이터)
+// 5. View Apply API (보드 데이터)
 const boardData = await applyView(defaultView.viewId, 1, 20);
 
-// 5. 렌더링
-render(boardData.boards, initData.fields);
+// 6. 렌더링
+render(boardData.boards, initSettings.fields, members);
 ```
 
 ### 뷰 변경 시
@@ -195,27 +226,21 @@ async function onViewChange(newViewId: string) {
 
 ## 각 API의 역할
 
-### Project Init API - "프로젝트 설정 데이터"
+### Project Init Settings API - "프로젝트 설정 데이터"
 
 **비유**: 게임의 "설정 파일" 또는 "스키마 정의"
 
 ```typescript
-const initData = await getProjectInitData(projectId);
+const initSettings = await getProjectInitSettings(projectId);
 
 // 프로젝트 정보
-console.log(initData.project.name); // "웹사이트 리뉴얼"
+console.log(initSettings.project.name); // "웹사이트 리뉴얼"
 
 // 필드 정의 (가장 중요!)
-initData.fields.forEach(field => {
+initSettings.fields.forEach(field => {
   console.log(field.name);      // "상태"
   console.log(field.fieldType); // "single_select"
   console.log(field.options);   // [{ label: "할 일", color: "#gray" }, ...]
-});
-
-// 멤버 목록
-initData.members.forEach(member => {
-  console.log(member.name);  // "홍길동"
-  console.log(member.role);  // "ADMIN"
 });
 
 // 이 데이터들은 전역 상태에 저장하고 계속 재사용!
@@ -223,8 +248,24 @@ initData.members.forEach(member => {
 
 **이 데이터 어디에 사용?**:
 - 필드 정의 → 보드 커스텀 필드 값 해석
-- 멤버 목록 → 담당자 할당 드롭다운
 - 필드 타입 → 새 필드 만들기 UI
+- 프로젝트 정보 → 헤더 표시
+
+### Members API - "프로젝트 멤버 데이터"
+
+```typescript
+const members = await getProjectMembers(projectId);
+
+// 멤버 목록
+members.forEach(member => {
+  console.log(member.name);  // "홍길동"
+  console.log(member.role);  // "ADMIN"
+});
+```
+
+**이 데이터 어디에 사용?**:
+- 담당자 할당 드롭다운
+- 멤버 표시
 
 ---
 
@@ -304,8 +345,13 @@ interface Board {
 
 // ===== API 함수 =====
 
-async function getProjectInitData(projectId: string) {
-  const response = await axios.get(`/api/projects/${projectId}/init-data`);
+async function getProjectInitSettings(projectId: string) {
+  const response = await axios.get(`/api/projects/${projectId}/init-settings`);
+  return response.data.data;
+}
+
+async function getProjectMembers(projectId: string) {
+  const response = await axios.get(`/api/projects/${projectId}/members`);
   return response.data.data;
 }
 
@@ -348,36 +394,40 @@ function ProjectPage({ projectId }: { projectId: string }) {
     setIsLoading(true);
 
     try {
-      // Step 1: Project Init API - 메타데이터 로드
-      console.log('📡 Loading project metadata...');
-      const initData = await getProjectInitData(projectId);
+      // Step 1: Project Init Settings API - 설정 데이터 로드
+      console.log('📡 Loading project settings...');
+      const initSettings = await getProjectInitSettings(projectId);
+
+      // Step 2: Members API - 멤버 목록 로드
+      console.log('📡 Loading members...');
+      const memberList = await getProjectMembers(projectId);
 
       setMetadata({
-        project: initData.project,
-        fields: initData.fields,
-        members: initData.members,
-        fieldTypes: initData.fieldTypes
+        project: initSettings.project,
+        fields: initSettings.fields,
+        members: memberList,
+        fieldTypes: initSettings.fieldTypes
       });
 
-      console.log('✅ Metadata loaded:', {
-        fields: initData.fields.length,
-        members: initData.members.length
+      console.log('✅ Settings and members loaded:', {
+        fields: initSettings.fields.length,
+        members: memberList.length
       });
 
-      // Step 2: View List API - 뷰 목록 로드
+      // Step 3: View List API - 뷰 목록 로드
       console.log('📡 Loading views...');
       const viewList = await getViews(projectId);
       setViews(viewList);
 
       console.log('✅ Views loaded:', viewList.length);
 
-      // Step 3: 기본 뷰 찾기
-      const defaultView = viewList.find(v => v.viewId === initData.defaultViewId)
+      // Step 4: 기본 뷰 찾기
+      const defaultView = viewList.find(v => v.viewId === initSettings.defaultViewId)
                           || viewList[0];
 
       if (defaultView) {
         console.log('🎯 Applying default view:', defaultView.name);
-        await loadViewData(defaultView, initData.fields);
+        await loadViewData(defaultView, initSettings.fields);
       }
 
     } catch (error) {
@@ -633,19 +683,25 @@ async function changeView(viewId: string) {
 ### 3. 병렬 호출
 
 ```typescript
-// ✅ Project Init과 View List를 병렬로 호출
+// ✅ Init Settings, Members, Views를 병렬로 호출
 async function initializeProject() {
-  const [initData, viewList] = await Promise.all([
-    getProjectInitData(projectId),
+  const [initSettings, members, viewList] = await Promise.all([
+    getProjectInitSettings(projectId),
+    getProjectMembers(projectId),
     getViews(projectId)
   ]);
 
   // 메타데이터 저장
-  setMetadata(initData);
+  setMetadata({
+    project: initSettings.project,
+    fields: initSettings.fields,
+    members: members,
+    fieldTypes: initSettings.fieldTypes
+  });
   setViews(viewList);
 
   // 기본 뷰 적용
-  const defaultView = viewList.find(v => v.viewId === initData.defaultViewId);
+  const defaultView = viewList.find(v => v.viewId === initSettings.defaultViewId);
   if (defaultView) {
     await loadViewData(defaultView);
   }
@@ -670,31 +726,38 @@ async function loadMore() {
 
 ## FAQ
 
-### Q1: Project Init의 boards는 왜 있나요? 사용 안 하는 건가요?
+### Q1: 왜 Init Settings와 Members를 분리했나요?
 
-**A**: Legacy 용도입니다. 원래는 Project Init만으로 모든 걸 해결하려 했지만:
-- 필터링/정렬/그룹핑 불가
-- 페이지네이션 없어서 무거움
-- 뷰별 순서 지원 안 됨
+**A**: 데이터 특성이 다르기 때문입니다:
+- **Init Settings**: 정적 설정 데이터 (필드, 타입 등) - 거의 변하지 않음
+- **Members**: 동적 데이터 (멤버 추가/삭제 가능) - 자주 변할 수 있음
 
-그래서 View API를 추가했습니다. Project Init의 boards는:
-- 간단한 경우 (뷰 없이 쓸 때) 사용 가능
-- 또는 완전히 무시하고 View API만 사용
+분리하면:
+- 멤버만 변경 시 Settings 재조회 불필요
+- 캐싱 전략을 다르게 가져갈 수 있음
 
-### Q2: 매번 두 API를 다 호출해야 하나요?
+### Q2: Init Settings에 보드 데이터가 없나요?
+
+**A**: 네, 이제 없습니다. 보드 데이터는 View Apply API를 통해서만 가져옵니다:
+- 필터링/정렬/그룹핑 지원
+- 페이지네이션 지원
+- 뷰별 순서 관리
+
+### Q3: 매번 모든 API를 다 호출해야 하나요?
 
 **A**: 아니요!
 
 ```typescript
 // 프로젝트 진입 시 (1회만)
-const initData = await getProjectInitData(projectId); // 1회
-const views = await getViews(projectId);              // 1회
+const initSettings = await getProjectInitSettings(projectId); // 1회
+const members = await getProjectMembers(projectId);           // 1회
+const views = await getViews(projectId);                      // 1회
 
 // 뷰 변경 시 (매번)
 const boardData = await applyView(viewId); // 필요할 때마다
 ```
 
-### Q3: fields 정보가 바뀌면 어떻게 하나요?
+### Q4: fields 정보가 바뀌면 어떻게 하나요?
 
 **A**: 필드가 추가/수정/삭제되면 Project Init을 다시 호출하거나, Field API를 직접 호출하세요.
 
@@ -707,34 +770,18 @@ const updatedFields = await getFields(projectId);
 setMetadata(prev => ({ ...prev, fields: updatedFields }));
 ```
 
-### Q4: View Apply가 실패하면 어떻게 하나요?
+### Q5: View Apply가 실패하면 어떻게 하나요?
 
-**A**: 폴백으로 Project Init의 boards를 사용하거나, 에러 메시지를 표시하세요.
+**A**: 에러 메시지를 표시하세요. Init Settings에는 보드가 없으므로 View API가 필수입니다.
 
 ```typescript
 try {
   const viewData = await applyView(viewId);
   setBoards(viewData.boards);
 } catch (error) {
-  // 폴백: Project Init의 boards 사용
-  setBoards(initData.boards);
-
-  // 또는 에러 표시
   showError('뷰를 불러오는데 실패했습니다');
+  // 또는 기본 뷰로 재시도
 }
-```
-
-### Q5: 뷰를 안 쓰고 싶으면 어떻게 하나요?
-
-**A**: Project Init API만 사용하면 됩니다.
-
-```typescript
-// 프로젝트 진입 시
-const initData = await getProjectInitData(projectId);
-
-// 보드 렌더링
-setBoards(initData.boards);
-setFields(initData.fields);
 ```
 
 ---
@@ -743,10 +790,13 @@ setFields(initData.fields);
 
 프로젝트 페이지 구현 시:
 
-- [ ] Project Init API 호출 (1회)
+- [ ] Project Init Settings API 호출 (1회)
   - [ ] fields 전역 상태에 저장
-  - [ ] members 전역 상태에 저장
   - [ ] project 정보 저장
+  - [ ] fieldTypes 저장
+
+- [ ] Members API 호출 (1회)
+  - [ ] members 전역 상태에 저장
 
 - [ ] View List API 호출 (1회)
   - [ ] 뷰 목록 저장
@@ -757,14 +807,14 @@ setFields(initData.fields);
   - [ ] 캐시된 fields로 커스텀 필드 해석
 
 - [ ] 뷰 변경 시
-  - [ ] View Apply만 호출 (Project Init 재호출 ❌)
+  - [ ] View Apply만 호출 (Init Settings 재호출 ❌)
   - [ ] 캐시된 메타데이터 재사용
 
 ---
 
 ## 관련 문서
 
-- [Project Init API 상세](./PROJECT_INIT_API.md)
 - [View API 상세](./VIEW_API_GUIDE.md)
 - [보드 순서 변경](./ORDER_UPDATE_GUIDE.md)
 - [Fractional Indexing](./FRONTEND_API_GUIDE.md)
+- [Swagger API 문서](http://localhost:8000/swagger/index.html)
