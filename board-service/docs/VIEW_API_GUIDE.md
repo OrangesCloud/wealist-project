@@ -28,6 +28,53 @@ View = 보드를 보는 방법
 └─ 그룹핑: "어떻게 묶어서 볼까?" (예: 상태별로 칸반처럼)
 ```
 
+### View 공유 방식
+
+**기본 동작**: View는 **기본적으로 팀 전체가 공유**합니다.
+
+```
+✅ 일반적인 View (isShared: true, 기본값)
+   → 팀 전체가 같이 사용 (예: "전체 보드", "칸반 보드", "역할별 정렬")
+   → 누구나 선택 가능
+
+🔒 개인 View (isShared: false, 명시적으로 설정)
+   → 본인만 사용 (예: "내가 담당한 작업만", "내가 찜한 보드")
+   → 다른 팀원에게 안 보임
+```
+
+**isDefault vs isShared 차이**:
+- **isDefault**: 프로젝트 첫 진입 시 자동으로 선택되는 View (프로젝트당 1개)
+- **isShared**: 팀 전체 공유 여부
+  - `true` (기본값): 모든 팀원이 선택 가능
+  - `false`: 본인만 사용 가능
+
+**예시**:
+```typescript
+// 1. 팀 공유 칸반 보드 (전체가 사용)
+{
+  "name": "개발 칸반",
+  "isShared": true,     // ← 기본값, 생략 가능
+  "isDefault": true,    // ← 최초 진입 시 이 뷰 표시
+  "groupByFieldId": "status-field-id"
+}
+
+// 2. 팀 공유 역할별 정렬 (전체가 사용)
+{
+  "name": "역할별 보드",
+  "isShared": true,     // ← 기본값, 생략 가능
+  "groupByFieldId": "role-field-id"
+}
+
+// 3. 개인 필터 뷰 (본인만 사용)
+{
+  "name": "내가 담당한 작업",
+  "isShared": false,    // ← 명시적으로 개인 뷰 지정!
+  "filters": {
+    "assignee": {"operator": "eq", "value": "my-user-id"}
+  }
+}
+```
+
 ### 실제 사용 예시
 
 **프로젝트**: "모바일 앱 개발 프로젝트" (보드 100개)
@@ -921,8 +968,23 @@ function BoardList({ boards }: { boards: Board[] }) {
 **A**:
 - **isDefault**: 프로젝트 진입 시 자동으로 선택되는 뷰 (프로젝트당 1개만)
 - **isShared**: 팀 전체에게 보이는 뷰인지 여부
-  - `true`: 팀원 모두 볼 수 있음
+  - `true` **(기본값)**: 팀원 모두 볼 수 있음
   - `false`: 나만 볼 수 있음 (개인 뷰)
+
+**사용 패턴**:
+```typescript
+// ✅ 대부분의 경우: 팀 공유 (isShared 생략 가능)
+{
+  "name": "전체 보드",
+  // isShared는 자동으로 true
+}
+
+// 🔒 개인 뷰만: 명시적으로 false 설정
+{
+  "name": "내 작업만",
+  "isShared": false  // ← 이것만 명시!
+}
+```
 
 ---
 

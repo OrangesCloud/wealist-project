@@ -243,7 +243,7 @@ CREATE TABLE IF NOT EXISTS saved_views (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     is_default BOOLEAN DEFAULT false,
-    is_shared BOOLEAN DEFAULT false,
+    is_shared BOOLEAN DEFAULT true,  -- Default: team-shared view (most common use case)
 
     -- Filter configuration (JSON)
     filters TEXT DEFAULT '{}',

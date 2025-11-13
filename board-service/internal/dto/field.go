@@ -147,8 +147,8 @@ type CreateViewRequest struct {
 	ProjectID      string                 `json:"projectId" binding:"required,uuid"`
 	Name           string                 `json:"name" binding:"required,min=1,max=255"`
 	Description    string                 `json:"description" binding:"omitempty,max=1000"`
-	IsDefault      bool                   `json:"isDefault"`
-	IsShared       bool                   `json:"isShared"`
+	IsDefault      bool                   `json:"isDefault"`                  // Default: false (only one default view per project)
+	IsShared       *bool                  `json:"isShared"`                   // Default: true if nil (team-shared view, most common)
 	Filters        map[string]interface{} `json:"filters"`
 	SortBy         string                 `json:"sortBy" binding:"omitempty"`
 	SortDirection  string                 `json:"sortDirection" binding:"omitempty,oneof=asc desc"`
