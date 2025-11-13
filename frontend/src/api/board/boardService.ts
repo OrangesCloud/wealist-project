@@ -26,6 +26,7 @@ import {
   CreateFieldOptionRequest,
   CreateFieldRequest,
   UpdateFieldRequest,
+  ProjectInitDataResponse,
 } from '../../types/board'; // 💡 최신 타입 임포트
 
 /**
@@ -34,6 +35,27 @@ import {
  * ========================================
  */
 const USE_MOCK_DATA = false;
+// ============================================================================
+// 💡 [신규] 프로젝트 초기 데이터 로드 API
+// ============================================================================
+
+/**
+ * 프로젝트 초기 페이지 로드에 필요한 모든 데이터를 조회합니다.
+ * (보드, 필드/옵션, 필드 유형 목록 포함)
+ * [API] GET /api/projects/{projectId}/init-data
+ */
+export const getProjectInitData = async (projectId: string): Promise<ProjectInitDataResponse> => {
+  // ⚠️ Mock data는 삭제하고 실제 API 호출만 남깁니다. (Mock 환경은 USE_MOCK_DATA로 제어)
+  try {
+    const response: AxiosResponse<{ data: ProjectInitDataResponse }> = await boardServiceClient.get(
+      `/api/projects/${projectId}/init-data`,
+    );
+    return response.data.data;
+  } catch (error) {
+    console.error('getProjectInitData error:', error);
+    throw error;
+  }
+};
 
 // ============================================================================
 // 프로젝트 관련 API
@@ -48,19 +70,20 @@ const USE_MOCK_DATA = false;
 // 💡 [수정] token 인자 제거
 export const getProjects = async (workspaceId: string): Promise<ProjectResponse[]> => {
   try {
+    // 💡 [수정 필요] API 명세에 따르면 PaginatedProjectsResponse DTO의 data 필드입니다.
+    // 💡 response.data.data는 PaginatedProjectsResponse 타입이어야 합니다.
     const response: AxiosResponse<{ data: { projects: ProjectResponse[] } }> =
       await boardServiceClient.get('/api/projects', {
         params: { workspaceId },
-        // headers: { Authorization: `Bearer ${token}` } // 💡 인터셉터 자동 처리
       });
-    // API 명세에 따라, data 필드가 배열을 포함한다고 가정하고 처리
+
+    // 💡 [핵심 수정] projects 배열을 직접 추출하여 반환합니다.
     return response?.data?.data?.projects || [];
   } catch (error) {
     console.error('getProjects error:', error);
     throw error;
   }
 };
-
 /**
  * 특정 프로젝트를 조회합니다.
  * GET /api/projects/{projectId}

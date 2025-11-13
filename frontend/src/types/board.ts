@@ -272,8 +272,41 @@ export interface UpdateCommentRequest {
 // 💡 기존의 프론트엔드 컴포넌트에서 사용하던 타입은 BoardResponse로 대체하거나,
 //    필요에 따라 BoardResponse를 확장하여 사용합니다.
 export type Priority = 'HIGH' | 'MEDIUM' | 'LOW' | '';
+// 💡 [통합된 View/Filter 상태 인터페이스]
+export interface Column {
+  stageId: string;
+  title: string;
+  color?: string;
+  boards: BoardResponse[];
+}
+export type TLayout = 'table' | 'board' | undefined;
+export type TView = 'stage' | 'role' | 'importance' | undefined;
 
+export interface ViewState {
+  currentView?: TView;
+  searchQuery?: string;
+  filterOption?: string;
+  currentLayout?: TLayout;
+  showCompleted?: boolean;
+  sortColumn?:
+    | 'title'
+    | 'stage'
+    | 'role'
+    | 'importance'
+    | 'importance'
+    | 'assignee'
+    | 'dueDate'
+    | null;
+  sortDirection?: 'asc' | 'desc';
+}
 // --- 필드/옵션 요청 DTO ---
+
+// 💡 [추가] 룩업 데이터 인터페이스
+export interface FieldOptionsLookup {
+  stages?: CustomStageResponse[];
+  roles?: CustomRoleResponse[];
+  importances?: CustomImportanceResponse[];
+}
 
 /**
  * @summary 필드 옵션 생성 요청 (dto.CreateOptionRequest)
@@ -294,6 +327,40 @@ export interface UpdateFieldOptionRequest {
   label?: string;
   description?: string;
   color?: string;
+}
+
+// =======================================================
+// 프로젝트 초기화 데이터 DTO (Init Data)
+// =======================================================
+
+/**
+ * @summary 필드 유형 정보 (dto.FieldTypeInfo)
+ */
+export interface FieldTypeInfo {
+  type: string;
+  displayName: string;
+  description: string;
+  hasOptions: boolean;
+}
+
+/**
+ * @summary 필드 및 옵션 정보 통합 (dto.FieldWithOptionsResponse)
+ */
+export interface FieldWithOptionsResponse extends FieldResponse {
+  options: FieldOptionResponse[];
+}
+
+/**
+ * @summary 프로젝트 초기화 응답 DTO (dto.ProjectInitDataResponse)
+ * [API: GET /api/projects/{projectId}/init-data]
+ */
+export interface ProjectInitDataResponse {
+  project: ProjectResponse; // Project Basic Info
+  boards: BoardResponse[];
+  fields: FieldWithOptionsResponse[]; // 모든 필드 정의와 그 옵션
+  fieldTypes: FieldTypeInfo[]; // 사용 가능한 필드 유형 목록
+  members: any[]; // Project Member Basic Info DTO가 필요하지만 일단 any[]로 유지
+  defaultViewId?: string;
 }
 
 /**

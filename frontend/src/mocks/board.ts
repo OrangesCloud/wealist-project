@@ -1,4 +1,4 @@
-import { CustomImportanceResponse, CustomRoleResponse, CustomStageResponse } from '../types/board';
+import { CustomImportanceResponse, CustomRoleResponse, CustomStageResponse, FieldOptionResponse, FieldResponse } from '../types/board';
 
 // ⚠️ 임시 Mock Data: API 호출이 제거되었으므로, 컴포넌트 로직을 유지하기 위해 최소한의 Mock 데이터를 사용합니다.
 export const MOCK_STAGES: CustomStageResponse[] = [
@@ -76,3 +76,105 @@ export const MOCK_IMPORTANCES: CustomImportanceResponse[] = [
   },
 ];
 // ⚠️ 주의: 실제 서비스에서는 이 Mock 데이터를 제거하고 새로운 Field/Option API를 구현해야 합니다.
+// 💡 [Mock Data]: 필드 관리를 위한 Mock DTOs (API 호출 준비)
+export const MOCK_FIELDS: FieldResponse[] = [
+  {
+    fieldId: 'stage',
+    projectId: 'p1',
+    name: '진행 단계',
+    fieldType: 'single_select',
+    isRequired: true,
+    isSystemDefault: true,
+    displayOrder: 1,
+    description: '보드의 상태',
+    config: {},
+  },
+  {
+    fieldId: 'role',
+    projectId: 'p1',
+    name: '역할',
+    fieldType: 'single_select',
+    isRequired: true,
+    isSystemDefault: false,
+    displayOrder: 2,
+    description: '담당 역할',
+    config: {},
+  },
+  {
+    fieldId: 'importance',
+    projectId: 'p1',
+    name: '중요도',
+    fieldType: 'single_select',
+    isRequired: false,
+    isSystemDefault: false,
+    displayOrder: 3,
+    description: '업무 중요도',
+    config: {},
+  },
+  {
+    fieldId: 'dueDate',
+    projectId: 'p1',
+    name: '마감일',
+    fieldType: 'date',
+    isRequired: false,
+    isSystemDefault: true,
+    displayOrder: 4,
+    description: '시스템 필드',
+    config: {},
+  },
+  {
+    fieldId: 'assignee',
+    projectId: 'p1',
+    name: '담당자',
+    fieldType: 'single_user',
+    isRequired: false,
+    isSystemDefault: true,
+    displayOrder: 5,
+    description: '시스템 필드',
+    config: {},
+  },
+  {
+    fieldId: 'estimate',
+    projectId: 'p1',
+    name: '예상 시간',
+    fieldType: 'number',
+    isRequired: false,
+    isSystemDefault: false,
+    displayOrder: 6,
+    description: '작업 예상 시간',
+    config: { decimalPlaces: 1 },
+  },
+];
+
+export const MOCK_FIELD_OPTIONS: FieldOptionResponse[] = [
+  {
+    optionId: 'opt-dev',
+    fieldId: 'role',
+    label: '개발',
+    color: '#8B5CF6',
+    displayOrder: 1,
+    createdAt: '',
+    updatedAt: '',
+    description: '',
+  },
+  {
+    optionId: 'opt-design',
+    fieldId: 'role',
+    label: '디자인',
+    color: '#F59E0B',
+    displayOrder: 2,
+    createdAt: '',
+    updatedAt: '',
+    description: '',
+  },
+  {
+    optionId: 'opt-urgent',
+    fieldId: 'importance',
+    label: '긴급',
+    color: '#EF4444',
+    displayOrder: 1,
+    createdAt: '',
+    updatedAt: '',
+    description: '',
+  },
+];

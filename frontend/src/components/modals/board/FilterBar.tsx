@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, ChevronDown, Eye, Table, LayoutGrid, Plus, Settings } from 'lucide-react';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme } from '../../../contexts/ThemeContext';
+import { TLayout, TView } from '../../../types/board';
 
 interface FilterBarProps {
   onSearchChange: (search: string) => void;
-  onViewChange: (view: 'stage' | 'role') => void;
+  onViewChange: (view: TView) => void;
   onFilterChange: (filter: string) => void;
   onManageClick: () => void;
-  currentView: 'stage' | 'role';
-  onLayoutChange?: (layout: 'table' | 'board') => void;
+  currentView: TView;
+  onLayoutChange?: (layout: TLayout) => void;
   onShowCompletedChange?: (show: boolean) => void;
-  currentLayout?: 'table' | 'board';
+  currentLayout?: TLayout;
   showCompleted?: boolean;
 }
 
@@ -39,7 +40,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     onSearchChange(value);
   };
 
-  const handleViewChange = (view: 'stage' | 'role') => {
+  const handleViewChange = (view: TView) => {
     onViewChange(view);
     setShowViewDropdown(false);
   };

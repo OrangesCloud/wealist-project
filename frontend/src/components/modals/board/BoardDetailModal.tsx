@@ -11,17 +11,17 @@ import {
   Edit2,
   Trash2,
 } from 'lucide-react';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useTheme } from '../../../contexts/ThemeContext';
 import {
   CustomStageResponse,
   CustomRoleResponse,
   CustomImportanceResponse,
   BoardResponse,
-} from '../../types/board';
-import { getBoard, deleteBoard } from '../../api/board/boardService';
-import { getWorkspaceMembers } from '../../api/user/userService';
-import { WorkspaceMemberResponse } from '../../types/user';
-import { MOCK_STAGES, MOCK_ROLES, MOCK_IMPORTANCES } from '../../mocks/board';
+} from '../../../types/board';
+import { getBoard, deleteBoard } from '../../../api/board/boardService';
+import { getWorkspaceMembers } from '../../../api/user/userService';
+import { WorkspaceMemberResponse } from '../../../types/user';
+import { MOCK_STAGES, MOCK_ROLES, MOCK_IMPORTANCES } from '../../../mocks/board';
 interface BoardDetailModalProps {
   boardId: string;
   workspaceId: string;

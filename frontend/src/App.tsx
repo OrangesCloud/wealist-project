@@ -6,7 +6,7 @@ import { Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 
 // Lazy load 페이지들 (이름 일관성 유지)
 const AuthPage = lazy(() => import('./pages/Authpage'));
-const SelectWorkspacePage = lazy(() => import('./components/SelectWorkspacePage'));
+const SelectWorkspacePage = lazy(() => import('./pages/SelectWorkspacePage'));
 const MainDashboard = lazy(() => import('./pages/MainDashboard'));
 const OAuthRedirectPage = lazy(() => import('./pages/OAuthRedirectPage'));
 

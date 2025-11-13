@@ -2,8 +2,8 @@
 
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
 import { X, ChevronDown, Check, Tag, Menu, Trash2, Plus } from 'lucide-react';
-import { useTheme } from '../../../contexts/ThemeContext';
-import { CreateFieldRequest, FieldResponse } from '../../../types/board';
+import { useTheme } from '../../../../contexts/ThemeContext';
+import { CreateFieldRequest, FieldResponse } from '../../../../types/board';
 import { MODERN_CUSTOM_FIELD_COLORS } from './constants/colors';
 
 interface FieldOption {
@@ -16,7 +16,7 @@ const FIELD_TYPES = [
   { type: 'number', label: '숫자', icon: '02' },
   { type: 'single_select', label: '선택', icon: '03' },
   { type: 'date', label: '날짜', icon: '04' },
-  { type: 'single_user', label: '담당자/사용자', icon: '05' },
+  { type: 'single_user', label: '담당자', icon: '05' },
 ];
 
 interface CustomFieldAddModalProps {

@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, Settings, Briefcase, ArrowUp, ArrowDown } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { FilterBar } from '../FilterBar';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { getDefaultColorByIndex } from '../../constants/colors';
 import { AssigneeAvatarStack } from '../common/AvartarStack';
@@ -13,33 +12,20 @@ import {
   CustomStageResponse,
   ProjectResponse,
   BoardResponse,
+  Column,
+  ViewState,
+  FieldOptionsLookup,
 } from '../../types/board';
 import { getBoards } from '../../api/board/boardService';
-import { BoardDetailModal } from '../modals/BoardDetailModal';
 import { MOCK_IMPORTANCES, MOCK_ROLES, MOCK_STAGES } from '../../mocks/board';
-
-interface Column {
-  stageId: string;
-  title: string;
-  color?: string;
-  boards: BoardResponse[];
-}
-
-// 💡 [통합된 View/Filter 상태 인터페이스]
-interface ViewState {
-  currentView: 'stage' | 'role';
-  searchQuery: string;
-  filterOption: string;
-  currentLayout: 'table' | 'board';
-  showCompleted: boolean;
-  sortColumn: 'title' | 'stage' | 'role' | 'importance' | 'assignee' | 'dueDate' | null;
-  sortDirection: 'asc' | 'desc';
-}
+import { BoardDetailModal } from '../modals/board/BoardDetailModal';
+import { FilterBar } from '../modals/board/FilterBar';
 
 interface ProjectContentProps {
   // Data
   selectedProject: ProjectResponse;
   workspaceId: string;
+  fieldOptionsLookup: FieldOptionsLookup;
 
   // Handlers
   onProjectContentUpdate: () => void;
@@ -284,11 +270,11 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
   // Table sorting handler (handleSort)
   const handleSort = (
-    column: 'title' | 'stage' | 'role' | 'importance' | 'assignee' | 'dueDate',
+    column: 'title' | 'stage' | 'role' | 'importance' | 'importance' | 'assignee' | 'dueDate',
   ) => {
     // 💡 [수정] viewState Setter 사용
-    if (viewState.sortColumn === column) {
-      setViewField('sortDirection', viewState.sortDirection === 'asc' ? 'desc' : 'asc');
+    if (viewState?.sortColumn === column) {
+      setViewField('sortDirection', viewState?.sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setViewField('sortColumn', column);
       setViewField('sortDirection', 'asc');
@@ -377,15 +363,15 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         onViewChange={(view) => setViewField('currentView', view)}
         onFilterChange={(filter) => setViewField('filterOption', filter)}
         onManageClick={onManageModalOpen}
-        currentView={viewState.currentView}
+        currentView={viewState?.currentView}
         onLayoutChange={(layout) => setViewField('currentLayout', layout)}
         onShowCompletedChange={(show) => setViewField('showCompleted', show)}
-        currentLayout={viewState.currentLayout}
-        showCompleted={viewState.showCompleted}
+        currentLayout={viewState?.currentLayout}
+        showCompleted={viewState?.showCompleted}
       />
 
       {/* Boards or Table View */}
-      {viewState.currentLayout === 'table' ? (
+      {viewState?.currentLayout === 'table' ? (
         // =============================================================
         // 1. Table Layout
         // =============================================================
@@ -400,7 +386,14 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                     <button
                       onClick={() =>
                         handleSort(
-                          col as 'title' | 'stage' | 'role' | 'importance' | 'assignee' | 'dueDate',
+                          col as
+                            | 'title'
+                            | 'stage'
+                            | 'role'
+                            | 'importance'
+                            | 'importance'
+                            | 'assignee'
+                            | 'dueDate',
                         )
                       }
                       className="flex items-center gap-2 font-semibold text-sm text-gray-700 hover:text-blue-600 transition"
@@ -411,8 +404,8 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                       {col === 'importance' && '중요도'}
                       {col === 'assignee' && '담당자'}
                       {col === 'dueDate' && '마감일'}
-                      {viewState.sortColumn === col &&
-                        (viewState.sortDirection === 'asc' ? (
+                      {viewState?.sortColumn === col &&
+                        (viewState?.sortDirection === 'asc' ? (
                           <ArrowUp className="w-4 h-4" />
                         ) : (
                           <ArrowDown className="w-4 h-4" />
@@ -510,12 +503,12 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 min-w-max pb-4 mt-4">
           {columns.map((column, idx) => {
             // 필터링된 보드 목록 (테이블 뷰에서 사용한 searchQuery 필터링을 컬럼별로 재적용)
-            const columnBoards = viewState.searchQuery.trim()
+            const columnBoards = viewState?.searchQuery?.trim()
               ? column.boards.filter((board) => {
-                  const query = viewState.searchQuery.toLowerCase();
+                  const query = viewState?.searchQuery?.toLowerCase();
                   return (
-                    board.title.toLowerCase().includes(query) ||
-                    board.content?.toLowerCase().includes(query)
+                    board.title.toLowerCase().includes(query || '') ||
+                    board.content?.toLowerCase().includes(query || '')
                   );
                 })
               : column.boards;
