@@ -526,14 +526,14 @@ const WorkspaceManagementModal: React.FC<WorkspaceManagementModalProps> = ({
                 {/* 💡 초대 가능 회원 목록 제거됨 (API 미지원) */}
 
                 {/* 승인 대기 목록 */}
-                {pendingMembers.length > 0 && (
+                {pendingMembers?.length > 0 && (
                   <div className="border border-gray-200 rounded-lg p-4">
                     <p className="text-sm font-semibold text-gray-700 mb-3">
-                      승인 대기 목록 ({pendingMembers.length}명)
+                      승인 대기 목록 ({pendingMembers?.length}명)
                     </p>
                     <div className="space-y-2">
                       {/* pendingMember는 JoinRequestResponse 타입이며, userId와 userName을 가지고 있음 */}
-                      {pendingMembers.map((member) => (
+                      {pendingMembers?.map((member) => (
                         <div
                           key={member.id} // 요청 ID로 key 사용
                           className="flex items-center justify-between bg-gray-50 p-3 rounded border border-gray-200"
@@ -568,7 +568,7 @@ const WorkspaceManagementModal: React.FC<WorkspaceManagementModalProps> = ({
                 <div className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3 gap-3">
                     <p className="text-sm font-semibold text-gray-700 whitespace-nowrap">
-                      조직 회원 목록 ({members.length}명)
+                      조직 회원 목록 ({members?.length}명)
                     </p>
                     <div className="relative flex-1 max-w-xs">
                       <input
@@ -583,27 +583,27 @@ const WorkspaceManagementModal: React.FC<WorkspaceManagementModalProps> = ({
                   </div>
                   <div className="space-y-2">
                     {/* member는 WorkspaceMemberResponse 타입이며, id(멤버 ID), userId, roleName을 가지고 있음 */}
-                    {filteredMembers.map((member) => (
+                    {filteredMembers?.map((member) => (
                       <div
-                        key={member.id} // 멤버 ID로 key 사용
+                        key={member?.id} // 멤버 ID로 key 사용
                         className="flex items-center justify-between bg-gray-50 p-3 rounded border border-gray-200"
                       >
                         <div>
                           <p className="text-sm font-medium text-gray-700">
-                            {member.userName}{' '}
+                            {member?.userName}{' '}
                             <span className="text-xs text-blue-600 font-semibold">
-                              ({member.roleName})
+                              ({member?.roleName})
                             </span>
                           </p>
-                          <p className="text-xs text-gray-500">{member.userEmail}</p>
+                          <p className="text-xs text-gray-500">{member?.userEmail}</p>
                         </div>
-                        {member.roleName !== 'OWNER' && (
+                        {member?.roleName !== 'OWNER' && (
                           <div className="flex gap-2">
-                            {member.roleName === 'MEMBER' && (
+                            {member?.roleName === 'MEMBER' && (
                               <button
                                 // 💡 member.id (멤버 ID) 사용, 새로운 역할: ADMIN
                                 onClick={() =>
-                                  handleUpdateRole(member.id, member.roleName, 'ADMIN')
+                                  handleUpdateRole(member?.id, member?.roleName, 'ADMIN')
                                 }
                                 disabled={loading}
                                 className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition disabled:opacity-50"
@@ -611,11 +611,11 @@ const WorkspaceManagementModal: React.FC<WorkspaceManagementModalProps> = ({
                                 ADMIN
                               </button>
                             )}
-                            {member.roleName === 'ADMIN' && (
+                            {member?.roleName === 'ADMIN' && (
                               <button
                                 // 💡 member.id (멤버 ID) 사용, 새로운 역할: MEMBER
                                 onClick={() =>
-                                  handleUpdateRole(member.id, member.roleName, 'MEMBER')
+                                  handleUpdateRole(member?.id, member?.roleName, 'MEMBER')
                                 }
                                 disabled={loading}
                                 className="px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600 transition disabled:opacity-50"
@@ -627,7 +627,7 @@ const WorkspaceManagementModal: React.FC<WorkspaceManagementModalProps> = ({
 
                             <button
                               // 💡 member.id (멤버 ID) 사용
-                              onClick={() => handleRemoveMember(member.id, member.userName)}
+                              onClick={() => handleRemoveMember(member?.id, member?.userName)}
                               disabled={loading}
                               className="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition disabled:opacity-50"
                             >
@@ -637,7 +637,7 @@ const WorkspaceManagementModal: React.FC<WorkspaceManagementModalProps> = ({
                         )}
                       </div>
                     ))}
-                    {filteredMembers.length === 0 && (
+                    {filteredMembers?.length === 0 && (
                       <p className="text-center text-sm text-gray-500 py-4">
                         {memberSearchQuery.trim()
                           ? '검색 결과가 없습니다.'

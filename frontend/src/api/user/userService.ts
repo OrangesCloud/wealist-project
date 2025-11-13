@@ -108,10 +108,11 @@ export const deleteWorkspace = async (workspaceId: string): Promise<void> => {
 export const getWorkspaceSettings = async (
   workspaceId: string,
 ): Promise<WorkspaceSettingsResponse> => {
-  const response: AxiosResponse<{ data: WorkspaceSettingsResponse }> = await userRepoClient.get(
+  const response: AxiosResponse<WorkspaceSettingsResponse> = await userRepoClient.get(
     `/api/workspaces/${workspaceId}/settings`,
   );
-  return response.data.data;
+  console.log(response.data);
+  return response.data;
 };
 
 /**
@@ -122,11 +123,11 @@ export const updateWorkspaceSettings = async (
   workspaceId: string,
   data: UpdateWorkspaceSettingsRequest,
 ): Promise<WorkspaceSettingsResponse> => {
-  const response: AxiosResponse<{ data: WorkspaceSettingsResponse }> = await userRepoClient.put(
+  const response: AxiosResponse<WorkspaceSettingsResponse> = await userRepoClient.put(
     `/api/workspaces/${workspaceId}/settings`,
     data,
   );
-  return response.data.data;
+  return response.data;
 };
 
 // ========================================
@@ -140,10 +141,10 @@ export const updateWorkspaceSettings = async (
 export const getWorkspaceMembers = async (
   workspaceId: string,
 ): Promise<WorkspaceMemberResponse[]> => {
-  const response: AxiosResponse<{ data: WorkspaceMemberResponse[] }> = await userRepoClient.get(
+  const response: AxiosResponse<WorkspaceMemberResponse[]> = await userRepoClient.get(
     `/api/workspaces/${workspaceId}/members`,
   );
-  return response.data.data;
+  return response.data;
 };
 
 /**
