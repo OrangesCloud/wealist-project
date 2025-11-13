@@ -146,7 +146,7 @@ func (app *Application) RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 			projects.GET("", app.ProjectHandler.GetProjects)
 			projects.GET("/search", app.ProjectHandler.SearchProjects)
 			projects.GET("/:projectId", app.ProjectHandler.GetProject)
-			projects.GET("/:projectId/init-data", app.ProjectHandler.GetProjectInitData)
+			projects.GET("/:projectId/init-settings", app.ProjectHandler.GetProjectInitSettings)
 			projects.PUT("/:projectId", app.ProjectHandler.UpdateProject)
 			projects.DELETE("/:projectId", app.ProjectHandler.DeleteProject)
 

@@ -453,21 +453,21 @@ func (h *ProjectHandler) RemoveMember(c *gin.Context) {
 	dto.Success(c, map[string]string{"message": "멤버가 삭제되었습니다"})
 }
 
-// GetProjectInitData godoc
-// @Summary      Get project init data
-// @Description  Get all data needed for initial project page load (boards, fields with options, field types)
+// GetProjectInitSettings godoc
+// @Summary      Get project init settings
+// @Description  Get static configuration data needed for project initialization (project info, fields with options, field types)
 // @Tags         projects
 // @Accept       json
 // @Produce      json
 // @Param        projectId path string true "Project ID"
-// @Success      200 {object} dto.SuccessResponse{data=dto.ProjectInitDataResponse}
+// @Success      200 {object} dto.SuccessResponse{data=dto.ProjectInitSettingsResponse}
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      403 {object} dto.ErrorResponse
 // @Failure      404 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
-// @Router       /api/projects/{projectId}/init-data [get]
+// @Router       /api/projects/{projectId}/init-settings [get]
 // @Security     BearerAuth
-func (h *ProjectHandler) GetProjectInitData(c *gin.Context) {
+func (h *ProjectHandler) GetProjectInitSettings(c *gin.Context) {
 	userID := c.GetString("user_id")
 	if userID == "" {
 		dto.Error(c, apperrors.ErrUnauthorized)
@@ -476,7 +476,7 @@ func (h *ProjectHandler) GetProjectInitData(c *gin.Context) {
 
 	projectID := c.Param("projectId")
 
-	initData, err := h.service.GetProjectInitData(projectID, userID)
+	initSettings, err := h.service.GetProjectInitSettings(projectID, userID)
 	if err != nil {
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			dto.Error(c, appErr)
@@ -486,5 +486,5 @@ func (h *ProjectHandler) GetProjectInitData(c *gin.Context) {
 		return
 	}
 
-	dto.Success(c, initData)
+	dto.Success(c, initSettings)
 }
