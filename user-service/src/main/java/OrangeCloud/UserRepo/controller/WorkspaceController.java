@@ -63,7 +63,7 @@ public class WorkspaceController {
      * 워크스페이스 생성
      * POST /api/workspaces
      */
-    @PostMapping
+    @PostMapping("/create")
     @Operation(summary = "워크스페이스 생성", description = "새로운 워크스페이스를 생성합니다. (생성자가 OWNER)")
     public ResponseEntity<WorkspaceResponse> createWorkspace(
             Authentication authentication,
