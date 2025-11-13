@@ -73,33 +73,33 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   };
 
   // 💡 [수정] 동적 필터 옵션 생성 (useMemo)
-  const dynamicFilterOptions = useMemo(() => {
-    // 1. 기본 필터
-    const defaultOptions: FilterOptionData[] = [
-      { value: 'all', label: '전체', type: 'default' },
-      // { value: 'my_assigned', label: '내가 담당한 것만', type: 'assignee' },
-    ];
+  // const dynamicFilterOptions = useMemo(() => {
+  //   // 1. 기본 필터
+  //   const defaultOptions: FilterOptionData[] = [
+  //     { value: 'all', label: '전체', type: 'default' },
+  //     // { value: 'my_assigned', label: '내가 담당한 것만', type: 'assignee' },
+  //   ];
 
-    // 2. Stage/Role/Importance 옵션 추가
-    const fieldOptions: FilterOptionData[] = [];
+  //   // 2. Stage/Role/Importance 옵션 추가
+  //   const fieldOptions: FilterOptionData[] = [];
 
-    // Stage Options (Status 필터로 사용)
-    stageOptions?.forEach((s) => {
-      fieldOptions.push({ value: s.stageId, label: `단계: ${s.label}`, type: 'status' });
-    });
+  //   // Stage Options (Status 필터로 사용)
+  //   stageOptions?.forEach((s) => {
+  //     fieldOptions.push({ value: s.stageId, label: `단계: ${s.label}`, type: 'status' });
+  //   });
 
-    // Role Options
-    roleOptions?.forEach((r) => {
-      fieldOptions.push({ value: r.roleId, label: `역할: ${r.label}`, type: 'role' });
-    });
+  //   // Role Options
+  //   roleOptions?.forEach((r) => {
+  //     fieldOptions.push({ value: r.roleId, label: `역할: ${r.label}`, type: 'role' });
+  //   });
 
-    // Importance Options
-    importanceOptions?.forEach((i) => {
-      fieldOptions.push({ value: i.importanceId, label: `중요도: ${i.label}`, type: 'importance' });
-    });
+  //   // Importance Options
+  //   importanceOptions?.forEach((i) => {
+  //     fieldOptions.push({ value: i.importanceId, label: `중요도: ${i.label}`, type: 'importance' });
+  //   });
 
-    return [...defaultOptions, ...fieldOptions];
-  }, [stageOptions, roleOptions, importanceOptions]);
+  //   return [...defaultOptions, ...fieldOptions];
+  // }, [stageOptions, roleOptions, importanceOptions]);
 
   // 외부 클릭 감지
   useEffect(() => {
@@ -272,7 +272,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           className={`flex items-center gap-2 px-4 py-2 border ${theme.colors.border} rounded-md ${theme.colors.card} hover:bg-gray-50 transition-colors`}
         >
           <span className="text-sm font-medium">
-            필터: {dynamicFilterOptions.find((f) => f.value === selectedFilter)?.label || '전체'}
+            필터 준비중~
+            {/* 필터: {dynamicFilterOptions.find((f) => f.value === selectedFilter)?.label || '전체'} */}
           </span>
           <ChevronDown className="w-4 h-4" />
         </button>
@@ -280,7 +281,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           <div
             className={`absolute top-full mt-2 left-0 w-64 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.effects.borderRadius} shadow-lg z-10`}
           >
-            <div className="p-3 max-h-80 overflow-y-auto">
+            {/* <div className="p-3 max-h-80 overflow-y-auto">
               <h3 className="text-xs text-gray-400 mb-2 px-1 font-semibold">
                 필터 ({dynamicFilterOptions.length})
               </h3>
@@ -301,8 +302,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                   </button>
                 ),
               )}
-            </div>
-            <div className="pt-2 pb-2 border-t">
+            </div> */}
+            {/* <div className="pt-2 pb-2 border-t"> */}
+            <div className="pt-2 pb-2 ">
               <button
                 onClick={() => {
                   // onManageClick(); // 💡 Custom Field Manager Modal 오픈 요청
