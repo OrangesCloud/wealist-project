@@ -52,11 +52,13 @@ public class WorkspaceService {
                     return new UserNotFoundException("사용자를 찾을 수 없습니다.");
                 });
 
+        boolean isPublic = request.getIsPublic() != null ? request.getIsPublic() : false;
+
         Workspace workspace = Workspace.builder()
                 .ownerId(creatorId)
                 .workspaceName(request.getWorkspaceName())
                 .workspaceDescription(request.getWorkspaceDescription())
-                .isPublic(request.getIsPublic())
+                .isPublic(isPublic)
                 .needApproved(true)
                 .isActive(true)
                 .build();
