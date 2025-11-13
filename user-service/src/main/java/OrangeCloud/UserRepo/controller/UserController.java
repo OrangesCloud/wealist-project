@@ -83,9 +83,5 @@ public class UserController {
         userService.restoreUser(userId);
         return ResponseEntity.ok(MessageApiResponse.success("사용자가 복구되었습니다."));
     }
-    @GetMapping("/test/{userid}")
-    public String returnToken(@PathVariable UUID userid){
-        String accessToken = tokenProvider.generateToken(userid);
-        return accessToken;
-    }
+
 }

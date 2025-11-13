@@ -403,13 +403,22 @@ public class WorkspaceService {
      */
     @Transactional
     public WorkspaceMemberResponse inviteUser(UUID workspaceId, InviteUserRequest request, UUID requesterId) {
-        log.info("Inviting user to workspace: workspaceId={}, email={}, requester={}", workspaceId, request.getEmail(), requesterId);
+        String query = request.getQuery().trim();
+        log.info("Inviting user to workspace: workspaceId={}, query={}, requester={}", workspaceId, query, requesterId);
 
         checkWorkspaceAdminOrOwner(workspaceId, requesterId);
 
-        // ✅ 이메일로 사용자 조회
-        User targetUser = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new UserNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다."));
+        // ✅ 이메일 형식인지 검사
+        boolean isEmail = query.contains("@");
+
+        // ✅ 사용자 조회
+        Optional<User> targetUserOpt;
+
+        targetUserOpt = userRepository.findByEmail(query);
+
+
+        User targetUser = targetUserOpt
+                .orElseThrow(() -> new UserNotFoundException("해당 " + (isEmail ? "이메일" : "이름") + "의 사용자를 찾을 수 없습니다."));
 
         // ✅ 이미 멤버인지 확인
         if (workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, targetUser.getUserId())) {
@@ -431,6 +440,7 @@ public class WorkspaceService {
 
         return convertToWorkspaceMemberResponse(savedMember);
     }
+
 
 
     /**
