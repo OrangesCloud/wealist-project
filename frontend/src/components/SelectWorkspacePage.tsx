@@ -10,7 +10,7 @@ import {
   createJoinRequest,
 } from '../api/user/userService';
 import { Search, Plus, X, AlertCircle, Settings, LogOut } from 'lucide-react';
-import WorkspaceManagementModal from './modals/WorkspaceManagementModal';
+import WorkspaceManagementModal from './modals/wsManager/WorkspaceManagementModal';
 import { CreateWorkspaceRequest, WorkspaceResponse, JoinRequestResponse } from '../types/user';
 
 type WorkspacePageStep = 'list' | 'create-form' | 'add-members' | 'loading';

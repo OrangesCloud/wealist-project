@@ -16,80 +16,7 @@ import {
 } from '../../types/board';
 import { getBoards } from '../../api/board/boardService';
 import { BoardDetailModal } from '../modals/BoardDetailModal';
-import { CreateBoardModal } from '../modals/CreateBoardModal';
-
-// ⚠️ Mock Data (유지)
-const MOCK_ROLES: CustomRoleResponse[] = [
-  {
-    roleId: '00000000-0000-0000-0000-000000000004',
-    label: '개발',
-    color: '#8B5CF6',
-    displayOrder: 0,
-    fieldId: '00000000-0000-0000-0000-000000000011',
-    description: '기본값',
-    isSystemDefault: true,
-  },
-  {
-    roleId: '00000000-0000-0000-0000-000000000013',
-    label: '디자인',
-    color: '#F59E0B',
-    displayOrder: 1,
-    fieldId: '00000000-0000-0000-0000-000000000011',
-    description: '',
-    isSystemDefault: false,
-  },
-];
-const MOCK_IMPORTANCES: CustomImportanceResponse[] = [
-  {
-    importanceId: '00000000-0000-0000-0000-000000000006',
-    label: '긴급',
-    color: '#EF4444',
-    displayOrder: 0,
-    fieldId: '00000000-0000-0000-0000-000000000012',
-    description: '',
-    isSystemDefault: false,
-    level: 5,
-  },
-  {
-    importanceId: '00000000-0000-0000-0000-000000000007',
-    label: '낮음',
-    color: '#10B981',
-    displayOrder: 1,
-    fieldId: '00000000-0000-0000-0000-000000000012',
-    description: '기본값',
-    isSystemDefault: true,
-    level: 1,
-  },
-];
-const MOCK_STAGES_LIST: CustomStageResponse[] = [
-  {
-    stageId: '00000000-0000-0000-0000-000000000014',
-    label: '트리아지',
-    color: '#64748B',
-    displayOrder: 0,
-    fieldId: '00000000-0000-0000-0000-000000000010',
-    description: '기본값',
-    isSystemDefault: true,
-  },
-  {
-    stageId: '00000000-0000-0000-0000-000000000002',
-    label: '진행중',
-    color: '#3B82F6',
-    displayOrder: 1,
-    fieldId: '00000000-0000-0000-0000-000000000010',
-    description: '',
-    isSystemDefault: false,
-  },
-  {
-    stageId: '00000000-0000-0000-0000-000000000003',
-    label: '완료',
-    color: '#10B981',
-    displayOrder: 2,
-    fieldId: '00000000-0000-0000-0000-000000000010',
-    description: '',
-    isSystemDefault: true,
-  },
-];
+import { MOCK_IMPORTANCES, MOCK_ROLES, MOCK_STAGES } from '../../mocks/board';
 
 interface Column {
   stageId: string;
@@ -189,7 +116,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const stages = MOCK_STAGES_LIST;
+      const stages = MOCK_STAGES;
       // 💡 API 호출 시 필터링을 viewState 기준으로 적용할 수 있지만, 현재는 전체 로드
       const boardsResponse = await getBoards(selectedProject.projectId);
 
@@ -201,7 +128,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
       boardsResponse?.boards?.forEach((board: BoardResponse) => {
         const stageId = board.customFields?.stageId;
-        const targetStageId = stageId || MOCK_STAGES_LIST[0].stageId;
+        const targetStageId = stageId || MOCK_STAGES[0].stageId;
 
         if (stageMap.has(targetStageId)) {
           stageMap.get(targetStageId)!.boards.push(board);

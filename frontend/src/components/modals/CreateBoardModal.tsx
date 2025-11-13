@@ -1,5 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { X, Tag, CheckSquare, AlertCircle, Calendar, User, Plus, Settings } from 'lucide-react';
+// src/components/modals/CreateBoardModal.tsx
+
+import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import {
+  X,
+  Tag,
+  CheckSquare,
+  AlertCircle,
+  Calendar,
+  User,
+  Plus,
+  Settings,
+  Check,
+} from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CUSTOM_FIELD_COLORS } from '../../constants/colors';
 import {
@@ -15,6 +27,7 @@ import { createBoard, updateBoard } from '../../api/board/boardService';
 import { getWorkspaceMembers } from '../../api/user/userService';
 // 💡 WorkspaceMemberResponse를 사용합니다.
 import { WorkspaceMemberResponse } from '../../types/user';
+import { MOCK_IMPORTANCES, MOCK_ROLES, MOCK_STAGES } from '../../mocks/board'; // Mock data는 로컬에 재정의
 
 // 💡 EditData 인터페이스를 API에 맞게 수정
 interface CreateBoardModalProps {
@@ -34,84 +47,9 @@ interface CreateBoardModalProps {
   workspaceId: string;
   onClose: () => void;
   onBoardCreated: () => void;
+  // 💡 [추가] 필드 관리 모달을 열기 위한 핸들러
+  onAddFieldsClick: () => void;
 }
-
-// ⚠️ 임시 Mock Data: API 호출이 제거되었으므로, 컴포넌트 로직을 유지하기 위해 최소한의 Mock 데이터를 사용합니다.
-const MOCK_STAGES: CustomStageResponse[] = [
-  // 💡 UUID 형식으로 변경하여 백엔드 검증 통과
-  {
-    stageId: '00000000-0000-0000-0000-000000000001',
-    label: '대기',
-    color: '#F59E0B',
-    displayOrder: 1,
-    fieldId: '00000000-0000-0000-0000-000000000010',
-    description: '대기 단계',
-    isSystemDefault: true,
-  },
-  {
-    stageId: '00000000-0000-0000-0000-000000000002',
-    label: '진행중',
-    color: '#3B82F6',
-    displayOrder: 2,
-    fieldId: '00000000-0000-0000-0000-000000000010',
-    description: '진행 단계',
-    isSystemDefault: false,
-  },
-  {
-    stageId: '00000000-0000-0000-0000-000000000003',
-    label: '완료',
-    color: '#10B981',
-    displayOrder: 3,
-    fieldId: '00000000-0000-0000-0000-000000000010',
-    description: '완료 단계',
-    isSystemDefault: false,
-  },
-];
-const MOCK_ROLES: CustomRoleResponse[] = [
-  // 💡 UUID 형식으로 변경하여 백엔드 검증 통과
-  {
-    roleId: '00000000-0000-0000-0000-000000000004',
-    label: '프론트엔드',
-    color: '#8B5CF6',
-    displayOrder: 1,
-    fieldId: '00000000-0000-0000-0000-000000000011',
-    description: '프론트 역할',
-    isSystemDefault: true,
-  },
-  {
-    roleId: '00000000-0000-0000-0000-000000000005',
-    label: '백엔드',
-    color: '#EC4899',
-    displayOrder: 2,
-    fieldId: '00000000-0000-0000-0000-000000000011',
-    description: '백엔드 역할',
-    isSystemDefault: false,
-  },
-];
-const MOCK_IMPORTANCES: CustomImportanceResponse[] = [
-  // 💡 UUID 형식으로 변경하여 백엔드 검증 통과
-  {
-    importanceId: '00000000-0000-0000-0000-000000000006',
-    label: '높음',
-    color: '#F59E0B',
-    displayOrder: 1,
-    fieldId: '00000000-0000-0000-0000-000000000012',
-    description: '높은 중요도',
-    level: 5,
-    isSystemDefault: false,
-  },
-  {
-    importanceId: '00000000-0000-0000-0000-000000000007',
-    label: '낮음',
-    color: '#10B981',
-    displayOrder: 2,
-    fieldId: '00000000-0000-0000-0000-000000000012',
-    description: '낮은 중요도',
-    level: 1,
-    isSystemDefault: true,
-  },
-];
-// ⚠️ 주의: 실제 서비스에서는 이 Mock 데이터를 제거하고 새로운 Field/Option API를 구현해야 합니다.
 
 export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   projectId,
@@ -120,10 +58,9 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
   workspaceId,
   onClose,
   onBoardCreated,
+  onAddFieldsClick, // 💡 [추가] prop 받기
 }) => {
   const { theme } = useTheme();
-  // 💡 [수정] accessToken 변수 선언 제거 (인터셉터 위임)
-  // const accessToken = localStorage.getItem('accessToken') || '';
 
   // Form state
   const [title, setTitle] = useState(editData?.title || '');
@@ -154,7 +91,6 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
-  // 💡 API 호출 제거로 인해 로딩 상태 초기값을 false로 변경
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -173,7 +109,6 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
 
   // 1. Custom Fields 조회 (로직 제거, Mock Data 사용)
   useEffect(() => {
-    // 💡 API 호출 로직 제거 (백엔드 스펙 변경에 맞춤)
     // 현재는 Mock Data를 사용하므로, 초기값 설정 로직만 남깁니다.
     const stagesData = MOCK_STAGES;
     const rolesData = MOCK_ROLES;
@@ -203,7 +138,6 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
     if (workspaceId) {
       fetchMembers();
     }
-    // 💡 [수정] 의존성 배열에서 accessToken 제거
   }, [workspaceId]);
 
   // 1.3 드롭다운 외부 클릭 감지 (변경 없음)
@@ -290,11 +224,9 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
       };
 
       if (editData) {
-        // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
         await updateBoard(editData.boardId, boardData);
         console.log('✅ 보드 수정 성공:', title);
       } else {
-        // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
         await createBoard(boardData as CreateBoardRequest);
         console.log('✅ 보드 생성 성공:', title);
       }
@@ -700,22 +632,19 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                   )}
                 </div>
 
-                {/* Field Management */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Settings className="w-4 h-4 inline mr-1" />
-                    필드 관리
+                    <Plus className="w-4 h-4 inline mr-1" />
+                    커스텀 필드 추가
                   </label>
                   <button
-                    type="button"
-                    // 💡 [수정] 필드 관리 모달 호출 로직은 MainDashboard에 있을 가능성이 높으므로, 여기서는 콘솔 로그만 남깁니다.
-                    onClick={() => {
-                      console.log('Open CustomFieldManageModal for project:', projectId);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between"
+                    type="button" // 💡 [수정] 명시적으로 버튼 타입 지정 (폼 충돌 방지)
+                    onClick={onAddFieldsClick} // 💡 [수정] Prop 호출
+                    className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between font-medium"
                     disabled={isLoading}
                   >
-                    <span className="text-gray-600">커스텀 필드 관리</span>
+                    {/* 💡 [수정] 텍스트 및 아이콘 수정 */}
+                    <span className="text-gray-600">+ 새 필드 유형 정의</span>
                     <Settings className="w-4 h-4 text-gray-400" />
                   </button>
                 </div>
@@ -807,7 +736,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     disabled={isLoading}
                   />
                 </div>

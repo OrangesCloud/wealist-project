@@ -27,53 +27,8 @@ public class AuthService {
     private final UserProfileRepository userProfileRepository;
     private final JwtTokenProvider tokenProvider;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final WorkspaceService workspaceService;
 
-    // ============================================================================
-    // 테스트용 로그인
-    // ============================================================================
-
-    /**
-     * 테스트용 Google OAuth 사용자 생성 및 로그인
-     */
-    public AuthResponse TestLogin() {
-        log.debug("Creating test Google OAuth user");
-
-        String testEmail = "test_" + System.currentTimeMillis() + "@gmail.com";
-        String testGoogleId = "test_google_id_" + System.currentTimeMillis();
-        String testName = "Test User " + System.currentTimeMillis();
-
-        // User 생성
-        User testUser = User.builder()
-                .email(testEmail)
-                .googleId(testGoogleId)
-                .provider("google")
-                .isActive(true)
-                .build();
-
-        User savedUser = userRepository.save(testUser);
-        log.debug("Created test Google user with ID: {}", savedUser.getUserId());
-
-        // UserProfile 생성
-        UserProfile profile = UserProfile.builder()
-                .userId(savedUser.getUserId())
-                .nickName(testName)
-                .build();
-
-        userProfileRepository.save(profile);
-        log.debug("Created profile for test user: {}", savedUser.getUserId());
-
-        // JWT 토큰 생성
-        String accessToken = tokenProvider.generateToken(savedUser.getUserId());
-        String refreshToken = tokenProvider.generateRefreshToken(savedUser.getUserId());
-
-        return new AuthResponse(
-                accessToken,
-                refreshToken,
-                savedUser.getUserId(),
-                testName,
-                savedUser.getEmail()
-        );
-    }
 
     // ============================================================================
     // 로그아웃

@@ -37,7 +37,7 @@ public class WorkspaceController {
 //        return ResponseEntity.ok(workspaces);
 //    }
     // public 워크 스페이스
-    @GetMapping
+    @GetMapping("/public/{workspaceName}")
     @Operation(summary = "퍼블릭인 워크스페이스 목록 조회", description = "퍼블릭 워크스페이스 검색")
     public ResponseEntity<List<WorkspaceResponse>> getPublicWorkspaces(@PathVariable String workspaceName, Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
@@ -63,7 +63,7 @@ public class WorkspaceController {
      * 워크스페이스 생성
      * POST /api/workspaces
      */
-    @PostMapping
+    @PostMapping("/create")
     @Operation(summary = "워크스페이스 생성", description = "새로운 워크스페이스를 생성합니다. (생성자가 OWNER)")
     public ResponseEntity<WorkspaceResponse> createWorkspace(
             Authentication authentication,
@@ -79,7 +79,7 @@ public class WorkspaceController {
      * 특정 워크스페이스 조회
      * GET /api/workspaces/{workspaceId}
      */
-    @GetMapping("/{workspaceId}")
+    @GetMapping("/ids/{workspaceId}")
     @Operation(summary = "워크스페이스 조회", description = "특정 워크스페이스의 정보를 조회합니다. (멤버만 가능)")
     public ResponseEntity<WorkspaceResponse> getWorkspace(
             @PathVariable UUID workspaceId,
@@ -94,7 +94,7 @@ public class WorkspaceController {
      * 워크스페이스 수정
      * PUT /api/workspaces/{workspaceId}
      */
-    @PutMapping("/{workspaceId}")
+    @PutMapping("/ids/{workspaceId}")
     @Operation(summary = "워크스페이스 수정", description = "워크스페이스 정보를 수정합니다. (OWNER만 가능)")
     public ResponseEntity<WorkspaceResponse> updateWorkspace(
             @PathVariable UUID workspaceId,
@@ -165,15 +165,15 @@ public class WorkspaceController {
      * 워크스페이스 검색
      * GET /api/workspaces/search
      */
-    @GetMapping("/search")
-    @Operation(summary = "워크스페이스 검색", description = "워크스페이스명으로 검색합니다.")
-    public ResponseEntity<List<WorkspaceResponse>> searchWorkspaces(
-            @RequestParam String query,
-            Authentication authentication) {
-        log.debug("Searching workspaces: query={}", query);
-        // TODO: searchWorkspaces 서비스 구현
-        return ResponseEntity.ok(List.of());
-    }
+//    @GetMapping("/search")
+//    @Operation(summary = "워크스페이스 검색", description = "워크스페이스명으로 검색합니다.")
+//    public ResponseEntity<List<WorkspaceResponse>> searchWorkspaces(
+//            @RequestParam String query,
+//            Authentication authentication) {
+//        log.debug("Searching workspaces: query={}", query);
+//        // TODO: searchWorkspaces 서비스 구현
+//        return ResponseEntity.ok(List.of());
+//    }
 
     /**
      * 기본 워크스페이스 설정
@@ -202,7 +202,7 @@ public class WorkspaceController {
             @Valid @RequestBody InviteUserRequest request,
             Authentication authentication) {
         UUID requesterId = UUID.fromString(authentication.getName());
-        log.info("Inviting user to workspace: workspaceId={}, userId={}", workspaceId, request.getUserId());
+        log.info("Inviting user to workspace: workspaceId={}, query={}", workspaceId, request.getQuery());
         WorkspaceMemberResponse newMember = workspaceService.inviteUser(workspaceId, request, requesterId);
         return ResponseEntity.ok(newMember);
     }

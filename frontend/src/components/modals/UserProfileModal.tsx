@@ -66,7 +66,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
           getAllMyProfiles(),
           getMyWorkspaces(),
         ]);
-
+        console.log(allProfs);
         setAllProfiles(allProfs);
         const initialDefaultProfile = allProfs?.find((p) => p.workspaceId === null);
         if (initialDefaultProfile) {
