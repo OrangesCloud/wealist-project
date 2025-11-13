@@ -83,12 +83,14 @@ export interface CreateBoardRequest {
   projectId: string;
   title: string;
   content?: string;
-  assigneeId?: string; // 단일 사용자 ID
-  dueDate?: string;
-  // 레거시 필드 (백엔드 호환을 위해 유지)
   stageId?: string;
   importanceId?: string;
+  roleId?: string;
+
+  // 레거시 필드 (백엔드 호환을 위해 유지)
+  dueDate?: string;
   roleIds?: string[]; // 멀티 셀렉트
+  assigneeId?: string; // 단일 사용자 ID
 }
 
 /**

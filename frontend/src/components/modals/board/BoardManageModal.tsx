@@ -12,7 +12,7 @@ import { IFieldOption } from '../../../types/common';
 
 interface BoardManageModalProps {
   projectId: string;
-  initial?: IFieldOption;
+  // initial?: IFieldOption;
   editData?: {
     boardId: string;
     projectId: string;
@@ -28,34 +28,31 @@ interface BoardManageModalProps {
   onClose: () => void;
   onBoardCreated: () => void;
   onAddFieldsClick: () => void;
-  // 💡 [추가] 룩업 데이터를 props로 받습니다.
   fieldOptionsLookup: FieldOptionsLookup;
 }
 
 export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   projectId,
-  initial,
   editData,
   workspaceId,
   onClose,
   onBoardCreated,
   onAddFieldsClick,
-  fieldOptionsLookup, // 💡 [추가] prop 받기
+  fieldOptionsLookup,
 }) => {
   const { theme } = useTheme();
   // Form state
   const [title, setTitle] = useState(editData?.title || '');
   const [content, setContent] = useState(editData?.content || '');
-  const [selectedStageId, setSelectedStageId] = useState(editData?.stageId || '');
-  const [selectedRoleId, setSelectedRoleId] = useState<string>(editData?.roleId || '');
-  const [selectedImportanceId, setSelectedImportanceId] = useState<string>(
-    editData?.importanceId || '',
+  const [selectedStageId, setSelectedStageId] = useState(
+    editData?.stageId || fieldOptionsLookup.stages?.[0]?.stageId || '',
   );
-  // const [selectedAssigneeId, setSelectedAssigneeId] = useState<string[]>(
-  //   editData?.assigneeIds ||[],
-  // );
-  // const [dueDate, setDueDate] = useState<string>(editData?.dueDate || '');
-
+  const [selectedRoleId, setSelectedRoleId] = useState(
+    editData?.roleId || fieldOptionsLookup.roles?.[0]?.roleId || '',
+  );
+  const [selectedImportanceId, setSelectedImportanceId] = useState(
+    editData?.importanceId || fieldOptionsLookup.importances?.[0]?.importanceId || '',
+  );
   // Assignee search state
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
@@ -79,30 +76,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showStageDropdown, setShowStageDropdown] = useState(false);
   const [showImportanceDropdown, setShowImportanceDropdown] = useState(false);
-
-  // 1. Custom Fields 갱신 (Prop에서 받아오므로 로직 간소화)
-  useEffect(() => {
-    const stagesData = fieldOptionsLookup.stages || [];
-    const rolesData = fieldOptionsLookup.roles || [];
-    const ImpData = fieldOptionsLookup.importances || [];
-
-    // 💡 [수정] editData가 아닌 경우 (생성 모드), selectedStageId를 설정
-    if (!editData?.boardId && stagesData?.length > 0) {
-      // 1. initialStageId (컬럼 클릭) -> 2. 첫 번째 Stage
-      const defaultStage = initial?.key == 'stages' ? initial?.value : stagesData[0].stageId;
-      setSelectedStageId(defaultStage);
-    }
-    if (!selectedRoleId && rolesData?.length > 0) {
-      setSelectedRoleId(rolesData[0]?.roleId);
-    }
-    if (!selectedImportanceId && ImpData?.length > 0) {
-      setSelectedImportanceId(ImpData[0]?.importanceId);
-    }
-    // 💡 Mock Data가 아닌 실제 룩업이 로드될 때 로딩 상태를 종료합니다.
-    if (stagesData.length > 0 && rolesData?.length > 0) {
-      setIsLoadingFields(false);
-    }
-  }, [initial, selectedRoleId, fieldOptionsLookup]); // 💡 룩업 객체 의존성 추가
 
   // 1.2 워크스페이스 멤버 조회 (유지)
   useEffect(() => {
@@ -148,7 +121,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   }, [showRoleDropdown, showStageDropdown, showImportanceDropdown, assigneeSearch]);
 
   // 2. Inline custom field creation handlers (유지)
-  const handleCreateCustomField = async (type: 'stage' | 'role' | 'importance' | 'importance') => {
+  const handleCreateCustomField = async (type: 'stage' | 'role' | 'importance') => {
     setError(
       `새 ${type} 필드 추가 기능은 현재 API 스펙 변경으로 인해 비활성화되었습니다. (API 미지원)`,
     );
@@ -192,7 +165,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         title: title.trim(),
         content: content.trim() || undefined,
         stageId: selectedStageId,
-        roleIds: selectedRoleId ? [selectedRoleId] : undefined,
+        roleId: selectedRoleId || undefined,
         importanceId: selectedImportanceId || undefined,
       };
 

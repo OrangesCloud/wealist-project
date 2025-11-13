@@ -232,14 +232,17 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     // 1. 모든 컬럼의 보드를 플랫하게 만들고 룩업 정보를 붙입니다.
     const boardsToProcess = columns.flatMap((column) =>
       column.boards.map((board) => {
-        const roleId = board.customFields?.roleIds?.[0];
+        const roleId = board.customFields?.roleId;
         const importanceId = board.customFields?.importanceId;
+        const stageId = board.customFields?.stageId;
 
         return {
           ...board,
           stageName: column.title, // ⚠️ 기존 컬럼 이름 (Stage 기준)
+          stageColor: column.color,
           roleOption: getRoleOption(roleId),
           importanceOption: getImportanceOption(importanceId),
+          stageOption: getStageOption(stageId),
         };
       }),
     );
@@ -309,7 +312,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     const groupByField = viewState.currentView;
     let baseOptions: any[] = [];
     let fieldKey: 'stageId' | 'roleId' | 'importanceId' = 'stageId'; // 룩업에서 ID를 가져올 키
-
+    let lookupField: 'stageOption' | 'roleOption' | 'importanceOption' = 'stageOption'; // 보드 객체에서 룩업 값을 가져올 필드 이름
     // 💡 [수정] 그룹화 기준에 따라 옵션 배열 선택
     if (groupByField === 'stage') {
       baseOptions = fieldOptionsLookup?.stages || [];
@@ -326,7 +329,13 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
     // 2. 그룹화 맵 생성 (옵션 ID 기준)
     const groupedMap = new Map<string, Column>();
-
+    // Unassigned/Uncategorized 컬럼 추가 (옵션 목록에 없는 경우 대비)
+    groupedMap.set('UNASSIGNED', {
+      stageId: 'UNASSIGNED',
+      title: '미분류',
+      color: '#B3B3B3',
+      boards: [],
+    });
     baseOptions?.forEach((option) => {
       const id = option[fieldKey] as string;
       groupedMap.set(id, {
@@ -339,23 +348,28 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
     // 3. 보드를 그룹에 할당
     allProcessedBoards.forEach((board) => {
-      const optionId = (board as any)[groupByField + 'Option']?.[fieldKey]; // 'roleOption'.roleId 추출
+      const optionId = (board as any)[lookupField]?.[fieldKey]; // 'roleOption'.roleId 추출
 
       if (optionId && groupedMap.has(optionId)) {
         groupedMap.get(optionId)!.boards.push(board as any);
-      } else if (groupByField === 'stage') {
-        // ⚠️ Stage가 없는 보드는 기본 Stage(첫 번째 Stage)에 할당 (선택 사항)
-        // ...
+      } else {
+        // 옵션이 할당되지 않은 경우 '미분류'로 보냅니다.
+        groupedMap.get('UNASSIGNED')!.boards.push(board as any);
       }
     });
 
     // 4. 컬럼 배열로 변환 (displayOrder 순으로 정렬)
-    return Array.from(groupedMap.values()).sort((a, b) => {
-      // Mock data의 displayOrder를 사용하여 정렬해야 함 (baseOptions에서 찾아야 함)
+    const sortedColumns = Array.from(groupedMap.values()).sort((a, b) => {
+      // Unassigned 컬럼은 항상 마지막에 위치
+      if (a.stageId === 'UNASSIGNED') return 1;
+      if (b.stageId === 'UNASSIGNED') return -1;
+
       const orderA = baseOptions.find((o) => (o as any)[fieldKey] === a.stageId)?.displayOrder || 0;
       const orderB = baseOptions.find((o) => (o as any)[fieldKey] === b.stageId)?.displayOrder || 0;
       return orderA - orderB;
     });
+
+    return sortedColumns;
   }, [allProcessedBoards, viewState.currentView, fieldOptionsLookup]); // 💡 allProcessedBoards에 의존
 
   // 로딩 상태 처리
@@ -506,16 +520,21 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         // =============================================================
         <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 min-w-max pb-4 mt-4">
           {currentViewColumns?.map((column, idx) => {
-            // 필터링된 보드 목록 (테이블 뷰에서 사용한 searchQuery 필터링을 컬럼별로 재적용)
-            const columnBoards = viewState?.searchQuery?.trim()
-              ? column?.boards?.filter((board) => {
-                  const query = viewState?.searchQuery?.toLowerCase();
-                  return (
-                    board.title.toLowerCase().includes(query || '') ||
-                    board.content?.toLowerCase().includes(query || '')
-                  );
-                })
-              : column?.boards;
+            const columnBoards = column.boards; // 💡 [수정] 이미 뷰 기준으로 그룹화 및 필터링된 보드 사용
+            // 💡 [추가] fieldKey를 currentView에 따라 동적으로 결정
+            const fieldKeyName =
+              viewState.currentView === 'stage'
+                ? 'stageId'
+                : viewState.currentView === 'role'
+                ? 'roleIds'
+                : viewState.currentView === 'importance'
+                ? 'importanceId'
+                : 'stageId'; // 기본값
+
+            // 💡 [추가] onEditBoard에 전달할 초기 데이터 객체 생성
+            const initialData: any = {};
+            // fieldKeyName을 동적 속성 이름으로 사용하여 현재 컬럼의 ID를 할당
+            initialData[fieldKeyName] = column.stageId;
 
             return (
               <div
@@ -566,13 +585,13 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                       <span
                         className={`bg-black text-white px-1 sm:px-2 py-1 ${theme.effects.cardBorderWidth} ${theme.colors.border} text-[8px] sm:text-xs`}
                       >
-                        {columnBoards.length}
+                        {columnBoards?.length}
                       </span>
                     </h3>
                   </div>
 
                   <div className="space-y-2 sm:space-y-3">
-                    {columnBoards.map((board) => (
+                    {columnBoards?.map((board) => (
                       <div
                         onDragEnd={handleDragEnd}
                         key={board.boardId + column.stageId}
@@ -630,7 +649,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                     ))}
 
                     {/* Drop indicator for empty column or below all boards */}
-                    {columnBoards.length === 0 &&
+                    {columnBoards?.length === 0 &&
                       dragOverColumn === column.stageId &&
                       draggedBoard &&
                       !draggedColumn && (
@@ -642,8 +661,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                     <button
                       className={`relative w-full py-3 sm:py-4 ${theme.effects.cardBorderWidth} border-dashed ${theme.colors.border} ${theme.colors.card} hover:bg-gray-100 transition flex items-center justify-center gap-2 ${theme.font.size.xs} ${theme.effects.borderRadius}`}
                       onClick={() => {
-                        // 💡 [수정] 모달을 열고, 스테이지 ID는 editData에 포함하여 상위로 전달 준비
-                        onEditBoard({ stageId: column.stageId });
+                        onEditBoard(initialData);
                         setShowCreateBoard(true);
                       }}
                       onDragOver={(e) => {

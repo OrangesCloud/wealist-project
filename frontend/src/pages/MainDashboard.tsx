@@ -276,7 +276,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
       {(editBoardData || uiState?.showCreateBoard) && selectedProject && (
         <BoardManageModal
           projectId={selectedProject?.projectId}
-          initial={editBoardData?.stageId}
           editData={editBoardData}
           workspaceId={currentWorkspaceId}
           onClose={() => {
