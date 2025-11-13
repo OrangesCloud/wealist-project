@@ -59,6 +59,28 @@ public class WorkspaceController {
         return ResponseEntity.ok(workspaces);
     }
 
+
+    @GetMapping("/owner/{ownerId}/workspaces")
+    @Operation(summary = "오너 유저가 만든 모든(false,true) 워크스페이스 조회",
+            description = "ownerId로 해당 사용자가 만든 모든 워크스페이스를 조회합니다. query가 있으면 이름으로 필터링")
+    public ResponseEntity<List<WorkspaceResponse>> getWorkspacesByOwner(
+            @PathVariable UUID ownerId,
+            @RequestParam(required = false) String query) {
+
+        List<WorkspaceResponse> workspaces = workspaceService.getWorkspacesByOwner(ownerId, query);
+        return ResponseEntity.ok(workspaces);
+    }
+
+    @GetMapping("/search/all")
+    @Operation(summary = "일반 사용자의 퍼블릭 워크스페이스 검색",
+            description = "쿼리 없으면 모든 공개 워크스페이스 조회, 쿼리가 있으면 이름이 해당 문자열로 시작하는 워크스페이스 조회")
+    public ResponseEntity<List<WorkspaceResponse>> searchPublicWorkspaces(
+            @RequestParam(required = false) String query) {
+
+        List<WorkspaceResponse> workspaces = workspaceService.searchPublicWorkspaces(query);
+        return ResponseEntity.ok(workspaces);
+    }
+
     /**
      * 워크스페이스 생성
      * POST /api/workspaces

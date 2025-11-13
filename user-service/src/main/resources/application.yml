@@ -25,6 +25,10 @@ spring:
       hibernate:
         format_sql: ${JPA_FORMAT_SQL}
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
+    sql:
+      init:
+        mode: always
+    defer-datasource-initialization: true
 
   file:
     upload-dir: /app/upload
