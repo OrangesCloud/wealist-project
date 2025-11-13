@@ -12,5 +12,6 @@ import java.util.UUID;
 @AllArgsConstructor
 public class InviteUserRequest {
     @NotNull
-    private UUID userId;
+    private String Query;
+
 }
