@@ -98,11 +98,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           };
 
           if (field.name === 'Role') {
-            roles.push({ ...base, roleId: opt.optionId });
+            roles?.push({ ...base, roleId: opt.optionId });
           } else if (field.name === 'Importance') {
-            importances.push({ ...base, importanceId: opt.optionId, level: 1 });
+            importances?.push({ ...base, importanceId: opt.optionId });
           } else if (field.name === 'Stage') {
-            stages.push({ ...base, stageId: opt.optionId });
+            stages?.push({ ...base, stageId: opt.optionId });
           }
         });
       }

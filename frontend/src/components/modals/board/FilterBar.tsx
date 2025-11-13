@@ -211,14 +211,21 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             {/* View By (Group By) - 현재는 Mock이지만 나중에 필드 목록으로 채워져야 함 */}
             <div>
               <h4 className="text-xs font-semibold text-gray-500 mb-2">그룹 기준</h4>
-              {/* 💡 [임시 Mock] */}
               <button
                 onClick={() => handleViewChange('stage')}
                 className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-gray-100 ${
                   currentView === 'stage' ? 'bg-blue-100 text-blue-700' : ''
                 }`}
               >
-                Stage 기준
+                작업단계 기준
+              </button>
+              <button
+                onClick={() => handleViewChange('importance')}
+                className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-gray-100 ${
+                  currentView === 'importance' ? 'bg-blue-100 text-blue-700' : ''
+                }`}
+              >
+                중요도 기준
               </button>
               <button
                 onClick={() => handleViewChange('role')}
@@ -226,7 +233,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                   currentView === 'role' ? 'bg-blue-100 text-blue-700' : ''
                 }`}
               >
-                Role 기준
+                역할 기준
               </button>
             </div>
 

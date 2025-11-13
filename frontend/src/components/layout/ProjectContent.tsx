@@ -15,6 +15,7 @@ import {
   Column,
   ViewState,
   FieldOptionsLookup,
+  BaseFieldOption,
 } from '../../types/board';
 import { getBoards } from '../../api/board/boardService';
 import { BoardDetailModal } from '../modals/board/BoardDetailModal';
@@ -91,6 +92,8 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     roleId ? roleOptions?.find((r) => r.roleId === roleId) : undefined;
   const getImportanceOption = (importanceId: string | undefined) =>
     importanceId ? importanceOptions?.find((i) => i.importanceId === importanceId) : undefined;
+  const getStageOption = (stageId: string | undefined) =>
+    stageId ? stageOptions?.find((i) => i.stageId === stageId) : undefined;
   // 4. 보드 목록 조회 함수 (useCallback)
   const fetchBoards = useCallback(async () => {
     if (!selectedProject || !stageOptions || stageOptions.length === 0) {
@@ -224,51 +227,136 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     onEditBoard(boardData);
     setSelectedBoardId(null);
   };
-
   // 6. Table/Board View 공통 데이터 필터링/정렬 로직 (useMemo)
-  const { sortedBoards, allBoards } = useMemo(() => {
-    const { searchQuery, sortColumn, sortDirection } = viewState;
-
+  const allProcessedBoards = useMemo(() => {
+    // 1. 모든 컬럼의 보드를 플랫하게 만들고 룩업 정보를 붙입니다.
     const boardsToProcess = columns.flatMap((column) =>
       column.boards.map((board) => {
         const roleId = board.customFields?.roleIds?.[0];
         const importanceId = board.customFields?.importanceId;
+
         return {
           ...board,
-          stageName: column.title,
-          stageColor: column.color,
+          stageName: column.title, // ⚠️ 기존 컬럼 이름 (Stage 기준)
           roleOption: getRoleOption(roleId),
           importanceOption: getImportanceOption(importanceId),
         };
       }),
     );
 
-    const filteredBoards = searchQuery?.trim()
+    // 2. 검색 필터링
+    const filteredBoards = viewState.searchQuery?.trim()
       ? boardsToProcess.filter((board) => {
-          const query = searchQuery.toLowerCase();
-          const titleMatch = board.title.toLowerCase().includes(query);
-          const contentMatch = board.content?.toLowerCase().includes(query);
-          return titleMatch || contentMatch;
+          const query = viewState?.searchQuery?.toLowerCase();
+          return (
+            board.title.toLowerCase().includes(query || '') ||
+            board.content?.toLowerCase().includes(query || '')
+          );
         })
       : boardsToProcess;
 
-    const sortedBoards = [...filteredBoards].sort((a, b) => {
-      // [정렬 로직 유지]
-      if (!sortColumn) return 0;
+    // 3. 💡 [필터링 by ViewState.filterOption]
+    const finalFilteredBoards = filteredBoards.filter((board) => {
+      // TODO: Filter logic based on viewState.filterOption (stageId, roleId, importanceId)
+      return true;
+    });
+
+    // 4. 정렬
+    const sortedBoards = [...finalFilteredBoards].sort((a, b) => {
+      // 💡 [수정] 정렬 로직 (viewState.sortColumn 사용)
+      if (!viewState.sortColumn) return 0;
       let aValue: any;
       let bValue: any;
+      const direction = viewState.sortDirection === 'asc' ? 1 : -1;
 
-      // 💡 [수정] 실제 정렬 로직 (Title 기준)
-      aValue = a.title.toLowerCase();
-      bValue = b.title.toLowerCase();
+      switch (viewState.sortColumn) {
+        case 'title':
+          aValue = a.title.toLowerCase();
+          bValue = b.title.toLowerCase();
+          break;
+        case 'stage':
+          aValue = a.stageName;
+          bValue = b.stageName;
+          break;
+        case 'role':
+          aValue = a.roleOption?.label || '';
+          bValue = b.roleOption?.label || '';
+          break;
+        case 'importance':
+          aValue = a.importanceOption?.level || 0;
+          bValue = b.importanceOption?.level || 0;
+          break;
+        default:
+          return 0;
+      }
 
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      if (aValue < bValue) return -1 * direction;
+      if (aValue > bValue) return 1 * direction;
       return 0;
     });
 
-    return { sortedBoards, allBoards: boardsToProcess };
+    return sortedBoards;
   }, [columns, viewState, roleOptions, importanceOptions]);
+
+  // 7. 💡 [신규] 뷰 기준(currentView)에 따라 컬럼을 재구성 (useMemo)
+  const currentViewColumns = useMemo(() => {
+    // 보드 목록이 없으면 빈 배열 반환
+    if (!allProcessedBoards || allProcessedBoards.length === 0) {
+      return [];
+    }
+
+    // 1. 그룹화 기준 필드를 결정
+    const groupByField = viewState.currentView;
+    let baseOptions: any[] = [];
+    let fieldKey: 'stageId' | 'roleId' | 'importanceId' = 'stageId'; // 룩업에서 ID를 가져올 키
+
+    // 💡 [수정] 그룹화 기준에 따라 옵션 배열 선택
+    if (groupByField === 'stage') {
+      baseOptions = fieldOptionsLookup?.stages || [];
+      fieldKey = 'stageId';
+    } else if (groupByField === 'role') {
+      baseOptions = fieldOptionsLookup.roles || [];
+      fieldKey = 'roleId';
+    } else if (groupByField === 'importance') {
+      baseOptions = fieldOptionsLookup.importances || [];
+      fieldKey = 'importanceId';
+    } else {
+      return [];
+    }
+
+    // 2. 그룹화 맵 생성 (옵션 ID 기준)
+    const groupedMap = new Map<string, Column>();
+
+    baseOptions?.forEach((option) => {
+      const id = option[fieldKey] as string;
+      groupedMap.set(id, {
+        stageId: id, // 💡 그룹화 ID 사용
+        title: option.label,
+        color: option.color,
+        boards: [],
+      });
+    });
+
+    // 3. 보드를 그룹에 할당
+    allProcessedBoards.forEach((board) => {
+      const optionId = (board as any)[groupByField + 'Option']?.[fieldKey]; // 'roleOption'.roleId 추출
+
+      if (optionId && groupedMap.has(optionId)) {
+        groupedMap.get(optionId)!.boards.push(board as any);
+      } else if (groupByField === 'stage') {
+        // ⚠️ Stage가 없는 보드는 기본 Stage(첫 번째 Stage)에 할당 (선택 사항)
+        // ...
+      }
+    });
+
+    // 4. 컬럼 배열로 변환 (displayOrder 순으로 정렬)
+    return Array.from(groupedMap.values()).sort((a, b) => {
+      // Mock data의 displayOrder를 사용하여 정렬해야 함 (baseOptions에서 찾아야 함)
+      const orderA = baseOptions.find((o) => (o as any)[fieldKey] === a.stageId)?.displayOrder || 0;
+      const orderB = baseOptions.find((o) => (o as any)[fieldKey] === b.stageId)?.displayOrder || 0;
+      return orderA - orderB;
+    });
+  }, [allProcessedBoards, viewState.currentView, fieldOptionsLookup]); // 💡 allProcessedBoards에 의존
 
   // 로딩 상태 처리
   if (isLoading && (stageOptions === undefined || stageOptions.length === 0)) {
@@ -334,7 +422,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
               </tr>
             </thead>
             <tbody>
-              {sortedBoards.map((board) => (
+              {allProcessedBoards?.map((board) => (
                 <tr
                   key={board.boardId}
                   onClick={() => setSelectedBoardId(board.boardId)}
@@ -347,7 +435,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                     <div className="flex items-center gap-2">
                       <span
                         className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: board.stageColor || '#6B7280' }}
+                        // style={{ backgroundColor: board.stageColor || '#6B7280' }}
                       />
                       <span className="text-sm">{board.stageName}</span>
                     </div>
@@ -406,7 +494,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
               </tr>
             </tbody>
           </table>
-          {allBoards.length === 0 && (
+          {allProcessedBoards?.length === 0 && (
             <div className="text-center py-12 text-gray-500">
               보드가 없습니다. 보드를 추가해보세요.
             </div>
@@ -417,21 +505,21 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         // 2. Board Layout (Kanban)
         // =============================================================
         <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 min-w-max pb-4 mt-4">
-          {columns?.map((column, idx) => {
+          {currentViewColumns?.map((column, idx) => {
             // 필터링된 보드 목록 (테이블 뷰에서 사용한 searchQuery 필터링을 컬럼별로 재적용)
             const columnBoards = viewState?.searchQuery?.trim()
-              ? column.boards.filter((board) => {
+              ? column?.boards?.filter((board) => {
                   const query = viewState?.searchQuery?.toLowerCase();
                   return (
                     board.title.toLowerCase().includes(query || '') ||
                     board.content?.toLowerCase().includes(query || '')
                   );
                 })
-              : column.boards;
+              : column?.boards;
 
             return (
               <div
-                key={column.stageId}
+                key={column?.stageId}
                 draggable
                 onDragStart={() => handleColumnDragStart(column)}
                 onDragEnd={handleDragEnd}

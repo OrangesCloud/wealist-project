@@ -154,12 +154,14 @@ export interface FieldOptionResponse {
 
 // 💡 Mock Data 호환성 및 프론트엔드 LookUp용 타입 (FieldOptionResponse 기반)
 
-interface BaseFieldOption {
+export interface BaseFieldOption {
   label: string;
   color: string;
   displayOrder: number;
+  level?: number;
   fieldId: string; // 소속 필드 ID
   isSystemDefault: boolean;
+  description: string;
 }
 
 /**
@@ -167,7 +169,6 @@ interface BaseFieldOption {
  */
 export interface CustomStageResponse extends BaseFieldOption {
   stageId: string; // FieldOptionResponse.optionId와 동일
-  description: string;
 }
 
 /**
@@ -175,7 +176,6 @@ export interface CustomStageResponse extends BaseFieldOption {
  */
 export interface CustomRoleResponse extends BaseFieldOption {
   roleId: string; // FieldOptionResponse.optionId와 동일
-  description: string;
 }
 
 /**
@@ -183,8 +183,6 @@ export interface CustomRoleResponse extends BaseFieldOption {
  */
 export interface CustomImportanceResponse extends BaseFieldOption {
   importanceId: string; // FieldOptionResponse.optionId와 동일
-  level: number; // Importance DTO에 level이 포함되어 있다고 가정
-  description: string;
 }
 
 // =======================================================
