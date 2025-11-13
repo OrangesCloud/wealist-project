@@ -107,6 +107,12 @@ func (s *viewService) CreateView(userID string, req *dto.CreateViewRequest) (*dt
 		groupByFieldID = &fieldUUID
 	}
 
+	// Determine IsShared value (default: true if not specified)
+	isShared := true
+	if req.IsShared != nil {
+		isShared = *req.IsShared
+	}
+
 	// Create view
 	view := &domain.SavedView{
 		ProjectID:      projectUUID,
@@ -114,7 +120,7 @@ func (s *viewService) CreateView(userID string, req *dto.CreateViewRequest) (*dt
 		Name:           req.Name,
 		Description:    req.Description,
 		IsDefault:      req.IsDefault,
-		IsShared:       req.IsShared,
+		IsShared:       isShared, // Default: true (team-shared view)
 		Filters:        string(filtersJSON),
 		SortDirection:  req.SortDirection,
 		GroupByFieldID: groupByFieldID,

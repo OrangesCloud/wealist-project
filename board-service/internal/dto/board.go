@@ -54,7 +54,8 @@ type BoardResponse struct {
 	DueDate       *time.Time                 `json:"dueDate"`
 	CreatedAt     time.Time                  `json:"createdAt"`
 	UpdatedAt     time.Time                  `json:"updatedAt"`
-	CustomFields  map[string]interface{}     `json:"customFields,omitempty"`  // Parsed custom_fields_cache
+	CustomFields  map[string]interface{}     `json:"customFields,omitempty"`  // Parsed custom_fields_cache (legacy)
+	FieldValues   []FieldValueWithInfo       `json:"fieldValues,omitempty"`   // Field values with field metadata
 	Position      string                     `json:"position,omitempty"`       // Board position in view
 }
 

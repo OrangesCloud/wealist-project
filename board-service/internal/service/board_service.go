@@ -18,6 +18,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -268,11 +269,75 @@ func (s *boardService) GetBoards(userID string, req *dto.GetBoardsRequest) (*dto
 	// 6. Batch fetch users
 	userMap := s.getUserInfoBatch(ctx, userIDs)
 
-	// 7. Build responses
-	// Note: Custom field values are now in custom_fields_cache (JSONB)
+	// 7. Batch fetch field values for all boards
+	boardIDs := make([]uuid.UUID, len(boards))
+	for i, board := range boards {
+		boardIDs[i] = board.ID
+	}
+
+	fieldValuesMap, err := s.fieldRepo.FindFieldValuesByBoards(boardIDs)
+	if err != nil {
+		s.logger.Warn("Failed to fetch field values", zap.Error(err))
+		fieldValuesMap = make(map[uuid.UUID][]domain.BoardFieldValue)
+	}
+
+	// 8. Collect all field IDs and option IDs
+	fieldIDSet := make(map[string]bool)
+	optionIDSet := make(map[string]bool)
+	for _, fieldValues := range fieldValuesMap {
+		for _, fv := range fieldValues {
+			fieldIDSet[fv.FieldID.String()] = true
+			if fv.ValueOptionID != nil {
+				optionIDSet[fv.ValueOptionID.String()] = true
+			}
+		}
+	}
+
+	// Convert to UUID slices
+	fieldIDs := make([]uuid.UUID, 0, len(fieldIDSet))
+	for fieldIDStr := range fieldIDSet {
+		if fieldID, err := uuid.Parse(fieldIDStr); err == nil {
+			fieldIDs = append(fieldIDs, fieldID)
+		}
+	}
+
+	optionIDs := make([]uuid.UUID, 0, len(optionIDSet))
+	for optionIDStr := range optionIDSet {
+		if optionID, err := uuid.Parse(optionIDStr); err == nil {
+			optionIDs = append(optionIDs, optionID)
+		}
+	}
+
+	// 9. Batch fetch field metadata
+	fieldsMap := make(map[string]domain.ProjectField)
+	if len(fieldIDs) > 0 {
+		fields, err := s.fieldRepo.FindFieldsByIDs(fieldIDs)
+		if err != nil {
+			s.logger.Warn("Failed to fetch fields", zap.Error(err))
+		} else {
+			for _, field := range fields {
+				fieldsMap[field.ID.String()] = field
+			}
+		}
+	}
+
+	// 10. Batch fetch options
+	optionsMap := make(map[string]domain.FieldOption)
+	if len(optionIDs) > 0 {
+		options, err := s.fieldRepo.FindOptionsByIDs(optionIDs)
+		if err != nil {
+			s.logger.Warn("Failed to fetch options", zap.Error(err))
+		} else {
+			for _, opt := range options {
+				optionsMap[opt.ID.String()] = opt
+			}
+		}
+	}
+
+	// 11. Build responses
 	responses := make([]dto.BoardResponse, 0, len(boards))
 	for _, board := range boards {
-		response, err := s.buildBoardResponseOptimized(&board, userMap)
+		response, err := s.buildBoardResponseOptimized(&board, userMap, fieldValuesMap, fieldsMap, optionsMap)
 		if err == nil && response != nil {
 			responses = append(responses, *response)
 		}
@@ -474,6 +539,63 @@ func (s *boardService) buildBoardResponse(board *domain.Board) (*dto.BoardRespon
 
 	// Use mapper to build response (eliminates duplication)
 	response := s.mapper.ToResponseWithUserMap(board, userMap)
+
+	// Fetch field values for this board
+	fieldValues, err := s.fieldRepo.FindFieldValuesByBoard(board.ID)
+	if err != nil {
+		s.logger.Warn("Failed to fetch field values", zap.Error(err), zap.String("board_id", board.ID.String()))
+	} else if len(fieldValues) > 0 {
+		// Collect field IDs
+		fieldIDSet := make(map[string]bool)
+		for _, fv := range fieldValues {
+			fieldIDSet[fv.FieldID.String()] = true
+		}
+
+		// Convert to UUID slice
+		fieldIDs := make([]uuid.UUID, 0, len(fieldIDSet))
+		for fieldIDStr := range fieldIDSet {
+			if fieldID, err := uuid.Parse(fieldIDStr); err == nil {
+				fieldIDs = append(fieldIDs, fieldID)
+			}
+		}
+
+		// Fetch field metadata
+		fields, err := s.fieldRepo.FindFieldsByIDs(fieldIDs)
+		if err != nil {
+			s.logger.Warn("Failed to fetch fields", zap.Error(err))
+		} else {
+			// Build field map
+			fieldsMap := make(map[string]domain.ProjectField)
+			for _, field := range fields {
+				fieldsMap[field.ID.String()] = field
+			}
+
+			// Collect option IDs
+			optionIDs := make([]uuid.UUID, 0)
+			for _, fv := range fieldValues {
+				if fv.ValueOptionID != nil {
+					optionIDs = append(optionIDs, *fv.ValueOptionID)
+				}
+			}
+
+			// Fetch options if any
+			optionsMap := make(map[string]domain.FieldOption)
+			if len(optionIDs) > 0 {
+				options, err := s.fieldRepo.FindOptionsByIDs(optionIDs)
+				if err != nil {
+					s.logger.Warn("Failed to fetch options", zap.Error(err))
+				} else {
+					for _, opt := range options {
+						optionsMap[opt.ID.String()] = opt
+					}
+				}
+			}
+
+			// Build field values with info
+			response.FieldValues = s.mapper.BuildFieldValuesWithInfo(fieldValues, fieldsMap, optionsMap)
+		}
+	}
+
 	return response, nil
 }
 
@@ -481,9 +603,18 @@ func (s *boardService) buildBoardResponse(board *domain.Board) (*dto.BoardRespon
 func (s *boardService) buildBoardResponseOptimized(
 	board *domain.Board,
 	userMap map[string]client.UserInfo,
+	fieldValuesMap map[uuid.UUID][]domain.BoardFieldValue,
+	fieldsMap map[string]domain.ProjectField,
+	optionsMap map[string]domain.FieldOption,
 ) (*dto.BoardResponse, error) {
 	// Use mapper to build response (eliminates duplication)
 	response := s.mapper.ToResponseWithUserMap(board, userMap)
+
+	// Add field values if available
+	if fieldValues, ok := fieldValuesMap[board.ID]; ok && len(fieldValues) > 0 {
+		response.FieldValues = s.mapper.BuildFieldValuesWithInfo(fieldValues, fieldsMap, optionsMap)
+	}
+
 	return response, nil
 }
 

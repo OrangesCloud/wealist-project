@@ -28,6 +28,66 @@ func NewBoardMapper(logger *zap.Logger) *BoardMapper {
 	return &BoardMapper{logger: logger}
 }
 
+// BuildFieldValuesWithInfo converts field values to DTO with field metadata
+func (m *BoardMapper) BuildFieldValuesWithInfo(
+	fieldValues []domain.BoardFieldValue,
+	fieldsMap map[string]domain.ProjectField,
+	optionsMap map[string]domain.FieldOption,
+) []FieldValueWithInfo {
+	if len(fieldValues) == 0 {
+		return []FieldValueWithInfo{}
+	}
+
+	result := make([]FieldValueWithInfo, 0, len(fieldValues))
+	for _, fv := range fieldValues {
+		fieldIDStr := fv.FieldID.String()
+		field, fieldExists := fieldsMap[fieldIDStr]
+
+		if !fieldExists {
+			continue
+		}
+
+		// Extract actual value based on field type
+		var actualValue interface{}
+		if fv.ValueText != nil {
+			actualValue = *fv.ValueText
+		} else if fv.ValueNumber != nil {
+			actualValue = *fv.ValueNumber
+		} else if fv.ValueDate != nil {
+			actualValue = *fv.ValueDate
+		} else if fv.ValueBoolean != nil {
+			actualValue = *fv.ValueBoolean
+		} else if fv.ValueOptionID != nil {
+			// Include option details if available
+			if option, ok := optionsMap[fv.ValueOptionID.String()]; ok {
+				actualValue = map[string]interface{}{
+					"optionId":    option.ID.String(),
+					"label":       option.Label,
+					"color":       option.Color,
+					"description": option.Description,
+				}
+			} else {
+				actualValue = fv.ValueOptionID.String()
+			}
+		} else if fv.ValueUserID != nil {
+			actualValue = fv.ValueUserID.String()
+		}
+
+		result = append(result, FieldValueWithInfo{
+			ValueID:      fv.ID.String(),
+			FieldID:      fieldIDStr,
+			FieldName:    field.Name,
+			FieldType:    string(field.FieldType),
+			Value:        actualValue,
+			DisplayOrder: fv.DisplayOrder,
+			CreatedAt:    fv.CreatedAt,
+			UpdatedAt:    fv.UpdatedAt,
+		})
+	}
+
+	return result
+}
+
 // ToResponse converts a domain.Board to BoardResponse (single board, fetches users)
 // Use ToResponseWithUserMap for batch operations
 func (m *BoardMapper) ToResponse(board *domain.Board) *BoardResponse {

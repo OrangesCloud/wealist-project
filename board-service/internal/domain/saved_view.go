@@ -10,7 +10,7 @@ type SavedView struct {
 	Name           string     `gorm:"type:varchar(255);not null" json:"name"`
 	Description    string     `gorm:"type:text" json:"description"`
 	IsDefault      bool       `gorm:"default:false;index" json:"is_default"`
-	IsShared       bool       `gorm:"default:false" json:"is_shared"`
+	IsShared       bool       `gorm:"default:true" json:"is_shared"` // Default: team-shared (most common use case)
 	Filters        string     `gorm:"type:text;default:'{}'" json:"filters"`       // JSON stored as string
 	SortBy         *string    `gorm:"type:varchar(255)" json:"sort_by"`
 	SortDirection  string     `gorm:"type:varchar(4);default:'asc'" json:"sort_direction"` // 'asc' or 'desc'

@@ -78,6 +78,38 @@ curl -X GET "http://localhost:8000/api/projects/550e8400-e29b-41d4-a716-44665544
           "550e8400-e29b-41d4-a716-446655440010": "550e8400-e29b-41d4-a716-446655440020",
           "550e8400-e29b-41d4-a716-446655440011": "높음"
         },
+        "fieldValues": [
+          {
+            "valueId": "550e8400-e29b-41d4-a716-446655440100",
+            "fieldId": "550e8400-e29b-41d4-a716-446655440010",
+            "fieldName": "상태",
+            "fieldType": "single_select",
+            "value": {
+              "optionId": "550e8400-e29b-41d4-a716-446655440020",
+              "label": "할 일",
+              "color": "#94A3B8",
+              "description": "아직 시작하지 않은 작업"
+            },
+            "displayOrder": 0,
+            "createdAt": "2025-11-01T10:00:00Z",
+            "updatedAt": "2025-11-01T10:00:00Z"
+          },
+          {
+            "valueId": "550e8400-e29b-41d4-a716-446655440101",
+            "fieldId": "550e8400-e29b-41d4-a716-446655440011",
+            "fieldName": "우선순위",
+            "fieldType": "single_select",
+            "value": {
+              "optionId": "550e8400-e29b-41d4-a716-446655440032",
+              "label": "높음",
+              "color": "#EF4444",
+              "description": ""
+            },
+            "displayOrder": 0,
+            "createdAt": "2025-11-01T10:00:00Z",
+            "updatedAt": "2025-11-01T10:00:00Z"
+          }
+        ],
         "position": "a0"
       }
     ],
@@ -346,7 +378,8 @@ curl -X GET "http://localhost:8000/api/projects/550e8400-e29b-41d4-a716-44665544
 | dueDate | timestamp | - | 마감일 |
 | createdAt | timestamp | O | 생성일시 |
 | updatedAt | timestamp | O | 수정일시 |
-| customFields | map[string]interface{} | - | 커스텀 필드 값 (fieldId: value) |
+| customFields | map[string]interface{} | - | 커스텀 필드 값 (fieldId: value) - Legacy |
+| fieldValues | FieldValueWithInfo[] | - | 필드 값 배열 (field 정보 포함) ✨ NEW |
 | position | string | - | 보드 순서 (Fractional indexing, 기본 뷰의 순서) |
 
 ### FieldWithOptionsResponse
@@ -379,6 +412,27 @@ curl -X GET "http://localhost:8000/api/projects/550e8400-e29b-41d4-a716-44665544
 | displayOrder | int | O | 표시 순서 |
 | createdAt | timestamp | O | 생성일시 |
 | updatedAt | timestamp | O | 수정일시 |
+
+### FieldValueWithInfo ✨ NEW
+
+| 필드 | 타입 | 필수 | 설명 |
+|-----|------|------|------|
+| valueId | UUID | O | 필드 값 ID |
+| fieldId | UUID | O | 필드 ID |
+| fieldName | string | O | **필드 이름** (예: "상태", "우선순위") |
+| fieldType | string | O | **필드 타입** (예: "single_select", "text") |
+| value | interface{} | O | 실제 값 (타입에 따라 다름) |
+| displayOrder | int | - | 표시 순서 (multi_select, multi_user용) |
+| createdAt | timestamp | O | 생성일시 |
+| updatedAt | timestamp | O | 수정일시 |
+
+**value 필드 타입별 형식:**
+- `text`, `url`: string
+- `number`: number
+- `date`, `datetime`: timestamp
+- `checkbox`: boolean
+- `single_select`, `multi_select`: Option 객체 `{ optionId, label, color, description }`
+- `single_user`, `multi_user`: string (user ID)
 
 ### FieldTypeInfo
 
@@ -446,7 +500,11 @@ curl -X GET "http://localhost:8000/api/projects/550e8400-e29b-41d4-a716-44665544
 ### 4. 보드 데이터
 - 프로젝트에 속한 모든 보드를 가져옵니다 (최대 1000개)
 - 각 보드의 담당자(assignee)와 작성자(author) 정보를 User Service에서 조회하여 포함합니다
-- `customFields`는 보드의 `custom_fields_cache` JSONB 컬럼에서 파싱됩니다
+- `customFields`는 보드의 `custom_fields_cache` JSONB 컬럼에서 파싱됩니다 (Legacy)
+- **✨ NEW: `fieldValues`**: 각 보드의 모든 필드 값을 field 정보와 함께 포함합니다
+  - 배치 최적화: 모든 보드의 field values를 한 번에 조회 (N+1 문제 방지)
+  - Field 메타데이터 포함: field name, field type이 함께 제공되어 별도 조회 불필요
+  - Option 상세 정보 포함: single_select/multi_select 타입의 경우 option의 label, color, description 포함
 - 위에서 조회한 순서 정보에 따라 정렬되어 반환됩니다
 
 ### 5. 필드 데이터
@@ -468,6 +526,10 @@ curl -X GET "http://localhost:8000/api/projects/550e8400-e29b-41d4-a716-44665544
 ### N+1 쿼리 방지
 - 모든 보드의 작성자 ID를 수집하여 배치로 사용자 정보를 조회합니다
 - 필드와 옵션은 프로젝트 단위로 한 번에 조회합니다
+- **✨ NEW**: Field values도 배치로 조회합니다
+  - 모든 보드의 field values를 한 번의 쿼리로 조회
+  - 필요한 field 메타데이터를 한 번에 조회
+  - 필요한 option 정보를 한 번에 조회
 
 ## 프론트엔드 사용 예시
 
@@ -541,6 +603,15 @@ setupFieldConfiguration(initData.fields, initData.fieldTypes);
 5. **보드 정렬**: 기본 뷰가 있으면 해당 뷰의 순서로, 없으면 생성일시 순으로 정렬됩니다
 
 ## 버전 히스토리
+
+- **v1.2.0** (2025-01-13): Field Values 정보 추가 🎉
+  - ✨ **Board 응답에 `fieldValues` 필드 추가**
+    - Field 명칭 포함 (`fieldName`)
+    - Field 타입 포함 (`fieldType`)
+    - Option 상세 정보 포함 (label, color, description)
+    - 배치 최적화로 성능 개선 (N+1 쿼리 방지)
+  - 🔧 `customFields`는 Legacy로 유지 (하위 호환성)
+  - 📖 FieldValueWithInfo DTO 추가
 
 - **v1.1.0** (2025-11-12): 멤버 및 순서 정보 추가
   - ✨ 프로젝트 기본 정보 추가 (`project`)

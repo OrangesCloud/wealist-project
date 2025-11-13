@@ -121,6 +121,19 @@ type FieldValueResponse struct {
 	UpdatedAt     time.Time   `json:"updatedAt"`
 }
 
+// FieldValueWithInfo represents a field value with field metadata
+// This is used in Board responses to include both value and field information
+type FieldValueWithInfo struct {
+	ValueID       string      `json:"valueId"`
+	FieldID       string      `json:"fieldId"`
+	FieldName     string      `json:"fieldName"`
+	FieldType     string      `json:"fieldType"`
+	Value         interface{} `json:"value"`
+	DisplayOrder  int         `json:"displayOrder,omitempty"`
+	CreatedAt     time.Time   `json:"createdAt"`
+	UpdatedAt     time.Time   `json:"updatedAt"`
+}
+
 // BoardFieldValuesResponse represents all field values for a board
 type BoardFieldValuesResponse struct {
 	BoardID string                 `json:"boardId"`
@@ -134,8 +147,8 @@ type CreateViewRequest struct {
 	ProjectID      string                 `json:"projectId" binding:"required,uuid"`
 	Name           string                 `json:"name" binding:"required,min=1,max=255"`
 	Description    string                 `json:"description" binding:"omitempty,max=1000"`
-	IsDefault      bool                   `json:"isDefault"`
-	IsShared       bool                   `json:"isShared"`
+	IsDefault      bool                   `json:"isDefault"`                  // Default: false (only one default view per project)
+	IsShared       *bool                  `json:"isShared"`                   // Default: true if nil (team-shared view, most common)
 	Filters        map[string]interface{} `json:"filters"`
 	SortBy         string                 `json:"sortBy" binding:"omitempty"`
 	SortDirection  string                 `json:"sortDirection" binding:"omitempty,oneof=asc desc"`
