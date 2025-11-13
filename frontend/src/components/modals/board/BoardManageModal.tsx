@@ -8,17 +8,18 @@ import { CreateBoardRequest, FieldOptionsLookup, UpdateBoardRequest } from '../.
 import { createBoard, updateBoard } from '../../../api/board/boardService';
 import { getWorkspaceMembers } from '../../../api/user/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
+import { IFieldOption } from '../../../types/common';
 
 interface BoardManageModalProps {
   projectId: string;
-  stageId?: string;
+  initial?: IFieldOption;
   editData?: {
     boardId: string;
     projectId: string;
     title: string;
     content: string;
     stageId: string;
-    roleIds: string[];
+    roleId: string;
     importanceId: string;
     assigneeIds: string[];
     dueDate: string;
@@ -33,7 +34,7 @@ interface BoardManageModalProps {
 
 export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   projectId,
-  stageId: initialStageId,
+  initial,
   editData,
   workspaceId,
   onClose,
@@ -42,28 +43,21 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   fieldOptionsLookup, // 💡 [추가] prop 받기
 }) => {
   const { theme } = useTheme();
-
   // Form state
   const [title, setTitle] = useState(editData?.title || '');
   const [content, setContent] = useState(editData?.content || '');
-  const [selectedStageId, setSelectedStageId] = useState(editData?.stageId || initialStageId || '');
-  const [selectedRoleId, setSelectedRoleId] = useState<string>(editData?.roleIds?.[0] || '');
+  const [selectedStageId, setSelectedStageId] = useState(editData?.stageId || '');
+  const [selectedRoleId, setSelectedRoleId] = useState<string>(editData?.roleId || '');
   const [selectedImportanceId, setSelectedImportanceId] = useState<string>(
     editData?.importanceId || '',
   );
-  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>(
-    editData?.assigneeIds?.[0] || '',
-  );
-  const [dueDate, setDueDate] = useState<string>(editData?.dueDate || '');
+  // const [selectedAssigneeId, setSelectedAssigneeId] = useState<string[]>(
+  //   editData?.assigneeIds ||[],
+  // );
+  // const [dueDate, setDueDate] = useState<string>(editData?.dueDate || '');
 
   // Assignee search state
   const [assigneeSearch, setAssigneeSearch] = useState('');
-
-  // 💡 [제거] Mock Data 상태 제거, 룩업에서 직접 가져옴
-  // const [stages, setStages] = useState<CustomStageResponse[]>(MOCK_STAGES);
-  // const [roles, setRoles] = useState<CustomRoleResponse[]>(MOCK_ROLES);
-  // const [importances, setImportances] = useState<CustomImportanceResponse[]>(MOCK_IMPORTANCES);
-
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
 
   // UI state
@@ -88,23 +82,27 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
 
   // 1. Custom Fields 갱신 (Prop에서 받아오므로 로직 간소화)
   useEffect(() => {
-    // 💡 [수정] MainDashboard에서 데이터를 갱신하여 전달하므로, 여기서는 초기값만 설정합니다.
     const stagesData = fieldOptionsLookup.stages || [];
     const rolesData = fieldOptionsLookup.roles || [];
+    const ImpData = fieldOptionsLookup.importances || [];
 
-    if (!selectedStageId && stagesData?.length > 0) {
-      setSelectedStageId(stagesData[0].stageId);
+    // 💡 [수정] editData가 아닌 경우 (생성 모드), selectedStageId를 설정
+    if (!editData?.boardId && stagesData?.length > 0) {
+      // 1. initialStageId (컬럼 클릭) -> 2. 첫 번째 Stage
+      const defaultStage = initial?.key == 'stages' ? initial?.value : stagesData[0].stageId;
+      setSelectedStageId(defaultStage);
     }
-
     if (!selectedRoleId && rolesData?.length > 0) {
       setSelectedRoleId(rolesData[0]?.roleId);
     }
-
+    if (!selectedImportanceId && ImpData?.length > 0) {
+      setSelectedImportanceId(ImpData[0]?.importanceId);
+    }
     // 💡 Mock Data가 아닌 실제 룩업이 로드될 때 로딩 상태를 종료합니다.
     if (stagesData.length > 0 && rolesData?.length > 0) {
       setIsLoadingFields(false);
     }
-  }, [selectedStageId, selectedRoleId, fieldOptionsLookup]); // 💡 룩업 객체 의존성 추가
+  }, [initial, selectedRoleId, fieldOptionsLookup]); // 💡 룩업 객체 의존성 추가
 
   // 1.2 워크스페이스 멤버 조회 (유지)
   useEffect(() => {
@@ -196,16 +194,13 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         stageId: selectedStageId,
         roleIds: selectedRoleId ? [selectedRoleId] : undefined,
         importanceId: selectedImportanceId || undefined,
-        assigneeId: selectedAssigneeId || undefined,
-        dueDate: dueDate || undefined,
       };
 
-      if (editData) {
-        await updateBoard(editData.boardId, boardData);
-        console.log('✅ 보드 수정 성공:', title);
+      if (editData?.boardId) {
+        // 💡 [수정] 명확한 수정 모드 판단
+        await updateBoard(editData!.boardId, boardData);
       } else {
         await createBoard(boardData as CreateBoardRequest);
-        console.log('✅ 보드 생성 성공:', title);
       }
 
       onBoardCreated();
@@ -327,7 +322,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         {/* Header (변경 없음) */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4  flex-shrink-0">
           <h2 className="text-xl font-bold text-gray-800">
-            {editData ? '보드 수정' : '새 보드 만들기'}
+            {editData?.boardId ? '보드 수정' : '새 보드 만들기'}
           </h2>
           <button
             onClick={onClose}
@@ -643,99 +638,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   </button>
                 </div>
               </div>
-
-              {/* Assignee and Due Date (변경 없음) */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Assignee - Single Select */}
-                <div className="relative assignee-dropdown-container">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <User className="w-4 h-4 inline mr-1" />
-                    담당자 (선택)
-                  </label>
-
-                  {/* Input with Selected Assignee Name */}
-                  <button
-                    type="button"
-                    onClick={() => setAssigneeSearch(' ')} // 검색 드롭다운을 열기 위해 공백 설정
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between"
-                    disabled={isLoading}
-                  >
-                    <span className="flex items-center gap-2">
-                      {selectedAssigneeId ? (
-                        workspaceMembers.find((m) => m.userId === selectedAssigneeId)?.userName
-                      ) : (
-                        <span className="text-gray-500">담당자 선택</span>
-                      )}
-                    </span>
-                    <User className="w-4 h-4 text-gray-400" />
-                  </button>
-
-                  {/* Dropdown - only show when searching */}
-                  {assigneeSearch.trim() && ( // 💡 드롭다운 로직은 검색 상태가 아닐 때도 목록을 보여주는 방식으로 확장 필요
-                    <div className="absolute z-[110] w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {/* '없음' 옵션 추가 */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedAssigneeId('');
-                          setAssigneeSearch('');
-                        }}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
-                          !selectedAssigneeId ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <div className="font-medium text-gray-500">없음</div>
-                      </button>
-
-                      {workspaceMembers
-                        .filter(
-                          (member) =>
-                            member.userName.toLowerCase().includes(assigneeSearch.toLowerCase()) ||
-                            member.userEmail.toLowerCase().includes(assigneeSearch.toLowerCase()),
-                        )
-                        .map((member) => {
-                          const isSelected = selectedAssigneeId === member.userId;
-                          return (
-                            <button
-                              key={member.userId}
-                              type="button"
-                              onClick={() => {
-                                setSelectedAssigneeId(member.userId); // 단일 선택으로 변경
-                                setAssigneeSearch(''); // 검색어 초기화
-                              }}
-                              className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
-                                isSelected ? 'bg-blue-50' : ''
-                              }`}
-                            >
-                              <div>
-                                <div className="font-medium">{member.userName}</div>
-                                <div className="text-xs text-gray-500">{member.userEmail}</div>
-                              </div>
-                              {isSelected && <CheckSquare className="w-4 h-4 text-blue-600" />}
-                            </button>
-                          );
-                        })}
-                      {/* 검색 결과 없음 처리 (생략) */}
-                    </div>
-                  )}
-                </div>
-
-                {/* Due Date */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Calendar className="w-4 h-4 inline mr-1" />
-                    마감일 (선택)
-                  </label>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-
               {/* Actions (변경 없음) */}
               <div className="flex gap-3 pt-4 border-t sticky bottom-0 bg-white">
                 <button
@@ -753,11 +655,12 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   }`}
                   disabled={isLoading}
                 >
+                  {/* 💡 [수정] isEditMode 변수 사용 */}
                   {isLoading
-                    ? editData
+                    ? editData?.boardId
                       ? '수정 중...'
                       : '생성 중...'
-                    : editData
+                    : editData?.boardId
                     ? '보드 수정'
                     : '보드 만들기'}
                 </button>

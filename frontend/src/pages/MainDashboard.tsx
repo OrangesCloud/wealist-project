@@ -84,7 +84,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     const importances: CustomImportanceResponse[] = [];
     const stages: CustomStageResponse[] = [];
 
-    fields.forEach((field) => {
+    fields?.forEach((field) => {
       // name을 기반으로 시스템 필드를 식별
       if (field.fieldType === 'single_select' || field.fieldType === 'multi_select') {
         field.options.forEach((opt) => {
@@ -151,17 +151,12 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     try {
       // 💡 [API 호출] GET /api/projects/{projectId}/init-data
       const initData = await getProjectInitSettings(selectedProject.projectId);
-
-      // 1. Project Header의 selectedProject를 InitData의 project DTO로 업데이트
-      // ⚠️ DTO 호환성 문제로 인해 setSelectedProject는 주석 처리 (Header DTO가 다름)
-
       // 2. 필드 옵션 룩업 테이블 생성
       const fieldLookup = mapFieldOptions(initData.fields);
       setFieldOptionsLookup(fieldLookup);
 
       // 3. 멤버 업데이트 (InitData에서 멤버가 제공된다고 가정하면 이 호출로 대체 가능)
       // setWorkspaceMembers(initData.members);
-
       console.log('✅ Project Init Data (Fields/Boards) Loaded.');
     } catch (err: any) {
       setError(`초기 컨텐츠 로드 실패: ${err.message}`);
@@ -172,10 +167,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   useEffect(() => {
     fetchProjects();
     fetchWorkspaceMembers();
-  }, [fetchProjects, fetchWorkspaceMembers]);
-
+  }, [fetchProjects, fetchWorkspaceMembers]); // 💡 [핵심] selectedProject 변경 시 InitSettings 로드 트리거
   useEffect(() => {
     if (selectedProject) {
+      // ⚠️ 루프 방지: ProjectContent가 fetchBoards를 완료해도 이 함수가 재실행되지 않도록,
+      // 이 useEffect는 오직 selectedProject 변경에만 반응합니다.
       fetchProjectContentInitSettings();
     }
   }, [selectedProject, fetchProjectContentInitSettings]);
@@ -183,7 +179,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   // 💡 ProjectContent에서 보드/필드 업데이트 시 호출될 함수
   const handleBoardContentUpdate = useCallback(() => {
     console.log('[Dashboard] Board content updated in ProjectContent. Reloading Field Data.');
-    // 💡 필드 데이터 갱신을 위해 InitData도 다시 로드합니다.
+    // 💡 데이터 변경 (CUD 작업) 후, InitData를 다시 로드하여 ProjectContent에 새 룩업 데이터를 전달
     fetchProjectContentInitSettings();
   }, [fetchProjectContentInitSettings]);
 
@@ -191,7 +187,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   const handleFieldCreated = useCallback(
     (newField: any) => {
       toggleUiState('showManageModal', false);
-      handleBoardContentUpdate();
+      handleBoardContentUpdate(); // 💡 데이터 변경 알림 -> InitSettings 재실행
       console.log(`✅ New field created and propagated: ${newField?.name}`);
     },
     [handleBoardContentUpdate, toggleUiState],
@@ -215,7 +211,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
         setShowProjectSelector={(show) => toggleUiState('showProjectSelector', show)}
         canAccessSettings={canAccessSettings}
       />
-
       {/* 2. 메인 콘텐츠 영역 */}
       <div className="flex-grow flex flex-col p-3 sm:p-6 overflow-auto mt-16 ml-20">
         {error && (
@@ -247,14 +242,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           </div>
         )}
       </div>
-
       {/* 3. 모달 영역 */}
-
       {/* UserProfile Modal */}
       {uiState?.showUserProfile && (
         <UserProfileModal onClose={() => toggleUiState('showUserProfile', false)} />
       )}
-
       {/* Create Project Modal */}
       {uiState?.showCreateProject && (
         <ProjectModal
@@ -263,7 +255,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           onProjectSaved={fetchProjects}
         />
       )}
-
       {/* Project Settings Modal */}
       {uiState?.showProjectSettings && selectedProject && (
         <ProjectModal
@@ -281,12 +272,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           onFieldCreated={handleFieldCreated} // 필드 생성 후 갱신 트리거
         />
       )}
-
       {/* Create/Edit Board Modal */}
       {(editBoardData || uiState?.showCreateBoard) && selectedProject && (
         <BoardManageModal
-          projectId={selectedProject.projectId}
-          stageId={editBoardData?.stageId}
+          projectId={selectedProject?.projectId}
+          initial={editBoardData?.stageId}
           editData={editBoardData}
           workspaceId={currentWorkspaceId}
           onClose={() => {

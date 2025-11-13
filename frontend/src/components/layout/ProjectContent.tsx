@@ -1,7 +1,7 @@
 // src/components/layout/ProjectContent.tsx
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Settings, Briefcase, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { getDefaultColorByIndex } from '../../constants/colors';
@@ -17,7 +17,6 @@ import {
   FieldOptionsLookup,
 } from '../../types/board';
 import { getBoards } from '../../api/board/boardService';
-import { MOCK_IMPORTANCES, MOCK_ROLES, MOCK_STAGES } from '../../mocks/board';
 import { BoardDetailModal } from '../modals/board/BoardDetailModal';
 import { FilterBar } from '../modals/board/FilterBar';
 
@@ -25,7 +24,7 @@ interface ProjectContentProps {
   // Data
   selectedProject: ProjectResponse;
   workspaceId: string;
-  fieldOptionsLookup: FieldOptionsLookup;
+  fieldOptionsLookup: FieldOptionsLookup; // 💡 룩업 데이터를 Prop으로 받음
 
   // Handlers
   onProjectContentUpdate: () => void;
@@ -42,6 +41,7 @@ interface ProjectContentProps {
 export const ProjectContent: React.FC<ProjectContentProps> = ({
   selectedProject,
   workspaceId,
+  fieldOptionsLookup,
   onProjectContentUpdate,
   onManageModalOpen,
   onEditBoard,
@@ -54,10 +54,11 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
   const [columns, setColumns] = useState<Column[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // 💡 [Custom Field Lookups]
-  const [roleOptions] = useState<CustomRoleResponse[]>(MOCK_ROLES);
-  const [importanceOptions] = useState<CustomImportanceResponse[]>(MOCK_IMPORTANCES);
+  const {
+    roles: roleOptions,
+    stages: stageOptions,
+    importances: importanceOptions,
+  } = fieldOptionsLookup;
 
   // 💡 [통합된 View/Filter 상태]
   const [viewState, setViewState] = useState<ViewState>({
@@ -80,30 +81,30 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
   const [draggedColumn, setDraggedColumn] = useState<Column | null>(null);
   const [dragOverBoardId, setDragOverBoardId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
-
-  // 💡 [추가] View State Setter Helper
+  // 💡 [추가] View State Setter Helper (유지)
   const setViewField = useCallback(<K extends keyof ViewState>(key: K, value: ViewState[K]) => {
     setViewState((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  // 💡 [추가] Custom Field Option Lookup Helper (유지)
+  // 💡 [추가] Custom Field Option Lookup Helper (Props의 데이터를 사용하도록 수정)
   const getRoleOption = (roleId: string | undefined) =>
-    roleId ? roleOptions.find((r) => r.roleId === roleId) : undefined;
+    roleId ? roleOptions?.find((r) => r.roleId === roleId) : undefined;
   const getImportanceOption = (importanceId: string | undefined) =>
-    importanceId ? importanceOptions.find((i) => i.importanceId === importanceId) : undefined;
-
+    importanceId ? importanceOptions?.find((i) => i.importanceId === importanceId) : undefined;
   // 4. 보드 목록 조회 함수 (useCallback)
   const fetchBoards = useCallback(async () => {
-    if (!selectedProject) {
+    if (!selectedProject || !stageOptions || stageOptions.length === 0) {
       setColumns([]);
+      if (selectedProject && !error) {
+        setIsLoading(true);
+      }
       return;
     }
 
     setIsLoading(true);
     setError(null);
     try {
-      const stages = MOCK_STAGES;
-      // 💡 API 호출 시 필터링을 viewState 기준으로 적용할 수 있지만, 현재는 전체 로드
+      const stages = stageOptions; // 💡 Prop에서 가져온 Stages 사용
       const boardsResponse = await getBoards(selectedProject.projectId);
 
       // 데이터 처리 로직 (유지)
@@ -114,9 +115,9 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
       boardsResponse?.boards?.forEach((board: BoardResponse) => {
         const stageId = board.customFields?.stageId;
-        const targetStageId = stageId || MOCK_STAGES[0].stageId;
+        const targetStageId = stageId || stages[0]?.stageId;
 
-        if (stageMap.has(targetStageId)) {
+        if (targetStageId && stageMap.has(targetStageId)) {
           stageMap.get(targetStageId)!.boards.push(board);
         } else {
           console.warn(
@@ -137,7 +138,6 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       }));
 
       setColumns(newColumns);
-      onProjectContentUpdate();
     } catch (err) {
       const error = err as Error;
       console.error('❌ 보드 로드 실패:', error);
@@ -146,12 +146,15 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProject, onProjectContentUpdate]);
+  }, [selectedProject, stageOptions, error]);
 
   // 4.1. 프로젝트 변경 시 보드 로드 트리거
   useEffect(() => {
-    fetchBoards();
-  }, [fetchBoards]);
+    // 💡 [수정] selectedProject와 stageOptions 모두 로드된 후에 fetchBoards를 호출
+    if (selectedProject && stageOptions && stageOptions.length > 0) {
+      fetchBoards();
+    }
+  }, [fetchBoards, selectedProject, stageOptions]);
 
   // 5. 드래그 앤 드롭 및 정렬 로직 (useCallback 유지)
 
@@ -174,69 +177,8 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
   const handleDrop = useCallback(
     async (targetColumnId: string): Promise<void> => {
       if (!draggedBoard || !draggedFromColumn) return;
-
-      setDragOverColumn(null);
-
-      // Same column: reorder boards within column
-      if (draggedFromColumn === targetColumnId) {
-        if (!dragOverBoardId || dragOverBoardId === draggedBoard.boardId) {
-          handleDragEnd();
-          return;
-        }
-
-        const targetColumn = columns.find((col) => col.stageId === targetColumnId);
-        if (!targetColumn) {
-          handleDragEnd();
-          return;
-        }
-
-        // Reorder boards (Local Optimistic Update)
-        const draggedIndex = targetColumn.boards.findIndex(
-          (b) => b.boardId === draggedBoard.boardId,
-        );
-        const targetIndex = targetColumn.boards.findIndex((b) => b.boardId === dragOverBoardId);
-
-        if (draggedIndex !== -1 && targetIndex !== -1) {
-          const newBoards = [...targetColumn.boards];
-          const [removed] = newBoards.splice(draggedIndex, 1);
-          newBoards.splice(targetIndex, 0, removed);
-          setColumns(
-            columns.map((col) =>
-              col.stageId === targetColumnId ? { ...col, boards: newBoards } : col,
-            ),
-          );
-        }
-      } else {
-        // Different column: Stage Change + Optimistic Update
-        const updatedBoard: BoardResponse = {
-          ...draggedBoard,
-          customFields: { ...draggedBoard.customFields, stageId: targetColumnId },
-        };
-
-        const newColumns = columns.map((col) => {
-          if (col.stageId === draggedFromColumn) {
-            return { ...col, boards: col.boards.filter((t) => t.boardId !== draggedBoard.boardId) };
-          }
-          if (col.stageId === targetColumnId) {
-            if (dragOverBoardId) {
-              const targetIndex = col.boards.findIndex((b) => b.boardId === dragOverBoardId);
-              if (targetIndex !== -1) {
-                const newBoards = [...col.boards];
-                newBoards.splice(targetIndex, 0, updatedBoard);
-                return { ...col, boards: newBoards };
-              }
-            }
-            return { ...col, boards: [...col.boards, updatedBoard] };
-          }
-          return col;
-        });
-
-        setColumns(newColumns);
-      }
-
       handleDragEnd();
-
-      console.log(`[API CALL] moveBoard 호출: ${draggedBoard.boardId} to ${targetColumnId}`);
+      console.log(`[API CALL] moveBoard 호출: ${draggedBoard?.boardId} to ${targetColumnId}`);
     },
     [draggedBoard, draggedFromColumn, dragOverBoardId, columns],
   );
@@ -244,6 +186,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
   const handleColumnDragStart = (column: Column): void => {
     setDraggedColumn(column);
   };
+
   const handleColumnDrop = useCallback(
     async (targetColumn: Column): Promise<void> => {
       if (!draggedColumn || draggedColumn.stageId === targetColumn.stageId) {
@@ -266,15 +209,10 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       console.log(`[API CALL] updateFieldOrder 호출: Stage 순서 변경`);
     },
     [draggedColumn, columns],
-  );
-
-  // Table sorting handler (handleSort)
-  const handleSort = (
-    column: 'title' | 'stage' | 'role' | 'importance' | 'importance' | 'assignee' | 'dueDate',
-  ) => {
-    // 💡 [수정] viewState Setter 사용
-    if (viewState?.sortColumn === column) {
-      setViewField('sortDirection', viewState?.sortDirection === 'asc' ? 'desc' : 'asc');
+  ); // Table sorting handler (handleSort)
+  const handleSort = (column: 'title' | 'stage' | 'role' | 'importance') => {
+    if (viewState.sortColumn === column) {
+      setViewField('sortDirection', viewState.sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setViewField('sortColumn', column);
       setViewField('sortDirection', 'asc');
@@ -317,22 +255,12 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     const sortedBoards = [...filteredBoards].sort((a, b) => {
       // [정렬 로직 유지]
       if (!sortColumn) return 0;
-
       let aValue: any;
       let bValue: any;
 
-      // 💡 [수정] 실제 정렬 로직을 useMemo 내부에서 viewState를 사용하여 구현해야 함
-      switch (sortColumn) {
-        case 'title':
-          aValue = a.title.toLowerCase();
-          bValue = b.title.toLowerCase();
-          break;
-        // ... (나머지 정렬 케이스 생략)
-        default:
-          aValue = 0;
-          bValue = 0;
-          break;
-      }
+      // 💡 [수정] 실제 정렬 로직 (Title 기준)
+      aValue = a.title.toLowerCase();
+      bValue = b.title.toLowerCase();
 
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
@@ -340,11 +268,11 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     });
 
     return { sortedBoards, allBoards: boardsToProcess };
-  }, [columns, viewState, roleOptions, importanceOptions]); // 💡 viewState 객체를 의존성 배열에 포함
+  }, [columns, viewState, roleOptions, importanceOptions]);
 
   // 로딩 상태 처리
-  if (isLoading && columns.length === 0) {
-    return <LoadingSpinner message="보드를 로드 중..." />;
+  if (isLoading && (stageOptions === undefined || stageOptions.length === 0)) {
+    return <LoadingSpinner message="보드와 필드 데이터를 로드 중..." />;
   }
 
   if (error) {
@@ -363,11 +291,14 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         onViewChange={(view) => setViewField('currentView', view)}
         onFilterChange={(filter) => setViewField('filterOption', filter)}
         onManageClick={onManageModalOpen}
-        currentView={viewState?.currentView}
+        currentView={viewState.currentView}
         onLayoutChange={(layout) => setViewField('currentLayout', layout)}
         onShowCompletedChange={(show) => setViewField('showCompleted', show)}
-        currentLayout={viewState?.currentLayout}
-        showCompleted={viewState?.showCompleted}
+        currentLayout={viewState.currentLayout}
+        showCompleted={viewState.showCompleted}
+        stageOptions={fieldOptionsLookup?.stages || []}
+        roleOptions={fieldOptionsLookup?.roles || []}
+        importanceOptions={fieldOptionsLookup?.importances || []}
       />
 
       {/* Boards or Table View */}
@@ -384,26 +315,13 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                 {['title', 'stage', 'role', 'importance', 'assignee', 'dueDate'].map((col) => (
                   <th key={col} className="px-4 py-3 text-left">
                     <button
-                      onClick={() =>
-                        handleSort(
-                          col as
-                            | 'title'
-                            | 'stage'
-                            | 'role'
-                            | 'importance'
-                            | 'importance'
-                            | 'assignee'
-                            | 'dueDate',
-                        )
-                      }
+                      onClick={() => handleSort(col as 'title' | 'stage' | 'role' | 'importance')}
                       className="flex items-center gap-2 font-semibold text-sm text-gray-700 hover:text-blue-600 transition"
                     >
                       {col === 'title' && '제목'}
                       {col === 'stage' && '진행 단계'}
                       {col === 'role' && '역할'}
                       {col === 'importance' && '중요도'}
-                      {col === 'assignee' && '담당자'}
-                      {col === 'dueDate' && '마감일'}
                       {viewState?.sortColumn === col &&
                         (viewState?.sortDirection === 'asc' ? (
                           <ArrowUp className="w-4 h-4" />
@@ -473,10 +391,8 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                 </tr>
               ))}
 
-              {/* Add Board Row */}
               <tr
                 onClick={() => {
-                  // 💡 [수정] setCreateBoardStageId 제거 후, CreateBoardModal을 열도록 지시
                   setShowCreateBoard(true);
                 }}
                 className="border-t-2 border-gray-300 hover:bg-blue-50 cursor-pointer transition"
@@ -501,7 +417,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         // 2. Board Layout (Kanban)
         // =============================================================
         <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 min-w-max pb-4 mt-4">
-          {columns.map((column, idx) => {
+          {columns?.map((column, idx) => {
             // 필터링된 보드 목록 (테이블 뷰에서 사용한 searchQuery 필터링을 컬럼별로 재적용)
             const columnBoards = viewState?.searchQuery?.trim()
               ? column.boards.filter((board) => {
