@@ -9,7 +9,6 @@ import { ProjectContent } from '../components/layout/ProjectContent';
 
 import UserProfileModal from '../components/modals/UserProfileModal';
 import { ProjectModal } from '../components/modals/ProjectModal';
-import { CustomFieldManageModal } from '../components/modals/CustomFieldManageModal';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 import { getProjects } from '../api/board/boardService';
@@ -17,6 +16,7 @@ import { getWorkspaceMembers } from '../api/user/userService';
 import { ProjectResponse } from '../types/board';
 import { WorkspaceMemberResponse } from '../types/user';
 import { CreateBoardModal } from '../components/modals/CreateBoardModal';
+import { CustomFieldAddModal } from '../components/modals/customFields/CustomFieldAddModal';
 
 interface MainDashboardProps {
   onLogout: () => void;
@@ -114,6 +114,15 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     console.log('[Dashboard] Board content updated in ProjectContent.');
   }, []);
 
+  // 💡 [추가] 필드가 생성된 후 호출될 핸들러
+  const handleFieldCreated = (newField: any) => {
+    // 1. 필드 생성 모달 닫기
+    toggleUiState('showManageModal', false);
+
+    // 2. MainDashboard가 필드 변경 사항을 ProjectContent에게 알려주기 위해 업데이트 트리거
+    handleBoardContentUpdate();
+  };
+
   return (
     // 💡 [수정] MainLayout에 UserProfile 토글 함수를 전달
     <MainLayout
@@ -193,13 +202,13 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           onProjectSaved={fetchProjects}
         />
       )}
-
-      {/* Custom Field Manage Modal */}
+      {/* 💡 [수정] Custom Field Add Modal */}
       {uiState.showManageModal && selectedProject && (
-        <CustomFieldManageModal
+        <CustomFieldAddModal
           projectId={selectedProject.projectId}
           onClose={() => toggleUiState('showManageModal', false)}
-          onFieldsUpdated={handleBoardContentUpdate}
+          // 💡 [핵심] 필드 생성 후 실행될 핸들러 연결
+          onFieldCreated={handleFieldCreated}
         />
       )}
 
@@ -215,6 +224,12 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
             toggleUiState('showCreateBoard', false); // 생성 모달 닫기
           }}
           onBoardCreated={handleBoardContentUpdate}
+          // 💡 [추가] 필드 추가 모달을 열기 위한 핸들러
+          onAddFieldsClick={() => {
+            setEditBoardData(null); // 혹시 모를 편집 상태 제거
+            toggleUiState('showCreateBoard', false); // CreateBoardModal 닫기
+            toggleUiState('showManageModal', true); // CustomFieldAddModal 열기
+          }}
         />
       )}
     </MainLayout>
