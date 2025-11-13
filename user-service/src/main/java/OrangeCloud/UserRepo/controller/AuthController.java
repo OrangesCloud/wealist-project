@@ -74,16 +74,7 @@ public class AuthController {
         return ResponseEntity.ok(user);
     }
 
-    /**
-     * 테스트용 Google OAuth 사용자 생성
-     * GET /api/auth/test
-     */
-    @GetMapping("/test")
-    @Operation(summary = "테스트 로그인", description = "테스트용 Google OAuth 사용자를 생성하고 토큰을 발급합니다.")
-    public ResponseEntity<AuthResponse> testUser() {
-        logger.debug("Test login request");
-        return ResponseEntity.ok(authService.TestLogin());
-    }
+
 
     /**
      * Request에서 Bearer 토큰 추출

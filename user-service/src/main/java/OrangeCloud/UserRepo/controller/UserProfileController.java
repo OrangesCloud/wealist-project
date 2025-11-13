@@ -97,4 +97,5 @@ public class UserProfileController {
         userProfileService.deleteProfile(userId, workspaceId);
         return ResponseEntity.noContent().build();
     }
+
 }
