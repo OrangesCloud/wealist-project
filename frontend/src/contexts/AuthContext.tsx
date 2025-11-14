@@ -8,8 +8,6 @@ interface AuthContextType {
   token: string | null;
   nickName: string | null;
   userEmail: string | null;
-  // WorkspaceSettingsModal에서 사용하는 login, logout 대신 상태값만 노출
-  // login 함수는 OAuthRedirectPage에서 직접 처리하고, logout만 제공합니다.
   logout: () => void;
   isLoading: boolean;
 }
