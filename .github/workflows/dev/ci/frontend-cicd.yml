@@ -7,7 +7,6 @@ on:
       - "frontend/**" # frontend 폴더 내 변경 시에만 실행
       - ".github/workflows/dev/ci/frontend-cicd.yml" # 워크플로우 파일 변경 시에도 실행
   workflow_dispatch:
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
