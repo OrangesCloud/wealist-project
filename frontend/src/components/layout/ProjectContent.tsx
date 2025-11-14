@@ -31,7 +31,6 @@ interface ProjectContentProps {
   // Initial States for Modals
   onEditBoard: (data: any) => void;
 
-  // 💡 [추가] MainDashboard에서 모달 상태를 넘겨받음
   showCreateBoard: boolean;
   setShowCreateBoard: (show: boolean) => void;
 }
