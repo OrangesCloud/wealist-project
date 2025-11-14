@@ -75,3 +75,17 @@ frontend/docker-compose.yml
 frontend/Dockerfile.local
 docker-compose.base.yml
 docker-compose.local.yml
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

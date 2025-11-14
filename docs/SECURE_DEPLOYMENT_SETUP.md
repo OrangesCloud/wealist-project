@@ -2,6 +2,10 @@
 
 Parameter Store 기반 안전한 배포 방식 설정 가이드
 
+> **💡 Terraform 사용 권장**: Parameter Store를 **Infrastructure as Code**로 관리하려면 [Terraform 가이드](./TERRAFORM_PARAMETER_STORE_SETUP.md)를 참고하세요. (코드 리뷰, 변경 이력 관리, 환경별 관리 가능)
+>
+> 이 문서는 AWS CLI를 사용한 수동 설정 방법을 설명합니다.
+
 ## 🎯 보안 강화 포인트
 
 ### 기존 방식 (보안 취약)
