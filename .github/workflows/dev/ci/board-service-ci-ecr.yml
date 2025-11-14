@@ -1,0 +1,140 @@
+name: Board Service CI - ECR
+
+on:
+  push:
+    branches:
+      - deploy-dev  # Dev 환경 배포 전용 브랜치
+    paths:
+      - "board-service/**"
+      - ".github/workflows/dev/ci/board-service-ci-ecr.yml"
+  workflow_dispatch:  # 수동 실행 옵션
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: wealist-dev-board-service
+
+jobs:
+  build-and-push:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+    environment: development
+
+    outputs:
+      image-tag: ${{ steps.image-info.outputs.image-tag }}
+      full-image: ${{ steps.image-info.outputs.full-image }}
+
+    steps:
+      # ============================================
+      # 1. 코드 체크아웃
+      # ============================================
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      # ============================================
+      # 2. Go 환경 설정
+      # ============================================
+      - name: 🔧 Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"  # Dockerfile과 동일한 버전
+          cache: true
+          cache-dependency-path: board-service/go.sum
+
+      # ============================================
+      # 3. Go Module 다운로드
+      # ============================================
+      - name: 📦 Download Go Dependencies
+        run: |
+          cd board-service
+          go mod tidy
+          go mod download
+
+      # ============================================
+      # 4. Go 테스트 실행
+      # ============================================
+      - name: 🧪 Run Go Tests
+        run: |
+          cd board-service
+          go test -v -race -cover ./...
+
+      # ============================================
+      # 5. Go 빌드 검증 (Docker 빌드 전 사전 검증)
+      # ============================================
+      - name: 🔨 Verify Go Build
+        run: |
+          cd board-service
+          CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o board-api ./cmd/api
+          echo "✅ Go binary build successful"
+
+      # ============================================
+      # 6. AWS Credentials 설정
+      # ============================================
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ============================================
+      # 7. Amazon ECR 로그인
+      # ============================================
+      - name: 🔑 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ============================================
+      # 8. 이미지 태그 생성
+      # ============================================
+      - name: 🏷️ Generate Image Tags
+        id: image-info
+        run: |
+          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          IMAGE_TAG="${GITHUB_SHA:0:7}"
+          FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+
+          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
+          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
+
+          echo "📦 Image Tag: ${IMAGE_TAG}"
+          echo "🐳 Full Image: ${FULL_IMAGE}"
+
+      # ============================================
+      # 9. Docker 이미지 빌드 & ECR 푸시
+      # ============================================
+      - name: 🐳 Build and Push Docker Image to ECR
+        env:
+          FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
+          LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
+        run: |
+          cd board-service
+
+          echo "🔨 Building Docker image..."
+          docker build \
+            -f docker/Dockerfile \
+            -t ${FULL_IMAGE} \
+            -t ${LATEST_IMAGE} \
+            .
+
+          echo "📤 Pushing to ECR..."
+          docker push ${FULL_IMAGE}
+          docker push ${LATEST_IMAGE}
+
+          echo "✅ Successfully pushed:"
+          echo "  - ${FULL_IMAGE}"
+          echo "  - ${LATEST_IMAGE}"
+
+      # ============================================
+      # 10. 빌드 결과 요약
+      # ============================================
+      - name: 📋 Build Summary
+        run: |
+          echo "### ✅ Board Service Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY

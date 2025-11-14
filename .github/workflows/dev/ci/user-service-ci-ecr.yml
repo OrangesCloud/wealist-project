@@ -1,0 +1,134 @@
+name: User Service CI - ECR
+
+on:
+  push:
+    branches:
+      - deploy-dev  # Dev 환경 배포 전용 브랜치
+    paths:
+      - "user-service/**"
+      - ".github/workflows/dev/ci/user-service-ci-ecr.yml"
+  workflow_dispatch:  # 수동 실행 옵션
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: wealist-dev-user-service
+
+jobs:
+  build-and-push:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+    environment: development
+
+    outputs:
+      image-tag: ${{ steps.image-info.outputs.image-tag }}
+      full-image: ${{ steps.image-info.outputs.full-image }}
+
+    steps:
+      # ============================================
+      # 1. 코드 체크아웃
+      # ============================================
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      # ============================================
+      # 2. Java 환경 설정 (JDK 21)
+      # ============================================
+      - name: ☕ Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: "gradle"
+
+      # ============================================
+      # 3. Gradle 빌드 & 테스트
+      # ============================================
+      - name: 🔨 Build with Gradle & Run Tests
+        run: |
+          cd user-service
+          chmod +x gradlew
+          ./gradlew clean build
+
+      # ============================================
+      # 4. 테스트 커버리지 리포트 업로드
+      # ============================================
+      - name: 📊 Upload JaCoCo Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-report-user-service-${{ github.sha }}
+          path: user-service/build/reports/jacocoHtml
+          retention-days: 7
+
+      # ============================================
+      # 5. AWS Credentials 설정
+      # ============================================
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ============================================
+      # 6. Amazon ECR 로그인
+      # ============================================
+      - name: 🔑 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ============================================
+      # 7. 이미지 태그 생성
+      # ============================================
+      - name: 🏷️ Generate Image Tags
+        id: image-info
+        run: |
+          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          IMAGE_TAG="${GITHUB_SHA:0:7}"
+          FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+
+          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
+          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
+
+          echo "📦 Image Tag: ${IMAGE_TAG}"
+          echo "🐳 Full Image: ${FULL_IMAGE}"
+
+      # ============================================
+      # 8. Docker 이미지 빌드 & ECR 푸시
+      # ============================================
+      - name: 🐳 Build and Push Docker Image to ECR
+        env:
+          FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
+          LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
+        run: |
+          cd user-service
+
+          echo "🔨 Building Docker image..."
+          docker build \
+            --build-arg CACHEBUST=$(date +%s) \
+            -t ${FULL_IMAGE} \
+            -t ${LATEST_IMAGE} \
+            .
+
+          echo "📤 Pushing to ECR..."
+          docker push ${FULL_IMAGE}
+          docker push ${LATEST_IMAGE}
+
+          echo "✅ Successfully pushed:"
+          echo "  - ${FULL_IMAGE}"
+          echo "  - ${LATEST_IMAGE}"
+
+      # ============================================
+      # 9. 빌드 결과 요약
+      # ============================================
+      - name: 📋 Build Summary
+        run: |
+          echo "### ✅ User Service Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
