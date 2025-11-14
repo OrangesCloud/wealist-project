@@ -75,7 +75,7 @@ jobs:
 
           # AWS
           AWS_REGION=${{ env.AWS_REGION }}
-          AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_ACCOUNT_ID=${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}
 
           # Database - User Service
           USER_DB_NAME=${{ secrets.USER_DB_NAME }}
@@ -132,7 +132,7 @@ jobs:
             echo "=========================================="
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
               docker login --username AWS --password-stdin \
-              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+              ${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
             echo ""
             echo "=========================================="

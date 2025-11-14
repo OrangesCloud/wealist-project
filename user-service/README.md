@@ -12,3 +12,4 @@ docker rm wealist-user-service
 # 3. Docker Compose (또는 run)으로 다시 실행
 
 docker-compose up -d --build
+
