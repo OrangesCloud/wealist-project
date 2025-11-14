@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, MessageSquare, Bell, File, LogOut, User as UserIcon } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
-// 💡 [수정] UserProfileResponse DTO를 사용합니다.
 import { UserProfileResponse } from '../../types/user';
 import { getMyProfile } from '../../api/user/userService'; // 기본 프로필 조회 API
 
