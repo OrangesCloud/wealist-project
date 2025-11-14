@@ -59,17 +59,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
     try {
       if (isEditMode && project) {
-        // 편집 모드
-        // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
         await updateProject(project.projectId, {
           name: name.trim(),
           description: description.trim() || undefined,
         });
         console.log('✅ 프로젝트 수정 성공:', name);
       } else {
-        // 생성 모드
         console.log(nickName);
-        // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
         await createProject({
           workspaceId: workspaceId,
           name: name.trim(),
