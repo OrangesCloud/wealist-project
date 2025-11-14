@@ -37,7 +37,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   // project prop이 변경되면 폼 리셋
   useEffect(() => {
     if (project) {
-      console.log(project);
       setName(project.name);
       setDescription(project.description || '');
     } else {
@@ -59,8 +58,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     setError(null);
 
     try {
-      // 💡 [수정] localStorage.getItem('accessToken') 호출 및 accessToken 변수 제거
-
       if (isEditMode && project) {
         // 편집 모드
         // 💡 [수정] API 호출 시 accessToken 인수를 제거합니다.
