@@ -13,7 +13,7 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { updateMyProfile, getAllMyProfiles, getMyWorkspaces } from '../../../api/user/userService';
 import {
   UserProfileResponse,
-  WorkspaceResponse,
+  // WorkspaceResponse,
   UpdateProfileRequest,
   UserWorkspaceResponse,
 } from '../../../types/user';
@@ -42,7 +42,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
 
   // 💡 [추가] S3에 업로드할 실제 파일 객체 상태
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [_selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

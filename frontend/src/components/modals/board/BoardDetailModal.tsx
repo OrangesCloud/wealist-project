@@ -53,7 +53,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   const [stages, _setStages] = useState<CustomStageResponse[]>(MOCK_STAGES);
   const [roles, _setRoles] = useState<CustomRoleResponse[]>(MOCK_ROLES);
   const [importances, _setImportances] = useState<CustomImportanceResponse[]>(MOCK_IMPORTANCES);
-  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
+  const [_workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);

@@ -19,7 +19,7 @@ import { FieldResponse, FieldOptionResponse } from '../../../types/board';
 import {
   getProjectFields,
   getFieldOptions,
-  updateField,
+  // updateField,
   // updateFieldOption,
   deleteField,
   deleteFieldOption,

@@ -1,7 +1,7 @@
 // src/components/modals/WorkspaceMembersTab.tsx (수정됨)
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { X, Search, Plus } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useTheme } from '../../../../../contexts/ThemeContext';
 import { useAuth } from '../../../../../contexts/AuthContext';
 import {
@@ -91,26 +91,26 @@ export const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({
    * 💡 [추가] 이메일/ID로 사용자 검색 (프론트엔드 목업 로직)
    * 💡 실제로는 API 호출 (예: searchUsersByEmail(inviteSearchQuery))이 필요합니다.
    */
-  const handleSearchUser = useCallback(() => {
-    // ⚠️ 실제로는 여기서 searchUsersByEmail API를 호출해야 합니다.
-    // 현재 API 스펙에 검색 기능이 없으므로, UI 구현을 위해 임시로 목업 데이터를 사용하거나,
-    // 백엔드 개발자에게 해당 API를 요청해야 합니다.
+  // const handleSearchUser = useCallback(() => {
+  //   // ⚠️ 실제로는 여기서 searchUsersByEmail API를 호출해야 합니다.
+  //   // 현재 API 스펙에 검색 기능이 없으므로, UI 구현을 위해 임시로 목업 데이터를 사용하거나,
+  //   // 백엔드 개발자에게 해당 API를 요청해야 합니다.
 
-    if (inviteSearchQuery.trim().length > 0) {
-      // 임시 목업: 검색어와 ID가 같은 사용자를 선택된 것으로 간주
-      setSelectedUserId(inviteSearchQuery.trim());
-      setSearchResults([
-        {
-          id: inviteSearchQuery,
-          userName: '검색된 사용자',
-          userEmail: `${inviteSearchQuery}@example.com`,
-        },
-      ]);
-    } else {
-      setSearchResults([]);
-      setSelectedUserId('');
-    }
-  }, [inviteSearchQuery]);
+  //   if (inviteSearchQuery.trim().length > 0) {
+  //     // 임시 목업: 검색어와 ID가 같은 사용자를 선택된 것으로 간주
+  //     setSelectedUserId(inviteSearchQuery.trim());
+  //     setSearchResults([
+  //       {
+  //         id: inviteSearchQuery,
+  //         userName: '검색된 사용자',
+  //         userEmail: `${inviteSearchQuery}@example.com`,
+  //       },
+  //     ]);
+  //   } else {
+  //     setSearchResults([]);
+  //     setSelectedUserId('');
+  //   }
+  // }, [inviteSearchQuery]);
 
   useEffect(() => {
     // 💡 검색어가 변경될 때마다 검색 로직 실행 (debounce 적용 권장)

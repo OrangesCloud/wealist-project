@@ -190,14 +190,13 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   }, [fetchProjectContentInitSettings]);
 
   // 💡 필드가 생성된 후 호출될 핸들러
-  const afterFieldCreated = useCallback(
-    (newField: any) => {
+  const afterFieldCreated = useCallback(() =>
+    // newField: any
+    {
       toggleUiState('showManageModal', false);
       setEditFieldData(null);
       handleBoardContentUpdate(); // 💡 데이터 변경 알림 -> InitSettings 재실행
-    },
-    [handleBoardContentUpdate, toggleUiState],
-  );
+    }, [handleBoardContentUpdate, toggleUiState]);
 
   const handleCustomField = useCallback(
     (editFieldData: any) => {
