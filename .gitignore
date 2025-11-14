@@ -75,3 +75,7 @@ frontend/docker-compose.yml
 frontend/Dockerfile.local
 docker-compose.base.yml
 docker-compose.local.yml
+
+
+
+terraform/dev/*
