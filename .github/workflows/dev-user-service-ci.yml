@@ -6,7 +6,7 @@ on:
       - deploy-dev  # Dev 환경 배포 전용 브랜치
     paths:
       - "user-service/**"
-      - ".github/workflows/dev/ci/user-service-ci-ecr.yml"
+      - ".github/workflows/dev-user-service-ci.yml"
   workflow_dispatch:  # 수동 실행 옵션
 
 env:
