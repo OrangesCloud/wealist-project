@@ -23,7 +23,9 @@ definitions:
   dto.BoardResponse:
     properties:
       assignee:
-        $ref: '#/definitions/dto.UserInfo'
+        allOf:
+        - $ref: '#/definitions/dto.UserInfo'
+        description: Single assignee (creator/owner feel)
       author:
         $ref: '#/definitions/dto.UserInfo'
       boardId:
@@ -42,6 +44,11 @@ definitions:
         description: Field values with field metadata
         items:
           $ref: '#/definitions/dto.FieldValueWithInfo'
+        type: array
+      participants:
+        description: Multiple participants
+        items:
+          $ref: '#/definitions/dto.UserInfo'
         type: array
       position:
         description: Board position in view
@@ -73,6 +80,7 @@ definitions:
   dto.CreateBoardRequest:
     properties:
       assigneeId:
+        description: Single assignee (creator/owner feel)
         type: string
       content:
         maxLength: 5000
@@ -82,12 +90,16 @@ definitions:
         type: string
       importanceId:
         type: string
-      projectId:
-        type: string
-      roleIds:
+      participantIds:
+        description: 'New: multiple participants'
         items:
           type: string
         type: array
+      projectId:
+        type: string
+      roleId:
+        description: 'Changed: single value'
+        type: string
       stageId:
         description: Legacy fields (deprecated - use custom fields instead)
         type: string
@@ -584,6 +596,7 @@ definitions:
   dto.UpdateBoardRequest:
     properties:
       assigneeId:
+        description: Single assignee (creator/owner feel)
         type: string
       content:
         maxLength: 5000
@@ -592,10 +605,14 @@ definitions:
         type: string
       importanceId:
         type: string
-      roleIds:
+      participantIds:
+        description: 'New: multiple participants'
         items:
           type: string
         type: array
+      roleId:
+        description: 'Changed: single value'
+        type: string
       stageId:
         description: Legacy fields (deprecated - use custom fields instead)
         type: string

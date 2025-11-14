@@ -12,9 +12,10 @@ type CreateBoardRequest struct {
 	// Legacy fields (deprecated - use custom fields instead)
 	StageID      *string  `json:"stageId" binding:"omitempty,uuid"`
 	ImportanceID *string  `json:"importanceId" binding:"omitempty,uuid"`
-	RoleIDs      []string `json:"roleIds" binding:"omitempty,dive,uuid"`
+	RoleID       *string  `json:"roleId" binding:"omitempty,uuid"` // Changed: single value
 
-	AssigneeID   *string  `json:"assigneeId" binding:"omitempty,uuid"`
+	AssigneeID   *string  `json:"assigneeId" binding:"omitempty,uuid"` // Single assignee (creator/owner feel)
+	ParticipantIDs []string `json:"participantIds" binding:"omitempty,dive,uuid"` // New: multiple participants
 	DueDate      *string  `json:"dueDate" binding:"omitempty"` // ISO 8601 format
 }
 
@@ -25,9 +26,10 @@ type UpdateBoardRequest struct {
 	// Legacy fields (deprecated - use custom fields instead)
 	StageID      *string  `json:"stageId" binding:"omitempty,uuid"`
 	ImportanceID *string  `json:"importanceId" binding:"omitempty,uuid"`
-	RoleIDs      []string `json:"roleIds" binding:"omitempty,dive,uuid"`
+	RoleID       *string  `json:"roleId" binding:"omitempty,uuid"` // Changed: single value
 
-	AssigneeID   *string  `json:"assigneeId" binding:"omitempty,uuid"`
+	AssigneeID   *string  `json:"assigneeId" binding:"omitempty,uuid"` // Single assignee (creator/owner feel)
+	ParticipantIDs []string `json:"participantIds" binding:"omitempty,dive,uuid"` // New: multiple participants
 	DueDate      *string  `json:"dueDate" binding:"omitempty"`
 }
 
@@ -49,7 +51,8 @@ type BoardResponse struct {
 	ProjectID     string                     `json:"projectId"`
 	Title         string                     `json:"title"`
 	Content       string                     `json:"content"`
-	Assignee      *UserInfo                  `json:"assignee"`
+	Assignee      *UserInfo                  `json:"assignee"`      // Single assignee (creator/owner feel)
+	Participants  []UserInfo                 `json:"participants"`  // Multiple participants
 	Author        UserInfo                   `json:"author"`
 	DueDate       *time.Time                 `json:"dueDate"`
 	CreatedAt     time.Time                  `json:"createdAt"`
