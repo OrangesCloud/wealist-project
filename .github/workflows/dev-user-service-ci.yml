@@ -66,8 +66,8 @@ jobs:
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       # ============================================
@@ -76,7 +76,7 @@ jobs:
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
-          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          ECR_REGISTRY="${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
           FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
           LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"

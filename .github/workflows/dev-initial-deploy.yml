@@ -46,14 +46,14 @@ jobs:
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
-          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          ECR_REGISTRY="${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
           FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-user-service:${IMAGE_TAG}"
           LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-user-service:latest"
@@ -119,14 +119,14 @@ jobs:
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
-          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          ECR_REGISTRY="${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
           FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:${IMAGE_TAG}"
           LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:latest"
@@ -195,7 +195,7 @@ jobs:
 
           # AWS
           AWS_REGION=${{ env.AWS_REGION }}
-          AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_ACCOUNT_ID=${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}
 
           # Database - User Service
           USER_DB_NAME=${{ secrets.USER_DB_NAME }}
@@ -247,7 +247,7 @@ jobs:
             echo "🔐 Logging into Amazon ECR..."
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
               docker login --username AWS --password-stdin \
-              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+              ${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
             echo "📥 Pulling latest images from ECR..."
             docker compose --env-file .env pull
