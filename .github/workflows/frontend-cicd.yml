@@ -1,0 +1,15 @@
+name: Frontend CI/CD Trigger test
+
+on:
+  push:
+    branches: main
+    paths:
+      - "frontend/**" # frontend 폴더 내 변경 시에만 실행
+      - ".github/workflows/frontend-cicd.yml" # 워크플로우 파일 변경 시에도 실행
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Workflow is running"

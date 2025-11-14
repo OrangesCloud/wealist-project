@@ -1,9 +1,0 @@
-name: Frontend CI/CD Test
-on:
-  workflow_dispatch:
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Workflow is running"
