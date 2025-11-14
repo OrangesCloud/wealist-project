@@ -1,0 +1,277 @@
+name: Initial Deployment - All Services
+
+on:
+  # 수동 실행 전용 (최초 배포 또는 전체 재배포 시 사용)
+  workflow_dispatch:
+    inputs:
+      deploy_to_ec2:
+        description: 'EC2에 자동 배포할까요?'
+        required: true
+        type: boolean
+        default: true
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  # ==================================================
+  # Job 1: User Service 빌드 & ECR 푸시
+  # ==================================================
+  build-user-service:
+    name: Build User Service
+    runs-on: ubuntu-latest
+    environment: development
+
+    outputs:
+      image-tag: ${{ steps.image-info.outputs.image-tag }}
+      full-image: ${{ steps.image-info.outputs.full-image }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: "gradle"
+
+      - name: 🔨 Build with Gradle
+        run: |
+          cd user-service
+          chmod +x gradlew
+          ./gradlew clean build
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔑 Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🏷️ Generate Image Tags
+        id: image-info
+        run: |
+          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          IMAGE_TAG="${GITHUB_SHA:0:7}"
+          FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-user-service:${IMAGE_TAG}"
+          LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-user-service:latest"
+
+          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
+
+      - name: 🐳 Build and Push to ECR
+        env:
+          FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
+          LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
+        run: |
+          cd user-service
+          docker build --build-arg CACHEBUST=$(date +%s) -t ${FULL_IMAGE} -t ${LATEST_IMAGE} .
+          docker push ${FULL_IMAGE}
+          docker push ${LATEST_IMAGE}
+          echo "✅ User Service: ${LATEST_IMAGE}"
+
+  # ==================================================
+  # Job 2: Board Service 빌드 & ECR 푸시
+  # ==================================================
+  build-board-service:
+    name: Build Board Service
+    runs-on: ubuntu-latest
+    environment: development
+
+    outputs:
+      image-tag: ${{ steps.image-info.outputs.image-tag }}
+      full-image: ${{ steps.image-info.outputs.full-image }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+          cache-dependency-path: board-service/go.sum
+
+      - name: 📦 Download Go Dependencies
+        run: |
+          cd board-service
+          go mod tidy
+          go mod download
+
+      - name: 🧪 Run Go Tests
+        run: |
+          cd board-service
+          go test -v -race -cover ./...
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔑 Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🏷️ Generate Image Tags
+        id: image-info
+        run: |
+          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          IMAGE_TAG="${GITHUB_SHA:0:7}"
+          FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:${IMAGE_TAG}"
+          LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:latest"
+
+          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
+
+      - name: 🐳 Build and Push to ECR
+        env:
+          FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
+          LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
+        run: |
+          cd board-service
+          docker build -f docker/Dockerfile -t ${FULL_IMAGE} -t ${LATEST_IMAGE} .
+          docker push ${FULL_IMAGE}
+          docker push ${LATEST_IMAGE}
+          echo "✅ Board Service: ${LATEST_IMAGE}"
+
+  # ==================================================
+  # Job 3: EC2 배포 (선택적)
+  # ==================================================
+  deploy-to-ec2:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    environment: development
+    needs: [build-user-service, build-board-service]  # 두 빌드 완료 후 실행
+    if: ${{ inputs.deploy_to_ec2 }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Setup SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+
+      - name: 📝 Add EC2 to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 📤 Copy Docker Compose Files to EC2
+        run: |
+          ssh ec2-user@${{ secrets.EC2_HOST }} "mkdir -p ~/wealist-deploy"
+
+          scp docker/compose/docker-compose.ec2-dev.yml \
+            ec2-user@${{ secrets.EC2_HOST }}:~/wealist-deploy/docker-compose.yml
+
+      - name: 🔧 Create Environment File on EC2
+        run: |
+          ssh ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+            cat > ~/wealist-deploy/.env << ENVFILE
+          # Application
+          APP_NAME=wealist-api
+          VERSION=latest
+
+          # AWS
+          AWS_REGION=${{ env.AWS_REGION }}
+          AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
+
+          # Database - User Service
+          USER_DB_NAME=${{ secrets.USER_DB_NAME }}
+          USER_DB_USER=${{ secrets.USER_DB_USER }}
+          USER_DB_PASSWORD=${{ secrets.USER_DB_PASSWORD }}
+
+          # Database - Board Service
+          BOARD_DB_NAME=${{ secrets.BOARD_DB_NAME }}
+          BOARD_DB_USER=${{ secrets.BOARD_DB_USER }}
+          BOARD_DB_PASSWORD=${{ secrets.BOARD_DB_PASSWORD }}
+
+          # Database - Superuser
+          POSTGRES_SUPERUSER=${{ secrets.POSTGRES_SUPERUSER }}
+          POSTGRES_SUPERUSER_PASSWORD=${{ secrets.POSTGRES_SUPERUSER_PASSWORD }}
+
+          # Redis
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+
+          # JWT
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
+          JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
+
+          # OAuth
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+
+          # Service Configuration
+          JPA_DDL_AUTO=update
+          JPA_SHOW_SQL=true
+          JPA_FORMAT_SQL=true
+          LOG_LEVEL=debug
+
+          # CORS
+          CORS_ORIGINS=*
+
+          # Monitoring
+          GRAFANA_ADMIN_USER=admin
+          GRAFANA_ADMIN_PASSWORD=${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          ENVFILE
+          EOF
+
+      - name: 🚀 Deploy to EC2
+        run: |
+          ssh ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+            cd ~/wealist-deploy
+
+            echo "🔐 Logging into Amazon ECR..."
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+              docker login --username AWS --password-stdin \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+            echo "📥 Pulling latest images from ECR..."
+            docker compose --env-file .env pull
+
+            echo "🔄 Starting services..."
+            docker compose --env-file .env up -d --remove-orphans
+
+            echo "✅ Deployment Complete!"
+            docker compose --env-file .env ps
+          EOF
+
+      - name: 🏥 Health Check
+        run: |
+          ssh ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+            echo "⏳ Waiting for services to start (30s)..."
+            sleep 30
+
+            echo "🏥 Health Check - User Service"
+            curl -f http://localhost:8080/actuator/health || echo "⚠️ User Service not ready"
+
+            echo "🏥 Health Check - Board Service"
+            curl -f http://localhost:8000/health || echo "⚠️ Board Service not ready"
+
+            echo "📊 Service Status:"
+            docker compose --env-file ~/wealist-deploy/.env ps
+          EOF
+
+      - name: 📋 Deployment Summary
+        run: |
+          echo "### 🚀 Initial Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**User Service Image:** \`${{ needs.build-user-service.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Board Service Image:** \`${{ needs.build-board-service.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Services:**" >> $GITHUB_STEP_SUMMARY
+          echo "- User Service: http://${{ secrets.EC2_HOST }}:8080" >> $GITHUB_STEP_SUMMARY
+          echo "- Board Service: http://${{ secrets.EC2_HOST }}:8000" >> $GITHUB_STEP_SUMMARY
+          echo "- Grafana: http://${{ secrets.EC2_HOST }}:3001" >> $GITHUB_STEP_SUMMARY
