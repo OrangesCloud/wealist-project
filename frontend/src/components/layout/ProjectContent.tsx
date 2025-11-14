@@ -84,7 +84,6 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     setViewState((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  // 💡 [추가] Custom Field Option Lookup Helper (Props의 데이터를 사용하도록 수정)
   const getRoleOption = (roleId: string | undefined) =>
     roleId ? roleOptions?.find((r) => r.roleId === roleId) : undefined;
   const getImportanceOption = (importanceId: string | undefined) =>
