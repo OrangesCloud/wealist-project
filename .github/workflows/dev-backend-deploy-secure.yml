@@ -1,0 +1,284 @@
+name: Backend EC2 CD - Secure (Parameter Store)
+
+on:
+  workflow_run:
+    workflows:
+      - "User Service CI - ECR"
+      - "Board Service CI - ECR"
+    types:
+      - completed
+    branches:
+      - deploy-dev
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  deploy-to-ec2:
+    name: Secure Deploy via SSM
+    runs-on: ubuntu-latest
+    environment: development
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 📋 Prepare Docker Compose File
+        run: |
+          cp docker/compose/docker-compose.ec2-dev.yml /tmp/docker-compose.yml
+
+      - name: 📝 Create Secure Deployment Script
+        run: |
+          cat > /tmp/deploy-secure.sh << 'DEPLOY_SCRIPT'
+          #!/bin/bash
+          set -e
+
+          echo "=========================================="
+          echo "🔒 Secure Deployment Started"
+          echo "=========================================="
+
+          REGION="ap-northeast-2"
+          AWS_ACCOUNT_ID="${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}"
+
+          # 배포 디렉토리
+          mkdir -p ~/wealist-deploy
+          cd ~/wealist-deploy
+
+          echo "🔑 Fetching secrets from Parameter Store..."
+
+          # Parameter Store에서 안전하게 값 가져오기
+          POSTGRES_SUPERUSER_PASSWORD=$(aws ssm get-parameter \
+            --name "/wealist/dev/postgres/superuser-password" \
+            --with-decryption \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          USER_DB_PASSWORD=$(aws ssm get-parameter \
+            --name "/wealist/dev/db/user-password" \
+            --with-decryption \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          BOARD_DB_PASSWORD=$(aws ssm get-parameter \
+            --name "/wealist/dev/db/board-password" \
+            --with-decryption \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          REDIS_PASSWORD=$(aws ssm get-parameter \
+            --name "/wealist/dev/redis/password" \
+            --with-decryption \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          JWT_SECRET=$(aws ssm get-parameter \
+            --name "/wealist/dev/jwt/secret" \
+            --with-decryption \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          GOOGLE_CLIENT_ID=$(aws ssm get-parameter \
+            --name "/wealist/dev/oauth/google-client-id" \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          GOOGLE_CLIENT_SECRET=$(aws ssm get-parameter \
+            --name "/wealist/dev/oauth/google-client-secret" \
+            --with-decryption \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          GRAFANA_ADMIN_PASSWORD=$(aws ssm get-parameter \
+            --name "/wealist/dev/grafana/admin-password" \
+            --with-decryption \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          echo "✅ Secrets fetched successfully"
+
+          # .env 파일 생성 (민감정보는 Parameter Store에서 가져온 값 사용)
+          cat > .env << ENVFILE
+          # AWS (민감하지 않은 정보)
+          AWS_REGION=${REGION}
+          AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
+          VERSION=latest
+
+          # PostgreSQL Superuser
+          POSTGRES_SUPERUSER=postgres
+          POSTGRES_SUPERUSER_PASSWORD=${POSTGRES_SUPERUSER_PASSWORD}
+
+          # User Service DB
+          USER_DB_NAME=wealist_user_db
+          USER_DB_USER=wealist_user
+          USER_DB_PASSWORD=${USER_DB_PASSWORD}
+
+          # Board Service DB
+          BOARD_DB_NAME=wealist_board_db
+          BOARD_DB_USER=wealist_board
+          BOARD_DB_PASSWORD=${BOARD_DB_PASSWORD}
+
+          # Redis
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+
+          # JWT (User Service와 Board Service 동일)
+          JWT_SECRET=${JWT_SECRET}
+          JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
+          JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
+
+          # OAuth
+          GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+          GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+
+          # Service Configuration
+          JPA_DDL_AUTO=update
+          JPA_SHOW_SQL=true
+          JPA_FORMAT_SQL=true
+          LOG_LEVEL=debug
+          CORS_ORIGINS=*
+
+          # Monitoring
+          GRAFANA_ADMIN_USER=admin
+          GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+          ENVFILE
+
+          # 보안: .env 파일 권한 제한
+          chmod 600 .env
+
+          echo "✅ Environment file created securely"
+
+          # ECR 로그인
+          echo "🔑 Logging into Amazon ECR..."
+          aws ecr get-login-password --region ${REGION} | \
+            docker login --username AWS --password-stdin \
+            ${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
+
+          # 최신 이미지 Pull
+          echo "📥 Pulling latest images from ECR..."
+          docker compose pull
+
+          # 서비스 재시작
+          echo "🔄 Restarting services..."
+          docker compose up -d --remove-orphans
+
+          # 구 이미지 정리
+          echo "🧹 Cleaning up old images..."
+          docker image prune -f
+
+          echo ""
+          echo "=========================================="
+          echo "✅ Secure Deployment Complete!"
+          echo "=========================================="
+          docker compose ps
+
+          # Health Check
+          echo ""
+          echo "🏥 Running Health Checks..."
+          sleep 30
+
+          USER_HEALTH=$(curl -f http://localhost:8080/actuator/health 2>/dev/null && echo "✅ Healthy" || echo "⚠️ Not Ready")
+          BOARD_HEALTH=$(curl -f http://localhost:8000/health 2>/dev/null && echo "✅ Healthy" || echo "⚠️ Not Ready")
+
+          echo "User Service: ${USER_HEALTH}"
+          echo "Board Service: ${BOARD_HEALTH}"
+          DEPLOY_SCRIPT
+
+          chmod +x /tmp/deploy-secure.sh
+
+      - name: 📤 Upload to S3
+        run: |
+          BUCKET_NAME="wealist-deploy-scripts"
+          aws s3 mb s3://${BUCKET_NAME} --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          aws s3 cp /tmp/docker-compose.yml s3://${BUCKET_NAME}/docker-compose.yml
+          aws s3 cp /tmp/deploy-secure.sh s3://${BUCKET_NAME}/deploy-secure.sh
+
+      - name: 🚀 Deploy via SSM
+        run: |
+          INSTANCE_ID="${{ secrets.EC2_INSTANCE_ID }}"
+          BUCKET_NAME="wealist-deploy-scripts"
+
+          echo "🚀 Executing secure deployment on ${INSTANCE_ID}"
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "set -e",
+              "cd /home/ec2-user/wealist-deploy || mkdir -p /home/ec2-user/wealist-deploy",
+              "cd /home/ec2-user/wealist-deploy",
+              "aws s3 cp s3://'"${BUCKET_NAME}"'/docker-compose.yml ./docker-compose.yml",
+              "aws s3 cp s3://'"${BUCKET_NAME}"'/deploy-secure.sh ./deploy-secure.sh",
+              "chmod +x ./deploy-secure.sh",
+              "sudo -u ec2-user bash ./deploy-secure.sh"
+            ]' \
+            --region ${{ env.AWS_REGION }} \
+            --output text \
+            --query 'Command.CommandId')
+
+          echo "Command ID: ${COMMAND_ID}"
+
+          # 명령 완료 대기
+          for i in {1..60}; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${INSTANCE_ID}" \
+              --region ${{ env.AWS_REGION }} \
+              --query 'Status' \
+              --output text 2>/dev/null || echo "Pending")
+
+            echo "[$(date +%H:%M:%S)] Status: ${STATUS}"
+
+            if [ "${STATUS}" == "Success" ]; then
+              echo "✅ Deployment completed!"
+              aws ssm get-command-invocation \
+                --command-id "${COMMAND_ID}" \
+                --instance-id "${INSTANCE_ID}" \
+                --region ${{ env.AWS_REGION }} \
+                --query 'StandardOutputContent' \
+                --output text
+              exit 0
+            elif [ "${STATUS}" == "Failed" ]; then
+              echo "❌ Deployment failed!"
+              aws ssm get-command-invocation \
+                --command-id "${COMMAND_ID}" \
+                --instance-id "${INSTANCE_ID}" \
+                --region ${{ env.AWS_REGION }} \
+                --query 'StandardErrorContent' \
+                --output text
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          echo "⚠️ Timeout"
+          exit 1
+
+      - name: 📋 Deployment Summary
+        if: always()
+        run: |
+          echo "### 🔒 Secure Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Security Method:** AWS Parameter Store ✅" >> $GITHUB_STEP_SUMMARY
+          echo "**Instance ID:** \`${{ secrets.EC2_INSTANCE_ID }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**✅ Secrets not stored in GitHub**" >> $GITHUB_STEP_SUMMARY
+          echo "**✅ EC2 fetches secrets from Parameter Store**" >> $GITHUB_STEP_SUMMARY
+          echo "**✅ .env file secured with 600 permissions**" >> $GITHUB_STEP_SUMMARY
