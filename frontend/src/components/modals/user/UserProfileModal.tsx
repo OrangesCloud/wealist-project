@@ -18,6 +18,8 @@ import {
   UserWorkspaceResponse,
 } from '../../../types/user';
 
+const DEFAULT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000000';
+
 // 💡 [추가] S3 업로드 헬퍼 함수
 
 interface UserProfileModalProps {
@@ -49,9 +51,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
   // 프로필 데이터 필터링 및 계산된 상태
   // ========================================
 
-  const defaultProfile = allProfiles?.find((p) => p.workspaceId === null) || null;
+  const defaultProfile = allProfiles?.find((p) => p.workspaceId === DEFAULT_WORKSPACE_ID) || null;
   const currentWorkspaceProfile =
-    allProfiles?.find((p) => p.workspaceId === selectedWorkspaceId) || null;
+    allProfiles?.find((p) => p.workspaceId === selectedWorkspaceId) || defaultProfile;
 
   const currentProfile =
     activeTab === 'default' ? defaultProfile : currentWorkspaceProfile || defaultProfile;
@@ -73,7 +75,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
         ]);
         console.log(allProfs);
         setAllProfiles(allProfs);
-        const initialDefaultProfile = allProfs?.find((p) => p.workspaceId === null);
+        const initialDefaultProfile = allProfs?.find((p) => p.workspaceId === DEFAULT_WORKSPACE_ID);
         if (initialDefaultProfile) {
           setDefaultNickName(initialDefaultProfile?.nickName);
         }
@@ -94,19 +96,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
 
   // 💡 [추가] 워크스페이스 변경 시 닉네임 입력 필드 상태 업데이트 (유지)
   useEffect(() => {
-    if (activeTab === 'workspace') {
-      const workspace = workspaces?.find((ws) => ws.workspaceId === selectedWorkspaceId);
+    // if (activeTab === 'workspace') {
+    // const workspace = workspaces?.find((ws) => ws.workspaceId === selectedWorkspaceId);
 
-      if (currentWorkspaceProfile) {
-        setWorkspaceNickName(currentWorkspaceProfile.nickName);
-      } else if (defaultProfile) {
-        setWorkspaceNickName(
-          `${defaultProfile.nickName} (${workspace?.workspaceName || '새 조직'})`,
-        );
-      } else {
-        setWorkspaceNickName('');
-      }
-    }
+    setWorkspaceNickName(currentWorkspaceProfile?.nickName || defaultNickName);
+    // if (currentWorkspaceProfile) {
+    //   setWorkspaceNickName(currentWorkspaceProfile.nickName);
+    // } else if (defaultProfile) {
+    //   setWorkspaceNickName(
+    //     `${defaultProfile?.nickName} (${workspace?.workspaceName || '새 조직'})`,
+    //   );
+    // } else {
+    //   setWorkspaceNickName('');
+    // }
+    // }
   }, [selectedWorkspaceId, activeTab, currentWorkspaceProfile, defaultProfile, workspaces]);
 
   // ========================================
@@ -152,75 +155,70 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
       setLoading(true);
       setError(null);
 
-      if (!currentNickName.trim()) {
+      if (!currentNickName?.trim()) {
         setError('닉네임은 필수입니다.');
         setLoading(false);
         return;
       }
 
-      const currentUserId = defaultProfile?.userId;
+      const currentUserId = currentProfile?.userId;
       if (!currentUserId) {
         throw new Error('사용자 ID를 찾을 수 없습니다. (재로그인 필요)');
       }
 
-      let newImageUrl: string | undefined = undefined;
+      const targetId = activeTab === 'default' ? DEFAULT_WORKSPACE_ID : selectedWorkspaceId;
 
-      // 1. S3 이미지 업로드 필요 시 처리
+      let finalImageUrl: string | null = null;
+      let updatedProfile: UserProfileResponse | undefined = undefined;
+
+      // 1. S3 이미지 업로드 (주석 처리된 S3 로직)
       // if (selectedFile) {
-      //   newImageUrl = await uploadProfileImage(selectedFile, currentUserId);
+      //   // newImageUrl = await uploadProfileImage(selectedFile, currentUserId);
+      //   finalImageUrl = 'MOCK_S3_URL_SUCCESS';
+      // } else if (displayImageUrl === null) {
+      //   finalImageUrl = null; // 이미지를 제거한 경우
       // } else {
-      //   // 2. 파일 변경이 없다면 기존 URL 유지 (null 또는 undefined 포함)
-      //   newImageUrl = currentProfile?.profileImageUrl || undefined;
+      //   finalImageUrl = displayImageUrl; // 기존 이미지를 유지하는 경우
       // }
 
-      // // 3. API 호출 DTO 구성
-      // const data: UpdateProfileRequest = {
-      //   nickName: currentNickName,
-      //   profileImageUrl: newImageUrl, // S3에서 받은 URL 또는 기존 URL
-      // };
+      // 2. API 호출 DTO 구성
+      const data: UpdateProfileRequest = {
+        nickName: currentNickName.trim(),
+        profileImageUrl: finalImageUrl || '', // API 스펙에 맞게 string 또는 null 처리
+      };
 
-      // let updatedProfile: UserProfileResponse;
+      // 3. API 호출 및 프로필 갱신
+      updatedProfile = await updateMyProfile(data);
+      alert(`프로필이 저장되었습니다. (⚠️ 조직별 프로필 수정 API 미구현)`);
 
-      // if (activeTab === 'default') {
-      //   // PUT /api/profiles/me
-      //   updatedProfile = await updateMyProfile(data);
-      //   alert('기본 프로필이 저장되었습니다.');
-      // } else {
-      //   // PUT /api/profiles/workspace/{workspaceId} (Mock 처리)
-      //   // ⚠️ [주의] updateWorkspaceProfile은 Mock 함수이거나 백엔드 구현이 필요합니다.
-      //   // updatedProfile = await updateWorkspaceProfile(selectedWorkspaceId, data);
-      //   const workspaceName_display = workspaces?.find(
-      //     (ws) => ws.workspaceId === selectedWorkspaceId,
-      //   )?.workspaceName;
-      //   alert(`${workspaceName_display} 프로필이 저장되었습니다. (⚠️ 백엔드 구현 확인 필요)`);
-      // }
+      if (!updatedProfile) throw new Error('API 응답이 유효하지 않습니다.');
 
-      // // 4. 로컬 상태 업데이트 (모든 프로필)
-      // setAllProfiles((prev) => {
-      //   const targetId = activeTab === 'default' ? null : selectedWorkspaceId;
-      //   const index = prev?.findIndex((p) => p.workspaceId === targetId);
+      // 4. 로컬 상태 업데이트 (allProfiles)
+      setAllProfiles((prev) => {
+        const index = prev?.findIndex((p) => p.workspaceId === targetId);
 
-      //   if (index !== -1 && prev) {
-      //     const newProfiles = [...prev];
-      //     newProfiles[index] = updatedProfile;
-      //     return newProfiles;
-      //   }
-      //   return [...(prev || []), updatedProfile];
-      // });
+        // 💡 [핵심] API 응답에 누락된 workspaceId를 로컬에서 덮어쓰기
+        const profileToUpdate: UserProfileResponse = { ...updatedProfile, workspaceId: targetId };
+
+        if (index !== -1 && prev) {
+          const newProfiles = [...prev];
+          newProfiles[index] = profileToUpdate;
+          return newProfiles;
+        }
+        return [...(prev || []), profileToUpdate];
+      });
 
       // 5. 저장 후 파일 상태 초기화
-      setSelectedFile(null);
-      setAvatarPreviewUrl(null);
+      // setSelectedFile(null);
+      // setAvatarPreviewUrl(null);
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
       console.error('[Profile Save Error]', errorMsg);
       setError('프로필 저장에 실패했습니다. (S3 업로드 또는 API 문제)');
-      // 에러 시 파일 상태는 유지하여 사용자가 다시 시도하거나 취소할 수 있도록 함.
     } finally {
       setLoading(false);
     }
   };
-
   // ========================================
   // 모달 닫기 핸들러 (변경 없음)
   // ========================================
@@ -247,22 +245,22 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
     );
   }
 
-  if (!defaultProfile && !loading) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white p-8 rounded-xl shadow-lg">
-          <p className="text-red-700 font-semibold mb-4">프로필 로드 실패</p>
-          <p className="text-sm text-gray-700">기본 프로필 정보를 찾을 수 없습니다.</p>
-          <button
-            onClick={handleClose}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            닫기
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // if (!defaultProfile && !loading) {
+  //   return (
+  //     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+  //       <div className="bg-white p-8 rounded-xl shadow-lg">
+  //         <p className="text-red-700 font-semibold mb-4">프로필 로드 실패</p>
+  //         <p className="text-sm text-gray-700">기본 프로필 정보를 찾을 수 없습니다.</p>
+  //         <button
+  //           onClick={handleClose}
+  //           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+  //         >
+  //           닫기
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div
