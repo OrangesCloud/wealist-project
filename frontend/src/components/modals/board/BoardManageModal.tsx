@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Tag, CheckSquare, AlertCircle, Plus, Settings } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { CUSTOM_FIELD_COLORS, ColorOption } from '../../../constants/colors';
+// import { CUSTOM_FIELD_COLORS, ColorOption } from '../../../constants/colors';
 import {
   CreateBoardRequest,
   FieldOptionsLookup,

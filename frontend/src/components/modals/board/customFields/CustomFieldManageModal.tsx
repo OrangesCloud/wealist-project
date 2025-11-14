@@ -1,20 +1,7 @@
 // src/components/modals/CustomFieldManageModal.tsx
 
-import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
-import {
-  X,
-  ChevronDown,
-  Check,
-  Tag,
-  Menu,
-  Trash2,
-  Plus,
-  List,
-  Hash,
-  Calendar,
-  User,
-  TagIcon,
-} from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Menu, Trash2 } from 'lucide-react';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import {
   CreateFieldRequest,
@@ -55,7 +42,7 @@ export const CustomFieldManageModal: React.FC<CustomFieldManageModalProps> = ({
   const [fieldName, setFieldName] = useState('');
   const [fieldOptions, setFieldOptions] = useState<FieldOption[]>([]);
   const [newOption, setNewOption] = useState('');
-  const [isRequired, setIsRequired] = useState(false); // 필수 여부
+  const [isRequired, _setIsRequired] = useState(false); // 필수 여부
 
   // 💡 [수정] 옵션 편집 상태를 저장하며, 팔레트 위치 계산에 필요한 정보 포함
   const [editingOption, setEditingOption] = useState<{
@@ -128,11 +115,11 @@ export const CustomFieldManageModal: React.FC<CustomFieldManageModalProps> = ({
   }, []);
 
   // 💡 [수정] Enter 키 입력 시 로직을 분리
-  const handleOptionInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleAddOption(e);
-    }
-  };
+  // const handleOptionInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  //   if (e.key === 'Enter') {
+  //     handleAddOption(e);
+  //   }
+  // };
 
   // 💡 옵션 삭제 핸들러 (유지)
   const handleRemoveOption = useCallback((optionToRemove: FieldOption) => {
@@ -186,7 +173,10 @@ export const CustomFieldManageModal: React.FC<CustomFieldManageModalProps> = ({
   };
 
   // 💡 [추가] 드래그 앤 드롭 핸들러 (유지)
-  const handleDragStart = (option: FieldOption, index: number) => {
+  const handleDragStart = (
+    option: FieldOption,
+    // index: number
+  ) => {
     setDraggedOption(option);
   };
 
@@ -257,7 +247,12 @@ export const CustomFieldManageModal: React.FC<CustomFieldManageModalProps> = ({
                   <div
                     key={option.label}
                     draggable
-                    onDragStart={() => handleDragStart(option, index)}
+                    onDragStart={() =>
+                      handleDragStart(
+                        option,
+                        // , index
+                      )
+                    }
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDrop={() => handleDrop(index)}
                     onDragEnd={() => {

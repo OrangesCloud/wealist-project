@@ -310,19 +310,19 @@ export const setDefaultWorkspace = async (workspaceId: string): Promise<void> =>
  * [제거됨] 워크스페이스 프로필 조회 (GET /api/profiles/workspace/{workspaceId})
  * @deprecated 프론트엔드에서 `getAllMyProfiles()`를 호출하여 필터링해야 합니다.
  */
-export const getWorkspaceProfile = async (
-  workspaceId: string,
-): Promise<UserProfileResponse | null> => {
-  return null;
-};
+// export const getWorkspaceProfile = async (
+//   workspaceId: string,
+// ): Promise<UserProfileResponse | null> => {
+//   return null;
+// };
 
-/**
- * [제거됨] 워크스페이스 프로필 생성/수정 (PUT /api/profiles/workspace/{workspaceId})
- * @deprecated 이 엔드포인트는 제거되었으며, 백엔드 구현이 필요합니다.
- */
-export const updateWorkspaceProfile = async (
-  workspaceId: string,
-  data: UpdateProfileRequest,
-): Promise<UserProfileResponse> => {
-  throw new Error('워크스페이스별 프로필 업데이트 엔드포인트가 제거되었습니다. (백엔드 구현 필요)');
-};
+// /**
+//  * [제거됨] 워크스페이스 프로필 생성/수정 (PUT /api/profiles/workspace/{workspaceId})
+//  * @deprecated 이 엔드포인트는 제거되었으며, 백엔드 구현이 필요합니다.
+//  */
+// export const updateWorkspaceProfile = async (
+//   workspaceId: string,
+//   data: UpdateProfileRequest,
+// ): Promise<UserProfileResponse> => {
+//   throw new Error('워크스페이스별 프로필 업데이트 엔드포인트가 제거되었습니다. (백엔드 구현 필요)');
+// };

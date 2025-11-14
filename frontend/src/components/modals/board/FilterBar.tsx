@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, ChevronDown, Eye, Table, LayoutGrid, Plus, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, ChevronDown, Eye, Table, LayoutGrid, Settings } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import {
   CustomImportanceResponse,
@@ -9,11 +9,11 @@ import {
   TView,
 } from '../../../types/board';
 // 💡 새로운 필터 옵션 객체 타입 정의 (ID와 타입 포함)
-interface FilterOptionData {
-  value: string; // 필터링에 사용할 ID (예: stageId, roleId)
-  label: string;
-  type: 'status' | 'role' | 'importance' | 'default';
-}
+// interface FilterOptionData {
+//   value: string; // 필터링에 사용할 ID (예: stageId, roleId)
+//   label: string;
+//   type: 'status' | 'role' | 'importance' | 'default';
+// }
 interface FilterBarProps {
   onSearchChange: (search: string) => void;
   onViewChange: (view: TView) => void;
@@ -34,19 +34,19 @@ interface FilterBarProps {
 export const FilterBar: React.FC<FilterBarProps> = ({
   onSearchChange,
   onViewChange,
-  onFilterChange,
+  // onFilterChange,
   onLayoutChange,
   onShowCompletedChange,
   currentView,
   currentLayout = 'board',
   showCompleted = false,
-  stageOptions,
-  roleOptions,
-  importanceOptions,
+  // stageOptions,
+  // roleOptions,
+  // importanceOptions,
 }) => {
   const { theme } = useTheme();
   const [searchValue, setSearchValue] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('all');
+  const [_selectedFilter, _setSelectedFilter] = useState('all');
 
   // 💡 showViewModal 대신 showViewDropdown을 그대로 사용 (JSX와 충돌 방지)
   const [showViewDropdown, setShowViewDropdown] = useState(false);
@@ -66,11 +66,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     setShowViewDropdown(false);
   };
 
-  const handleFilterSelect = (value: string) => {
-    setSelectedFilter(value);
-    onFilterChange(value); // 💡 상위 컴포넌트에 필터 ID 전달
-    setShowFilterDropdown(false);
-  };
+  // const handleFilterSelect = (value: string) => {
+  //   setSelectedFilter(value);
+  //   onFilterChange(value); // 💡 상위 컴포넌트에 필터 ID 전달
+  //   setShowFilterDropdown(false);
+  // };
 
   // 💡 [수정] 동적 필터 옵션 생성 (useMemo)
   // const dynamicFilterOptions = useMemo(() => {

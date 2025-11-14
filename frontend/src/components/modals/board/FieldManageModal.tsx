@@ -1,6 +1,6 @@
 // src/components/modals/CustomFieldManagerModal.tsx
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   X,
   Edit2,
@@ -20,7 +20,7 @@ import {
   getProjectFields,
   getFieldOptions,
   updateField,
-  updateFieldOption,
+  // updateFieldOption,
   deleteField,
   deleteFieldOption,
 } from '../../../api/board/boardService';
@@ -130,7 +130,7 @@ export const CustomFieldManagerModal: React.FC<CustomFieldManagerModalProps> = (
     setLoading(true);
     try {
       // 💡 [API] 필드 이름 업데이트
-      const updatedField = await updateField(selectedField.fieldId, { name: newFieldName });
+      // const updatedField = await updateField(selectedField.fieldId, { name: newFieldName });
       onFieldsUpdated(); // 메인 대시보드 갱신
       await fetchFields(); // 로컬 필드 목록 갱신
       setIsEditingFieldName(false);
@@ -162,21 +162,21 @@ export const CustomFieldManagerModal: React.FC<CustomFieldManagerModalProps> = (
   // ========================================
 
   // 💡 TODO: 이 부분은 CustomFieldManageModal 로직을 가져와 옵션 CRUD를 구현해야 합니다.
-  const handleOptionUpdate = async (optionId: string, updates: Partial<FieldOptionResponse>) => {
-    if (!selectedField) return;
+  // const handleOptionUpdate = async (optionId: string, updates: Partial<FieldOptionResponse>) => {
+  //   if (!selectedField) return;
 
-    setLoading(true);
-    try {
-      // 💡 [API] 옵션 업데이트
-      await updateFieldOption(optionId, updates);
-      await fetchOptions(selectedField.fieldId);
-      onFieldsUpdated();
-    } catch (err: any) {
-      setError(`옵션 수정 실패: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  //   setLoading(true);
+  //   try {
+  //     // 💡 [API] 옵션 업데이트
+  //     await updateFieldOption(optionId, updates);
+  //     await fetchOptions(selectedField.fieldId);
+  //     onFieldsUpdated();
+  //   } catch (err: any) {
+  //     setError(`옵션 수정 실패: ${err.message}`);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   // ========================================
   // 4. 렌더링 헬퍼

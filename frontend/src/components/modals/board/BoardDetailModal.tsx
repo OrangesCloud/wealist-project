@@ -195,7 +195,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   const currentImportance = getFieldOption(importances, selectedImportanceId);
 
   // 💡 [수정] 단일 담당자 조회
-  const currentAssignee = workspaceMembers?.find((m) => m.userId === selectedAssigneeId);
+  // const currentAssignee = workspaceMembers?.find((m) => m.userId === selectedAssigneeId);
 
   return (
     <div
