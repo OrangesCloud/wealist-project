@@ -1,16 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  X,
-  Calendar,
-  User,
-  AlertCircle,
-  Tag,
-  CheckSquare,
-  MessageSquare,
-  Send,
-  Edit2,
-  Trash2,
-} from 'lucide-react';
+import { X, AlertCircle, Tag, CheckSquare, MessageSquare, Send, Edit2, Trash2 } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import {
   CustomStageResponse,
@@ -61,9 +50,9 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   const [dueDate, setDueDate] = useState<string>('');
 
   // Data state
-  const [stages, setStages] = useState<CustomStageResponse[]>(MOCK_STAGES);
-  const [roles, setRoles] = useState<CustomRoleResponse[]>(MOCK_ROLES);
-  const [importances, setImportances] = useState<CustomImportanceResponse[]>(MOCK_IMPORTANCES);
+  const [stages, _setStages] = useState<CustomStageResponse[]>(MOCK_STAGES);
+  const [roles, _setRoles] = useState<CustomRoleResponse[]>(MOCK_ROLES);
+  const [importances, _setImportances] = useState<CustomImportanceResponse[]>(MOCK_IMPORTANCES);
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
 
   // UI state

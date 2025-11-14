@@ -40,10 +40,10 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
   selectedProject,
   workspaceId,
   fieldOptionsLookup,
-  onProjectContentUpdate,
+  // onProjectContentUpdate,
   onManageModalOpen,
   onEditBoard,
-  showCreateBoard,
+  // showCreateBoard,
   setShowCreateBoard,
 }) => {
   const { theme } = useTheme();
@@ -71,7 +71,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
   // 💡 [UI States]
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
-  const [editBoardData, setEditBoardData] = useState<any>(null); // MainDashboard로 전달하기 위한 데이터 복사
+  // const [editBoardData, setEditBoardData] = useState<any>(null); // MainDashboard로 전달하기 위한 데이터 복사
 
   // Drag state
   const [draggedBoard, setDraggedBoard] = useState<BoardResponse | null>(null);
@@ -260,7 +260,12 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
   };
   // 6. Table/Board View 공통 데이터 필터링/정렬 로직 (useMemo)
   const allProcessedBoards = useMemo(() => {
-    const { searchQuery, sortColumn, sortDirection, showCompleted } = viewState;
+    const {
+      searchQuery,
+      sortColumn,
+      // sortDirection,
+      showCompleted,
+    } = viewState;
     // 1. 모든 컬럼의 보드를 플랫하게 만들고 룩업 정보를 붙입니다.
     const boardsToProcess = columns.flatMap((column) =>
       column.boards.map((board) => {

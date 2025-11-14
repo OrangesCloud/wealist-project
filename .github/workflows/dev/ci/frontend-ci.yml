@@ -39,7 +39,6 @@ jobs:
           pnpm run build
         env:
           # 빌드 시 환경 변수 (프로덕션 API 서버 주소)
-          VITE_AUTH_SERVICE_URL: ${{ secrets.VITE_AUTH_SERVICE_URL }}
           VITE_BOARD_SERVICE_URL: ${{ secrets.VITE_BOARD_SERVICE_URL }}
           VITE_USER_SERVICE_URL: ${{ secrets.VITE_USER_SERVICE_URL }}
 
