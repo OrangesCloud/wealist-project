@@ -50,9 +50,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: 🔑 Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
@@ -61,15 +58,23 @@ jobs:
           FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-user-service:${IMAGE_TAG}"
           LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-user-service:latest"
 
+          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
           echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
 
-      - name: 🐳 Build and Push to ECR
+      - name: 🐳 Login to ECR, Build and Push
         env:
           FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
           LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
+          ECR_REGISTRY: ${{ steps.image-info.outputs.ecr-registry }}
         run: |
+          # ECR 로그인
+          echo "🔑 Logging into Amazon ECR..."
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+            docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+          # Docker 이미지 빌드 & 푸시
           cd user-service
           docker build --build-arg CACHEBUST=$(date +%s) -t ${FULL_IMAGE} -t ${LATEST_IMAGE} .
           docker push ${FULL_IMAGE}
@@ -118,9 +123,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: 🔑 Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
@@ -129,15 +131,23 @@ jobs:
           FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:${IMAGE_TAG}"
           LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:latest"
 
+          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
           echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
 
-      - name: 🐳 Build and Push to ECR
+      - name: 🐳 Login to ECR, Build and Push
         env:
           FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
           LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
+          ECR_REGISTRY: ${{ steps.image-info.outputs.ecr-registry }}
         run: |
+          # ECR 로그인
+          echo "🔑 Logging into Amazon ECR..."
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+            docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+          # Docker 이미지 빌드 & 푸시
           cd board-service
           docker build -f docker/Dockerfile -t ${FULL_IMAGE} -t ${LATEST_IMAGE} .
           docker push ${FULL_IMAGE}

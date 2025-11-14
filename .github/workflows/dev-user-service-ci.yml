@@ -71,14 +71,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # ============================================
-      # 6. Amazon ECR 로그인
-      # ============================================
-      - name: 🔑 Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      # ============================================
-      # 7. 이미지 태그 생성
+      # 6. 이미지 태그 생성
       # ============================================
       - name: 🏷️ Generate Image Tags
         id: image-info
@@ -97,15 +90,21 @@ jobs:
           echo "🐳 Full Image: ${FULL_IMAGE}"
 
       # ============================================
-      # 8. Docker 이미지 빌드 & ECR 푸시
+      # 7. Amazon ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
-      - name: 🐳 Build and Push Docker Image to ECR
+      - name: 🐳 Login to ECR, Build and Push Docker Image
         env:
           FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
           LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
+          ECR_REGISTRY: ${{ steps.image-info.outputs.ecr-registry }}
         run: |
-          cd user-service
+          # ECR 로그인
+          echo "🔑 Logging into Amazon ECR..."
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+            docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
+          # Docker 이미지 빌드
+          cd user-service
           echo "🔨 Building Docker image..."
           docker build \
             --build-arg CACHEBUST=$(date +%s) \
@@ -113,6 +112,7 @@ jobs:
             -t ${LATEST_IMAGE} \
             .
 
+          # ECR에 푸시
           echo "📤 Pushing to ECR..."
           docker push ${FULL_IMAGE}
           docker push ${LATEST_IMAGE}
