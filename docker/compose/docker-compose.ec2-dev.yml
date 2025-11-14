@@ -29,12 +29,7 @@ services:
 
   # User Service (Spring Boot)
   user-service:
-    build:
-      context: ../../user-service
-      dockerfile: Dockerfile
-      args:
-        CACHEBUST: ${CACHEBUST:-1}
-    image: wealist/user-service:${VERSION:-latest}
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-dev-user-service:${VERSION:-latest}
     container_name: wealist-user-service
     hostname: user-service
 
@@ -113,10 +108,7 @@ services:
 
   # Board Service (Go)
   board-service:
-    build:
-      context: ../../board-service
-      dockerfile: docker/Dockerfile
-    image: wealist/board-service:${VERSION:-latest}
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-dev-board-service:${VERSION:-latest}
     container_name: wealist-board-service
     hostname: board-service
 
