@@ -56,12 +56,12 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
     editData?.importanceId || fieldOptionsLookup.importances?.[0]?.importanceId || '',
   );
   // Assignee search state
-  const [assigneeSearch, setAssigneeSearch] = useState('');
-  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
+  const [assigneeSearch, _setAssigneeSearch] = useState('');
+  const [_workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingFields, setIsLoadingFields] = useState(false);
+  const [isLoadingFields, _setIsLoadingFields] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Dropdown states (변경 없음)
@@ -160,25 +160,25 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   };
 
   // Helper: Color Picker Component (유지)
-  const renderColorPicker = (selectedColor: string, onColorChange: (color: string) => void) => (
-    <div className="grid grid-cols-6 gap-2 mt-2">
-      {CUSTOM_FIELD_COLORS?.map((color: ColorOption) => (
-        <button
-          key={color.hex}
-          type="button"
-          className={`w-8 h-8 rounded-md border-2 transition-all ${
-            selectedColor === color.hex
-              ? 'border-gray-800 ring-2 ring-blue-500 scale-110'
-              : 'border-gray-300 hover:scale-105'
-          }`}
-          style={{ backgroundColor: color.hex }}
-          onClick={() => onColorChange(color.hex)}
-          title={color.name}
-          disabled={isLoading}
-        />
-      ))}
-    </div>
-  );
+  // const renderColorPicker = (selectedColor: string, onColorChange: (color: string) => void) => (
+  //   <div className="grid grid-cols-6 gap-2 mt-2">
+  //     {CUSTOM_FIELD_COLORS?.map((color: ColorOption) => (
+  //       <button
+  //         key={color.hex}
+  //         type="button"
+  //         className={`w-8 h-8 rounded-md border-2 transition-all ${
+  //           selectedColor === color.hex
+  //             ? 'border-gray-800 ring-2 ring-blue-500 scale-110'
+  //             : 'border-gray-300 hover:scale-105'
+  //         }`}
+  //         style={{ backgroundColor: color.hex }}
+  //         onClick={() => onColorChange(color.hex)}
+  //         title={color.name}
+  //         disabled={isLoading}
+  //       />
+  //     ))}
+  //   </div>
+  // );
 
   return (
     <div
