@@ -165,6 +165,27 @@ func (m *BoardMapper) ToResponseWithUserMap(
 		}
 	}
 
+	// Set participants info (from userMap)
+	response.Participants = make([]UserInfo, 0, len(board.ParticipantIDs))
+	for _, participantID := range board.ParticipantIDs {
+		if participant, ok := userMap[participantID.String()]; ok {
+			response.Participants = append(response.Participants, UserInfo{
+				UserID:   participant.UserID,
+				Name:     participant.Name,
+				Email:    participant.Email,
+				IsActive: participant.IsActive,
+			})
+		} else {
+			// Fallback if user not found
+			response.Participants = append(response.Participants, UserInfo{
+				UserID:   participantID.String(),
+				Name:     "Unknown User",
+				Email:    "",
+				IsActive: false,
+			})
+		}
+	}
+
 	return response
 }
 

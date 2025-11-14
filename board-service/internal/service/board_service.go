@@ -125,6 +125,26 @@ func (s *boardService) CreateBoard(userID string, req *dto.CreateBoardRequest) (
 		}
 	}
 
+	// 2-1. Validate Participants (optional) using common parser
+	participantUUIDs := make([]uuid.UUID, 0, len(req.ParticipantIDs))
+	for _, participantIDStr := range req.ParticipantIDs {
+		participantUUID, err := parser.ParseUUID(participantIDStr, "참여자")
+		if err != nil {
+			return nil, err
+		}
+
+		// Check if participant is project member
+		_, err = s.projectRepo.FindMemberByUserAndProject(participantUUID, projectUUID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, apperrors.New(apperrors.ErrCodeNotFound, "참여자가 프로젝트 멤버가 아닙니다", 404)
+			}
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "참여자 확인 실패", 500)
+		}
+
+		participantUUIDs = append(participantUUIDs, participantUUID)
+	}
+
 	// 3. Parse DueDate (optional) using common validator
 	var dueDate *time.Time
 	if req.DueDate != nil {
@@ -141,6 +161,7 @@ func (s *boardService) CreateBoard(userID string, req *dto.CreateBoardRequest) (
 		Title:             req.Title,
 		Description:       req.Content,
 		AssigneeID:        assigneeUUID,
+		ParticipantIDs:    participantUUIDs,
 		CreatedBy:         userUUID,
 		DueDate:           dueDate,
 		CustomFieldsCache: "{}",  // Initialize empty, use FieldValueService to set values
@@ -263,6 +284,10 @@ func (s *boardService) GetBoards(userID string, req *dto.GetBoardsRequest) (*dto
 		userIDs = append(userIDs, board.CreatedBy.String())
 		if board.AssigneeID != nil {
 			userIDs = append(userIDs, board.AssigneeID.String())
+		}
+		// Add participant IDs
+		for _, participantID := range board.ParticipantIDs {
+			userIDs = append(userIDs, participantID.String())
 		}
 	}
 
@@ -421,6 +446,30 @@ func (s *boardService) UpdateBoard(boardID, userID string, req *dto.UpdateBoardR
 		}
 	}
 
+	// Update Participants
+	if req.ParticipantIDs != nil {
+		participantUUIDs := make([]uuid.UUID, 0, len(req.ParticipantIDs))
+		for _, participantIDStr := range req.ParticipantIDs {
+			participantUUID, err := parser.ParseUUID(participantIDStr, "참여자")
+			if err != nil {
+				return nil, err
+			}
+
+			// Check if participant is project member
+			_, err = s.projectRepo.FindMemberByUserAndProject(participantUUID, board.ProjectID)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, apperrors.New(apperrors.ErrCodeNotFound, "참여자가 프로젝트 멤버가 아닙니다", 404)
+				}
+				return nil, apperrors.Wrap(err, apperrors.ErrCodeInternalServer, "참여자 확인 실패", 500)
+			}
+
+			participantUUIDs = append(participantUUIDs, participantUUID)
+		}
+		board.ParticipantIDs = participantUUIDs
+		board.UpdatedAt = time.Now()
+	}
+
 	if req.DueDate != nil {
 		dueDate, err := validator.ValidateDateFormat(*req.DueDate, "마감일")
 		if err != nil {
@@ -531,6 +580,10 @@ func (s *boardService) buildBoardResponse(board *domain.Board) (*dto.BoardRespon
 	userIDs := []string{board.CreatedBy.String()}
 	if board.AssigneeID != nil {
 		userIDs = append(userIDs, board.AssigneeID.String())
+	}
+	// Add participant IDs
+	for _, participantID := range board.ParticipantIDs {
+		userIDs = append(userIDs, participantID.String())
 	}
 
 	// Fetch users with caching

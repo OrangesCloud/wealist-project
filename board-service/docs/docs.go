@@ -3293,7 +3293,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "assignee": {
-                    "$ref": "#/definitions/dto.UserInfo"
+                    "description": "Single assignee (creator/owner feel)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.UserInfo"
+                        }
+                    ]
                 },
                 "author": {
                     "$ref": "#/definitions/dto.UserInfo"
@@ -3320,6 +3325,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/dto.FieldValueWithInfo"
+                    }
+                },
+                "participants": {
+                    "description": "Multiple participants",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.UserInfo"
                     }
                 },
                 "position": {
@@ -3371,6 +3383,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "assigneeId": {
+                    "description": "Single assignee (creator/owner feel)",
                     "type": "string"
                 },
                 "content": {
@@ -3384,14 +3397,19 @@ const docTemplate = `{
                 "importanceId": {
                     "type": "string"
                 },
-                "projectId": {
-                    "type": "string"
-                },
-                "roleIds": {
+                "participantIds": {
+                    "description": "New: multiple participants",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "projectId": {
+                    "type": "string"
+                },
+                "roleId": {
+                    "description": "Changed: single value",
+                    "type": "string"
                 },
                 "stageId": {
                     "description": "Legacy fields (deprecated - use custom fields instead)",
@@ -4117,6 +4135,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "assigneeId": {
+                    "description": "Single assignee (creator/owner feel)",
                     "type": "string"
                 },
                 "content": {
@@ -4129,11 +4148,16 @@ const docTemplate = `{
                 "importanceId": {
                     "type": "string"
                 },
-                "roleIds": {
+                "participantIds": {
+                    "description": "New: multiple participants",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "roleId": {
+                    "description": "Changed: single value",
+                    "type": "string"
                 },
                 "stageId": {
                     "description": "Legacy fields (deprecated - use custom fields instead)",
