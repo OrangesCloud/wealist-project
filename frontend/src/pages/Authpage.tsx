@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 
 // ⚠️ 백엔드 OAuth2 인증 시작 엔드포인트
-// VITE_REACT_APP_JAVA_API_URL이 'http://localhost:8080'을 가리킨다고 가정
-const GOOGLE_AUTH_URL = `http://localhost:8080/oauth2/authorization/google`;
+const GOOGLE_AUTH_URL = `http://api.wealist.co.kr:8080/oauth2/authorization/google`;
 
 // onLogin prop 제거 (TS6133 에러 해결)
 const AuthPage: React.FC = () => {
