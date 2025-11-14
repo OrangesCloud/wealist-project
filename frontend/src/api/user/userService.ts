@@ -269,10 +269,11 @@ export const getMyProfile = async (): Promise<UserProfileResponse> => {
  * * Response: { data: UserProfileResponse[] }
  */
 export const getAllMyProfiles = async (): Promise<UserProfileResponse[]> => {
-  const response: AxiosResponse<{ data: UserProfileResponse[] }> = await userRepoClient.get(
+  const response: AxiosResponse<UserProfileResponse[]> = await userRepoClient.get(
     '/api/profiles/all/me',
   );
-  return response.data.data; // data 필드 추출
+  console.log(response.data);
+  return response.data; // data 필드 추출
 };
 
 /**

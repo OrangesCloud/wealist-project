@@ -11,7 +11,12 @@ import React, { useState, useRef, ChangeEvent, useEffect } from 'react';
 import { X, Camera } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { updateMyProfile, getAllMyProfiles, getMyWorkspaces } from '../../../api/user/userService';
-import { UserProfileResponse, WorkspaceResponse, UpdateProfileRequest } from '../../../types/user';
+import {
+  UserProfileResponse,
+  WorkspaceResponse,
+  UpdateProfileRequest,
+  UserWorkspaceResponse,
+} from '../../../types/user';
 
 // 💡 [추가] S3 업로드 헬퍼 함수
 
@@ -24,7 +29,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'default' | 'workspace'>('default');
 
   const [allProfiles, setAllProfiles] = useState<UserProfileResponse[]>([]);
-  const [workspaces, setWorkspaces] = useState<WorkspaceResponse[]>([]);
+  const [workspaces, setWorkspaces] = useState<UserWorkspaceResponse[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
