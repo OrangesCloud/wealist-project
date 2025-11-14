@@ -1,70 +1,9 @@
-name: Frontend CI/CD to S3/CloudFront
-
+name: Frontend CI/CD Test
 on:
-  push:
-    branches: main
-    paths:
-      - "frontend/**" # frontend 폴더 내 변경 시에만 실행
-      - ".github/workflows/dev/ci/frontend-cicd.yml" # 워크플로우 파일 변경 시에도 실행
   workflow_dispatch:
+
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: ⬇️ Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: ⚙️ Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8.15.0
-
-      - name: ⚙️ Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
-          cache-dependency-path: "frontend/pnpm-lock.yaml"
-
-      - name: 📦 Install Dependencies
-        run: |
-          cd frontend
-          pnpm install --frozen-lockfile
-
-      - name: 🔨 Build with Vite
-        run: |
-          cd frontend
-          pnpm run build
-        env:
-          # 빌드 시 환경 변수 (프로덕션 API 서버 주소)
-          VITE_BOARD_SERVICE_URL: ${{ secrets.VITE_BOARD_SERVICE_URL }}
-          VITE_USER_SERVICE_URL: ${{ secrets.VITE_USER_SERVICE_URL }}
-
-      - name: 🔑 Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.FRONTEND_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.FRONTEND_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
-
-      - name: ⬆️ Deploy to S3
-        run: |
-          aws s3 sync ./frontend/dist s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }}/ \
-            --delete \
-            --cache-control "public, max-age=31536000, immutable" \
-            --exclude "index.html"
-
-          # index.html은 항상 최신 버전을 받도록 캐시 비활성화
-          aws s3 cp ./frontend/dist/index.html s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }}/index.html \
-            --cache-control "no-cache, no-store, must-revalidate" \
-            --content-type "text/html"
-
-      - name: 🌐 Invalidate CloudFront Cache
-        run: |
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets.FRONTEND_CLOUDFRONT_ID }} \
-            --paths "/*"
-
-      - name: ✅ Deployment Complete
-        run: echo "✅ Frontend deployed successfully!"
+      - run: echo "Workflow is running"
