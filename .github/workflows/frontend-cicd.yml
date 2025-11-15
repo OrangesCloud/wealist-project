@@ -2,19 +2,31 @@ name: Frontend CI/CD to S3/CloudFront
 
 on:
   push:
-    branches: main
+    branches: develop
     paths:
-      - "frontend/**" # frontend 폴더 내 변경 시에만 실행
-      - ".github/workflows/frontend-cicd.yml" # 워크플로우 파일 변경 시에도 실행
+      - "frontend/**"
+      - ".github/workflows/frontend-cicd.yml"
   workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-2
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
+
+      # ============================================
+      # 1. AWS Credentials 설정 (백엔드 공유 키 사용)
+      # ============================================
+      - name: 🔐 Configure AWS Credentials (for all tasks)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: ⚙️ Setup pnpm
         uses: pnpm/action-setup@v2
@@ -28,29 +40,43 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: "frontend/pnpm-lock.yaml"
 
+      # ============================================
+      # 2. SSM Parameter Store에서 VITE 값 조회 (각각 가져오기)
+      # ============================================
+      - name: 🌍 Fetch VITE URLs from SSM
+        id: fetch_secrets
+        run: |
+          echo "🌐 Fetching API URLs from SSM Parameter Store..."
+
+          # 1. User Service URL 조회
+          USER_URL=$(aws ssm get-parameter --name "${{ secrets.VITE_USER_SERVICE_SSM_PATH }}" --query "Parameter.Value" --output text)
+
+          # 2. Board Service URL 조회
+          BOARD_URL=$(aws ssm get-parameter --name "${{ secrets.VITE_BOARD_SERVICE_SSM_PATH }}" --query "Parameter.Value" --output text)
+
+          # 3. GITHUB_ENV에 주입 (Vite 빌드에 사용)
+          echo "VITE_USER_SERVICE_URL=$USER_URL" >> $GITHUB_ENV
+          echo "VITE_BOARD_SERVICE_URL=$BOARD_URL" >> $GITHUB_ENV
+
+          echo "✅ Fetched User URL: $USER_URL"
+          echo "✅ Fetched Board URL: $BOARD_URL"
+
       - name: 📦 Install Dependencies
         run: |
           cd frontend
           pnpm install --frozen-lockfile
 
+      # ============================================
+      # 3. Build with Vite (SSM에서 가져온 URL 자동 사용)
+      # ============================================
       - name: 🔨 Build with Vite
         run: |
           cd frontend
           pnpm run build
-        env:
-          # 빌드 시 환경 변수 (dev API 서버 주소)
-          VITE_BOARD_SERVICE_URL: ${{ secrets.VITE_BOARD_SERVICE_URL }}
-          VITE_USER_SERVICE_URL: ${{ secrets.VITE_USER_SERVICE_URL }}
-
-      - name: 🔑 Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.FRONTEND_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.FRONTEND_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
 
       - name: ⬆️ Deploy to S3
         run: |
+          # 💡 S3 버킷 이름은 FRONTEND_S3_BUCKET_NAME Secret 사용
           aws s3 sync ./frontend/dist s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }}/ \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
@@ -63,6 +89,7 @@ jobs:
 
       - name: 🌐 Invalidate CloudFront Cache
         run: |
+          # 💡 CloudFront ID는 FRONTEND_CLOUDFRONT_ID Secret 사용
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.FRONTEND_CLOUDFRONT_ID }} \
             --paths "/*"
