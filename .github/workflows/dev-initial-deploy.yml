@@ -155,10 +155,10 @@ jobs:
           echo "✅ Board Service: ${LATEST_IMAGE}"
 
   # ==================================================
-  # Job 3: EC2 배포 (선택적)
+  # Job 3: EC2 배포 (SSM 방식 - 보안 강화)
   # ==================================================
   deploy-to-ec2:
-    name: Deploy to EC2
+    name: Deploy to EC2 via SSM
     runs-on: ubuntu-latest
     environment: development
     needs: [build-user-service, build-board-service]  # 두 빌드 완료 후 실행
@@ -168,121 +168,256 @@ jobs:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
-      - name: 🔑 Setup SSH Key
-        uses: webfactory/ssh-agent@v0.9.0
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: 📝 Add EC2 to Known Hosts
+      - name: 📋 Prepare Docker Compose File
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          cat docker/compose/docker-compose.ec2-dev.yml > /tmp/docker-compose.yml
+          echo "Docker Compose file prepared"
 
-      - name: 📤 Copy Docker Compose Files to EC2
+      - name: 📝 Create Deployment Script (Parameter Store)
         run: |
-          ssh ec2-user@${{ secrets.EC2_HOST }} "mkdir -p ~/wealist-deploy"
+          cat > /tmp/deploy.sh << 'DEPLOY_SCRIPT'
+          #!/bin/bash
+          set -e
 
-          scp docker/compose/docker-compose.ec2-dev.yml \
-            ec2-user@${{ secrets.EC2_HOST }}:~/wealist-deploy/docker-compose.yml
+          echo "=========================================="
+          echo "🚀 Starting Initial Deployment"
+          echo "=========================================="
 
-      - name: 🔧 Create Environment File on EC2
+          # 배포 디렉토리 생성
+          mkdir -p ~/wealist-deploy
+          cd ~/wealist-deploy
+
+          # Parameter Store에서 환경변수 가져오기
+          echo "🔐 Fetching secrets from AWS Parameter Store..."
+
+          # AWS Region 설정
+          AWS_REGION="ap-northeast-2"
+
+          # Helper function to get parameter
+          get_parameter() {
+            aws ssm get-parameter \
+              --name "$1" \
+              --with-decryption \
+              --region ${AWS_REGION} \
+              --query 'Parameter.Value' \
+              --output text 2>/dev/null || echo ""
+          }
+
+          # Fetch all parameters
+          POSTGRES_SUPERUSER=$(get_parameter "/wealist/dev/postgres-superuser")
+          POSTGRES_SUPERUSER_PASSWORD=$(get_parameter "/wealist/dev/postgres-superuser-password")
+          USER_DB_NAME=$(get_parameter "/wealist/dev/user-db-name")
+          USER_DB_USER=$(get_parameter "/wealist/dev/user-db-user")
+          USER_DB_PASSWORD=$(get_parameter "/wealist/dev/user-db-password")
+          BOARD_DB_NAME=$(get_parameter "/wealist/dev/board-db-name")
+          BOARD_DB_USER=$(get_parameter "/wealist/dev/board-db-user")
+          BOARD_DB_PASSWORD=$(get_parameter "/wealist/dev/board-db-password")
+          REDIS_PASSWORD=$(get_parameter "/wealist/dev/redis-password")
+          JWT_SECRET=$(get_parameter "/wealist/dev/jwt-secret")
+          GOOGLE_CLIENT_ID=$(get_parameter "/wealist/dev/google-client-id")
+          GOOGLE_CLIENT_SECRET=$(get_parameter "/wealist/dev/google-client-secret")
+          GRAFANA_ADMIN_USER=$(get_parameter "/wealist/dev/grafana-admin-user")
+          GRAFANA_ADMIN_PASSWORD=$(get_parameter "/wealist/dev/grafana-admin-password")
+
+          echo "✅ Successfully fetched secrets from Parameter Store"
+
+          # .env 파일 생성
+          cat > .env << ENVFILE
+# Application
+APP_NAME=wealist-api
+VERSION=latest
+
+# AWS
+AWS_REGION=${AWS_REGION}
+AWS_ACCOUNT_ID=${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}
+
+# PostgreSQL Superuser
+POSTGRES_SUPERUSER=${POSTGRES_SUPERUSER}
+POSTGRES_SUPERUSER_PASSWORD=${POSTGRES_SUPERUSER_PASSWORD}
+
+# User Service DB
+USER_DB_NAME=${USER_DB_NAME}
+USER_DB_USER=${USER_DB_USER}
+USER_DB_PASSWORD=${USER_DB_PASSWORD}
+
+# Board Service DB
+BOARD_DB_NAME=${BOARD_DB_NAME}
+BOARD_DB_USER=${BOARD_DB_USER}
+BOARD_DB_PASSWORD=${BOARD_DB_PASSWORD}
+
+# Redis
+REDIS_PASSWORD=${REDIS_PASSWORD}
+
+# JWT
+JWT_SECRET=${JWT_SECRET}
+JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
+JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
+
+# OAuth
+GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+
+# Service Configuration
+JPA_DDL_AUTO=update
+JPA_SHOW_SQL=true
+JPA_FORMAT_SQL=true
+LOG_LEVEL=debug
+
+# CORS
+CORS_ORIGINS=*
+
+# Monitoring
+GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
+GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+ENVFILE
+
+          echo "✅ Environment file created from Parameter Store"
+
+          # ECR 로그인
+          echo "🔑 Logging into Amazon ECR..."
+          aws ecr get-login-password --region ${AWS_REGION} | \
+            docker login --username AWS --password-stdin \
+            ${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+          # 최신 이미지 Pull
+          echo "📥 Pulling latest images from ECR..."
+          docker compose pull
+
+          # 서비스 시작
+          echo "🔄 Starting all services..."
+          docker compose up -d --remove-orphans
+
+          # 구 이미지 정리
+          echo "🧹 Cleaning up old images..."
+          docker image prune -f
+
+          # 서비스 상태 확인
+          echo ""
+          echo "=========================================="
+          echo "✅ Initial Deployment Complete!"
+          echo "=========================================="
+          docker compose ps
+
+          # Health Check
+          echo ""
+          echo "🏥 Running Health Checks..."
+          sleep 45
+
+          echo "Checking User Service..."
+          curl -f http://localhost:8080/actuator/health || echo "⚠️ User Service not ready yet"
+
+          echo "Checking Board Service..."
+          curl -f http://localhost:8000/health || echo "⚠️ Board Service not ready yet"
+
+          echo ""
+          echo "=========================================="
+          echo "📊 Final Service Status"
+          echo "=========================================="
+          docker compose ps
+          DEPLOY_SCRIPT
+
+          chmod +x /tmp/deploy.sh
+          echo "Deployment script created"
+
+      - name: 📤 Upload Files to S3
         run: |
-          ssh ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
-            cat > ~/wealist-deploy/.env << ENVFILE
-          # Application
-          APP_NAME=wealist-api
-          VERSION=latest
+          BUCKET_NAME="wealist-deploy-scripts"
 
-          # AWS
-          AWS_REGION=${{ env.AWS_REGION }}
-          AWS_ACCOUNT_ID=${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}
+          # S3 버킷이 없으면 생성 (에러 무시)
+          aws s3 mb s3://${BUCKET_NAME} --region ${{ env.AWS_REGION }} 2>/dev/null || true
 
-          # Database - User Service
-          USER_DB_NAME=${{ secrets.USER_DB_NAME }}
-          USER_DB_USER=${{ secrets.USER_DB_USER }}
-          USER_DB_PASSWORD=${{ secrets.USER_DB_PASSWORD }}
+          # 파일 업로드
+          aws s3 cp /tmp/docker-compose.yml s3://${BUCKET_NAME}/docker-compose.yml
+          aws s3 cp /tmp/deploy.sh s3://${BUCKET_NAME}/deploy.sh
 
-          # Database - Board Service
-          BOARD_DB_NAME=${{ secrets.BOARD_DB_NAME }}
-          BOARD_DB_USER=${{ secrets.BOARD_DB_USER }}
-          BOARD_DB_PASSWORD=${{ secrets.BOARD_DB_PASSWORD }}
+          echo "Files uploaded to S3"
 
-          # Database - Superuser
-          POSTGRES_SUPERUSER=${{ secrets.POSTGRES_SUPERUSER }}
-          POSTGRES_SUPERUSER_PASSWORD=${{ secrets.POSTGRES_SUPERUSER_PASSWORD }}
-
-          # Redis
-          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-
-          # JWT
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
-          JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
-
-          # OAuth
-          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
-
-          # Service Configuration
-          JPA_DDL_AUTO=update
-          JPA_SHOW_SQL=true
-          JPA_FORMAT_SQL=true
-          LOG_LEVEL=debug
-
-          # CORS
-          CORS_ORIGINS=*
-
-          # Monitoring
-          GRAFANA_ADMIN_USER=admin
-          GRAFANA_ADMIN_PASSWORD=${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          ENVFILE
-          EOF
-
-      - name: 🚀 Deploy to EC2
+      - name: 🚀 Deploy via SSM
         run: |
-          ssh ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
-            set -e
-            cd ~/wealist-deploy
+          INSTANCE_ID="${{ secrets.EC2_INSTANCE_ID }}"
+          BUCKET_NAME="wealist-deploy-scripts"
 
-            echo "🔐 Logging into Amazon ECR..."
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-              docker login --username AWS --password-stdin \
-              ${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          echo "Executing initial deployment on EC2 instance: ${INSTANCE_ID}"
 
-            echo "📥 Pulling latest images from ECR..."
-            docker compose --env-file .env pull
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "set -e",
+              "cd /home/ec2-user/wealist-deploy || mkdir -p /home/ec2-user/wealist-deploy",
+              "cd /home/ec2-user/wealist-deploy",
+              "aws s3 cp s3://'"${BUCKET_NAME}"'/docker-compose.yml ./docker-compose.yml",
+              "aws s3 cp s3://'"${BUCKET_NAME}"'/deploy.sh ./deploy.sh",
+              "chmod +x ./deploy.sh",
+              "bash ./deploy.sh"
+            ]' \
+            --region ${{ env.AWS_REGION }} \
+            --output text \
+            --query 'Command.CommandId')
 
-            echo "🔄 Starting services..."
-            docker compose --env-file .env up -d --remove-orphans
+          echo "Command ID: ${COMMAND_ID}"
+          echo "Waiting for command to complete..."
 
-            echo "✅ Deployment Complete!"
-            docker compose --env-file .env ps
-          EOF
+          # 명령 실행 완료 대기 (최대 15분 - 초기 배포는 시간이 더 걸림)
+          for i in {1..90}; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${INSTANCE_ID}" \
+              --region ${{ env.AWS_REGION }} \
+              --query 'Status' \
+              --output text 2>/dev/null || echo "Pending")
 
-      - name: 🏥 Health Check
-        run: |
-          ssh ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
-            echo "⏳ Waiting for services to start (30s)..."
-            sleep 30
+            echo "Status: ${STATUS}"
 
-            echo "🏥 Health Check - User Service"
-            curl -f http://localhost:8080/actuator/health || echo "⚠️ User Service not ready"
+            if [ "${STATUS}" == "Success" ]; then
+              echo "✅ Initial deployment completed successfully!"
 
-            echo "🏥 Health Check - Board Service"
-            curl -f http://localhost:8000/health || echo "⚠️ Board Service not ready"
+              # 출력 로그 가져오기
+              aws ssm get-command-invocation \
+                --command-id "${COMMAND_ID}" \
+                --instance-id "${INSTANCE_ID}" \
+                --region ${{ env.AWS_REGION }} \
+                --query 'StandardOutputContent' \
+                --output text
 
-            echo "📊 Service Status:"
-            docker compose --env-file ~/wealist-deploy/.env ps
-          EOF
+              exit 0
+            elif [ "${STATUS}" == "Failed" ]; then
+              echo "❌ Initial deployment failed!"
+
+              # 에러 로그 가져오기
+              aws ssm get-command-invocation \
+                --command-id "${COMMAND_ID}" \
+                --instance-id "${INSTANCE_ID}" \
+                --region ${{ env.AWS_REGION }} \
+                --query 'StandardErrorContent' \
+                --output text
+
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          echo "⚠️ Deployment timeout after 15 minutes"
+          exit 1
 
       - name: 📋 Deployment Summary
+        if: always()
         run: |
-          echo "### 🚀 Initial Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Initial Deployment Complete (SSM)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Development (EC2)" >> $GITHUB_STEP_SUMMARY
+          echo "**Instance ID:** \`${{ secrets.EC2_INSTANCE_ID }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**User Service Image:** \`${{ needs.build-user-service.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Board Service Image:** \`${{ needs.build-board-service.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Services:**" >> $GITHUB_STEP_SUMMARY
-          echo "- User Service: http://${{ secrets.EC2_HOST }}:8080" >> $GITHUB_STEP_SUMMARY
-          echo "- Board Service: http://${{ secrets.EC2_HOST }}:8000" >> $GITHUB_STEP_SUMMARY
-          echo "- Grafana: http://${{ secrets.EC2_HOST }}:3001" >> $GITHUB_STEP_SUMMARY
+          echo "**Method:** AWS Systems Manager (SSM) ✅ Secure" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** All secrets fetched from AWS Parameter Store" >> $GITHUB_STEP_SUMMARY

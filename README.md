@@ -1,4 +1,4 @@
-# weAlist Project
+# weAlist BASIC Project
 
 프로젝트 관리 플랫폼 - 마이크로서비스 아키텍처
 
