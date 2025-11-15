@@ -1,0 +1,92 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECRAuthenticationOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-northeast-2"
+        }
+      }
+    },
+    {
+      "Sid": "ECRReadOnlySpecificRepositories",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:DescribeImages"
+      ],
+      "Resource": [
+        "arn:aws:ecr:ap-northeast-2:290008131187:repository/wealist-dev-user-service",
+        "arn:aws:ecr:ap-northeast-2:290008131187:repository/wealist-dev-board-service"
+      ]
+    },
+    {
+      "Sid": "S3ReadDeployScriptsOnly",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::wealist-deploy-scripts/docker-compose.yml",
+        "arn:aws:s3:::wealist-deploy-scripts/deploy-secure.sh"
+      ]
+    },
+    {
+      "Sid": "S3ListDeployScriptsBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::wealist-deploy-scripts",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "docker-compose.yml",
+            "deploy-secure.sh"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ParameterStoreReadSpecificParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter"
+      ],
+      "Resource": [
+        "arn:aws:ssm:ap-northeast-2:290008131187:parameter/wealist/dev/postgres/superuser-password",
+        "arn:aws:ssm:ap-northeast-2:290008131187:parameter/wealist/dev/db/user-password",
+        "arn:aws:ssm:ap-northeast-2:290008131187:parameter/wealist/dev/db/board-password",
+        "arn:aws:ssm:ap-northeast-2:290008131187:parameter/wealist/dev/redis/password",
+        "arn:aws:ssm:ap-northeast-2:290008131187:parameter/wealist/dev/jwt/secret",
+        "arn:aws:ssm:ap-northeast-2:290008131187:parameter/wealist/dev/oauth/google-client-id",
+        "arn:aws:ssm:ap-northeast-2:290008131187:parameter/wealist/dev/oauth/google-client-secret",
+        "arn:aws:ssm:ap-northeast-2:290008131187:parameter/wealist/dev/grafana/admin-password"
+      ]
+    },
+    {
+      "Sid": "KMSDecryptForParameterStoreOnly",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "ssm.ap-northeast-2.amazonaws.com"
+        },
+        "ForAllValues:StringLike": {
+          "kms:EncryptionContext:PARAMETER_ARN": "arn:aws:ssm:ap-northeast-2:290008131187:parameter/wealist/dev/*"
+        }
+      }
+    }
+  ]
+}
