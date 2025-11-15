@@ -36,7 +36,20 @@ http://localhost:8080/swagger/index.html
 
 ### Projects
 - Workspace별 프로젝트 관리
+- 프로젝트 생성, 조회, 수정, 삭제
+- 프로젝트 검색 (이름/설명)
+- 프로젝트 초기 설정 조회
 - 기본 프로젝트 조회
+
+### Project Members
+- 프로젝트 멤버 목록 조회
+- 멤버 제거 (OWNER/ADMIN)
+- 멤버 역할 변경 (OWNER)
+
+### Project Join Requests
+- 프로젝트 가입 요청 생성
+- 가입 요청 목록 조회 (OWNER/ADMIN)
+- 가입 요청 승인/거부 (OWNER/ADMIN)
 
 ### Boards
 - Board CRUD 작업

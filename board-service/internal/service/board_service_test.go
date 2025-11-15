@@ -60,12 +60,24 @@ func (m *MockBoardRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 // MockProjectRepository is a mock implementation of ProjectRepository
 type MockProjectRepository struct {
-	CreateFunc                    func(ctx context.Context, project *domain.Project) error
-	FindByIDFunc                  func(ctx context.Context, id uuid.UUID) (*domain.Project, error)
-	FindByWorkspaceIDFunc         func(ctx context.Context, workspaceID uuid.UUID) ([]*domain.Project, error)
-	FindDefaultByWorkspaceIDFunc  func(ctx context.Context, workspaceID uuid.UUID) (*domain.Project, error)
-	UpdateFunc                    func(ctx context.Context, project *domain.Project) error
-	DeleteFunc                    func(ctx context.Context, id uuid.UUID) error
+	CreateFunc                       func(ctx context.Context, project *domain.Project) error
+	FindByIDFunc                     func(ctx context.Context, id uuid.UUID) (*domain.Project, error)
+	FindByWorkspaceIDFunc            func(ctx context.Context, workspaceID uuid.UUID) ([]*domain.Project, error)
+	FindDefaultByWorkspaceIDFunc     func(ctx context.Context, workspaceID uuid.UUID) (*domain.Project, error)
+	UpdateFunc                       func(ctx context.Context, project *domain.Project) error
+	DeleteFunc                       func(ctx context.Context, id uuid.UUID) error
+	SearchFunc                       func(ctx context.Context, workspaceID uuid.UUID, query string, page, limit int) ([]*domain.Project, int64, error)
+	AddMemberFunc                    func(ctx context.Context, member *domain.ProjectMember) error
+	FindMemberByProjectAndUserFunc   func(ctx context.Context, projectID, userID uuid.UUID) (*domain.ProjectMember, error)
+	RemoveMemberFunc                 func(ctx context.Context, memberID uuid.UUID) error
+	UpdateMemberRoleFunc             func(ctx context.Context, memberID uuid.UUID, role domain.ProjectRole) error
+	IsProjectMemberFunc              func(ctx context.Context, projectID, userID uuid.UUID) (bool, error)
+	FindMembersByProjectIDFunc       func(ctx context.Context, projectID uuid.UUID) ([]*domain.ProjectMember, error)
+	CreateJoinRequestFunc            func(ctx context.Context, request *domain.ProjectJoinRequest) error
+	FindJoinRequestByIDFunc          func(ctx context.Context, id uuid.UUID) (*domain.ProjectJoinRequest, error)
+	FindJoinRequestsByProjectIDFunc  func(ctx context.Context, projectID uuid.UUID, status *domain.ProjectJoinRequestStatus) ([]*domain.ProjectJoinRequest, error)
+	FindPendingByProjectAndUserFunc  func(ctx context.Context, projectID, userID uuid.UUID) (*domain.ProjectJoinRequest, error)
+	UpdateJoinRequestStatusFunc      func(ctx context.Context, id uuid.UUID, status domain.ProjectJoinRequestStatus) error
 }
 
 func (m *MockProjectRepository) Create(ctx context.Context, project *domain.Project) error {
@@ -111,42 +123,86 @@ func (m *MockProjectRepository) Delete(ctx context.Context, id uuid.UUID) error 
 }
 
 func (m *MockProjectRepository) Search(ctx context.Context, workspaceID uuid.UUID, query string, page, limit int) ([]*domain.Project, int64, error) {
+	if m.SearchFunc != nil {
+		return m.SearchFunc(ctx, workspaceID, query, page, limit)
+	}
 	return nil, 0, nil
 }
 
 func (m *MockProjectRepository) AddMember(ctx context.Context, member *domain.ProjectMember) error {
+	if m.AddMemberFunc != nil {
+		return m.AddMemberFunc(ctx, member)
+	}
 	return nil
 }
 
 func (m *MockProjectRepository) FindMembersByProjectID(ctx context.Context, projectID uuid.UUID) ([]*domain.ProjectMember, error) {
+	if m.FindMembersByProjectIDFunc != nil {
+		return m.FindMembersByProjectIDFunc(ctx, projectID)
+	}
 	return nil, nil
 }
 
 func (m *MockProjectRepository) FindMemberByProjectAndUser(ctx context.Context, projectID, userID uuid.UUID) (*domain.ProjectMember, error) {
+	if m.FindMemberByProjectAndUserFunc != nil {
+		return m.FindMemberByProjectAndUserFunc(ctx, projectID, userID)
+	}
 	return nil, nil
-}
-
-func (m *MockProjectRepository) UpdateMemberRole(ctx context.Context, memberID uuid.UUID, role domain.ProjectRole) error {
-	return nil
 }
 
 func (m *MockProjectRepository) RemoveMember(ctx context.Context, memberID uuid.UUID) error {
+	if m.RemoveMemberFunc != nil {
+		return m.RemoveMemberFunc(ctx, memberID)
+	}
 	return nil
+}
+
+func (m *MockProjectRepository) UpdateMemberRole(ctx context.Context, memberID uuid.UUID, role domain.ProjectRole) error {
+	if m.UpdateMemberRoleFunc != nil {
+		return m.UpdateMemberRoleFunc(ctx, memberID, role)
+	}
+	return nil
+}
+
+func (m *MockProjectRepository) IsProjectMember(ctx context.Context, projectID, userID uuid.UUID) (bool, error) {
+	if m.IsProjectMemberFunc != nil {
+		return m.IsProjectMemberFunc(ctx, projectID, userID)
+	}
+	return false, nil
 }
 
 func (m *MockProjectRepository) CreateJoinRequest(ctx context.Context, request *domain.ProjectJoinRequest) error {
+	if m.CreateJoinRequestFunc != nil {
+		return m.CreateJoinRequestFunc(ctx, request)
+	}
 	return nil
 }
 
+func (m *MockProjectRepository) FindJoinRequestByID(ctx context.Context, id uuid.UUID) (*domain.ProjectJoinRequest, error) {
+	if m.FindJoinRequestByIDFunc != nil {
+		return m.FindJoinRequestByIDFunc(ctx, id)
+	}
+	return nil, nil
+}
+
 func (m *MockProjectRepository) FindJoinRequestsByProjectID(ctx context.Context, projectID uuid.UUID, status *domain.ProjectJoinRequestStatus) ([]*domain.ProjectJoinRequest, error) {
+	if m.FindJoinRequestsByProjectIDFunc != nil {
+		return m.FindJoinRequestsByProjectIDFunc(ctx, projectID, status)
+	}
 	return nil, nil
 }
 
-func (m *MockProjectRepository) FindJoinRequestByID(ctx context.Context, requestID uuid.UUID) (*domain.ProjectJoinRequest, error) {
+func (m *MockProjectRepository) FindPendingByProjectAndUser(ctx context.Context, projectID, userID uuid.UUID) (*domain.ProjectJoinRequest, error) {
+	if m.FindPendingByProjectAndUserFunc != nil {
+		return m.FindPendingByProjectAndUserFunc(ctx, projectID, userID)
+	}
 	return nil, nil
 }
 
-func (m *MockProjectRepository) UpdateJoinRequestStatus(ctx context.Context, requestID uuid.UUID, status domain.ProjectJoinRequestStatus) error {
+func (m *MockProjectRepository) UpdateJoinRequestStatus(ctx context.Context, id uuid.UUID, status domain.ProjectJoinRequestStatus) error {
+	if m.UpdateJoinRequestStatusFunc != nil {
+		return m.UpdateJoinRequestStatusFunc(ctx, id, status)
+	}
 	return nil
 }
 

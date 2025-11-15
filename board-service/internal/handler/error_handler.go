@@ -43,6 +43,8 @@ func mapErrorCodeToHTTPStatus(code string) int {
 		return http.StatusUnauthorized
 	case response.ErrCodeForbidden:
 		return http.StatusForbidden
+	case "ALREADY_MEMBER", "PENDING_REQUEST_EXISTS":
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}

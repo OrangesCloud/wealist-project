@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"project-board-api/internal/dto"
@@ -57,12 +56,6 @@ func (m *MockBoardService) DeleteBoard(ctx context.Context, boardID uuid.UUID) e
 		return m.DeleteBoardFunc(ctx, boardID)
 	}
 	return nil
-}
-
-func setupTestRouter() *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	return router
 }
 
 func TestBoardHandler_CreateBoard(t *testing.T) {

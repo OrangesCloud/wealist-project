@@ -46,12 +46,16 @@ func Setup(cfg Config) *gin.Engine {
 	boardService := service.NewBoardService(boardRepo, projectRepo)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
 	commentService := service.NewCommentService(commentRepo, boardRepo)
+	projectMemberService := service.NewProjectMemberService(projectRepo, cfg.UserClient)
+	projectJoinRequestService := service.NewProjectJoinRequestService(projectRepo, cfg.UserClient)
 
 	// Initialize handlers with service dependencies
 	projectHandler := handler.NewProjectHandler(projectService)
 	boardHandler := handler.NewBoardHandler(boardService)
 	participantHandler := handler.NewParticipantHandler(participantService)
 	commentHandler := handler.NewCommentHandler(commentService)
+	projectMemberHandler := handler.NewProjectMemberHandler(projectMemberService)
+	projectJoinRequestHandler := handler.NewProjectJoinRequestHandler(projectJoinRequestService)
 
 	// Health check endpoint
 	router.GET("/health", healthCheckHandler(cfg.DB))
@@ -60,7 +64,7 @@ func Setup(cfg Config) *gin.Engine {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Setup API routes
-	setupRoutes(router, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler)
+	setupRoutes(router, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, projectMemberHandler, projectJoinRequestHandler)
 
 	return router
 }
@@ -103,6 +107,8 @@ func setupRoutes(
 	boardHandler *handler.BoardHandler,
 	participantHandler *handler.ParticipantHandler,
 	commentHandler *handler.CommentHandler,
+	projectMemberHandler *handler.ProjectMemberHandler,
+	projectJoinRequestHandler *handler.ProjectJoinRequestHandler,
 ) {
 	// API group
 	api := router.Group("/api")
@@ -110,9 +116,32 @@ func setupRoutes(
 		// Project routes
 		projects := api.Group("/projects")
 		{
+			// Existing routes
 			projects.POST("", projectHandler.CreateProject)
 			projects.GET("/workspace/:workspaceId", projectHandler.GetProjectsByWorkspace)
 			projects.GET("/workspace/:workspaceId/default", projectHandler.GetDefaultProject)
+			
+			// New project management extension routes
+			projects.GET("/search", projectHandler.SearchProjects)
+			projects.GET("/:projectId", projectHandler.GetProject)
+			projects.PUT("/:projectId", projectHandler.UpdateProject)
+			projects.DELETE("/:projectId", projectHandler.DeleteProject)
+			projects.GET("/:projectId/init-settings", projectHandler.GetProjectInitSettings)
+			
+			// Project member routes
+			projects.GET("/:projectId/members", projectMemberHandler.GetMembers)
+			projects.DELETE("/:projectId/members/:memberId", projectMemberHandler.RemoveMember)
+			projects.PUT("/:projectId/members/:memberId/role", projectMemberHandler.UpdateMemberRole)
+			
+			// Project join request routes
+			projects.GET("/:projectId/join-requests", projectJoinRequestHandler.GetJoinRequests)
+		}
+
+		// Join request routes (not nested under project)
+		joinRequests := api.Group("/join-requests")
+		{
+			joinRequests.POST("", projectJoinRequestHandler.CreateJoinRequest)
+			joinRequests.PUT("/:joinRequestId", projectJoinRequestHandler.UpdateJoinRequest)
 		}
 
 		// Board routes

@@ -130,11 +130,23 @@ migrate-up:
 		exit 1; \
 	fi
 	@PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -f migrations/001_init_schema.sql
+	@if [ -f migrations/002_add_project_members_and_board_fields.sql ]; then \
+		PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -f migrations/002_add_project_members_and_board_fields.sql; \
+	fi
+	@if [ -f migrations/003_migrate_existing_project_owners.sql ]; then \
+		PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -f migrations/003_migrate_existing_project_owners.sql; \
+	fi
 	@echo "✓ Migrations applied"
 
 ## migrate-down: Run database migrations down
 migrate-down:
 	@echo "Running migrations down..."
+	@if [ -f migrations/003_migrate_existing_project_owners_down.sql ]; then \
+		PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -f migrations/003_migrate_existing_project_owners_down.sql; \
+	fi
+	@if [ -f migrations/002_add_project_members_and_board_fields_down.sql ]; then \
+		PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -f migrations/002_add_project_members_and_board_fields_down.sql; \
+	fi
 	@if [ ! -f migrations/001_init_schema_down.sql ]; then \
 		echo "Error: Migration down file not found"; \
 		exit 1; \

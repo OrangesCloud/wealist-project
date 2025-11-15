@@ -20,6 +20,11 @@ type MockProjectService struct {
 	CreateProjectFunc          func(ctx context.Context, req *dto.CreateProjectRequest, userID uuid.UUID, token string) (*dto.ProjectResponse, error)
 	GetProjectsByWorkspaceFunc func(ctx context.Context, workspaceID, userID uuid.UUID, token string) ([]*dto.ProjectResponse, error)
 	GetDefaultProjectFunc      func(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*dto.ProjectResponse, error)
+	GetProjectFunc             func(ctx context.Context, projectID, userID uuid.UUID, token string) (*dto.ProjectResponse, error)
+	UpdateProjectFunc          func(ctx context.Context, projectID, userID uuid.UUID, req *dto.UpdateProjectRequest) (*dto.ProjectResponse, error)
+	DeleteProjectFunc          func(ctx context.Context, projectID, userID uuid.UUID) error
+	SearchProjectsFunc         func(ctx context.Context, workspaceID, userID uuid.UUID, query string, page, limit int, token string) (*dto.PaginatedProjectsResponse, error)
+	GetProjectInitSettingsFunc func(ctx context.Context, projectID, userID uuid.UUID, token string) (*dto.ProjectInitSettingsResponse, error)
 }
 
 func (m *MockProjectService) CreateProject(ctx context.Context, req *dto.CreateProjectRequest, userID uuid.UUID, token string) (*dto.ProjectResponse, error) {
@@ -39,6 +44,41 @@ func (m *MockProjectService) GetProjectsByWorkspace(ctx context.Context, workspa
 func (m *MockProjectService) GetDefaultProject(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*dto.ProjectResponse, error) {
 	if m.GetDefaultProjectFunc != nil {
 		return m.GetDefaultProjectFunc(ctx, workspaceID, userID, token)
+	}
+	return nil, nil
+}
+
+func (m *MockProjectService) GetProject(ctx context.Context, projectID, userID uuid.UUID, token string) (*dto.ProjectResponse, error) {
+	if m.GetProjectFunc != nil {
+		return m.GetProjectFunc(ctx, projectID, userID, token)
+	}
+	return nil, nil
+}
+
+func (m *MockProjectService) UpdateProject(ctx context.Context, projectID, userID uuid.UUID, req *dto.UpdateProjectRequest) (*dto.ProjectResponse, error) {
+	if m.UpdateProjectFunc != nil {
+		return m.UpdateProjectFunc(ctx, projectID, userID, req)
+	}
+	return nil, nil
+}
+
+func (m *MockProjectService) DeleteProject(ctx context.Context, projectID, userID uuid.UUID) error {
+	if m.DeleteProjectFunc != nil {
+		return m.DeleteProjectFunc(ctx, projectID, userID)
+	}
+	return nil
+}
+
+func (m *MockProjectService) SearchProjects(ctx context.Context, workspaceID, userID uuid.UUID, query string, page, limit int, token string) (*dto.PaginatedProjectsResponse, error) {
+	if m.SearchProjectsFunc != nil {
+		return m.SearchProjectsFunc(ctx, workspaceID, userID, query, page, limit, token)
+	}
+	return nil, nil
+}
+
+func (m *MockProjectService) GetProjectInitSettings(ctx context.Context, projectID, userID uuid.UUID, token string) (*dto.ProjectInitSettingsResponse, error) {
+	if m.GetProjectInitSettingsFunc != nil {
+		return m.GetProjectInitSettingsFunc(ctx, projectID, userID, token)
 	}
 	return nil, nil
 }
@@ -365,4 +405,559 @@ func TestProjectHandler_GetDefaultProject(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProjectHandler_GetProject(t *testing.T) {
+	projectID := uuid.New()
+	userID := uuid.New()
+	token := "test-jwt-token"
+
+	tests := []struct {
+		name           string
+		projectID      string
+		setContext     bool
+		mockService    func(*MockProjectService)
+		expectedStatus int
+	}{
+		{
+			name:       "성공: Project 상세 조회",
+			projectID:  projectID.String(),
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.GetProjectFunc = func(ctx context.Context, pID, uID uuid.UUID, t string) (*dto.ProjectResponse, error) {
+					return &dto.ProjectResponse{
+						ID:          pID,
+						WorkspaceID: uuid.New(),
+						OwnerID:     uID,
+						Name:        "Test Project",
+						Description: "Test Description",
+						OwnerEmail:  "owner@example.com",
+						OwnerName:   "Owner Name",
+					}, nil
+				}
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "실패: 잘못된 UUID",
+			projectID:      "invalid-uuid",
+			setContext:     true,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "실패: Context에 user_id 없음",
+			projectID:      projectID.String(),
+			setContext:     false,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "실패: 프로젝트 멤버가 아님",
+			projectID:  projectID.String(),
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.GetProjectFunc = func(ctx context.Context, pID, uID uuid.UUID, t string) (*dto.ProjectResponse, error) {
+					return nil, response.NewForbiddenError("You are not a member of this project", "")
+				}
+			},
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:       "실패: Project가 존재하지 않음",
+			projectID:  projectID.String(),
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.GetProjectFunc = func(ctx context.Context, pID, uID uuid.UUID, t string) (*dto.ProjectResponse, error) {
+					return nil, response.NewNotFoundError("Project not found", "")
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockService := &MockProjectService{}
+			tt.mockService(mockService)
+			handler := NewProjectHandler(mockService)
+
+			router := setupTestRouter()
+
+			if tt.setContext {
+				router.Use(func(c *gin.Context) {
+					c.Set("user_id", userID)
+					c.Set("jwtToken", token)
+					c.Set("requestId", uuid.New().String())
+					c.Next()
+				})
+			}
+
+			router.GET("/api/projects/:projectId", handler.GetProject)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/projects/"+tt.projectID, nil)
+			w := httptest.NewRecorder()
+
+			// When
+			router.ServeHTTP(w, req)
+
+			// Then
+			if w.Code != tt.expectedStatus {
+				t.Errorf("GetProject() status = %v, want %v", w.Code, tt.expectedStatus)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var resp map[string]interface{}
+				json.Unmarshal(w.Body.Bytes(), &resp)
+				if _, ok := resp["requestId"]; !ok {
+					t.Error("GetProject() response missing requestId field")
+				}
+			}
+		})
+	}
+}
+
+func TestProjectHandler_UpdateProject(t *testing.T) {
+	projectID := uuid.New()
+	userID := uuid.New()
+
+	tests := []struct {
+		name           string
+		projectID      string
+		requestBody    interface{}
+		setContext     bool
+		mockService    func(*MockProjectService)
+		expectedStatus int
+	}{
+		{
+			name:      "성공: Project 수정",
+			projectID: projectID.String(),
+			requestBody: dto.UpdateProjectRequest{
+				Name:        stringPtr("Updated Project"),
+				Description: stringPtr("Updated Description"),
+			},
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.UpdateProjectFunc = func(ctx context.Context, pID, uID uuid.UUID, req *dto.UpdateProjectRequest) (*dto.ProjectResponse, error) {
+					return &dto.ProjectResponse{
+						ID:          pID,
+						WorkspaceID: uuid.New(),
+						OwnerID:     uID,
+						Name:        *req.Name,
+						Description: *req.Description,
+					}, nil
+				}
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "실패: 잘못된 UUID",
+			projectID:      "invalid-uuid",
+			requestBody:    dto.UpdateProjectRequest{},
+			setContext:     true,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "실패: 잘못된 요청 본문",
+			projectID:      projectID.String(),
+			requestBody:    "invalid json",
+			setContext:     true,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:      "실패: OWNER가 아님",
+			projectID: projectID.String(),
+			requestBody: dto.UpdateProjectRequest{
+				Name: stringPtr("Updated Project"),
+			},
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.UpdateProjectFunc = func(ctx context.Context, pID, uID uuid.UUID, req *dto.UpdateProjectRequest) (*dto.ProjectResponse, error) {
+					return nil, response.NewForbiddenError("Only project owner can update project", "")
+				}
+			},
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:      "실패: Project가 존재하지 않음",
+			projectID: projectID.String(),
+			requestBody: dto.UpdateProjectRequest{
+				Name: stringPtr("Updated Project"),
+			},
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.UpdateProjectFunc = func(ctx context.Context, pID, uID uuid.UUID, req *dto.UpdateProjectRequest) (*dto.ProjectResponse, error) {
+					return nil, response.NewNotFoundError("Project not found", "")
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockService := &MockProjectService{}
+			tt.mockService(mockService)
+			handler := NewProjectHandler(mockService)
+
+			router := setupTestRouter()
+
+			if tt.setContext {
+				router.Use(func(c *gin.Context) {
+					c.Set("user_id", userID)
+					c.Set("requestId", uuid.New().String())
+					c.Next()
+				})
+			}
+
+			router.PUT("/api/projects/:projectId", handler.UpdateProject)
+
+			body, _ := json.Marshal(tt.requestBody)
+			req := httptest.NewRequest(http.MethodPut, "/api/projects/"+tt.projectID, bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			// When
+			router.ServeHTTP(w, req)
+
+			// Then
+			if w.Code != tt.expectedStatus {
+				t.Errorf("UpdateProject() status = %v, want %v", w.Code, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+func TestProjectHandler_DeleteProject(t *testing.T) {
+	projectID := uuid.New()
+	userID := uuid.New()
+
+	tests := []struct {
+		name           string
+		projectID      string
+		setContext     bool
+		mockService    func(*MockProjectService)
+		expectedStatus int
+	}{
+		{
+			name:       "성공: Project 삭제",
+			projectID:  projectID.String(),
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.DeleteProjectFunc = func(ctx context.Context, pID, uID uuid.UUID) error {
+					return nil
+				}
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "실패: 잘못된 UUID",
+			projectID:      "invalid-uuid",
+			setContext:     true,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "실패: Context에 user_id 없음",
+			projectID:      projectID.String(),
+			setContext:     false,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "실패: OWNER가 아님",
+			projectID:  projectID.String(),
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.DeleteProjectFunc = func(ctx context.Context, pID, uID uuid.UUID) error {
+					return response.NewForbiddenError("Only project owner can delete project", "")
+				}
+			},
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:       "실패: Project가 존재하지 않음",
+			projectID:  projectID.String(),
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.DeleteProjectFunc = func(ctx context.Context, pID, uID uuid.UUID) error {
+					return response.NewNotFoundError("Project not found", "")
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockService := &MockProjectService{}
+			tt.mockService(mockService)
+			handler := NewProjectHandler(mockService)
+
+			router := setupTestRouter()
+
+			if tt.setContext {
+				router.Use(func(c *gin.Context) {
+					c.Set("user_id", userID)
+					c.Set("requestId", uuid.New().String())
+					c.Next()
+				})
+			}
+
+			router.DELETE("/api/projects/:projectId", handler.DeleteProject)
+
+			req := httptest.NewRequest(http.MethodDelete, "/api/projects/"+tt.projectID, nil)
+			w := httptest.NewRecorder()
+
+			// When
+			router.ServeHTTP(w, req)
+
+			// Then
+			if w.Code != tt.expectedStatus {
+				t.Errorf("DeleteProject() status = %v, want %v", w.Code, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+func TestProjectHandler_SearchProjects(t *testing.T) {
+	workspaceID := uuid.New()
+	userID := uuid.New()
+	token := "test-jwt-token"
+
+	tests := []struct {
+		name           string
+		queryParams    map[string]string
+		setContext     bool
+		mockService    func(*MockProjectService)
+		expectedStatus int
+	}{
+		{
+			name: "성공: Project 검색",
+			queryParams: map[string]string{
+				"workspaceId": workspaceID.String(),
+				"query":       "test",
+				"page":        "1",
+				"limit":       "10",
+			},
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.SearchProjectsFunc = func(ctx context.Context, wID, uID uuid.UUID, query string, page, limit int, t string) (*dto.PaginatedProjectsResponse, error) {
+					return &dto.PaginatedProjectsResponse{
+						Projects: []dto.ProjectResponse{
+							{
+								ID:          uuid.New(),
+								WorkspaceID: wID,
+								Name:        "Test Project",
+							},
+						},
+						Page:  page,
+						Limit: limit,
+						Total: 1,
+					}, nil
+				}
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "실패: workspaceId 누락",
+			queryParams: map[string]string{
+				"query": "test",
+			},
+			setContext:     true,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "실패: query 누락",
+			queryParams: map[string]string{
+				"workspaceId": workspaceID.String(),
+			},
+			setContext:     true,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "실패: 잘못된 workspaceId",
+			queryParams: map[string]string{
+				"workspaceId": "invalid-uuid",
+				"query":       "test",
+			},
+			setContext:     true,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "실패: Workspace 멤버가 아님",
+			queryParams: map[string]string{
+				"workspaceId": workspaceID.String(),
+				"query":       "test",
+			},
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.SearchProjectsFunc = func(ctx context.Context, wID, uID uuid.UUID, query string, page, limit int, t string) (*dto.PaginatedProjectsResponse, error) {
+					return nil, response.NewForbiddenError("You are not a member of this workspace", "")
+				}
+			},
+			expectedStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockService := &MockProjectService{}
+			tt.mockService(mockService)
+			handler := NewProjectHandler(mockService)
+
+			router := setupTestRouter()
+
+			if tt.setContext {
+				router.Use(func(c *gin.Context) {
+					c.Set("user_id", userID)
+					c.Set("jwtToken", token)
+					c.Set("requestId", uuid.New().String())
+					c.Next()
+				})
+			}
+
+			router.GET("/api/projects/search", handler.SearchProjects)
+
+			url := "/api/projects/search?"
+			for k, v := range tt.queryParams {
+				url += k + "=" + v + "&"
+			}
+			req := httptest.NewRequest(http.MethodGet, url, nil)
+			w := httptest.NewRecorder()
+
+			// When
+			router.ServeHTTP(w, req)
+
+			// Then
+			if w.Code != tt.expectedStatus {
+				t.Errorf("SearchProjects() status = %v, want %v", w.Code, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+func TestProjectHandler_GetProjectInitSettings(t *testing.T) {
+	projectID := uuid.New()
+	userID := uuid.New()
+	token := "test-jwt-token"
+
+	tests := []struct {
+		name           string
+		projectID      string
+		setContext     bool
+		mockService    func(*MockProjectService)
+		expectedStatus int
+	}{
+		{
+			name:       "성공: 초기 설정 조회",
+			projectID:  projectID.String(),
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.GetProjectInitSettingsFunc = func(ctx context.Context, pID, uID uuid.UUID, t string) (*dto.ProjectInitSettingsResponse, error) {
+					return &dto.ProjectInitSettingsResponse{
+						Project: dto.ProjectBasicInfo{
+							ProjectID:   pID,
+							WorkspaceID: uuid.New(),
+							Name:        "Test Project",
+						},
+						Fields:     []dto.FieldWithOptionsResponse{},
+						FieldTypes: []dto.FieldTypeInfo{},
+					}, nil
+				}
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "실패: 잘못된 UUID",
+			projectID:      "invalid-uuid",
+			setContext:     true,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "실패: Context에 user_id 없음",
+			projectID:      projectID.String(),
+			setContext:     false,
+			mockService:    func(m *MockProjectService) {},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "실패: 프로젝트 멤버가 아님",
+			projectID:  projectID.String(),
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.GetProjectInitSettingsFunc = func(ctx context.Context, pID, uID uuid.UUID, t string) (*dto.ProjectInitSettingsResponse, error) {
+					return nil, response.NewForbiddenError("You are not a member of this project", "")
+				}
+			},
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:       "실패: Project가 존재하지 않음",
+			projectID:  projectID.String(),
+			setContext: true,
+			mockService: func(m *MockProjectService) {
+				m.GetProjectInitSettingsFunc = func(ctx context.Context, pID, uID uuid.UUID, t string) (*dto.ProjectInitSettingsResponse, error) {
+					return nil, response.NewNotFoundError("Project not found", "")
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockService := &MockProjectService{}
+			tt.mockService(mockService)
+			handler := NewProjectHandler(mockService)
+
+			router := setupTestRouter()
+
+			if tt.setContext {
+				router.Use(func(c *gin.Context) {
+					c.Set("user_id", userID)
+					c.Set("jwtToken", token)
+					c.Set("requestId", uuid.New().String())
+					c.Next()
+				})
+			}
+
+			router.GET("/api/projects/:projectId/init-settings", handler.GetProjectInitSettings)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/projects/"+tt.projectID+"/init-settings", nil)
+			w := httptest.NewRecorder()
+
+			// When
+			router.ServeHTTP(w, req)
+
+			// Then
+			if w.Code != tt.expectedStatus {
+				t.Errorf("GetProjectInitSettings() status = %v, want %v", w.Code, tt.expectedStatus)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var resp map[string]interface{}
+				json.Unmarshal(w.Body.Bytes(), &resp)
+				if _, ok := resp["requestId"]; !ok {
+					t.Error("GetProjectInitSettings() response missing requestId field")
+				}
+			}
+		})
+	}
+}
+
+// Helper function for string pointers
+func stringPtr(s string) *string {
+	return &s
 }

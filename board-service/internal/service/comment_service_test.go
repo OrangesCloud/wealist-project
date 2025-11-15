@@ -60,7 +60,6 @@ func (m *MockCommentRepository) Delete(ctx context.Context, id uuid.UUID) error 
 
 func TestCommentService_CreateComment(t *testing.T) {
 	boardID := uuid.New()
-	userID := uuid.New()
 
 	tests := []struct {
 		name        string
@@ -74,7 +73,6 @@ func TestCommentService_CreateComment(t *testing.T) {
 			name: "성공: 정상적인 Comment 생성",
 			req: &dto.CreateCommentRequest{
 				BoardID: boardID,
-				UserID:  userID,
 				Content: "Test Comment",
 			},
 			mockBoard: func(m *MockBoardRepository) {
@@ -96,7 +94,6 @@ func TestCommentService_CreateComment(t *testing.T) {
 			name: "실패: Board가 존재하지 않음",
 			req: &dto.CreateCommentRequest{
 				BoardID: boardID,
-				UserID:  userID,
 				Content: "Test Comment",
 			},
 			mockBoard: func(m *MockBoardRepository) {
@@ -112,7 +109,6 @@ func TestCommentService_CreateComment(t *testing.T) {
 			name: "실패: Comment 생성 중 DB 에러",
 			req: &dto.CreateCommentRequest{
 				BoardID: boardID,
-				UserID:  userID,
 				Content: "Test Comment",
 			},
 			mockBoard: func(m *MockBoardRepository) {

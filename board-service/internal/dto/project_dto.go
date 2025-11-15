@@ -38,6 +38,8 @@ type ProjectMemberResponse struct {
 	MemberID  uuid.UUID `json:"memberId"`
 	ProjectID uuid.UUID `json:"projectId"`
 	UserID    uuid.UUID `json:"userId"`
+	UserEmail string    `json:"userEmail,omitempty"`
+	UserName  string    `json:"userName,omitempty"`
 	RoleName  string    `json:"roleName"`
 	JoinedAt  time.Time `json:"joinedAt"`
 }
@@ -52,6 +54,8 @@ type ProjectJoinRequestResponse struct {
 	RequestID   uuid.UUID `json:"requestId"`
 	ProjectID   uuid.UUID `json:"projectId"`
 	UserID      uuid.UUID `json:"userId"`
+	UserEmail   string    `json:"userEmail,omitempty"`
+	UserName    string    `json:"userName,omitempty"`
 	Status      string    `json:"status"`
 	RequestedAt time.Time `json:"requestedAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
@@ -73,4 +77,48 @@ type PaginatedProjectsResponse struct {
 	Total    int64             `json:"total"`
 	Page     int               `json:"page"`
 	Limit    int               `json:"limit"`
+}
+
+// ProjectInitSettingsResponse represents the initial settings for a project
+type ProjectInitSettingsResponse struct {
+	Project       ProjectBasicInfo           `json:"project"`
+	Fields        []FieldWithOptionsResponse `json:"fields"`
+	FieldTypes    []FieldTypeInfo            `json:"fieldTypes"`
+	DefaultViewID *uuid.UUID                 `json:"defaultViewId,omitempty"`
+}
+
+// ProjectBasicInfo represents basic project information
+type ProjectBasicInfo struct {
+	ProjectID   uuid.UUID `json:"projectId"`
+	WorkspaceID uuid.UUID `json:"workspaceId"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	OwnerID     uuid.UUID `json:"ownerId"`
+	IsPublic    bool      `json:"isPublic"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// FieldWithOptionsResponse represents a field definition with its options
+type FieldWithOptionsResponse struct {
+	FieldID     string        `json:"fieldId"`
+	FieldName   string        `json:"fieldName"`
+	FieldType   string        `json:"fieldType"`
+	IsRequired  bool          `json:"isRequired"`
+	Options     []FieldOption `json:"options"`
+	Description string        `json:"description,omitempty"`
+}
+
+// FieldOption represents an option for a field
+type FieldOption struct {
+	OptionID    string `json:"optionId"`
+	OptionLabel string `json:"optionLabel"`
+	OptionValue string `json:"optionValue"`
+}
+
+// FieldTypeInfo represents information about a field type
+type FieldTypeInfo struct {
+	TypeID      string `json:"typeId"`
+	TypeName    string `json:"typeName"`
+	Description string `json:"description,omitempty"`
 }

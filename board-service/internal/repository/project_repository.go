@@ -26,11 +26,13 @@ type ProjectRepository interface {
 	FindMemberByProjectAndUser(ctx context.Context, projectID, userID uuid.UUID) (*domain.ProjectMember, error)
 	UpdateMemberRole(ctx context.Context, memberID uuid.UUID, role domain.ProjectRole) error
 	RemoveMember(ctx context.Context, memberID uuid.UUID) error
+	IsProjectMember(ctx context.Context, projectID, userID uuid.UUID) (bool, error)
 	
 	// Join request management
 	CreateJoinRequest(ctx context.Context, request *domain.ProjectJoinRequest) error
 	FindJoinRequestsByProjectID(ctx context.Context, projectID uuid.UUID, status *domain.ProjectJoinRequestStatus) ([]*domain.ProjectJoinRequest, error)
 	FindJoinRequestByID(ctx context.Context, requestID uuid.UUID) (*domain.ProjectJoinRequest, error)
+	FindPendingByProjectAndUser(ctx context.Context, projectID, userID uuid.UUID) (*domain.ProjectJoinRequest, error)
 	UpdateJoinRequestStatus(ctx context.Context, requestID uuid.UUID, status domain.ProjectJoinRequestStatus) error
 }
 
@@ -170,6 +172,18 @@ func (r *projectRepositoryImpl) RemoveMember(ctx context.Context, memberID uuid.
 	return r.db.WithContext(ctx).Delete(&domain.ProjectMember{}, memberID).Error
 }
 
+// IsProjectMember checks if a user is a member of a project
+func (r *projectRepositoryImpl) IsProjectMember(ctx context.Context, projectID, userID uuid.UUID) (bool, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&domain.ProjectMember{}).
+		Where("project_id = ? AND user_id = ?", projectID, userID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // CreateJoinRequest creates a new join request
 func (r *projectRepositoryImpl) CreateJoinRequest(ctx context.Context, request *domain.ProjectJoinRequest) error {
 	return r.db.WithContext(ctx).Create(request).Error
@@ -194,6 +208,20 @@ func (r *projectRepositoryImpl) FindJoinRequestsByProjectID(ctx context.Context,
 func (r *projectRepositoryImpl) FindJoinRequestByID(ctx context.Context, requestID uuid.UUID) (*domain.ProjectJoinRequest, error) {
 	var request domain.ProjectJoinRequest
 	if err := r.db.WithContext(ctx).Where("id = ?", requestID).First(&request).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		return nil, err
+	}
+	return &request, nil
+}
+
+// FindPendingByProjectAndUser finds a pending join request for a specific user and project
+func (r *projectRepositoryImpl) FindPendingByProjectAndUser(ctx context.Context, projectID, userID uuid.UUID) (*domain.ProjectJoinRequest, error) {
+	var request domain.ProjectJoinRequest
+	if err := r.db.WithContext(ctx).
+		Where("project_id = ? AND user_id = ? AND status = ?", projectID, userID, domain.JoinRequestPending).
+		First(&request).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
