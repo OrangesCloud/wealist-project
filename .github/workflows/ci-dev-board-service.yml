@@ -1,13 +1,13 @@
-name: Board Service CI - ECR
+name: CI - Dev Board Service
 
 on:
   push:
     branches:
-      - deploy-dev  # Dev 환경 배포 전용 브랜치
+      - deploy-dev
     paths:
       - "board-service/**"
-      - ".github/workflows/dev-board-service-ci.yml"
-  workflow_dispatch:  # 수동 실행 옵션
+      - ".github/workflows/ci-dev-board-service.yml"
+  workflow_dispatch:
 
 env:
   AWS_REGION: ap-northeast-2
