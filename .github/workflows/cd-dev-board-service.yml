@@ -254,11 +254,9 @@ jobs:
       # ============================================
       - name: 📊 Deployment Summary
         run: |
-          cat >> $GITHUB_STEP_SUMMARY << EOF
-          ### ✅ Board Service Deployed
-
-          - **Trigger:** \`${{ github.event_name }}\`
-          - **Commit:** \`${{ github.sha }}\`
-          - **Instance:** \`${{ secrets.EC2_INSTANCE_ID }}\`
-          - **Command:** \`${{ steps.deploy.outputs.command-id }}\`
-          EOF
+          echo "### ✅ Board Service Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger:** \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Instance:** \`${{ secrets.EC2_INSTANCE_ID }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Command:** \`${{ steps.deploy.outputs.command-id }}\`" >> $GITHUB_STEP_SUMMARY

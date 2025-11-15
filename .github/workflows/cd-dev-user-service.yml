@@ -254,36 +254,9 @@ jobs:
       # ============================================
       - name: 📊 Deployment Summary
         run: |
-          cat >> $GITHUB_STEP_SUMMARY << EOF
-          ### ✅ User Service Deployed
-
-          - **Trigger:** \`${{ github.event_name }}\`
-          - **Commit:** \`${{ github.sha }}\`
-          - **Instance:** \`${{ secrets.EC2_INSTANCE_ID }}\`
-          - **Command:** \`${{ steps.deploy.outputs.command-id }}\`
-          EOF
-```
-
----
-
-## 📋 Board Service와 차이점
-
-| 항목 | Board Service | User Service |
-|------|---------------|--------------|
-| **워크플로우 이름** | `CI - Dev Board Service` | `CI - Dev User Service` |
-| **파일명** | `cd-dev-board-service.yml` | `cd-dev-user-service.yml` |
-| **이미지** | `wealist-dev-board-service` | `wealist-dev-user-service` |
-| **포트** | `8000` | `8080` |
-| **Health Check URL** | `/health` | `/actuator/health` |
-| **대기 시간** | `sleep 10` | `sleep 15` (Spring Boot 느림) |
-| **컨테이너 이름** | `board-service` | `user-service` |
-
----
-
-## ✅ 최종 파일 구조
-```
-.github/workflows/
-├── ci-dev-board-service.yml  (기존 - 그대로)
-├── ci-dev-user-service.yml   (기존 - 그대로)
-├── cd-dev-board-service.yml  (새로 생성 - 위에서 준 파일)
-└── cd-dev-user-service.yml   (새로 생성 - 위 파일)
+          echo "### ✅ User Service Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger:** \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Instance:** \`${{ secrets.EC2_INSTANCE_ID }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Command:** \`${{ steps.deploy.outputs.command-id }}\`" >> $GITHUB_STEP_SUMMARY
