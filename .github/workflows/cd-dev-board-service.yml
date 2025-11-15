@@ -1,11 +1,27 @@
 name: CD - Dev Board Service
 
 on:
+  # 1. CI 성공 시 자동 실행
   workflow_run:
     workflows: ["CI - Dev Board Service"]
     types:
       - completed
+
+  # 2. 인프라 변경 시 직접 실행
+  push:
+    branches:
+      - deploy-dev
+    paths:
+      - "docker/compose/docker-compose.ec2-dev.yml"
+      - ".github/workflows/cd-dev-board-service.yml"
+
+  # 3. 수동 실행 (강제 재배포)
   workflow_dispatch:
+    inputs:
+      reason:
+        description: '배포 사유 (선택)'
+        required: false
+        type: string
 
 env:
   AWS_REGION: ap-northeast-2
@@ -16,12 +32,16 @@ jobs:
   deploy:
     name: Deploy to EC2 via SSM
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # workflow_run이면 성공 확인, 아니면 바로 실행
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     environment: development
 
     steps:
       # ============================================
-      # 1. 코드 체크아웃 (스크립트 읽기 위해)
+      # 1. 코드 체크아웃
       # ============================================
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
@@ -37,7 +57,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # ============================================
-      # 3. 배포 스크립트 생성 (Git에서 관리)
+      # 3. 배포 스크립트 생성
       # ============================================
       - name: 📝 Prepare Deployment Script
         id: script
@@ -163,14 +183,17 @@ jobs:
       - name: 🚀 Deploy via SSM Run Command
         id: deploy
         run: |
-          # 스크립트를 Base64로 인코딩 (특수문자 안전하게 전송)
+          # 스크립트를 Base64로 인코딩
           SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-board.sh)
+
+          # 배포 사유 확인
+          DEPLOY_REASON="${{ github.event.inputs.reason || 'Auto deploy' }}"
 
           # SSM Run Command 실행
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy Board Service - ${{ github.sha }}" \
+            --comment "Deploy Board Service - ${{ github.sha }} - ${DEPLOY_REASON}" \
             --parameters commands="[
               \"echo '${SCRIPT_BASE64}' | base64 -d > /tmp/deploy.sh\",
               \"chmod +x /tmp/deploy.sh\",
@@ -234,6 +257,7 @@ jobs:
           cat >> $GITHUB_STEP_SUMMARY << EOF
           ### ✅ Board Service Deployed
 
+          - **Trigger:** \`${{ github.event_name }}\`
           - **Commit:** \`${{ github.sha }}\`
           - **Instance:** \`${{ secrets.EC2_INSTANCE_ID }}\`
           - **Command:** \`${{ steps.deploy.outputs.command-id }}\`
