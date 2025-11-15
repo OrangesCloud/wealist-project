@@ -2,7 +2,7 @@ name: Frontend CI/CD to S3/CloudFront
 
 on:
   push:
-    branches: develop
+    branches: deploy-dev
     paths:
       - "frontend/**"
       - ".github/workflows/frontend-cicd.yml"
