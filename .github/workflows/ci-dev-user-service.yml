@@ -1,13 +1,13 @@
-name: User Service CI - ECR
+name: CI - Dev User Service
 
 on:
   push:
     branches:
-      - deploy-dev  # Dev 환경 배포 전용 브랜치
+      - deploy-dev
     paths:
       - "user-service/**"
-      - ".github/workflows/dev-user-service-ci.yml"
-  workflow_dispatch:  # 수동 실행 옵션
+      - ".github/workflows/ci-dev-user-service.yml"
+  workflow_dispatch:
 
 env:
   AWS_REGION: ap-northeast-2
