@@ -152,7 +152,6 @@ export const CustomFieldManageModal: React.FC<CustomFieldManageModalProps> = ({
 
       // 1. 필드 생성 (POST /api/fields)
       const newFieldResponse: FieldResponse = await createField(requestData);
-
       // 2. 옵션이 있는 경우, 옵션 생성 (POST /api/field-options)
       if (isSelectType && fieldOptions.length > 0) {
         // ⚠️ 실제 API는 단일 옵션씩 생성하거나, 배열을 받아 일괄 생성합니다.
