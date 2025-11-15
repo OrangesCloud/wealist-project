@@ -121,7 +121,6 @@ export const CustomFieldManageModal: React.FC<CustomFieldManageModalProps> = ({
   //   }
   // };
 
-  // 💡 옵션 삭제 핸들러 (유지)
   const handleRemoveOption = useCallback((optionToRemove: FieldOption) => {
     setFieldOptions((prev) => prev.filter((opt) => opt.label !== optionToRemove.label));
   }, []);

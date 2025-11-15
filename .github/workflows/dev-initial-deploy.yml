@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy_to_ec2:
-        description: 'EC2에 자동 배포할까요?'
+        description: "EC2에 자동 배포할까요?"
         required: true
         type: boolean
         default: true
@@ -111,7 +111,7 @@ jobs:
           go mod download
 
       - name: 🧪 Run Go Tests
-        continue-on-error: true  # 테스트 실패해도 계속 진행
+        continue-on-error: true # 테스트 실패해도 계속 진행
         run: |
           cd board-service
           go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build"
@@ -161,7 +161,7 @@ jobs:
     name: Deploy to EC2 via SSM
     runs-on: ubuntu-latest
     environment: development
-    needs: [build-user-service, build-board-service]  # 두 빌드 완료 후 실행
+    needs: [build-user-service, build-board-service] # 두 빌드 완료 후 실행
     if: ${{ inputs.deploy_to_ec2 }}
 
     steps:
@@ -245,34 +245,33 @@ jobs:
           # .env 파일 생성 (동적으로)
           # ============================================
           cat > .env << 'ENVFILE'
-APP_NAME=wealist-api
-VERSION=latest
-AWS_REGION=\${AWS_REGION}
-AWS_ACCOUNT_ID=\${AWS_ACCOUNT_ID}
-POSTGRES_SUPERUSER=\${POSTGRES_SUPERUSER}
-POSTGRES_SUPERUSER_PASSWORD=\${POSTGRES_SUPERUSER_PASSWORD}
-USER_DB_NAME=\${USER_DB_NAME}
-USER_DB_USER=\${USER_DB_USER}
-USER_DB_PASSWORD=\${USER_DB_PASSWORD}
-BOARD_DB_NAME=\${BOARD_DB_NAME}
-BOARD_DB_USER=\${BOARD_DB_USER}
-BOARD_DB_PASSWORD=\${BOARD_DB_PASSWORD}
-REDIS_PASSWORD=\${REDIS_PASSWORD}
-JWT_SECRET=\${JWT_SECRET}
-JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
-JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
-GOOGLE_CLIENT_ID=\${GOOGLE_CLIENT_ID}
-GOOGLE_CLIENT_SECRET=\${GOOGLE_CLIENT_SECRET}
-JPA_DDL_AUTO=update
-JPA_SHOW_SQL=true
-JPA_FORMAT_SQL=true
-LOG_LEVEL=debug
-CORS_ORIGINS=*
-GRAFANA_ADMIN_USER=\${GRAFANA_ADMIN_USER}
-GRAFANA_ADMIN_PASSWORD=\${GRAFANA_ADMIN_PASSWORD}
-ENVFILE
+            APP_NAME=wealist-api
+            VERSION=latest
+            AWS_REGION=\${AWS_REGION}
+            AWS_ACCOUNT_ID=\${AWS_ACCOUNT_ID}
+            POSTGRES_SUPERUSER=\${POSTGRES_SUPERUSER}
+            POSTGRES_SUPERUSER_PASSWORD=\${POSTGRES_SUPERUSER_PASSWORD}
+            USER_DB_NAME=\${USER_DB_NAME}
+            USER_DB_USER=\${USER_DB_USER}
+            USER_DB_PASSWORD=\${USER_DB_PASSWORD}
+            BOARD_DB_NAME=\${BOARD_DB_NAME}
+            BOARD_DB_USER=\${BOARD_DB_USER}
+            BOARD_DB_PASSWORD=\${BOARD_DB_PASSWORD}
+            REDIS_PASSWORD=\${REDIS_PASSWORD}
+            JWT_SECRET=\${JWT_SECRET}
+            JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
+            JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
+            GOOGLE_CLIENT_ID=\${GOOGLE_CLIENT_ID}
+            GOOGLE_CLIENT_SECRET=\${GOOGLE_CLIENT_SECRET}
+            JPA_DDL_AUTO=update
+            JPA_SHOW_SQL=true
+            JPA_FORMAT_SQL=true
+            LOG_LEVEL=debug
+            CORS_ORIGINS=*
+            GRAFANA_ADMIN_USER=\${GRAFANA_ADMIN_USER}
+            GRAFANA_ADMIN_PASSWORD=\${GRAFANA_ADMIN_PASSWORD}
+            ENVFILE
 
-          # 환경변수 치환
           sed -i "s/\\\${AWS_REGION}/${AWS_REGION}/g" .env
           sed -i "s/\\\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" .env
           sed -i "s/\\\${POSTGRES_SUPERUSER}/${POSTGRES_SUPERUSER}/g" .env
