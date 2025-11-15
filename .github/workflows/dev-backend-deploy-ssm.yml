@@ -1,173 +1,41 @@
-name: Initial Deployment - All Services
+name: Backend EC2 CD - SSM (Secure)
 
 on:
-  # 수동 실행 전용 (최초 배포 또는 전체 재배포 시 사용)
+  # User/Board Service CI 워크플로우 성공 시 트리거
+  workflow_run:
+    workflows:
+      - "User Service CI - ECR"
+      - "Board Service CI - ECR"
+    types:
+      - completed
+    branches:
+      - deploy-dev
+
+  # 수동 실행 옵션
   workflow_dispatch:
-    inputs:
-      deploy_to_ec2:
-        description: "EC2에 자동 배포할까요?"
-        required: true
-        type: boolean
-        default: true
 
 env:
   AWS_REGION: ap-northeast-2
 
 jobs:
-  # ==================================================
-  # Job 1: User Service 빌드 & ECR 푸시
-  # ==================================================
-  build-user-service:
-    name: Build User Service
-    runs-on: ubuntu-latest
-    environment: development
-
-    outputs:
-      image-tag: ${{ steps.image-info.outputs.image-tag }}
-      full-image: ${{ steps.image-info.outputs.full-image }}
-
-    steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v4
-
-      - name: ☕ Setup Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "21"
-          cache: "gradle"
-
-      - name: 🔨 Build with Gradle
-        run: |
-          cd user-service
-          chmod +x gradlew
-          ./gradlew clean build
-
-      - name: 🔐 Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: 🏷️ Generate Image Tags
-        id: image-info
-        run: |
-          ECR_REGISTRY="${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-          IMAGE_TAG="${GITHUB_SHA:0:7}"
-          FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-user-service:${IMAGE_TAG}"
-          LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-user-service:latest"
-
-          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
-          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
-          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
-
-      - name: 🐳 Login to ECR, Build and Push
-        env:
-          FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
-          LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
-          ECR_REGISTRY: ${{ steps.image-info.outputs.ecr-registry }}
-        run: |
-          # ECR 로그인
-          echo "🔑 Logging into Amazon ECR..."
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-            docker login --username AWS --password-stdin ${ECR_REGISTRY}
-
-          # Docker 이미지 빌드 & 푸시
-          cd user-service
-          docker build --build-arg CACHEBUST=$(date +%s) -t ${FULL_IMAGE} -t ${LATEST_IMAGE} .
-          docker push ${FULL_IMAGE}
-          docker push ${LATEST_IMAGE}
-          echo "✅ User Service: ${LATEST_IMAGE}"
-
-  # ==================================================
-  # Job 2: Board Service 빌드 & ECR 푸시
-  # ==================================================
-  build-board-service:
-    name: Build Board Service
-    runs-on: ubuntu-latest
-    environment: development
-
-    outputs:
-      image-tag: ${{ steps.image-info.outputs.image-tag }}
-      full-image: ${{ steps.image-info.outputs.full-image }}
-
-    steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v4
-
-      - name: 🔧 Setup Go Environment
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
-          cache: true
-          cache-dependency-path: board-service/go.sum
-
-      - name: 📦 Download Go Dependencies
-        run: |
-          cd board-service
-          go mod tidy
-          go mod download
-
-      - name: 🧪 Run Go Tests
-        continue-on-error: true # 테스트 실패해도 계속 진행
-        run: |
-          cd board-service
-          go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build"
-
-      - name: 🔐 Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: 🏷️ Generate Image Tags
-        id: image-info
-        run: |
-          ECR_REGISTRY="${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-          IMAGE_TAG="${GITHUB_SHA:0:7}"
-          FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:${IMAGE_TAG}"
-          LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:latest"
-
-          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
-          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
-          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
-
-      - name: 🐳 Login to ECR, Build and Push
-        env:
-          FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
-          LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
-          ECR_REGISTRY: ${{ steps.image-info.outputs.ecr-registry }}
-        run: |
-          # ECR 로그인
-          echo "🔑 Logging into Amazon ECR..."
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-            docker login --username AWS --password-stdin ${ECR_REGISTRY}
-
-          # Docker 이미지 빌드 & 푸시
-          cd board-service
-          docker build -f docker/Dockerfile -t ${FULL_IMAGE} -t ${LATEST_IMAGE} .
-          docker push ${FULL_IMAGE}
-          docker push ${LATEST_IMAGE}
-          echo "✅ Board Service: ${LATEST_IMAGE}"
-
-  # ==================================================
-  # Job 3: EC2 배포 (SSM 방식 - 보안 강화)
-  # ==================================================
   deploy-to-ec2:
     name: Deploy to EC2 via SSM
     runs-on: ubuntu-latest
     environment: development
-    needs: [build-user-service, build-board-service] # 두 빌드 완료 후 실행
-    if: ${{ inputs.deploy_to_ec2 }}
+
+    # CI 워크플로우가 성공했을 때만 실행
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
+      # ============================================
+      # 1. 코드 체크아웃
+      # ============================================
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
+      # ============================================
+      # 2. AWS Credentials 설정
+      # ============================================
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -175,12 +43,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # ============================================
+      # 3. docker-compose.yml 준비
+      # ============================================
       - name: 📋 Prepare Docker Compose File
         run: |
           cat docker/compose/docker-compose.ec2-dev.yml > /tmp/docker-compose.yml
           echo "Docker Compose file prepared"
 
-      - name: 📝 Create Deployment Script (Parameter Store)
+      # ============================================
+      # 4. 배포 스크립트 생성 (Parameter Store 통합)
+      # ============================================
+      - name: 📝 Create Deployment Script
         env:
           AWS_ACCOUNT_ID: ${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}
         run: |
@@ -191,7 +65,7 @@ jobs:
           AWS_REGION="ap-northeast-2"
 
           echo "=========================================="
-          echo "🚀 Starting Initial Deployment"
+          echo "🚀 Starting Deployment"
           echo "=========================================="
 
           # 배포 디렉토리 생성
@@ -245,33 +119,33 @@ jobs:
           # .env 파일 생성 (동적으로)
           # ============================================
           cat > .env << 'ENVFILE'
-            APP_NAME=wealist-api
-            VERSION=latest
-            AWS_REGION=\${AWS_REGION}
-            AWS_ACCOUNT_ID=\${AWS_ACCOUNT_ID}
-            POSTGRES_SUPERUSER=\${POSTGRES_SUPERUSER}
-            POSTGRES_SUPERUSER_PASSWORD=\${POSTGRES_SUPERUSER_PASSWORD}
-            USER_DB_NAME=\${USER_DB_NAME}
-            USER_DB_USER=\${USER_DB_USER}
-            USER_DB_PASSWORD=\${USER_DB_PASSWORD}
-            BOARD_DB_NAME=\${BOARD_DB_NAME}
-            BOARD_DB_USER=\${BOARD_DB_USER}
-            BOARD_DB_PASSWORD=\${BOARD_DB_PASSWORD}
-            REDIS_PASSWORD=\${REDIS_PASSWORD}
-            JWT_SECRET=\${JWT_SECRET}
-            JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
-            JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
-            GOOGLE_CLIENT_ID=\${GOOGLE_CLIENT_ID}
-            GOOGLE_CLIENT_SECRET=\${GOOGLE_CLIENT_SECRET}
-            JPA_DDL_AUTO=update
-            JPA_SHOW_SQL=true
-            JPA_FORMAT_SQL=true
-            LOG_LEVEL=debug
-            CORS_ORIGINS=*
-            GRAFANA_ADMIN_USER=\${GRAFANA_ADMIN_USER}
-            GRAFANA_ADMIN_PASSWORD=\${GRAFANA_ADMIN_PASSWORD}
-            ENVFILE
+AWS_REGION=\${AWS_REGION}
+AWS_ACCOUNT_ID=\${AWS_ACCOUNT_ID}
+VERSION=latest
+POSTGRES_SUPERUSER=\${POSTGRES_SUPERUSER}
+POSTGRES_SUPERUSER_PASSWORD=\${POSTGRES_SUPERUSER_PASSWORD}
+USER_DB_NAME=\${USER_DB_NAME}
+USER_DB_USER=\${USER_DB_USER}
+USER_DB_PASSWORD=\${USER_DB_PASSWORD}
+BOARD_DB_NAME=\${BOARD_DB_NAME}
+BOARD_DB_USER=\${BOARD_DB_USER}
+BOARD_DB_PASSWORD=\${BOARD_DB_PASSWORD}
+REDIS_PASSWORD=\${REDIS_PASSWORD}
+JWT_SECRET=\${JWT_SECRET}
+JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
+JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
+GOOGLE_CLIENT_ID=\${GOOGLE_CLIENT_ID}
+GOOGLE_CLIENT_SECRET=\${GOOGLE_CLIENT_SECRET}
+JPA_DDL_AUTO=update
+JPA_SHOW_SQL=true
+JPA_FORMAT_SQL=true
+LOG_LEVEL=debug
+CORS_ORIGINS=*
+GRAFANA_ADMIN_USER=\${GRAFANA_ADMIN_USER}
+GRAFANA_ADMIN_PASSWORD=\${GRAFANA_ADMIN_PASSWORD}
+ENVFILE
 
+          # 환경변수 치환
           sed -i "s/\\\${AWS_REGION}/${AWS_REGION}/g" .env
           sed -i "s/\\\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" .env
           sed -i "s/\\\${POSTGRES_SUPERUSER}/${POSTGRES_SUPERUSER}/g" .env
@@ -301,8 +175,8 @@ jobs:
           echo "📥 Pulling latest images from ECR..."
           docker compose pull
 
-          # 서비스 시작
-          echo "🔄 Starting all services..."
+          # 서비스 재시작
+          echo "🔄 Restarting services..."
           docker compose up -d --remove-orphans
 
           # 구 이미지 정리
@@ -312,26 +186,17 @@ jobs:
           # 서비스 상태 확인
           echo ""
           echo "=========================================="
-          echo "✅ Initial Deployment Complete!"
+          echo "✅ Deployment Complete!"
           echo "=========================================="
           docker compose ps
 
           # Health Check
           echo ""
           echo "🏥 Running Health Checks..."
-          sleep 45
+          sleep 30
 
-          echo "Checking User Service..."
           curl -f http://localhost:8080/actuator/health || echo "⚠️ User Service not ready yet"
-
-          echo "Checking Board Service..."
           curl -f http://localhost:8000/health || echo "⚠️ Board Service not ready yet"
-
-          echo ""
-          echo "=========================================="
-          echo "📊 Final Service Status"
-          echo "=========================================="
-          docker compose ps
           DEPLOY_SCRIPT
 
           # AWS_ACCOUNT_ID를 스크립트에 주입
@@ -340,6 +205,9 @@ jobs:
           chmod +x /tmp/deploy.sh
           echo "✅ Deployment script created with Parameter Store integration"
 
+      # ============================================
+      # 5. S3에 파일 업로드
+      # ============================================
       - name: 📤 Upload Files to S3
         run: |
           BUCKET_NAME="wealist-deploy-scripts"
@@ -353,12 +221,15 @@ jobs:
 
           echo "Files uploaded to S3"
 
+      # ============================================
+      # 6. SSM으로 EC2에 명령 실행
+      # ============================================
       - name: 🚀 Deploy via SSM
         run: |
           INSTANCE_ID="${{ secrets.EC2_INSTANCE_ID }}"
           BUCKET_NAME="wealist-deploy-scripts"
 
-          echo "Executing initial deployment on EC2 instance: ${INSTANCE_ID}"
+          echo "Executing deployment on EC2 instance: ${INSTANCE_ID}"
 
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${INSTANCE_ID}" \
@@ -370,7 +241,7 @@ jobs:
               "aws s3 cp s3://'"${BUCKET_NAME}"'/docker-compose.yml ./docker-compose.yml",
               "aws s3 cp s3://'"${BUCKET_NAME}"'/deploy.sh ./deploy.sh",
               "chmod +x ./deploy.sh",
-              "bash ./deploy.sh"
+              "sudo -u ec2-user bash ./deploy.sh"
             ]' \
             --region ${{ env.AWS_REGION }} \
             --output text \
@@ -379,8 +250,8 @@ jobs:
           echo "Command ID: ${COMMAND_ID}"
           echo "Waiting for command to complete..."
 
-          # 명령 실행 완료 대기 (최대 15분 - 초기 배포는 시간이 더 걸림)
-          for i in {1..90}; do
+          # 명령 실행 완료 대기 (최대 10분)
+          for i in {1..60}; do
             STATUS=$(aws ssm get-command-invocation \
               --command-id "${COMMAND_ID}" \
               --instance-id "${INSTANCE_ID}" \
@@ -391,7 +262,7 @@ jobs:
             echo "Status: ${STATUS}"
 
             if [ "${STATUS}" == "Success" ]; then
-              echo "✅ Initial deployment completed successfully!"
+              echo "✅ Deployment completed successfully!"
 
               # 출력 로그 가져오기
               aws ssm get-command-invocation \
@@ -403,7 +274,7 @@ jobs:
 
               exit 0
             elif [ "${STATUS}" == "Failed" ]; then
-              echo "❌ Initial deployment failed!"
+              echo "❌ Deployment failed!"
 
               # 에러 로그 가져오기
               aws ssm get-command-invocation \
@@ -419,19 +290,21 @@ jobs:
             sleep 10
           done
 
-          echo "⚠️ Deployment timeout after 15 minutes"
+          echo "⚠️ Deployment timeout after 10 minutes"
           exit 1
 
+      # ============================================
+      # 7. 배포 결과 요약
+      # ============================================
       - name: 📋 Deployment Summary
         if: always()
         run: |
-          echo "### 🚀 Initial Deployment Complete (SSM)" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 EC2 Deployment Complete (SSM)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** Development (EC2)" >> $GITHUB_STEP_SUMMARY
           echo "**Instance ID:** \`${{ secrets.EC2_INSTANCE_ID }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**User Service Image:** \`${{ needs.build-user-service.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Board Service Image:** \`${{ needs.build-board-service.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** \`${{ github.event.workflow_run.name || 'Manual' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Method:** AWS Systems Manager (SSM) ✅ Secure" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Note:** All secrets fetched from AWS Parameter Store" >> $GITHUB_STEP_SUMMARY
