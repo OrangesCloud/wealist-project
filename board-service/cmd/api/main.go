@@ -1,108 +1,165 @@
 package main
 
 import (
-	"board-service/internal/cache"
-	"board-service/internal/config"
-	"board-service/internal/database"
-	"board-service/internal/middleware"
-	"board-service/pkg/logger"
+	"context"
+	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 
-	_ "board-service/docs" // Swagger docs
+	"project-board-api/internal/client"
+	"project-board-api/internal/config"
+	"project-board-api/internal/database"
+	"project-board-api/internal/logger"
+	"project-board-api/internal/router"
+
+	_ "project-board-api/docs" // Swagger docs
 )
 
-// @title Board Service API
-// @version 1.0
-// @description Board management API for weAlist project management platform
-// @termsOfService http://swagger.io/terms/
+// @title           Project Board Management API
+// @version         1.0
+// @description     프로젝트 보드 관리 시스템 API 서버입니다.
+// @description     Board, Project, Comment, Participant 관리 기능을 제공합니다.
 
-// @contact.name API Support
-// @contact.email support@wealist.com
+// @contact.name   API Support
+// @contact.email  support@example.com
 
-// @license.name MIT
-// @license.url https://opensource.org/licenses/MIT
+// @license.name  MIT
+// @license.url   https://opensource.org/licenses/MIT
 
-// @host localhost:8000
-// @BasePath /api
+// @host      localhost:8000
+// @BasePath  /api
 
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Type "Bearer" followed by a space and JWT token.
+// @description JWT 토큰을 입력하세요. 형식: Bearer {token}
 
 func main() {
-	// 1. Load configuration
-	cfg, err := config.Load()
+	// Load configuration
+	cfg, err := config.Load("configs/config.yaml")
 	if err != nil {
-		panic("Failed to load config: " + err.Error())
+		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+		os.Exit(1)
 	}
 
-	// 2. Initialize logger
-	log, err := logger.Init(cfg.Log.Level, cfg.Server.Env)
+	// Initialize logger
+	log, err := logger.New(cfg.Logger.Level, cfg.Logger.OutputPath)
 	if err != nil {
-		panic("Failed to initialize logger: " + err.Error())
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
 	}
 	defer log.Sync()
 
-	log.Info("Starting board-service",
-		zap.String("env", cfg.Server.Env),
+	log.Info("Starting application",
+		zap.String("mode", cfg.Server.Mode),
 		zap.String("port", cfg.Server.Port),
 	)
 
-	// 3. Connect to database
-	db, err := database.Connect(cfg.Database.URL, log, cfg.Server.UseAutoMigrate)
+	// Set Gin mode
+	if cfg.Server.Mode == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		gin.SetMode(gin.DebugMode)
+	}
+
+	// Connect to database
+	dbConfig := database.Config{
+		DSN:             cfg.Database.GetDSN(),
+		MaxOpenConns:    cfg.Database.MaxOpenConns,
+		MaxIdleConns:    cfg.Database.MaxIdleConns,
+		ConnMaxLifetime: cfg.Database.ConnMaxLifetime,
+	}
+
+	db, err := database.New(dbConfig)
 	if err != nil {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
 
-	// 4. Connect to Redis
-	rdb, err := cache.Connect(cfg.Redis.URL, log)
-	if err != nil {
-		log.Fatal("Failed to connect to Redis", zap.Error(err))
+	log.Info("Database connection established",
+		zap.String("host", cfg.Database.Host),
+		zap.String("database", cfg.Database.DBName),
+	)
+
+	// Initialize User API client
+	userClient := client.NewUserClient(
+		cfg.UserAPI.BaseURL,
+		cfg.UserAPI.Timeout,
+		log.Logger,
+	)
+
+	log.Info("User API client initialized",
+		zap.String("base_url", cfg.UserAPI.BaseURL),
+		zap.Duration("timeout", cfg.UserAPI.Timeout),
+	)
+
+	// Setup router with dependency injection
+	routerConfig := router.Config{
+		DB:         db,
+		Logger:     log.Logger,
+		JWTSecret:  cfg.JWT.Secret,
+		UserClient: userClient,
 	}
 
-	// 5. Initialize application with dependency injection
-	app, err := InitializeApplication(cfg, log, db, rdb)
-	if err != nil {
-		log.Fatal("Failed to initialize application", zap.Error(err))
+	r := router.Setup(routerConfig)
+
+	// Create HTTP server
+	srv := &http.Server{
+		Addr:         ":" + cfg.Server.Port,
+		Handler:      r,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
 	}
 
-	// 6. Configure Gin mode
-	if cfg.Server.Env == "prod" {
-		gin.SetMode(gin.ReleaseMode)
+	// Start server in a goroutine
+	go func() {
+		log.Info("Server starting", zap.String("address", srv.Addr))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("Failed to start server", zap.Error(err))
+		}
+	}()
+
+	log.Info("Server started successfully", zap.String("port", cfg.Server.Port))
+
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	// SIGINT (Ctrl+C) and SIGTERM (kill) signals
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	// Block until signal is received
+	sig := <-quit
+	log.Info("Shutdown signal received", zap.String("signal", sig.String()))
+
+	// Create shutdown context with timeout
+	shutdownTimeout := cfg.Server.ShutdownTimeout
+	if shutdownTimeout == 0 {
+		shutdownTimeout = 30 * time.Second // Default timeout
 	}
 
-	// 7. Create router and register middleware
-	r := gin.New()
-	r.Use(middleware.RequestIDMiddleware())
-	r.Use(middleware.LoggerMiddleware(log))
-	r.Use(middleware.RecoveryMiddleware(log))
-	r.Use(middleware.CORSMiddleware(cfg.CORS.Origins))
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
 
-	// 8. Register Swagger (development only)
-	if cfg.Server.Env == "dev" {
-		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-		log.Info("Swagger UI enabled", zap.String("url", "http://localhost:"+cfg.Server.Port+"/swagger/index.html"))
+	// Attempt graceful shutdown
+	log.Info("Shutting down server gracefully", zap.Duration("timeout", shutdownTimeout))
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Error("Server forced to shutdown", zap.Error(err))
+	} else {
+		log.Info("Server shutdown completed, all in-flight requests completed")
 	}
 
-	// 9. Register Prometheus metrics endpoint
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
-
-	// 10. Register all routes through the application
-	app.RegisterRoutes(r, cfg)
-
-	// 11. Start server
-	addr := ":" + cfg.Server.Port
-	log.Info("Server starting", zap.String("address", addr))
-
-	if err := r.Run(addr); err != nil {
-		log.Fatal("Server failed to start", zap.Error(err))
-		os.Exit(1)
+	// Close database connection
+	log.Info("Closing database connection")
+	if err := database.Close(db); err != nil {
+		log.Error("Failed to close database connection", zap.Error(err))
+	} else {
+		log.Info("Database connection closed successfully")
 	}
+
+	log.Info("Application stopped")
 }

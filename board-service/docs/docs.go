@@ -9,10 +9,9 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "http://swagger.io/terms/",
         "contact": {
             "name": "API Support",
-            "email": "support@wealist.com"
+            "email": "support@example.com"
         },
         "license": {
             "name": "MIT",
@@ -23,115 +22,9 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/boards": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get boards for a project with optional filters",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "boards"
-                ],
-                "summary": "Get boards",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by Stage ID",
-                        "name": "stageId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by Role ID",
-                        "name": "roleId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by Importance ID",
-                        "name": "importanceId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by Assignee ID",
-                        "name": "assigneeId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by Author ID",
-                        "name": "authorId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Items per page (default: 20, max: 100)",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.PaginatedBoardsResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
+        "/boards": {
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create a new board card (task/issue) in a project",
+                "description": "새로운 Board를 생성합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -141,10 +34,10 @@ const docTemplate = `{
                 "tags": [
                     "boards"
                 ],
-                "summary": "Create board",
+                "summary": "Board 생성",
                 "parameters": [
                     {
-                        "description": "Board details",
+                        "description": "Board 생성 요청",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -155,11 +48,11 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Board 생성 성공",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -173,48 +66,102 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/api/boards/{boardId}": {
+        "/boards/project/{projectId}": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get a specific board by ID (project member only)",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "특정 Project에 속한 모든 Board를 조회합니다",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "boards"
                 ],
-                "summary": "Get board",
+                "summary": "Project의 Board 목록 조회",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Board ID",
+                        "description": "Project ID (UUID)",
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Board 목록 조회 성공",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.BoardResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "잘못된 Project ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Project를 찾을 수 없음",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/boards/{boardId}": {
+            "get": {
+                "description": "Board ID로 상세 정보를 조회합니다 (참여자, 댓글 포함)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "boards"
+                ],
+                "summary": "Board 상세 조회",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Board ID (UUID)",
                         "name": "boardId",
                         "in": "path",
                         "required": true
@@ -222,44 +169,45 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Board 조회 성공",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/dto.BoardResponse"
+                                            "$ref": "#/definitions/dto.BoardDetailResponse"
                                         }
                                     }
                                 }
                             ]
                         }
                     },
-                    "403": {
-                        "description": "Forbidden",
+                    "400": {
+                        "description": "잘못된 Board ID",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
             },
             "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update a board (author or ADMIN+ only)",
+                "description": "Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할)",
                 "consumes": [
                     "application/json"
                 ],
@@ -269,17 +217,17 @@ const docTemplate = `{
                 "tags": [
                     "boards"
                 ],
-                "summary": "Update board",
+                "summary": "Board 수정",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Board ID",
+                        "description": "Board ID (UUID)",
                         "name": "boardId",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Board updates",
+                        "description": "Board 수정 요청",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -290,11 +238,11 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Board 수정 성공",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -308,46 +256,38 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
             },
             "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete a board (soft delete, author or ADMIN+ only)",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Board를 소프트 삭제합니다",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "boards"
                 ],
-                "summary": "Delete board",
+                "summary": "Board 삭제",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Board ID",
+                        "description": "Board ID (UUID)",
                         "name": "boardId",
                         "in": "path",
                         "required": true
@@ -355,110 +295,35 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Board 삭제 성공",
                         "schema": {
-                            "$ref": "#/definitions/dto.SuccessResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/boards/{boardId}/move": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Move a board to a different column/group in a view (integrated API: field value change + order update in single transaction)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "boards"
-                ],
-                "summary": "Move board to different column",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Board ID",
-                        "name": "boardId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Move board request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.MoveBoardRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.MoveBoardResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.SuccessResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "잘못된 Board ID",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/api/comments": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get all comments for a specific board (project member only)",
+        "/comments": {
+            "post": {
+                "description": "Board에 새로운 Comment를 작성합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -468,23 +333,84 @@ const docTemplate = `{
                 "tags": [
                     "comments"
                 ],
-                "summary": "Get comments by board",
+                "summary": "Comment 생성",
+                "parameters": [
+                    {
+                        "description": "Comment 생성 요청",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateCommentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Comment 생성 성공",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.CommentResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "잘못된 요청",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Board를 찾을 수 없음",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/comments/board/{boardId}": {
+            "get": {
+                "description": "특정 Board의 모든 Comment를 조회합니다",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comments"
+                ],
+                "summary": "Board의 Comment 목록 조회",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Board ID",
+                        "description": "Board ID (UUID)",
                         "name": "boardId",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Comment 목록 조회 성공",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -501,101 +427,29 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "잘못된 Board ID",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create a new comment on a board",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "comments"
-                ],
-                "summary": "Create comment",
-                "parameters": [
-                    {
-                        "description": "Comment details",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateCommentRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.CommentResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
-                    "400": {
-                        "description": "Bad Request",
+                    "500": {
+                        "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/api/comments/{commentId}": {
+        "/comments/{commentId}": {
             "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update an existing comment (author only)",
+                "description": "Comment 내용을 수정합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -605,17 +459,17 @@ const docTemplate = `{
                 "tags": [
                     "comments"
                 ],
-                "summary": "Update comment",
+                "summary": "Comment 수정",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Comment ID",
+                        "description": "Comment ID (UUID)",
                         "name": "commentId",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Comment updates",
+                        "description": "Comment 수정 요청",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -626,11 +480,11 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Comment 수정 성공",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -644,32 +498,74 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Comment를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
             },
             "delete": {
-                "security": [
+                "description": "Comment를 소프트 삭제합니다",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comments"
+                ],
+                "summary": "Comment 삭제",
+                "parameters": [
                     {
-                        "BearerAuth": []
+                        "type": "string",
+                        "description": "Comment ID (UUID)",
+                        "name": "commentId",
+                        "in": "path",
+                        "required": true
                     }
                 ],
-                "description": "Delete a comment (soft delete, author only)",
+                "responses": {
+                    "200": {
+                        "description": "Comment 삭제 성공",
+                        "schema": {
+                            "$ref": "#/definitions/response.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "잘못된 Comment ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Comment를 찾을 수 없음",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/participants": {
+            "post": {
+                "description": "Board에 참여자를 추가합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -677,51 +573,173 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "comments"
+                    "participants"
                 ],
-                "summary": "Delete comment",
+                "summary": "Participant 추가",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "Comment ID",
-                        "name": "commentId",
-                        "in": "path",
-                        "required": true
+                        "description": "Participant 추가 요청",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AddParticipantRequest"
+                        }
                     }
                 ],
                 "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
+                    "201": {
+                        "description": "Participant 추가 성공",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.SuccessResponse"
                         }
                     },
-                    "403": {
-                        "description": "Forbidden",
+                    "400": {
+                        "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "이미 참여 중인 사용자",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/api/projects": {
+        "/participants/board/{boardId}": {
             "get": {
-                "security": [
+                "description": "특정 Board의 모든 참여자를 조회합니다",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "participants"
+                ],
+                "summary": "Board의 Participant 목록 조회",
+                "parameters": [
                     {
-                        "BearerAuth": []
+                        "type": "string",
+                        "description": "Board ID (UUID)",
+                        "name": "boardId",
+                        "in": "path",
+                        "required": true
                     }
                 ],
-                "description": "Get all projects in a workspace (workspace member only)",
+                "responses": {
+                    "200": {
+                        "description": "Participant 목록 조회 성공",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.ParticipantResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "잘못된 Board ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Board를 찾을 수 없음",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/participants/board/{boardId}/user/{userId}": {
+            "delete": {
+                "description": "Board에서 참여자를 제거합니다",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "participants"
+                ],
+                "summary": "Participant 제거",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Board ID (UUID)",
+                        "name": "boardId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID (UUID)",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Participant 제거 성공",
+                        "schema": {
+                            "$ref": "#/definitions/response.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "잘못된 ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Board 또는 Participant를 찾을 수 없음",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/projects": {
+            "post": {
+                "description": "새로운 Project를 생성합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -731,23 +749,78 @@ const docTemplate = `{
                 "tags": [
                     "projects"
                 ],
-                "summary": "Get projects",
+                "summary": "Project 생성",
+                "parameters": [
+                    {
+                        "description": "Project 생성 요청",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Project 생성 성공",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ProjectResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "잘못된 요청",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/workspace/{workspaceId}": {
+            "get": {
+                "description": "특정 Workspace에 속한 모든 Project를 조회합니다",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Workspace의 Project 목록 조회",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Workspace ID",
+                        "description": "Workspace ID (UUID)",
                         "name": "workspaceId",
-                        "in": "query",
+                        "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Project 목록 조회 성공",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -764,426 +837,46 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "잘못된 Workspace ID",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create a new project in a workspace (workspace member only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Create project",
-                "parameters": [
-                    {
-                        "description": "Project details",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateProjectRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ProjectResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/api/projects/join-requests": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Request to join a project (workspace member only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Create join request",
-                "parameters": [
-                    {
-                        "description": "Join request details",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateProjectJoinRequestRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ProjectJoinRequestResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/projects/join-requests/{joinRequestId}": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Approve or reject a join request (OWNER/ADMIN only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Update join request",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Join Request ID",
-                        "name": "joinRequestId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Status update",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateProjectJoinRequestRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ProjectJoinRequestResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/projects/search": {
+        "/projects/workspace/{workspaceId}/default": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Search projects in a workspace by name or description",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "특정 Workspace의 기본(default) Project를 조회합니다",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "projects"
                 ],
-                "summary": "Search projects",
+                "summary": "Workspace의 기본 Project 조회",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Workspace ID",
+                        "description": "Workspace ID (UUID)",
                         "name": "workspaceId",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Search query",
-                        "name": "query",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size (default: 10, max: 100)",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.PaginatedProjectsResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/projects/{projectId}": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get project details (project member only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Get project",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "기본 Project 조회 성공",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ProjectResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update project details (OWNER only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Update project",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Updated project details",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateProjectRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -1197,2062 +890,21 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "잘못된 Workspace ID",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "기본 Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Soft delete a project (OWNER only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Delete project",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "message": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/projects/{projectId}/init-settings": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get static configuration data needed for project initialization (project info, fields with options, field types)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Get project init settings",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ProjectInitSettingsResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/projects/{projectId}/join-requests": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get join requests for a project (OWNER/ADMIN only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Get join requests",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by status (PENDING/APPROVED/REJECTED)",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/dto.ProjectJoinRequestResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/projects/{projectId}/members": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get all members of a project (member only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Get project members",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/dto.ProjectMemberResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/projects/{projectId}/members/{memberId}": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Remove a member from project (OWNER/ADMIN only, cannot remove OWNER or self)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Remove member",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Member ID",
-                        "name": "memberId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "message": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/projects/{projectId}/members/{memberId}/role": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update a member's role in project (OWNER only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "projects"
-                ],
-                "summary": "Update member role",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Member ID",
-                        "name": "memberId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "New role",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateProjectMemberRoleRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ProjectMemberResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/board-field-values": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Set a field value for a board",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Field Values"
-                ],
-                "summary": "Set field value",
-                "parameters": [
-                    {
-                        "description": "Field value request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.SetFieldValueRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/board-field-values/multi-select": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Set ordered multi-select values for a board field",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Field Values"
-                ],
-                "summary": "Set multi-select field value",
-                "parameters": [
-                    {
-                        "description": "Multi-select value request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.SetMultiSelectValueRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/boards/{boardId}/field-values": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get all field values for a board",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Field Values"
-                ],
-                "summary": "Get board field values",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Board ID",
-                        "name": "boardId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.BoardFieldValuesResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/boards/{boardId}/field-values/{fieldId}": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete a field value for a board",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Field Values"
-                ],
-                "summary": "Delete field value",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Board ID",
-                        "name": "boardId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Field ID",
-                        "name": "fieldId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/field-options": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create a new option for a select field",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Field Options"
-                ],
-                "summary": "Create field option",
-                "parameters": [
-                    {
-                        "description": "Option creation request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateOptionRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.OptionResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/field-options/{optionId}": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete a field option",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Field Options"
-                ],
-                "summary": "Delete field option",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Option ID",
-                        "name": "optionId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update a field option",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Field Options"
-                ],
-                "summary": "Update field option",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Option ID",
-                        "name": "optionId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Option update request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateOptionRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.OptionResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/fields": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create a new custom field for a project",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Fields"
-                ],
-                "summary": "Create a custom field",
-                "parameters": [
-                    {
-                        "description": "Field creation request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateFieldRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.FieldResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/fields/{fieldId}": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get a custom field by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Fields"
-                ],
-                "summary": "Get field by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Field ID",
-                        "name": "fieldId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.FieldResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete a custom field",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Fields"
-                ],
-                "summary": "Delete field",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Field ID",
-                        "name": "fieldId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update a custom field",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Fields"
-                ],
-                "summary": "Update field",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Field ID",
-                        "name": "fieldId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Field update request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateFieldRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.FieldResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/fields/{fieldId}/options": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get all options for a select field",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Field Options"
-                ],
-                "summary": "Get options by field",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Field ID",
-                        "name": "fieldId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/dto.OptionResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/fields/{fieldId}/options/order": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update display order of options for a field",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Field Options"
-                ],
-                "summary": "Update option order",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Field ID",
-                        "name": "fieldId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Option order update request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateOptionOrderRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/projects/{projectId}/fields": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get all custom fields for a project",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Fields"
-                ],
-                "summary": "Get fields by project",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/dto.FieldResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/projects/{projectId}/fields/order": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update display order of fields in a project",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Fields"
-                ],
-                "summary": "Update field order",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Field order update request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateFieldOrderRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/projects/{projectId}/views": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get all saved views for a project",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Views"
-                ],
-                "summary": "Get views by project",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Project ID",
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/dto.ViewResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/view-board-orders": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update manual board ordering within a view",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Views"
-                ],
-                "summary": "Update board order in view",
-                "parameters": [
-                    {
-                        "description": "Board order update request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateBoardOrderRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/views": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create a new saved view with filters, sorting, and grouping",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Views"
-                ],
-                "summary": "Create a saved view",
-                "parameters": [
-                    {
-                        "description": "View creation request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.CreateViewRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ViewResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/views/{viewId}": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get a saved view by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Views"
-                ],
-                "summary": "Get view by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "View ID",
-                        "name": "viewId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ViewResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete a saved view",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Views"
-                ],
-                "summary": "Delete view",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "View ID",
-                        "name": "viewId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update a saved view",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Views"
-                ],
-                "summary": "Update view",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "View ID",
-                        "name": "viewId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "View update request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.UpdateViewRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/dto.ViewResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/views/{viewId}/boards": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Apply a saved view to get filtered/sorted/grouped boards",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Views"
-                ],
-                "summary": "Apply view",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "View ID",
-                        "name": "viewId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 20,
-                        "description": "Items per page",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/dto.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -3260,31 +912,70 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "dto.BoardFieldValuesResponse": {
-            "type": "object",
-            "properties": {
-                "boardId": {
-                    "type": "string"
-                },
-                "fields": {
-                    "description": "map[field_id]value",
-                    "type": "object",
-                    "additionalProperties": true
-                }
-            }
-        },
-        "dto.BoardOrder": {
+        "dto.AddParticipantRequest": {
             "type": "object",
             "required": [
                 "boardId",
-                "position"
+                "userId"
             ],
             "properties": {
                 "boardId": {
                     "type": "string"
                 },
-                "position": {
-                    "description": "Fractional index position",
+                "userId": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.BoardDetailResponse": {
+            "type": "object",
+            "properties": {
+                "assigneeId": {
+                    "type": "string"
+                },
+                "authorId": {
+                    "type": "string"
+                },
+                "boardId": {
+                    "type": "string"
+                },
+                "comments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.CommentResponse"
+                    }
+                },
+                "content": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "dueDate": {
+                    "type": "string"
+                },
+                "importanceId": {
+                    "type": "string"
+                },
+                "participants": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ParticipantResponse"
+                    }
+                },
+                "projectId": {
+                    "type": "string"
+                },
+                "roleId": {
+                    "type": "string"
+                },
+                "stageId": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -3292,16 +983,11 @@ const docTemplate = `{
         "dto.BoardResponse": {
             "type": "object",
             "properties": {
-                "assignee": {
-                    "description": "Single assignee (creator/owner feel)",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/dto.UserInfo"
-                        }
-                    ]
+                "assigneeId": {
+                    "type": "string"
                 },
-                "author": {
-                    "$ref": "#/definitions/dto.UserInfo"
+                "authorId": {
+                    "type": "string"
                 },
                 "boardId": {
                     "type": "string"
@@ -3312,33 +998,19 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
-                "customFields": {
-                    "description": "Parsed custom_fields_cache (legacy)",
-                    "type": "object",
-                    "additionalProperties": true
-                },
                 "dueDate": {
                     "type": "string"
                 },
-                "fieldValues": {
-                    "description": "Field values with field metadata",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.FieldValueWithInfo"
-                    }
-                },
-                "participants": {
-                    "description": "Multiple participants",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.UserInfo"
-                    }
-                },
-                "position": {
-                    "description": "Board position in view",
+                "importanceId": {
                     "type": "string"
                 },
                 "projectId": {
+                    "type": "string"
+                },
+                "roleId": {
+                    "type": "string"
+                },
+                "stageId": {
                     "type": "string"
                 },
                 "title": {
@@ -3352,6 +1024,9 @@ const docTemplate = `{
         "dto.CommentResponse": {
             "type": "object",
             "properties": {
+                "boardId": {
+                    "type": "string"
+                },
                 "commentId": {
                     "type": "string"
                 },
@@ -3364,13 +1039,7 @@ const docTemplate = `{
                 "updatedAt": {
                     "type": "string"
                 },
-                "userAvatar": {
-                    "type": "string"
-                },
                 "userId": {
-                    "type": "string"
-                },
-                "userName": {
                     "type": "string"
                 }
             }
@@ -3378,12 +1047,14 @@ const docTemplate = `{
         "dto.CreateBoardRequest": {
             "type": "object",
             "required": [
+                "importanceId",
                 "projectId",
+                "roleId",
+                "stageId",
                 "title"
             ],
             "properties": {
                 "assigneeId": {
-                    "description": "Single assignee (creator/owner feel)",
                     "type": "string"
                 },
                 "content": {
@@ -3391,29 +1062,33 @@ const docTemplate = `{
                     "maxLength": 5000
                 },
                 "dueDate": {
-                    "description": "ISO 8601 format",
                     "type": "string"
                 },
                 "importanceId": {
-                    "type": "string"
-                },
-                "participantIds": {
-                    "description": "New: multiple participants",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                    "type": "string",
+                    "enum": [
+                        "urgent",
+                        "normal"
+                    ]
                 },
                 "projectId": {
                     "type": "string"
                 },
                 "roleId": {
-                    "description": "Changed: single value",
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "developer",
+                        "planner"
+                    ]
                 },
                 "stageId": {
-                    "description": "Legacy fields (deprecated - use custom fields instead)",
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "in_progress",
+                        "pending",
+                        "approved",
+                        "review"
+                    ]
                 },
                 "title": {
                     "type": "string",
@@ -3433,88 +1108,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "content": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.CreateFieldRequest": {
-            "type": "object",
-            "required": [
-                "fieldType",
-                "name",
-                "projectId"
-            ],
-            "properties": {
-                "config": {
-                    "description": "Type-specific configuration",
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "description": {
                     "type": "string",
-                    "maxLength": 1000
-                },
-                "fieldType": {
-                    "type": "string",
-                    "enum": [
-                        "text",
-                        "number",
-                        "single_select",
-                        "multi_select",
-                        "date",
-                        "datetime",
-                        "single_user",
-                        "multi_user",
-                        "checkbox",
-                        "url"
-                    ]
-                },
-                "isRequired": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
                     "minLength": 1
-                },
-                "projectId": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.CreateOptionRequest": {
-            "type": "object",
-            "required": [
-                "fieldId",
-                "label"
-            ],
-            "properties": {
-                "color": {
-                    "description": "#RRGGBB",
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 500
-                },
-                "fieldId": {
-                    "type": "string"
-                },
-                "label": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                }
-            }
-        },
-        "dto.CreateProjectJoinRequestRequest": {
-            "type": "object",
-            "required": [
-                "projectId"
-            ],
-            "properties": {
-                "projectId": {
-                    "type": "string"
                 }
             }
         },
@@ -3539,489 +1134,19 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.CreateViewRequest": {
-            "type": "object",
-            "required": [
-                "name",
-                "projectId"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "filters": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "groupByFieldId": {
-                    "type": "string"
-                },
-                "isDefault": {
-                    "description": "Default: false (only one default view per project)",
-                    "type": "boolean"
-                },
-                "isShared": {
-                    "description": "Default: true if nil (team-shared view, most common)",
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "projectId": {
-                    "type": "string"
-                },
-                "sortBy": {
-                    "type": "string"
-                },
-                "sortDirection": {
-                    "type": "string",
-                    "enum": [
-                        "asc",
-                        "desc"
-                    ]
-                }
-            }
-        },
-        "dto.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "object",
-                    "properties": {
-                        "code": {
-                            "type": "string"
-                        },
-                        "message": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "requestId": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.FieldOrder": {
-            "type": "object",
-            "required": [
-                "fieldId"
-            ],
-            "properties": {
-                "displayOrder": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "fieldId": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.FieldResponse": {
-            "type": "object",
-            "properties": {
-                "canEditRoles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "config": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "displayOrder": {
-                    "type": "integer"
-                },
-                "fieldId": {
-                    "type": "string"
-                },
-                "fieldType": {
-                    "type": "string"
-                },
-                "isRequired": {
-                    "type": "boolean"
-                },
-                "isSystemDefault": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "projectId": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.FieldTypeInfo": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "description": "Type description",
-                    "type": "string"
-                },
-                "displayName": {
-                    "description": "Human-readable name",
-                    "type": "string"
-                },
-                "hasOptions": {
-                    "description": "Whether this type supports options",
-                    "type": "boolean"
-                },
-                "type": {
-                    "description": "text, number, date, etc.",
-                    "type": "string"
-                }
-            }
-        },
-        "dto.FieldValueWithInfo": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "displayOrder": {
-                    "type": "integer"
-                },
-                "fieldId": {
-                    "type": "string"
-                },
-                "fieldName": {
-                    "type": "string"
-                },
-                "fieldType": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "value": {},
-                "valueId": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.FieldWithOptionsResponse": {
-            "type": "object",
-            "properties": {
-                "canEditRoles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "config": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "displayOrder": {
-                    "type": "integer"
-                },
-                "fieldId": {
-                    "type": "string"
-                },
-                "fieldType": {
-                    "type": "string"
-                },
-                "isRequired": {
-                    "type": "boolean"
-                },
-                "isSystemDefault": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "options": {
-                    "description": "Field options (for single_select, multi_select)",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.OptionResponse"
-                    }
-                },
-                "projectId": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.MoveBoardRequest": {
-            "type": "object",
-            "required": [
-                "groupByFieldId",
-                "newFieldValue",
-                "viewId"
-            ],
-            "properties": {
-                "afterPosition": {
-                    "description": "Position of board after insertion point (optional)",
-                    "type": "string"
-                },
-                "beforePosition": {
-                    "description": "Position of board before insertion point (optional)",
-                    "type": "string"
-                },
-                "groupByFieldId": {
-                    "description": "Which field is used for grouping",
-                    "type": "string"
-                },
-                "newFieldValue": {
-                    "description": "New option_id (destination column)",
-                    "type": "string"
-                },
-                "viewId": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.MoveBoardResponse": {
+        "dto.ParticipantResponse": {
             "type": "object",
             "properties": {
                 "boardId": {
                     "type": "string"
                 },
-                "message": {
-                    "type": "string"
-                },
-                "newFieldValue": {
-                    "type": "string"
-                },
-                "newPosition": {
-                    "description": "New fractional index position",
-                    "type": "string"
-                }
-            }
-        },
-        "dto.OptionOrder": {
-            "type": "object",
-            "required": [
-                "optionId"
-            ],
-            "properties": {
-                "displayOrder": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "optionId": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.OptionResponse": {
-            "type": "object",
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
                 "createdAt": {
                     "type": "string"
                 },
-                "description": {
-                    "type": "string"
-                },
-                "displayOrder": {
-                    "type": "integer"
-                },
-                "fieldId": {
-                    "type": "string"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "optionId": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.OrderedValue": {
-            "type": "object",
-            "required": [
-                "valueId"
-            ],
-            "properties": {
-                "displayOrder": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "valueId": {
-                    "description": "option_id or user_id",
-                    "type": "string"
-                }
-            }
-        },
-        "dto.PaginatedBoardsResponse": {
-            "type": "object",
-            "properties": {
-                "boards": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.BoardResponse"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "dto.PaginatedProjectsResponse": {
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "projects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.ProjectResponse"
-                    }
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "dto.ProjectBasicInfo": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "isPublic": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "ownerId": {
-                    "type": "string"
-                },
-                "projectId": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "workspaceId": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.ProjectInitSettingsResponse": {
-            "type": "object",
-            "properties": {
-                "defaultViewId": {
-                    "description": "Default view ID (if exists)",
-                    "type": "string"
-                },
-                "fieldTypes": {
-                    "description": "Available field types (text, number, date, etc.)",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.FieldTypeInfo"
-                    }
-                },
-                "fields": {
-                    "description": "All field definitions with their options",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.FieldWithOptionsResponse"
-                    }
-                },
-                "project": {
-                    "description": "Project basic information",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/dto.ProjectBasicInfo"
-                        }
-                    ]
-                }
-            }
-        },
-        "dto.ProjectJoinRequestResponse": {
-            "type": "object",
-            "properties": {
-                "projectId": {
-                    "type": "string"
-                },
-                "requestId": {
-                    "type": "string"
-                },
-                "requestedAt": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "userEmail": {
+                "id": {
                     "type": "string"
                 },
                 "userId": {
-                    "type": "string"
-                },
-                "userName": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.ProjectMemberResponse": {
-            "type": "object",
-            "properties": {
-                "joinedAt": {
-                    "type": "string"
-                },
-                "memberId": {
-                    "type": "string"
-                },
-                "projectId": {
-                    "type": "string"
-                },
-                "roleName": {
-                    "type": "string"
-                },
-                "userEmail": {
-                    "type": "string"
-                },
-                "userId": {
-                    "type": "string"
-                },
-                "userName": {
                     "type": "string"
                 }
             }
@@ -4061,81 +1186,10 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.SetFieldValueRequest": {
-            "type": "object",
-            "required": [
-                "boardId",
-                "fieldId"
-            ],
-            "properties": {
-                "boardId": {
-                    "type": "string"
-                },
-                "fieldId": {
-                    "type": "string"
-                },
-                "value": {
-                    "description": "Type depends on field type"
-                },
-                "values": {
-                    "description": "For multi_select, multi_user (array of IDs or ordered map)"
-                }
-            }
-        },
-        "dto.SetMultiSelectValueRequest": {
-            "type": "object",
-            "required": [
-                "boardId",
-                "fieldId",
-                "values"
-            ],
-            "properties": {
-                "boardId": {
-                    "type": "string"
-                },
-                "fieldId": {
-                    "type": "string"
-                },
-                "values": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.OrderedValue"
-                    }
-                }
-            }
-        },
-        "dto.SuccessResponse": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "requestId": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.UpdateBoardOrderRequest": {
-            "type": "object",
-            "required": [
-                "boardOrders",
-                "viewId"
-            ],
-            "properties": {
-                "boardOrders": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.BoardOrder"
-                    }
-                },
-                "viewId": {
-                    "type": "string"
-                }
-            }
-        },
         "dto.UpdateBoardRequest": {
             "type": "object",
             "properties": {
                 "assigneeId": {
-                    "description": "Single assignee (creator/owner feel)",
                     "type": "string"
                 },
                 "content": {
@@ -4146,22 +1200,27 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "importanceId": {
-                    "type": "string"
-                },
-                "participantIds": {
-                    "description": "New: multiple participants",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                    "type": "string",
+                    "enum": [
+                        "urgent",
+                        "normal"
+                    ]
                 },
                 "roleId": {
-                    "description": "Changed: single value",
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "developer",
+                        "planner"
+                    ]
                 },
                 "stageId": {
-                    "description": "Legacy fields (deprecated - use custom fields instead)",
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "in_progress",
+                        "pending",
+                        "approved",
+                        "review"
+                    ]
                 },
                 "title": {
                     "type": "string",
@@ -4177,221 +1236,25 @@ const docTemplate = `{
             ],
             "properties": {
                 "content": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.UpdateFieldOrderRequest": {
-            "type": "object",
-            "required": [
-                "fieldOrders"
-            ],
-            "properties": {
-                "fieldOrders": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/dto.FieldOrder"
-                    }
-                }
-            }
-        },
-        "dto.UpdateFieldRequest": {
-            "type": "object",
-            "properties": {
-                "config": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "description": {
                     "type": "string",
-                    "maxLength": 1000
-                },
-                "displayOrder": {
-                    "type": "integer"
-                },
-                "isRequired": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
                     "minLength": 1
                 }
             }
         },
-        "dto.UpdateOptionOrderRequest": {
-            "type": "object",
-            "required": [
-                "optionOrders"
-            ],
-            "properties": {
-                "optionOrders": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/dto.OptionOrder"
-                    }
-                }
-            }
-        },
-        "dto.UpdateOptionRequest": {
+        "response.ErrorResponse": {
             "type": "object",
             "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 500
-                },
-                "label": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                }
-            }
-        },
-        "dto.UpdateProjectJoinRequestRequest": {
-            "type": "object",
-            "required": [
-                "status"
-            ],
-            "properties": {
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "APPROVED",
-                        "REJECTED"
-                    ]
-                }
-            }
-        },
-        "dto.UpdateProjectMemberRoleRequest": {
-            "type": "object",
-            "required": [
-                "roleName"
-            ],
-            "properties": {
-                "roleName": {
-                    "type": "string",
-                    "enum": [
-                        "OWNER",
-                        "ADMIN",
-                        "MEMBER"
-                    ]
-                }
-            }
-        },
-        "dto.UpdateProjectRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "maxLength": 500
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 100,
-                    "minLength": 2
-                }
-            }
-        },
-        "dto.UpdateViewRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                },
-                "filters": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "groupByFieldId": {
-                    "type": "string"
-                },
-                "isDefault": {
-                    "type": "boolean"
-                },
-                "isShared": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
-                },
-                "sortBy": {
-                    "type": "string"
-                },
-                "sortDirection": {
-                    "type": "string",
-                    "enum": [
-                        "asc",
-                        "desc"
-                    ]
-                }
-            }
-        },
-        "dto.UserInfo": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "isActive": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "userId": {
+                "error": {},
+                "requestId": {
                     "type": "string"
                 }
             }
         },
-        "dto.ViewResponse": {
+        "response.SuccessResponse": {
             "type": "object",
             "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "createdBy": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "filters": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "groupByFieldId": {
-                    "type": "string"
-                },
-                "isDefault": {
-                    "type": "boolean"
-                },
-                "isShared": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "projectId": {
-                    "type": "string"
-                },
-                "sortBy": {
-                    "type": "string"
-                },
-                "sortDirection": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "viewId": {
+                "data": {},
+                "requestId": {
                     "type": "string"
                 }
             }
@@ -4399,7 +1262,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Type \"Bearer\" followed by a space and JWT token.",
+            "description": "JWT 토큰을 입력하세요. 형식: Bearer {token}",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -4413,8 +1276,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "localhost:8000",
 	BasePath:         "/api",
 	Schemes:          []string{},
-	Title:            "Board Service API",
-	Description:      "Board management API for weAlist project management platform",
+	Title:            "Project Board Management API",
+	Description:      "프로젝트 보드 관리 시스템 API 서버입니다.\nBoard, Project, Comment, Participant 관리 기능을 제공합니다.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

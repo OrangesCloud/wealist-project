@@ -1,581 +1,521 @@
 package service
 
 import (
-	"board-service/internal/client"
-	"board-service/internal/domain"
-	"board-service/internal/dto"
-	"board-service/internal/testutil"
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 	"gorm.io/gorm"
+
+	"project-board-api/internal/client"
+	"project-board-api/internal/domain"
+	"project-board-api/internal/dto"
+	"project-board-api/internal/response"
 )
 
-// ==================== Test Suite Setup ====================
-
-type ProjectServiceTestSuite struct {
-	projectRepo    *testutil.MockProjectRepository
-	roleRepo       *testutil.MockRoleRepository
-	fieldRepo      *testutil.MockFieldRepository
-	userClient     *MockUserClient
-	workspaceCache *MockWorkspaceCache
-	userInfoCache  *MockUserInfoCache
-	logger         *zap.Logger
-	service        ProjectService
+// MockUserClient is a mock implementation of UserClient
+type MockUserClient struct {
+	ValidateWorkspaceMemberFunc func(ctx context.Context, workspaceID, userID uuid.UUID, token string) (bool, error)
+	GetUserProfileFunc          func(ctx context.Context, userID uuid.UUID, token string) (*client.UserProfile, error)
+	GetWorkspaceProfileFunc     func(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*client.WorkspaceProfile, error)
 }
 
-func setupProjectServiceTest(t *testing.T) *ProjectServiceTestSuite {
-	projectRepo := new(testutil.MockProjectRepository)
-	roleRepo := new(testutil.MockRoleRepository)
-	fieldRepo := new(testutil.MockFieldRepository)
-	userClient := new(MockUserClient)
-	workspaceCache := new(MockWorkspaceCache)
-	userInfoCache := new(MockUserInfoCache)
-	logger := zaptest.NewLogger(t)
-
-	service := NewProjectService(
-		projectRepo,
-		roleRepo,
-		fieldRepo,
-		nil, // boardRepo
-		nil, // projectFieldRepo
-		nil, // fieldOptionRepo
-		nil, // boardOrderRepo
-		nil, // viewRepo
-		userClient,
-		workspaceCache,
-		userInfoCache,
-		logger,
-		NewMockDB(), // in-memory DB for transactions
-	)
-
-	return &ProjectServiceTestSuite{
-		projectRepo:    projectRepo,
-		roleRepo:       roleRepo,
-		fieldRepo:      fieldRepo,
-		userClient:     userClient,
-		workspaceCache: workspaceCache,
-		userInfoCache:  userInfoCache,
-		logger:         logger,
-		service:        service,
+func (m *MockUserClient) ValidateWorkspaceMember(ctx context.Context, workspaceID, userID uuid.UUID, token string) (bool, error) {
+	if m.ValidateWorkspaceMemberFunc != nil {
+		return m.ValidateWorkspaceMemberFunc(ctx, workspaceID, userID, token)
 	}
+	return true, nil
 }
 
-// ==================== CreateProject Tests ====================
-
-func TestProjectService_CreateProject_Success(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
-	userID := uuid.New().String()
-	workspaceID := uuid.New()
-	token := "valid-token"
-
-	req := &dto.CreateProjectRequest{
-		WorkspaceID: workspaceID.String(),
-		Name:        "Test Project",
-		Description: "Test Description",
+func (m *MockUserClient) GetUserProfile(ctx context.Context, userID uuid.UUID, token string) (*client.UserProfile, error) {
+	if m.GetUserProfileFunc != nil {
+		return m.GetUserProfileFunc(ctx, userID, token)
 	}
+	return &client.UserProfile{UserID: userID, Email: "test@example.com"}, nil
+}
 
-	ownerRole := &domain.Role{
-		BaseModel: domain.BaseModel{ID: uuid.New()},
-		Name:      "OWNER",
-		Level:     100,
+func (m *MockUserClient) GetWorkspaceProfile(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*client.WorkspaceProfile, error) {
+	if m.GetWorkspaceProfileFunc != nil {
+		return m.GetWorkspaceProfileFunc(ctx, workspaceID, userID, token)
 	}
-
-	expectedProject := &domain.Project{
-		BaseModel: domain.BaseModel{
-			ID:        uuid.New(),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
+	return &client.WorkspaceProfile{
 		WorkspaceID: workspaceID,
-		Name:        req.Name,
-		Description: req.Description,
-		OwnerID:     uuid.MustParse(userID),
-		IsPublic:    false,
-	}
-
-	expectedUserInfo := &client.UserInfo{
-		UserID:   userID,
-		Name:     "Test User",
-		Email:    "test@example.com",
-		IsActive: true,
-	}
-
-	// Mocks
-	suite.workspaceCache.On("GetMembership", mock.Anything, workspaceID.String(), userID).
-		Return(true, true, nil)
-
-	suite.projectRepo.On("Create", mock.AnythingOfType("*domain.Project")).
-		Run(func(args mock.Arguments) {
-			project := args.Get(0).(*domain.Project)
-			project.ID = expectedProject.ID
-			project.CreatedAt = expectedProject.CreatedAt
-			project.UpdatedAt = expectedProject.UpdatedAt
-		}).
-		Return(nil)
-
-	suite.roleRepo.On("FindByName", "OWNER").
-		Return(ownerRole, nil)
-
-	suite.projectRepo.On("CreateMember", mock.AnythingOfType("*domain.ProjectMember")).
-		Return(nil)
-
-	// Mock field initialization
-	suite.fieldRepo.On("CreateField", mock.AnythingOfType("*domain.ProjectField")).
-		Return(nil).
-		Maybe()
-	suite.fieldRepo.On("CreateOption", mock.AnythingOfType("*domain.FieldOption")).
-		Return(nil).
-		Maybe()
-
-	userMap := map[string]client.UserInfo{
-		userID: *expectedUserInfo,
-	}
-	suite.userClient.On("GetUsersBatch", mock.Anything, []string{userID}).
-		Return(userMap, nil).
-		Maybe()
-
-	suite.userInfoCache.On("GetUserInfo", mock.Anything, userID).
-		Return(false, nil, nil).
-		Maybe()
-
-	suite.userClient.On("GetUser", mock.Anything, userID).
-		Return(expectedUserInfo, nil).
-		Maybe()
-
-	suite.userInfoCache.On("SetUserInfo", mock.Anything, mock.AnythingOfType("*cache.UserInfo")).
-		Return(nil).
-		Maybe()
-
-	// When
-	result, err := suite.service.CreateProject(userID, token, req)
-
-	// Then
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, req.Name, result.Name)
-	assert.Equal(t, req.Description, result.Description)
-	assert.Equal(t, expectedUserInfo.Name, result.OwnerName)
-	assert.Equal(t, expectedUserInfo.Email, result.OwnerEmail)
-
-	suite.workspaceCache.AssertExpectations(t)
-	suite.projectRepo.AssertExpectations(t)
-	suite.roleRepo.AssertExpectations(t)
-	suite.userClient.AssertExpectations(t)
+		UserID:      userID,
+		NickName:    "Test User",
+		Email:       "test@example.com",
+	}, nil
 }
 
-func TestProjectService_CreateProject_InvalidWorkspace(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
-	userID := uuid.New().String()
+func TestProjectService_CreateProject(t *testing.T) {
 	workspaceID := uuid.New()
-	token := "valid-token"
+	userID := uuid.New()
+	token := "test-jwt-token"
 
-	req := &dto.CreateProjectRequest{
-		WorkspaceID: workspaceID.String(),
-		Name:        "Test Project",
+	tests := []struct {
+		name        string
+		req         *dto.CreateProjectRequest
+		mockProject func(*MockProjectRepository)
+		mockUser    func(*MockUserClient)
+		wantErr     bool
+		wantErrCode string
+	}{
+		{
+			name: "성공: 정상적인 Project 생성",
+			req: &dto.CreateProjectRequest{
+				WorkspaceID: workspaceID,
+				Name:        "Test Project",
+				Description: "Test Description",
+			},
+			mockProject: func(m *MockProjectRepository) {
+				m.CreateFunc = func(ctx context.Context, project *domain.Project) error {
+					project.ID = uuid.New()
+					project.CreatedAt = time.Now()
+					project.UpdatedAt = time.Now()
+					return nil
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "성공: Default Project 생성",
+			req: &dto.CreateProjectRequest{
+				WorkspaceID: workspaceID,
+				Name:        "Default Project",
+				Description: "Default Description",
+			},
+			mockProject: func(m *MockProjectRepository) {
+				m.CreateFunc = func(ctx context.Context, project *domain.Project) error {
+					project.ID = uuid.New()
+					project.CreatedAt = time.Now()
+					project.UpdatedAt = time.Now()
+					return nil
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "실패: Workspace 멤버십 검증 실패",
+			req: &dto.CreateProjectRequest{
+				WorkspaceID: workspaceID,
+				Name:        "Test Project",
+				Description: "Test Description",
+			},
+			mockProject: func(m *MockProjectRepository) {},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return false, nil
+				}
+			},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeForbidden,
+		},
+		{
+			name: "실패: User API 호출 에러",
+			req: &dto.CreateProjectRequest{
+				WorkspaceID: workspaceID,
+				Name:        "Test Project",
+				Description: "Test Description",
+			},
+			mockProject: func(m *MockProjectRepository) {},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return false, errors.New("user API error")
+				}
+			},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeForbidden,
+		},
+		{
+			name: "실패: Project 생성 중 DB 에러",
+			req: &dto.CreateProjectRequest{
+				WorkspaceID: workspaceID,
+				Name:        "Test Project",
+				Description: "Test Description",
+			},
+			mockProject: func(m *MockProjectRepository) {
+				m.CreateFunc = func(ctx context.Context, project *domain.Project) error {
+					return errors.New("database error")
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+			},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeInternal,
+		},
 	}
 
-	// Mock: Workspace validation fails
-	suite.workspaceCache.On("GetMembership", mock.Anything, workspaceID.String(), userID).
-		Return(true, false, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockProjectRepo := &MockProjectRepository{}
+			mockUserClient := &MockUserClient{}
+			tt.mockProject(mockProjectRepo)
+			tt.mockUser(mockUserClient)
 
-	// When
-	result, err := suite.service.CreateProject(userID, token, req)
+			service := NewProjectService(mockProjectRepo, mockUserClient)
 
-	// Then
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "워크스페이스 멤버가 아닙니다")
+			// When
+			got, err := service.CreateProject(context.Background(), tt.req, userID, token)
 
-	suite.workspaceCache.AssertExpectations(t)
+			// Then
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("CreateProject() error = nil, wantErr %v", tt.wantErr)
+					return
+				}
+				if appErr, ok := err.(*response.AppError); ok {
+					if appErr.Code != tt.wantErrCode {
+						t.Errorf("CreateProject() error code = %v, want %v", appErr.Code, tt.wantErrCode)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("CreateProject() unexpected error = %v", err)
+					return
+				}
+				if got == nil {
+					t.Error("CreateProject() returned nil response")
+					return
+				}
+				if got.Name != tt.req.Name {
+					t.Errorf("CreateProject() Name = %v, want %v", got.Name, tt.req.Name)
+				}
+			}
+		})
+	}
 }
 
-func TestProjectService_CreateProject_InvalidUUID(t *testing.T) {
-	suite := setupProjectServiceTest(t)
+func TestProjectService_GetProjectsByWorkspace(t *testing.T) {
+	workspaceID := uuid.New()
+	userID := uuid.New()
+	ownerID := uuid.New()
+	token := "test-jwt-token"
 
-	// Given
-	req := &dto.CreateProjectRequest{
-		WorkspaceID: "invalid-uuid",
-		Name:        "Test Project",
+	tests := []struct {
+		name        string
+		workspaceID uuid.UUID
+		mockProject func(*MockProjectRepository)
+		mockUser    func(*MockUserClient)
+		wantErr     bool
+		wantErrCode string
+		wantCount   int
+	}{
+		{
+			name:        "성공: Project 목록 조회 with 프로필 정보",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByWorkspaceIDFunc = func(ctx context.Context, wID uuid.UUID) ([]*domain.Project, error) {
+					return []*domain.Project{
+						{
+							BaseModel:   domain.BaseModel{ID: uuid.New(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
+							WorkspaceID: workspaceID,
+							OwnerID:     ownerID,
+							Name:        "Project 1",
+							IsPublic:    true,
+						},
+						{
+							BaseModel:   domain.BaseModel{ID: uuid.New(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
+							WorkspaceID: workspaceID,
+							OwnerID:     ownerID,
+							Name:        "Project 2",
+							IsPublic:    false,
+						},
+					}, nil
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+				m.GetWorkspaceProfileFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (*client.WorkspaceProfile, error) {
+					return &client.WorkspaceProfile{
+						WorkspaceID: wID,
+						UserID:      uID,
+						NickName:    "Test Owner",
+						Email:       "owner@example.com",
+					}, nil
+				}
+			},
+			wantErr:   false,
+			wantCount: 2,
+		},
+		{
+			name:        "성공: 빈 Project 목록",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByWorkspaceIDFunc = func(ctx context.Context, wID uuid.UUID) ([]*domain.Project, error) {
+					return []*domain.Project{}, nil
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+			},
+			wantErr:   false,
+			wantCount: 0,
+		},
+		{
+			name:        "성공: 프로필 조회 실패 시 graceful degradation",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByWorkspaceIDFunc = func(ctx context.Context, wID uuid.UUID) ([]*domain.Project, error) {
+					return []*domain.Project{
+						{
+							BaseModel:   domain.BaseModel{ID: uuid.New(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
+							WorkspaceID: workspaceID,
+							OwnerID:     ownerID,
+							Name:        "Project 1",
+							IsPublic:    true,
+						},
+					}, nil
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+				m.GetWorkspaceProfileFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (*client.WorkspaceProfile, error) {
+					return nil, errors.New("profile API error")
+				}
+			},
+			wantErr:   false,
+			wantCount: 1,
+		},
+		{
+			name:        "실패: Workspace 멤버십 검증 실패",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return false, nil
+				}
+			},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeForbidden,
+		},
+		{
+			name:        "실패: DB 에러",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByWorkspaceIDFunc = func(ctx context.Context, wID uuid.UUID) ([]*domain.Project, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+			},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeInternal,
+		},
 	}
 
-	// When
-	result, err := suite.service.CreateProject("user-id", "token", req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockProjectRepo := &MockProjectRepository{}
+			mockUserClient := &MockUserClient{}
+			tt.mockProject(mockProjectRepo)
+			tt.mockUser(mockUserClient)
 
-	// Then
-	assert.Error(t, err)
-	assert.Nil(t, result)
+			service := NewProjectService(mockProjectRepo, mockUserClient)
+
+			// When
+			got, err := service.GetProjectsByWorkspace(context.Background(), tt.workspaceID, userID, token)
+
+			// Then
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("GetProjectsByWorkspace() error = nil, wantErr %v", tt.wantErr)
+					return
+				}
+				if appErr, ok := err.(*response.AppError); ok {
+					if appErr.Code != tt.wantErrCode {
+						t.Errorf("GetProjectsByWorkspace() error code = %v, want %v", appErr.Code, tt.wantErrCode)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetProjectsByWorkspace() unexpected error = %v", err)
+					return
+				}
+				if got == nil {
+					t.Error("GetProjectsByWorkspace() returned nil response")
+					return
+				}
+				if len(got) != tt.wantCount {
+					t.Errorf("GetProjectsByWorkspace() count = %v, want %v", len(got), tt.wantCount)
+				}
+			}
+		})
+	}
 }
 
-// ==================== GetProject Tests ====================
-
-func TestProjectService_GetProject_Success(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
+func TestProjectService_GetDefaultProject(t *testing.T) {
+	workspaceID := uuid.New()
 	projectID := uuid.New()
 	userID := uuid.New()
 	ownerID := uuid.New()
-
-	project := &domain.Project{
-		BaseModel:   domain.BaseModel{ID: projectID},
-		WorkspaceID: uuid.New(),
-		Name:        "Test Project",
-		Description: "Description",
-		OwnerID:     ownerID,
-		IsPublic:    true,
-	}
-
-	ownerRole := &domain.Role{
-		BaseModel: domain.BaseModel{ID: uuid.New()},
-		Name:      "OWNER",
-		Level:     100,
-	}
-
-	member := &domain.ProjectMember{
-		BaseModel: domain.BaseModel{
-			ID:       uuid.New(),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-		ProjectID: projectID,
-		UserID:    userID,
-		Role:      ownerRole,
-		JoinedAt:  time.Now(),
-	}
-
-	ownerInfo := &client.UserInfo{
-		UserID:   ownerID.String(),
-		Name:     "Owner User",
-		Email:    "owner@example.com",
-		IsActive: true,
-	}
-
-	// Mocks
-	suite.projectRepo.On("FindByID", projectID).
-		Return(project, nil)
-
-	suite.projectRepo.On("FindMemberByUserAndProject", userID, projectID).
-		Return(member, nil)
-
-	userMap := map[string]client.UserInfo{
-		ownerID.String(): *ownerInfo,
-	}
-	suite.userClient.On("GetUsersBatch", mock.Anything, []string{ownerID.String()}).
-		Return(userMap, nil).Maybe()
-
-	suite.userInfoCache.On("GetUserInfo", mock.Anything, ownerID.String()).
-		Return(false, nil, nil).Maybe()
-	suite.userClient.On("GetUser", mock.Anything, ownerID.String()).
-		Return(ownerInfo, nil).Maybe()
-	suite.userInfoCache.On("SetUserInfo", mock.Anything, mock.AnythingOfType("*cache.UserInfo")).
-		Return(nil).Maybe()
-
-	// When
-	result, err := suite.service.GetProject(projectID.String(), userID.String())
-
-	// Then
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, projectID.String(), result.ID)
-	assert.Equal(t, project.Name, result.Name)
-	assert.Equal(t, ownerInfo.Name, result.OwnerName)
-
-	suite.projectRepo.AssertExpectations(t)
-	suite.userClient.AssertExpectations(t)
-}
-
-func TestProjectService_GetProject_NotFound(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
-	projectID := uuid.New()
-	userID := uuid.New()
-
-	// Mock: Project not found
-	suite.projectRepo.On("FindByID", projectID).
-		Return(nil, gorm.ErrRecordNotFound)
-
-	// When
-	result, err := suite.service.GetProject(projectID.String(), userID.String())
-
-	// Then
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "프로젝트를 찾을 수 없습니다")
-
-	suite.projectRepo.AssertExpectations(t)
-}
-
-func TestProjectService_GetProject_NoPermission(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
-	projectID := uuid.New()
-	userID := uuid.New()
-
-	project := &domain.Project{
-		BaseModel:   domain.BaseModel{ID: projectID},
-		WorkspaceID: uuid.New(),
-		Name:        "Private Project",
-		OwnerID:     uuid.New(),
-		IsPublic:    false, // Private project
-	}
-
-	// Mocks
-	suite.projectRepo.On("FindByID", projectID).
-		Return(project, nil)
-
-	// User is not a member
-	suite.projectRepo.On("FindMemberByUserAndProject", userID, projectID).
-		Return(nil, gorm.ErrRecordNotFound)
-
-	// When
-	result, err := suite.service.GetProject(projectID.String(), userID.String())
-
-	// Then
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "프로젝트 접근 권한이 없습니다")
-
-	suite.projectRepo.AssertExpectations(t)
-}
-
-// ==================== UpdateProject Tests ====================
-
-func TestProjectService_UpdateProject_Success(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
-	projectID := uuid.New()
-	userID := uuid.New()
-
-	project := &domain.Project{
-		BaseModel:   domain.BaseModel{ID: projectID},
-		WorkspaceID: uuid.New(),
-		Name:        "Old Name",
-		Description: "Old Description",
-		OwnerID:     userID, // User is owner
-		IsPublic:    false,
-	}
-
-	req := &dto.UpdateProjectRequest{
-		Name:        "New Name",
-		Description: "New Description",
-	}
-
-	// Mocks
-	suite.projectRepo.On("FindByID", projectID).
-		Return(project, nil)
-
-	suite.projectRepo.On("Update", mock.AnythingOfType("*domain.Project")).
-		Return(nil)
-
-	ownerInfo := &client.UserInfo{
-		UserID:   userID.String(),
-		Name:     "Owner",
-		Email:    "owner@example.com",
-		IsActive: true,
-	}
-
-	userMap := map[string]client.UserInfo{
-		userID.String(): *ownerInfo,
-	}
-	suite.userClient.On("GetUsersBatch", mock.Anything, []string{userID.String()}).
-		Return(userMap, nil)
-
-	// When
-	result, err := suite.service.UpdateProject(projectID.String(), userID.String(), req)
-
-	// Then
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	// Domain 메서드 사용으로 변경됨
-	// assert.Equal(t, "New Name", result.Name)
-
-	suite.projectRepo.AssertExpectations(t)
-}
-
-func TestProjectService_UpdateProject_NotOwner(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
-	projectID := uuid.New()
-	userID := uuid.New()
-	ownerID := uuid.New() // Different from userID
-
-	project := &domain.Project{
-		BaseModel: domain.BaseModel{ID: projectID},
-		OwnerID:   ownerID, // Not the requesting user
-	}
-
-	req := &dto.UpdateProjectRequest{
-		Name: "New Name",
-	}
-
-	// Mocks
-	suite.projectRepo.On("FindByID", projectID).
-		Return(project, nil)
-
-	// When
-	result, err := suite.service.UpdateProject(projectID.String(), userID.String(), req)
-
-	// Then
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "프로젝트 소유자만 수정할 수 있습니다")
-
-	suite.projectRepo.AssertExpectations(t)
-}
-
-// ==================== DeleteProject Tests ====================
-
-func TestProjectService_DeleteProject_Success(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
-	projectID := uuid.New()
-	userID := uuid.New()
-
-	project := &domain.Project{
-		BaseModel: domain.BaseModel{ID: projectID},
-		OwnerID:   userID, // User is owner
-	}
-
-	// Mocks
-	suite.projectRepo.On("FindByID", projectID).
-		Return(project, nil)
-
-	suite.projectRepo.On("Update", mock.AnythingOfType("*domain.Project")).
-		Run(func(args mock.Arguments) {
-			p := args.Get(0).(*domain.Project)
-			assert.True(t, p.IsDeleted, "Project should be marked as deleted")
-		}).
-		Return(nil)
-
-	// When
-	err := suite.service.DeleteProject(projectID.String(), userID.String())
-
-	// Then
-	assert.NoError(t, err)
-	suite.projectRepo.AssertExpectations(t)
-}
-
-func TestProjectService_DeleteProject_NotOwner(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
-	projectID := uuid.New()
-	userID := uuid.New()
-	ownerID := uuid.New() // Different
-
-	project := &domain.Project{
-		BaseModel: domain.BaseModel{ID: projectID},
-		OwnerID:   ownerID,
-	}
-
-	// Mocks
-	suite.projectRepo.On("FindByID", projectID).
-		Return(project, nil)
-
-	// When
-	err := suite.service.DeleteProject(projectID.String(), userID.String())
-
-	// Then
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "프로젝트 소유자만 삭제할 수 있습니다")
-
-	suite.projectRepo.AssertExpectations(t)
-}
-
-// ==================== GetProjectMembers Tests ====================
-
-func TestProjectService_GetProjectMembers_Success(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Given
-	projectID := uuid.New()
-	userID := uuid.New()
-	memberID1 := uuid.New()
-	memberID2 := uuid.New()
-
-	project := &domain.Project{
-		BaseModel: domain.BaseModel{ID: projectID},
-		OwnerID:   userID,
-	}
-
-	ownerRole := &domain.Role{Name: "OWNER", Level: 100}
-	memberRole := &domain.Role{Name: "MEMBER", Level: 10}
-
-	members := []domain.ProjectMember{
+	token := "test-jwt-token"
+
+	tests := []struct {
+		name        string
+		workspaceID uuid.UUID
+		mockProject func(*MockProjectRepository)
+		mockUser    func(*MockUserClient)
+		wantErr     bool
+		wantErrCode string
+	}{
 		{
-			BaseModel: domain.BaseModel{ID: uuid.New()},
-			ProjectID: projectID,
-			UserID:    userID,
-			Role:      ownerRole,
+			name:        "성공: Default Project 조회 with 프로필 정보",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindDefaultByWorkspaceIDFunc = func(ctx context.Context, wID uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{
+						BaseModel:   domain.BaseModel{ID: projectID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+						WorkspaceID: workspaceID,
+						OwnerID:     ownerID,
+						Name:        "Default Project",
+						IsPublic:    true,
+					}, nil
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+				m.GetWorkspaceProfileFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (*client.WorkspaceProfile, error) {
+					return &client.WorkspaceProfile{
+						WorkspaceID: wID,
+						UserID:      uID,
+						NickName:    "Default Owner",
+						Email:       "default@example.com",
+					}, nil
+				}
+			},
+			wantErr: false,
 		},
 		{
-			BaseModel: domain.BaseModel{ID: uuid.New()},
-			ProjectID: projectID,
-			UserID:    memberID1,
-			Role:      memberRole,
+			name:        "성공: 프로필 조회 실패 시 graceful degradation",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindDefaultByWorkspaceIDFunc = func(ctx context.Context, wID uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{
+						BaseModel:   domain.BaseModel{ID: projectID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+						WorkspaceID: workspaceID,
+						OwnerID:     ownerID,
+						Name:        "Default Project",
+						IsPublic:    true,
+					}, nil
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+				m.GetWorkspaceProfileFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (*client.WorkspaceProfile, error) {
+					return nil, errors.New("profile API error")
+				}
+			},
+			wantErr: false,
 		},
 		{
-			BaseModel: domain.BaseModel{ID: uuid.New()},
-			ProjectID: projectID,
-			UserID:    memberID2,
-			Role:      memberRole,
+			name:        "실패: Workspace 멤버십 검증 실패",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return false, nil
+				}
+			},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeForbidden,
+		},
+		{
+			name:        "실패: Default Project가 존재하지 않음",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindDefaultByWorkspaceIDFunc = func(ctx context.Context, wID uuid.UUID) (*domain.Project, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+			},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeNotFound,
+		},
+		{
+			name:        "실패: DB 에러",
+			workspaceID: workspaceID,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindDefaultByWorkspaceIDFunc = func(ctx context.Context, wID uuid.UUID) (*domain.Project, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.ValidateWorkspaceMemberFunc = func(ctx context.Context, wID, uID uuid.UUID, t string) (bool, error) {
+					return true, nil
+				}
+			},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeInternal,
 		},
 	}
 
-	// Mocks
-	suite.projectRepo.On("FindByID", projectID).
-		Return(project, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockProjectRepo := &MockProjectRepository{}
+			mockUserClient := &MockUserClient{}
+			tt.mockProject(mockProjectRepo)
+			tt.mockUser(mockUserClient)
 
-	suite.projectRepo.On("FindMemberByUserAndProject", userID, projectID).
-		Return(&members[0], nil)
+			service := NewProjectService(mockProjectRepo, mockUserClient)
 
-	suite.projectRepo.On("FindMembers", projectID).
-		Return(members, nil)
+			// When
+			got, err := service.GetDefaultProject(context.Background(), tt.workspaceID, userID, token)
 
-	userMap := map[string]client.UserInfo{
-		userID.String():    {UserID: userID.String(), Name: "Owner", Email: "owner@test.com"},
-		memberID1.String(): {UserID: memberID1.String(), Name: "Member1", Email: "m1@test.com"},
-		memberID2.String(): {UserID: memberID2.String(), Name: "Member2", Email: "m2@test.com"},
+			// Then
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("GetDefaultProject() error = nil, wantErr %v", tt.wantErr)
+					return
+				}
+				if appErr, ok := err.(*response.AppError); ok {
+					if appErr.Code != tt.wantErrCode {
+						t.Errorf("GetDefaultProject() error code = %v, want %v", appErr.Code, tt.wantErrCode)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetDefaultProject() unexpected error = %v", err)
+					return
+				}
+				if got == nil {
+					t.Error("GetDefaultProject() returned nil response")
+					return
+				}
+			}
+		})
 	}
-	suite.userClient.On("GetUsersBatch", mock.Anything, mock.Anything).
-		Return(userMap, nil)
-
-	// When
-	result, err := suite.service.GetProjectMembers(projectID.String(), userID.String())
-
-	// Then
-	assert.NoError(t, err)
-	assert.Len(t, result, 3)
-	assert.Equal(t, "OWNER", result[0].RoleName)
-
-	suite.projectRepo.AssertExpectations(t)
-}
-
-// ==================== Helper Functions Test ====================
-
-func TestProjectService_InvalidUUID(t *testing.T) {
-	suite := setupProjectServiceTest(t)
-
-	// Invalid project ID
-	_, err := suite.service.GetProject("invalid-uuid", uuid.New().String())
-	assert.Error(t, err)
-
-	// Invalid user ID
-	_, err = suite.service.GetProject(uuid.New().String(), "invalid-uuid")
-	assert.Error(t, err)
 }
