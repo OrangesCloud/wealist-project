@@ -57,110 +57,124 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # ============================================
-      # 3. 배포 스크립트 생성
+      # 3. ECR 로그인
+      # ============================================
+      - name: 🔑 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ============================================
+      # 4. 배포 스크립트 준비 (SSM으로 실행)
       # ============================================
       - name: 📝 Prepare Deployment Script
         id: script
         run: |
-          cat << 'DEPLOY_SCRIPT' > /tmp/deploy-board.sh
+          # AWS Account ID 자동 감지
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "aws-account-id=${AWS_ACCOUNT_ID}" >> $GITHUB_OUTPUT
+
+          cat > /tmp/deploy-board.sh << 'DEPLOY_SCRIPT'
           #!/bin/bash
-          set -euo pipefail
+          set -e
 
-          echo "🚀 Starting Board Service Deployment..."
+          echo "=========================================="
+          echo "🚀 Board Service Deployment Started"
+          echo "=========================================="
 
-          # 환경변수 설정
-          PARAMETER_PREFIX="${{ env.PARAMETER_PREFIX }}"
-          AWS_REGION="${{ env.AWS_REGION }}"
-          COMPOSE_FILE="${{ env.COMPOSE_FILE }}"
+          # ============================================
+          # 프로젝트 경로 설정 및 확인
+          # ============================================
+          PROJECT_DIR="/home/ubuntu/wealist"
+          COMPOSE_FILE="${PROJECT_DIR}/docker/compose/docker-compose.ec2-dev.yml"
 
-          # =============================================================================
+          # 프로젝트 디렉토리가 없으면 클론
+          if [ ! -d "$PROJECT_DIR" ]; then
+            echo "📦 Cloning project repository..."
+            cd /home/ubuntu
+            git clone https://github.com/OrangesCloud/wealist-project.git wealist
+            cd wealist
+          else
+            echo "✅ Project directory exists"
+            cd "$PROJECT_DIR"
+            git pull origin deploy-dev
+          fi
+
+          # docker-compose 파일 확인
+          if [ ! -f "$COMPOSE_FILE" ]; then
+            echo "❌ docker-compose.ec2-dev.yml not found!"
+            exit 1
+          fi
+
+          # ============================================
+          # AWS Account ID 자동 감지
+          # ============================================
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          export AWS_ACCOUNT_ID
+
+          # ============================================
           # Parameter Store에서 환경변수 로드
-          # =============================================================================
-          echo "📥 Loading environment variables from Parameter Store..."
+          # ============================================
+          echo "🔐 Loading parameters from AWS Parameter Store..."
 
-          load_param() {
-            aws ssm get-parameter \
-              --name "${PARAMETER_PREFIX}/$1" \
-              --query 'Parameter.Value' \
-              --output text \
-              --region ${AWS_REGION} 2>/dev/null || echo ""
-          }
+          # 수정된 경로로 파라미터 로드
+          export BOARD_DB_NAME=$(aws ssm get-parameter --name "/wealist/dev/db/board-name" --query "Parameter.Value" --output text --region ap-northeast-2)
+          export BOARD_DB_USER=$(aws ssm get-parameter --name "/wealist/dev/db/board-username" --query "Parameter.Value" --output text --region ap-northeast-2)
+          export BOARD_DB_PASSWORD=$(aws ssm get-parameter --name "/wealist/dev/db/board-password" --with-decryption --query "Parameter.Value" --output text --region ap-northeast-2)
 
-          load_secret() {
-            aws ssm get-parameter \
-              --name "${PARAMETER_PREFIX}/$1" \
-              --with-decryption \
-              --query 'Parameter.Value' \
-              --output text \
-              --region ${AWS_REGION} 2>/dev/null || echo ""
-          }
+          export USER_DB_NAME=$(aws ssm get-parameter --name "/wealist/dev/db/user-name" --query "Parameter.Value" --output text --region ap-northeast-2)
+          export USER_DB_USER=$(aws ssm get-parameter --name "/wealist/dev/db/user-username" --query "Parameter.Value" --output text --region ap-northeast-2)
+          export USER_DB_PASSWORD=$(aws ssm get-parameter --name "/wealist/dev/db/user-password" --with-decryption --query "Parameter.Value" --output text --region ap-northeast-2)
 
-          export AWS_ACCOUNT_ID=$(load_param "aws-account-id")
-          export AWS_REGION="${AWS_REGION}"
-          export VERSION="latest"
+          export POSTGRES_SUPERUSER=$(aws ssm get-parameter --name "/wealist/dev/postgres/superuser" --query "Parameter.Value" --output text --region ap-northeast-2)
+          export POSTGRES_SUPERUSER_PASSWORD=$(aws ssm get-parameter --name "/wealist/dev/postgres/superuser-password" --with-decryption --query "Parameter.Value" --output text --region ap-northeast-2)
 
-          # PostgreSQL
-          export POSTGRES_SUPERUSER=$(load_param "postgres-superuser")
-          export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "postgres-superuser-password")
+          export REDIS_PASSWORD=$(aws ssm get-parameter --name "/wealist/dev/redis/password" --with-decryption --query "Parameter.Value" --output text --region ap-northeast-2)
+          export JWT_SECRET=$(aws ssm get-parameter --name "/wealist/dev/jwt/secret" --with-decryption --query "Parameter.Value" --output text --region ap-northeast-2)
 
-          # User DB
-          export USER_DB_NAME=$(load_param "user-db-name")
-          export USER_DB_USER=$(load_param "user-db-user")
-          export USER_DB_PASSWORD=$(load_secret "user-db-password")
+          export GOOGLE_CLIENT_ID=$(aws ssm get-parameter --name "/wealist/dev/oauth/google-client-id" --query "Parameter.Value" --output text --region ap-northeast-2)
+          export GOOGLE_CLIENT_SECRET=$(aws ssm get-parameter --name "/wealist/dev/oauth/google-client-secret" --with-decryption --query "Parameter.Value" --output text --region ap-northeast-2)
 
-          # Board DB
-          export BOARD_DB_NAME=$(load_param "board-db-name")
-          export BOARD_DB_USER=$(load_param "board-db-user")
-          export BOARD_DB_PASSWORD=$(load_secret "board-db-password")
+          export GRAFANA_ADMIN_USER=$(aws ssm get-parameter --name "/wealist/dev/grafana/admin-user" --query "Parameter.Value" --output text --region ap-northeast-2)
+          export GRAFANA_ADMIN_PASSWORD=$(aws ssm get-parameter --name "/wealist/dev/grafana/admin-password" --with-decryption --query "Parameter.Value" --output text --region ap-northeast-2)
 
-          # Redis
-          export REDIS_PASSWORD=$(load_secret "redis-password")
+          echo "✅ Parameters loaded successfully"
 
-          # JWT
-          export JWT_SECRET=$(load_secret "jwt-secret")
-          export JWT_ACCESS_TOKEN_EXPIRATION_MS="1800000"
-          export JWT_REFRESH_TOKEN_EXPIRATION_MS="604800000"
-
-          # OAuth
-          export GOOGLE_CLIENT_ID=$(load_param "google-client-id")
-          export GOOGLE_CLIENT_SECRET=$(load_secret "google-client-secret")
-
-          # Grafana
-          export GRAFANA_ADMIN_USER=$(load_param "grafana-admin-user")
-          export GRAFANA_ADMIN_PASSWORD=$(load_secret "grafana-admin-password")
-
-          echo "✅ Environment variables loaded"
-
-          # =============================================================================
+          # ============================================
           # ECR 로그인
-          # =============================================================================
-          echo "🔑 Logging into Amazon ECR..."
-          aws ecr get-login-password --region ${AWS_REGION} | \
-            docker login --username AWS --password-stdin \
-            ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+          # ============================================
+          echo "🔑 Logging in to Amazon ECR..."
+          aws ecr get-login-password --region ap-northeast-2 | \
+            docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-2.amazonaws.com
 
-          # =============================================================================
-          # 최신 이미지 Pull
-          # =============================================================================
-          echo "📥 Pulling latest board-service image..."
-          docker pull ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/wealist-dev-board-service:latest
+          # ============================================
+          # Docker 이미지 Pull
+          # ============================================
+          echo "📥 Pulling latest Docker images..."
+          docker pull ${AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-2.amazonaws.com/wealist-dev-board-service:latest
 
-          # =============================================================================
-          # Board Service 재시작
-          # =============================================================================
-          echo "🔄 Restarting board-service..."
-          docker compose -f ${COMPOSE_FILE} up -d --no-deps --force-recreate board-service
+          # ============================================
+          # 기존 컨테이너 중지 및 제거
+          # ============================================
+          echo "🛑 Stopping existing containers..."
+          docker compose -f ${COMPOSE_FILE} stop board-service || true
+          docker compose -f ${COMPOSE_FILE} rm -f board-service || true
 
-          # =============================================================================
+          # ============================================
+          # 새 컨테이너 시작
+          # ============================================
+          echo "▶️  Starting new containers..."
+          docker compose -f ${COMPOSE_FILE} up -d board-service
+
+          # ============================================
           # Health Check
-          # =============================================================================
+          # ============================================
           echo "🏥 Performing health check..."
-          sleep 10
+          sleep 10  # 초기 시작 대기
 
           MAX_RETRIES=12
           for i in $(seq 1 $MAX_RETRIES); do
-            if curl -f -s http://localhost:8000/health > /dev/null 2>&1; then
-              echo "✅ Board Service is healthy!"
+            if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+              echo "✅ Board service is healthy!"
               docker image prune -f
               echo "✅ Deployment completed successfully!"
               exit 0
@@ -178,58 +192,125 @@ jobs:
           echo "✅ Deployment script prepared"
 
       # ============================================
-      # 4. SSM Run Command로 스크립트 전송 & 실행
+      # 5. SSM Run Command로 배포 실행
       # ============================================
       - name: 🚀 Deploy via SSM Run Command
         id: deploy
         run: |
-          # 스크립트를 Base64로 인코딩
-          SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-board.sh)
-
-          # 배포 사유 확인
-          DEPLOY_REASON="${{ github.event.inputs.reason || 'Auto deploy' }}"
-
-          # SSM Run Command 실행
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy Board Service - ${{ github.sha }} - ${DEPLOY_REASON}" \
-            --parameters commands="[
-              \"echo '${SCRIPT_BASE64}' | base64 -d > /tmp/deploy.sh\",
-              \"chmod +x /tmp/deploy.sh\",
-              \"/tmp/deploy.sh\",
-              \"rm -f /tmp/deploy.sh\"
-            ]" \
+            --parameters file:///dev/stdin \
+            --region ${{ env.AWS_REGION }} \
             --output text \
-            --query "Command.CommandId")
+            --query "Command.CommandId" << 'PARAMS'
+          {
+            "commands": [
+              "#!/bin/bash",
+              "set -e",
+              "echo '=========================================='",
+              "echo '🚀 Board Service Deployment Started'",
+              "echo '=========================================='",
+              "",
+              "# 프로젝트 경로 설정",
+              "PROJECT_DIR=\"/home/ubuntu/wealist\"",
+              "COMPOSE_FILE=\"${PROJECT_DIR}/docker/compose/docker-compose.ec2-dev.yml\"",
+              "",
+              "# 프로젝트 디렉토리 확인 및 클론",
+              "if [ ! -d \"$PROJECT_DIR\" ]; then",
+              "  echo '📦 Cloning project repository...'",
+              "  cd /home/ubuntu",
+              "  git clone https://github.com/OrangesCloud/wealist-project.git wealist",
+              "  cd wealist",
+              "else",
+              "  echo '✅ Project directory exists'",
+              "  cd \"$PROJECT_DIR\"",
+              "  git pull origin deploy-dev",
+              "fi",
+              "",
+              "# AWS Account ID 자동 감지",
+              "AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)",
+              "export AWS_ACCOUNT_ID",
+              "",
+              "# Parameter Store에서 환경변수 로드",
+              "echo '🔐 Loading parameters from AWS Parameter Store...'",
+              "export BOARD_DB_NAME=$(aws ssm get-parameter --name \"/wealist/dev/db/board-name\" --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export BOARD_DB_USER=$(aws ssm get-parameter --name \"/wealist/dev/db/board-username\" --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export BOARD_DB_PASSWORD=$(aws ssm get-parameter --name \"/wealist/dev/db/board-password\" --with-decryption --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export USER_DB_NAME=$(aws ssm get-parameter --name \"/wealist/dev/db/user-name\" --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export USER_DB_USER=$(aws ssm get-parameter --name \"/wealist/dev/db/user-username\" --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export USER_DB_PASSWORD=$(aws ssm get-parameter --name \"/wealist/dev/db/user-password\" --with-decryption --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export POSTGRES_SUPERUSER=$(aws ssm get-parameter --name \"/wealist/dev/postgres/superuser\" --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export POSTGRES_SUPERUSER_PASSWORD=$(aws ssm get-parameter --name \"/wealist/dev/postgres/superuser-password\" --with-decryption --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export REDIS_PASSWORD=$(aws ssm get-parameter --name \"/wealist/dev/redis/password\" --with-decryption --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export JWT_SECRET=$(aws ssm get-parameter --name \"/wealist/dev/jwt/secret\" --with-decryption --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export GOOGLE_CLIENT_ID=$(aws ssm get-parameter --name \"/wealist/dev/oauth/google-client-id\" --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export GOOGLE_CLIENT_SECRET=$(aws ssm get-parameter --name \"/wealist/dev/oauth/google-client-secret\" --with-decryption --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export GRAFANA_ADMIN_USER=$(aws ssm get-parameter --name \"/wealist/dev/grafana/admin-user\" --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "export GRAFANA_ADMIN_PASSWORD=$(aws ssm get-parameter --name \"/wealist/dev/grafana/admin-password\" --with-decryption --query \"Parameter.Value\" --output text --region ap-northeast-2)",
+              "echo '✅ Parameters loaded successfully'",
+              "",
+              "# ECR 로그인",
+              "echo '🔑 Logging in to Amazon ECR...'",
+              "aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-2.amazonaws.com",
+              "",
+              "# Docker 이미지 Pull",
+              "echo '📥 Pulling latest Docker images...'",
+              "docker pull ${AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-2.amazonaws.com/wealist-dev-board-service:latest",
+              "",
+              "# 기존 컨테이너 중지",
+              "echo '🛑 Stopping existing containers...'",
+              "docker compose -f ${COMPOSE_FILE} stop board-service || true",
+              "docker compose -f ${COMPOSE_FILE} rm -f board-service || true",
+              "",
+              "# 새 컨테이너 시작",
+              "echo '▶️  Starting new containers...'",
+              "docker compose -f ${COMPOSE_FILE} up -d board-service",
+              "",
+              "# Health Check",
+              "echo '🏥 Performing health check...'",
+              "sleep 10",
+              "MAX_RETRIES=12",
+              "for i in $(seq 1 $MAX_RETRIES); do",
+              "  if curl -f http://localhost:8000/health > /dev/null 2>&1; then",
+              "    echo '✅ Board service is healthy!'",
+              "    docker image prune -f",
+              "    echo '✅ Deployment completed successfully!'",
+              "    exit 0",
+              "  fi",
+              "  echo \"⏳ Waiting for service... ($i/$MAX_RETRIES)\"",
+              "  sleep 5",
+              "done",
+              "echo '❌ Health check failed!'",
+              "docker compose -f ${COMPOSE_FILE} logs --tail=50 board-service",
+              "exit 1"
+            ]
+          }
+          PARAMS
+          )
 
           echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
-          echo "📝 Command ID: ${COMMAND_ID}"
+          echo "✅ SSM Command ID: ${COMMAND_ID}"
 
-      # ============================================
-      # 5. 배포 결과 대기
-      # ============================================
-      - name: ⏳ Wait for Deployment
-        run: |
-          COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
-          INSTANCE_ID="${{ secrets.EC2_INSTANCE_ID }}"
-
-          echo "⏳ Waiting for deployment..."
+          # 명령 완료 대기
+          echo "⏳ Waiting for deployment to complete..."
           aws ssm wait command-executed \
             --command-id "${COMMAND_ID}" \
-            --instance-id "${INSTANCE_ID}"
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+            --region ${{ env.AWS_REGION }}
 
+          # 실행 결과 확인
           STATUS=$(aws ssm get-command-invocation \
             --command-id "${COMMAND_ID}" \
-            --instance-id "${INSTANCE_ID}" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
             --query "Status" \
             --output text)
 
           if [ "$STATUS" != "Success" ]; then
-            echo "❌ Deployment failed!"
+            echo "❌ Deployment failed with status: $STATUS"
             aws ssm get-command-invocation \
               --command-id "${COMMAND_ID}" \
-              --instance-id "${INSTANCE_ID}" \
+              --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
               --query "StandardErrorContent" \
               --output text
             exit 1
