@@ -181,10 +181,14 @@ jobs:
           echo "Docker Compose file prepared"
 
       - name: 📝 Create Deployment Script (Parameter Store)
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}
         run: |
           cat > /tmp/deploy.sh << 'DEPLOY_SCRIPT'
           #!/bin/bash
           set -e
+
+          AWS_REGION="ap-northeast-2"
 
           echo "=========================================="
           echo "🚀 Starting Initial Deployment"
@@ -194,11 +198,10 @@ jobs:
           mkdir -p ~/wealist-deploy
           cd ~/wealist-deploy
 
+          # ============================================
           # Parameter Store에서 환경변수 가져오기
-          echo "🔐 Fetching secrets from AWS Parameter Store..."
-
-          # AWS Region 설정
-          AWS_REGION="ap-northeast-2"
+          # ============================================
+          echo "📥 Fetching secrets from Parameter Store..."
 
           # Helper function to get parameter
           get_parameter() {
@@ -226,65 +229,74 @@ jobs:
           GRAFANA_ADMIN_USER=$(get_parameter "/wealist/dev/grafana-admin-user")
           GRAFANA_ADMIN_PASSWORD=$(get_parameter "/wealist/dev/grafana-admin-password")
 
-          echo "✅ Successfully fetched secrets from Parameter Store"
+          # Validation: Check critical parameters
+          if [[ -z "$POSTGRES_SUPERUSER_PASSWORD" ]] || [[ -z "$JWT_SECRET" ]]; then
+            echo "❌ Error: Failed to fetch critical parameters from Parameter Store"
+            echo "Please verify:"
+            echo "  1. EC2 Instance Profile is attached"
+            echo "  2. Parameters exist in Parameter Store"
+            echo "  3. IAM permissions are correct"
+            exit 1
+          fi
 
-          # .env 파일 생성
-          cat > .env << ENVFILE
-# Application
+          echo "✅ Successfully fetched all parameters"
+
+          # ============================================
+          # .env 파일 생성 (동적으로)
+          # ============================================
+          cat > .env << 'ENVFILE'
 APP_NAME=wealist-api
 VERSION=latest
-
-# AWS
-AWS_REGION=${AWS_REGION}
-AWS_ACCOUNT_ID=${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}
-
-# PostgreSQL Superuser
-POSTGRES_SUPERUSER=${POSTGRES_SUPERUSER}
-POSTGRES_SUPERUSER_PASSWORD=${POSTGRES_SUPERUSER_PASSWORD}
-
-# User Service DB
-USER_DB_NAME=${USER_DB_NAME}
-USER_DB_USER=${USER_DB_USER}
-USER_DB_PASSWORD=${USER_DB_PASSWORD}
-
-# Board Service DB
-BOARD_DB_NAME=${BOARD_DB_NAME}
-BOARD_DB_USER=${BOARD_DB_USER}
-BOARD_DB_PASSWORD=${BOARD_DB_PASSWORD}
-
-# Redis
-REDIS_PASSWORD=${REDIS_PASSWORD}
-
-# JWT
-JWT_SECRET=${JWT_SECRET}
+AWS_REGION=\${AWS_REGION}
+AWS_ACCOUNT_ID=\${AWS_ACCOUNT_ID}
+POSTGRES_SUPERUSER=\${POSTGRES_SUPERUSER}
+POSTGRES_SUPERUSER_PASSWORD=\${POSTGRES_SUPERUSER_PASSWORD}
+USER_DB_NAME=\${USER_DB_NAME}
+USER_DB_USER=\${USER_DB_USER}
+USER_DB_PASSWORD=\${USER_DB_PASSWORD}
+BOARD_DB_NAME=\${BOARD_DB_NAME}
+BOARD_DB_USER=\${BOARD_DB_USER}
+BOARD_DB_PASSWORD=\${BOARD_DB_PASSWORD}
+REDIS_PASSWORD=\${REDIS_PASSWORD}
+JWT_SECRET=\${JWT_SECRET}
 JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
 JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
-
-# OAuth
-GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-
-# Service Configuration
+GOOGLE_CLIENT_ID=\${GOOGLE_CLIENT_ID}
+GOOGLE_CLIENT_SECRET=\${GOOGLE_CLIENT_SECRET}
 JPA_DDL_AUTO=update
 JPA_SHOW_SQL=true
 JPA_FORMAT_SQL=true
 LOG_LEVEL=debug
-
-# CORS
 CORS_ORIGINS=*
-
-# Monitoring
-GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
-GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+GRAFANA_ADMIN_USER=\${GRAFANA_ADMIN_USER}
+GRAFANA_ADMIN_PASSWORD=\${GRAFANA_ADMIN_PASSWORD}
 ENVFILE
 
-          echo "✅ Environment file created from Parameter Store"
+          # 환경변수 치환
+          sed -i "s/\\\${AWS_REGION}/${AWS_REGION}/g" .env
+          sed -i "s/\\\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" .env
+          sed -i "s/\\\${POSTGRES_SUPERUSER}/${POSTGRES_SUPERUSER}/g" .env
+          sed -i "s/\\\${POSTGRES_SUPERUSER_PASSWORD}/${POSTGRES_SUPERUSER_PASSWORD}/g" .env
+          sed -i "s/\\\${USER_DB_NAME}/${USER_DB_NAME}/g" .env
+          sed -i "s/\\\${USER_DB_USER}/${USER_DB_USER}/g" .env
+          sed -i "s/\\\${USER_DB_PASSWORD}/${USER_DB_PASSWORD}/g" .env
+          sed -i "s/\\\${BOARD_DB_NAME}/${BOARD_DB_NAME}/g" .env
+          sed -i "s/\\\${BOARD_DB_USER}/${BOARD_DB_USER}/g" .env
+          sed -i "s/\\\${BOARD_DB_PASSWORD}/${BOARD_DB_PASSWORD}/g" .env
+          sed -i "s/\\\${REDIS_PASSWORD}/${REDIS_PASSWORD}/g" .env
+          sed -i "s/\\\${JWT_SECRET}/${JWT_SECRET}/g" .env
+          sed -i "s/\\\${GOOGLE_CLIENT_ID}/${GOOGLE_CLIENT_ID}/g" .env
+          sed -i "s/\\\${GOOGLE_CLIENT_SECRET}/${GOOGLE_CLIENT_SECRET}/g" .env
+          sed -i "s/\\\${GRAFANA_ADMIN_USER}/${GRAFANA_ADMIN_USER}/g" .env
+          sed -i "s/\\\${GRAFANA_ADMIN_PASSWORD}/${GRAFANA_ADMIN_PASSWORD}/g" .env
+
+          echo "✅ Environment file created"
 
           # ECR 로그인
           echo "🔑 Logging into Amazon ECR..."
           aws ecr get-login-password --region ${AWS_REGION} | \
             docker login --username AWS --password-stdin \
-            ${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${AWS_REGION}.amazonaws.com
+            ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
           # 최신 이미지 Pull
           echo "📥 Pulling latest images from ECR..."
@@ -323,8 +335,11 @@ ENVFILE
           docker compose ps
           DEPLOY_SCRIPT
 
+          # AWS_ACCOUNT_ID를 스크립트에 주입
+          sed -i "s/\${AWS_ACCOUNT_ID}/$AWS_ACCOUNT_ID/g" /tmp/deploy.sh
+
           chmod +x /tmp/deploy.sh
-          echo "Deployment script created"
+          echo "✅ Deployment script created with Parameter Store integration"
 
       - name: 📤 Upload Files to S3
         run: |
