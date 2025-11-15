@@ -52,7 +52,7 @@ jobs:
           echo "Docker Compose file prepared"
 
       # ============================================
-      # 4. 배포 스크립트 생성
+      # 4. 배포 스크립트 생성 (Parameter Store 연동)
       # ============================================
       - name: 📝 Create Deployment Script
         run: |
@@ -68,52 +68,86 @@ jobs:
           mkdir -p ~/wealist-deploy
           cd ~/wealist-deploy
 
+          # Parameter Store에서 환경변수 가져오기
+          echo "🔐 Fetching secrets from AWS Parameter Store..."
+
+          # AWS Region 설정
+          AWS_REGION="ap-northeast-2"
+
+          # Helper function to get parameter
+          get_parameter() {
+            aws ssm get-parameter \
+              --name "$1" \
+              --with-decryption \
+              --region ${AWS_REGION} \
+              --query 'Parameter.Value' \
+              --output text 2>/dev/null || echo ""
+          }
+
+          # Fetch all parameters
+          POSTGRES_SUPERUSER=$(get_parameter "/wealist/dev/postgres-superuser")
+          POSTGRES_SUPERUSER_PASSWORD=$(get_parameter "/wealist/dev/postgres-superuser-password")
+          USER_DB_NAME=$(get_parameter "/wealist/dev/user-db-name")
+          USER_DB_USER=$(get_parameter "/wealist/dev/user-db-user")
+          USER_DB_PASSWORD=$(get_parameter "/wealist/dev/user-db-password")
+          BOARD_DB_NAME=$(get_parameter "/wealist/dev/board-db-name")
+          BOARD_DB_USER=$(get_parameter "/wealist/dev/board-db-user")
+          BOARD_DB_PASSWORD=$(get_parameter "/wealist/dev/board-db-password")
+          REDIS_PASSWORD=$(get_parameter "/wealist/dev/redis-password")
+          JWT_SECRET=$(get_parameter "/wealist/dev/jwt-secret")
+          GOOGLE_CLIENT_ID=$(get_parameter "/wealist/dev/google-client-id")
+          GOOGLE_CLIENT_SECRET=$(get_parameter "/wealist/dev/google-client-secret")
+          GRAFANA_ADMIN_USER=$(get_parameter "/wealist/dev/grafana-admin-user")
+          GRAFANA_ADMIN_PASSWORD=$(get_parameter "/wealist/dev/grafana-admin-password")
+
+          echo "✅ Successfully fetched secrets from Parameter Store"
+
           # .env 파일 생성
-          cat > .env << 'ENVFILE'
-          # AWS
-          AWS_REGION=ap-northeast-2
-          AWS_ACCOUNT_ID=${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}
-          VERSION=latest
+          cat > .env << ENVFILE
+# AWS
+AWS_REGION=${AWS_REGION}
+AWS_ACCOUNT_ID=${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}
+VERSION=latest
 
-          # PostgreSQL Superuser
-          POSTGRES_SUPERUSER=${{ secrets.POSTGRES_SUPERUSER }}
-          POSTGRES_SUPERUSER_PASSWORD=${{ secrets.POSTGRES_SUPERUSER_PASSWORD }}
+# PostgreSQL Superuser
+POSTGRES_SUPERUSER=${POSTGRES_SUPERUSER}
+POSTGRES_SUPERUSER_PASSWORD=${POSTGRES_SUPERUSER_PASSWORD}
 
-          # User Service DB
-          USER_DB_NAME=${{ secrets.USER_DB_NAME }}
-          USER_DB_USER=${{ secrets.USER_DB_USER }}
-          USER_DB_PASSWORD=${{ secrets.USER_DB_PASSWORD }}
+# User Service DB
+USER_DB_NAME=${USER_DB_NAME}
+USER_DB_USER=${USER_DB_USER}
+USER_DB_PASSWORD=${USER_DB_PASSWORD}
 
-          # Board Service DB
-          BOARD_DB_NAME=${{ secrets.BOARD_DB_NAME }}
-          BOARD_DB_USER=${{ secrets.BOARD_DB_USER }}
-          BOARD_DB_PASSWORD=${{ secrets.BOARD_DB_PASSWORD }}
+# Board Service DB
+BOARD_DB_NAME=${BOARD_DB_NAME}
+BOARD_DB_USER=${BOARD_DB_USER}
+BOARD_DB_PASSWORD=${BOARD_DB_PASSWORD}
 
-          # Redis
-          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+# Redis
+REDIS_PASSWORD=${REDIS_PASSWORD}
 
-          # JWT
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
-          JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
+# JWT
+JWT_SECRET=${JWT_SECRET}
+JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
+JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
 
-          # OAuth
-          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+# OAuth
+GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
 
-          # Service Configuration
-          JPA_DDL_AUTO=update
-          JPA_SHOW_SQL=true
-          JPA_FORMAT_SQL=true
-          LOG_LEVEL=debug
-          CORS_ORIGINS=*
+# Service Configuration
+JPA_DDL_AUTO=update
+JPA_SHOW_SQL=true
+JPA_FORMAT_SQL=true
+LOG_LEVEL=debug
+CORS_ORIGINS=*
 
-          # Monitoring
-          GRAFANA_ADMIN_USER=admin
-          GRAFANA_ADMIN_PASSWORD=${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          ENVFILE
+# Monitoring
+GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
+GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+ENVFILE
 
-          echo "✅ Environment file created"
+          echo "✅ Environment file created from Parameter Store"
 
           # ECR 로그인
           echo "🔑 Logging into Amazon ECR..."
