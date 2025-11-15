@@ -156,7 +156,6 @@ export const CustomFieldManageModal: React.FC<CustomFieldManageModalProps> = ({
       // 2. 옵션이 있는 경우, 옵션 생성 (POST /api/field-options)
       if (isSelectType && fieldOptions.length > 0) {
         // ⚠️ 실제 API는 단일 옵션씩 생성하거나, 배열을 받아 일괄 생성합니다.
-        // 여기서는 복잡도를 위해 옵션 생성/순서 변경 API 호출 로직은 생략합니다.
         console.log('Mock: Options would be created/ordered now using POST /field-options');
         // 💡 [TODO: API] setFieldOptionsOrder(newFieldResponse.fieldId, fieldOptions);
       }
