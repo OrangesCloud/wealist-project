@@ -5,6 +5,10 @@
 # AWS Region
 aws_region = "ap-northeast-2"
 
+# ============================================
+# Passwords & Secrets
+# ============================================
+
 # PostgreSQL Superuser Password
 postgres_superuser_password = "YOUR_SECURE_POSTGRES_PASSWORD_HERE"
 
@@ -20,7 +24,7 @@ redis_password = "YOUR_SECURE_REDIS_PASSWORD_HERE"
 # JWT Secret (64+ characters for HS512)
 jwt_secret = "YOUR_JWT_SECRET_AT_LEAST_64_BYTES_FOR_HS512_ALGORITHM_SECURITY"
 
-# Google OAuth Client ID (민감하지 않음)
+# Google OAuth Client ID
 google_client_id = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
 
 # Google OAuth Client Secret
@@ -28,3 +32,25 @@ google_client_secret = "YOUR_GOOGLE_CLIENT_SECRET"
 
 # Grafana Admin Password
 grafana_admin_password = "YOUR_SECURE_GRAFANA_PASSWORD_HERE"
+
+# ============================================
+# Usernames & Database Names (Optional - has defaults)
+# ============================================
+
+# PostgreSQL Superuser (default: postgres)
+postgres_superuser = "postgres"
+
+# User Service Database Name (default: wealist_user_db)
+user_db_name = "wealist_user_db"
+
+# User Service Database Username (default: wealist_user)
+user_db_user = "wealist_user"
+
+# Board Service Database Name (default: wealist_board_db)
+board_db_name = "wealist_board_db"
+
+# Board Service Database Username (default: wealist_board)
+board_db_user = "wealist_board"
+
+# Grafana Admin Username (default: admin)
+grafana_admin_user = "admin"

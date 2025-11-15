@@ -53,9 +53,9 @@ jobs:
           mkdir -p ~/wealist-deploy
           cd ~/wealist-deploy
 
-          echo "🔑 Fetching secrets from Parameter Store..."
+          echo "🔑 Fetching all configuration from Parameter Store..."
 
-          # Parameter Store에서 안전하게 값 가져오기
+          # Parameter Store에서 모든 값 가져오기 (Passwords & Secrets)
           POSTGRES_SUPERUSER_PASSWORD=$(aws ssm get-parameter \
             --name "/wealist/dev/postgres/superuser-password" \
             --with-decryption \
@@ -111,50 +111,87 @@ jobs:
             --query 'Parameter.Value' \
             --output text)
 
-          echo "✅ Secrets fetched successfully"
+          # Parameter Store에서 모든 값 가져오기 (Usernames & DB Names)
+          POSTGRES_SUPERUSER=$(aws ssm get-parameter \
+            --name "/wealist/dev/postgres/superuser" \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
 
-          # .env 파일 생성 (민감정보는 Parameter Store에서 가져온 값 사용)
+          USER_DB_NAME=$(aws ssm get-parameter \
+            --name "/wealist/dev/db/user-name" \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          USER_DB_USER=$(aws ssm get-parameter \
+            --name "/wealist/dev/db/user-username" \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          BOARD_DB_NAME=$(aws ssm get-parameter \
+            --name "/wealist/dev/db/board-name" \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          BOARD_DB_USER=$(aws ssm get-parameter \
+            --name "/wealist/dev/db/board-username" \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          GRAFANA_ADMIN_USER=$(aws ssm get-parameter \
+            --name "/wealist/dev/grafana/admin-user" \
+            --region ${REGION} \
+            --query 'Parameter.Value' \
+            --output text)
+
+          echo "✅ All configuration fetched from Parameter Store (14 parameters)"
+
+          # .env 파일 생성 (모든 설정값을 Parameter Store에서 가져옴)
           cat > .env << ENVFILE
           # AWS (민감하지 않은 정보)
           AWS_REGION=${REGION}
           AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
           VERSION=latest
 
-          # PostgreSQL Superuser
-          POSTGRES_SUPERUSER=postgres
+          # PostgreSQL Superuser (Parameter Store)
+          POSTGRES_SUPERUSER=${POSTGRES_SUPERUSER}
           POSTGRES_SUPERUSER_PASSWORD=${POSTGRES_SUPERUSER_PASSWORD}
 
-          # User Service DB
-          USER_DB_NAME=wealist_user_db
-          USER_DB_USER=wealist_user
+          # User Service DB (Parameter Store)
+          USER_DB_NAME=${USER_DB_NAME}
+          USER_DB_USER=${USER_DB_USER}
           USER_DB_PASSWORD=${USER_DB_PASSWORD}
 
-          # Board Service DB
-          BOARD_DB_NAME=wealist_board_db
-          BOARD_DB_USER=wealist_board
+          # Board Service DB (Parameter Store)
+          BOARD_DB_NAME=${BOARD_DB_NAME}
+          BOARD_DB_USER=${BOARD_DB_USER}
           BOARD_DB_PASSWORD=${BOARD_DB_PASSWORD}
 
-          # Redis
+          # Redis (Parameter Store)
           REDIS_PASSWORD=${REDIS_PASSWORD}
 
-          # JWT (User Service와 Board Service 동일)
+          # JWT (Parameter Store)
           JWT_SECRET=${JWT_SECRET}
           JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
           JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
 
-          # OAuth
+          # OAuth (Parameter Store)
           GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
           GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
 
-          # Service Configuration
+          # Service Configuration (애플리케이션 설정)
           JPA_DDL_AUTO=update
           JPA_SHOW_SQL=true
           JPA_FORMAT_SQL=true
           LOG_LEVEL=debug
           CORS_ORIGINS=*
 
-          # Monitoring
-          GRAFANA_ADMIN_USER=admin
+          # Monitoring (Parameter Store)
+          GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
           GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
           ENVFILE
 
