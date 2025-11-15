@@ -61,10 +61,10 @@
 ### 1단계: Terraform 파일 확인
 
 ```bash
-cd docs/terraform
+cd terraform/dev/parameter-store
 
 # 파일 구조
-docs/terraform/
+terraform/dev/parameter-store/
 ├── parameter-store.tf          # Parameter Store 리소스 정의
 └── terraform.tfvars.example    # 변수 예제 파일
 ```
@@ -118,7 +118,7 @@ openssl rand -base64 64 | tr -d '\n'
 ### 3단계: Terraform 초기화
 
 ```bash
-cd docs/terraform
+cd terraform/dev/parameter-store
 
 # Terraform 초기화 (providers 다운로드)
 terraform init
@@ -356,7 +356,7 @@ terraform workspace show
 
 **파일 구조**:
 ```
-docs/terraform/
+terraform/dev/parameter-store/
 ├── parameter-store.tf
 ├── dev.tfvars         # Dev 환경 변수
 ├── staging.tfvars     # Staging 환경 변수
@@ -432,7 +432,7 @@ aws sts get-caller-identity
 ```bash
 # Git에서 제거 (이력에서도 완전 삭제)
 git filter-branch --force --index-filter \
-  "git rm --cached --ignore-unmatch docs/terraform/terraform.tfstate" \
+  "git rm --cached --ignore-unmatch terraform/dev/parameter-store/terraform.tfstate" \
   --prune-empty --tag-name-filter cat -- --all
 
 # .gitignore 확인
