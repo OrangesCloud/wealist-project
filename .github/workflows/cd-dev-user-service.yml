@@ -217,15 +217,16 @@ jobs:
               "COMPOSE_FILE=\"${PROJECT_DIR}/docker/compose/docker-compose.ec2-dev.yml\"",
               "",
               "# 프로젝트 디렉토리 확인 및 클론",
-              "if [ ! -d \"$PROJECT_DIR\" ]; then",
+              "if [ ! -d \"$PROJECT_DIR\" ] || [ ! -d \"$PROJECT_DIR/.git\" ]; then",
               "  echo '📦 Cloning project repository...'",
+              "  rm -rf \"$PROJECT_DIR\"",
               "  cd /home/ubuntu",
               "  git clone https://github.com/OrangesCloud/wealist-project.git wealist",
               "  cd wealist",
               "else",
               "  echo '✅ Project directory exists'",
               "  cd \"$PROJECT_DIR\"",
-              "  git pull origin deploy-dev",
+              "  git pull origin deploy-dev || echo '⚠️  Git pull failed, continuing with existing files'",
               "fi",
               "",
               "# AWS Account ID 자동 감지",
@@ -341,6 +342,3 @@ jobs:
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Instance:** \`${{ secrets.EC2_INSTANCE_ID }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Command:** \`${{ steps.deploy.outputs.command-id }}\`" >> $GITHUB_STEP_SUMMARY
-
-
-
