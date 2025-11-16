@@ -95,8 +95,11 @@ public class SecurityConfig {
 
         // 허용할 Origin 설정
         configuration.setAllowedOriginPatterns(Arrays.asList(
-                "http://localhost:3000",
-                "http://localhost:8000"
+                "https://*.cloudfront.net",           // CloudFront 도메인
+                "https://wealist.co.kr",              // 프로덕션 도메인
+                "http://localhost:5173",              // Vite 개발 서버
+                "http://localhost:3000",              // 기존 개발 환경
+                "http://localhost:8000"               // 기존 개발 환경
         ));
 
         // 허용할 HTTP 메서드
