@@ -145,7 +145,6 @@ make migrate-up
 마이그레이션에 대한 자세한 내용은 [migrations/README.md](migrations/README.md)를 참조하세요.
 
 ### 실행
-
 #### 개발 모드
 
 ```bash
@@ -265,8 +264,8 @@ http://localhost:8000/api
 }
 ```
 
-**Stage 값**: `in_progress`, `pending`, `approved`, `review`  
-**Importance 값**: `urgent`, `normal`  
+**Stage 값**: `in_progress`, `pending`, `approved`, `review`
+**Importance 값**: `urgent`, `normal`
 **Role 값**: `developer`, `planner`
 
 ### Participants
@@ -717,3 +716,5 @@ MIT License
 ## 문의
 
 프로젝트에 대한 문의사항이나 버그 리포트는 GitHub Issues를 이용해주세요.
+
+
