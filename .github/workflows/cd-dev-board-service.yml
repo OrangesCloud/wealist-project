@@ -16,7 +16,7 @@ jobs:
   deploy:
     name: Deploy to EC2 via SSM
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     environment: development
 
     steps:
@@ -44,9 +44,18 @@ jobs:
         run: |
           cat << 'DEPLOY_SCRIPT' > /tmp/deploy-board.sh
           #!/bin/bash
+          
+          # =============================================================================
+          # 스크립트 초기 설정
+          # =============================================================================
+          # 에러 발생 시 즉시 중단
           set -euo pipefail
+          
+          # 에러 트랩 설정
+          trap 'echo "❌ Error occurred at line $LINENO. Deployment failed!" >&2; exit 1' ERR
 
           echo "🚀 Starting Board Service Deployment..."
+          echo "📅 Deployment started at: $(date '+%Y-%m-%d %H:%M:%S')"
 
           # 환경변수 설정
           PARAMETER_PREFIX="${{ env.PARAMETER_PREFIX }}"
@@ -59,22 +68,63 @@ jobs:
           echo "📥 Loading environment variables from Parameter Store..."
 
           load_param() {
-            aws ssm get-parameter \
-              --name "${PARAMETER_PREFIX}/$1" \
+            local param_name="$1"
+            local error_output
+            local value
+            
+            echo "  ⏳ Loading parameter: ${param_name}..." >&2
+            
+            error_output=$(mktemp)
+            value=$(aws ssm get-parameter \
+              --name "${PARAMETER_PREFIX}/${param_name}" \
               --query 'Parameter.Value' \
               --output text \
-              --region ${AWS_REGION} 2>/dev/null || echo ""
+              --region ${AWS_REGION} 2>"$error_output")
+            local exit_code=$?
+            
+            if [ $exit_code -ne 0 ] || [ -z "$value" ] || [ "$value" = "None" ]; then
+              echo "  ❌ Failed to load parameter: ${param_name}" >&2
+              echo "  📋 Error details:" >&2
+              cat "$error_output" >&2
+              rm -f "$error_output"
+              exit 1
+            fi
+            
+            rm -f "$error_output"
+            echo "  ✅ Loaded: ${param_name}" >&2
+            echo "$value"
           }
 
           load_secret() {
-            aws ssm get-parameter \
-              --name "${PARAMETER_PREFIX}/$1" \
+            local param_name="$1"
+            local error_output
+            local value
+            
+            echo "  ⏳ Loading secret parameter: ${param_name}..." >&2
+            
+            error_output=$(mktemp)
+            value=$(aws ssm get-parameter \
+              --name "${PARAMETER_PREFIX}/${param_name}" \
               --with-decryption \
               --query 'Parameter.Value' \
               --output text \
-              --region ${AWS_REGION} 2>/dev/null || echo ""
+              --region ${AWS_REGION} 2>"$error_output")
+            local exit_code=$?
+            
+            if [ $exit_code -ne 0 ] || [ -z "$value" ] || [ "$value" = "None" ]; then
+              echo "  ❌ Failed to load secret parameter: ${param_name}" >&2
+              echo "  📋 Error details:" >&2
+              cat "$error_output" >&2
+              rm -f "$error_output"
+              exit 1
+            fi
+            
+            rm -f "$error_output"
+            echo "  ✅ Loaded: ${param_name} (encrypted)" >&2
+            echo "$value"
           }
 
+          # 필수 환경 변수 로드
           export AWS_ACCOUNT_ID=$(load_param "aws-account-id")
           export AWS_REGION="${AWS_REGION}"
           export VERSION="latest"
@@ -109,48 +159,199 @@ jobs:
           export GRAFANA_ADMIN_USER=$(load_param "grafana-admin-user")
           export GRAFANA_ADMIN_PASSWORD=$(load_secret "grafana-admin-password")
 
-          echo "✅ Environment variables loaded"
+          # 환경 변수 검증
+          required_vars=(
+            "AWS_ACCOUNT_ID"
+            "POSTGRES_SUPERUSER"
+            "POSTGRES_SUPERUSER_PASSWORD"
+            "BOARD_DB_NAME"
+            "BOARD_DB_USER"
+            "BOARD_DB_PASSWORD"
+            "REDIS_PASSWORD"
+            "JWT_SECRET"
+          )
+
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "❌ Required environment variable not set: $var" >&2
+              exit 1
+            fi
+          done
+
+          echo "✅ Environment variables loaded successfully"
+          echo "📋 Loaded variables: AWS_ACCOUNT_ID, POSTGRES_SUPERUSER, BOARD_DB_NAME, BOARD_DB_USER, REDIS_PASSWORD, JWT_SECRET"
 
           # =============================================================================
           # ECR 로그인
           # =============================================================================
           echo "🔑 Logging into Amazon ECR..."
-          aws ecr get-login-password --region ${AWS_REGION} | \
+          echo "  📍 ECR Registry: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          
+          ecr_error=$(mktemp)
+          if ! aws ecr get-login-password --region ${AWS_REGION} 2>"$ecr_error" | \
             docker login --username AWS --password-stdin \
-            ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+            ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com 2>&1 | tee -a "$ecr_error"; then
+            echo "❌ Failed to login to ECR" >&2
+            echo "📋 Error details:" >&2
+            cat "$ecr_error" >&2
+            rm -f "$ecr_error"
+            exit 1
+          fi
+          rm -f "$ecr_error"
+          echo "✅ ECR login successful"
 
           # =============================================================================
           # 최신 이미지 Pull
           # =============================================================================
           echo "📥 Pulling latest board-service image..."
-          docker pull ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/wealist-dev-board-service:latest
+          IMAGE_NAME="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/wealist-dev-board-service:latest"
+          echo "  📍 Image: ${IMAGE_NAME}"
+          
+          pull_error=$(mktemp)
+          if ! docker pull ${IMAGE_NAME} 2>&1 | tee "$pull_error"; then
+            echo "❌ Failed to pull board-service image" >&2
+            echo "📋 Error details:" >&2
+            cat "$pull_error" >&2
+            rm -f "$pull_error"
+            exit 1
+          fi
+          rm -f "$pull_error"
+          echo "✅ Image pulled successfully"
+
+          # =============================================================================
+          # 데이터베이스 마이그레이션 실행
+          # =============================================================================
+          echo "🗄️ Running database migrations..."
+
+          # PostgreSQL 컨테이너 확인
+          echo "  ⏳ Checking PostgreSQL container status..."
+          if ! docker ps --format '{{.Names}}' | grep -q wealist-postgres; then
+            echo "  ❌ PostgreSQL container is not running" >&2
+            echo "  📋 Running containers:" >&2
+            docker ps --format 'table {{.Names}}\t{{.Status}}' >&2
+            exit 1
+          fi
+          echo "  ✅ PostgreSQL container is running"
+
+          # 마이그레이션 디렉토리 확인
+          MIGRATION_DIR="/home/ubuntu/wealist/board-service/migrations"
+          echo "  ⏳ Checking migration directory: ${MIGRATION_DIR}"
+          if [ ! -d "$MIGRATION_DIR" ]; then
+            echo "  ❌ Migration directory not found: $MIGRATION_DIR" >&2
+            echo "  📋 Current directory contents:" >&2
+            ls -la /home/ubuntu/wealist/board-service/ >&2
+            exit 1
+          fi
+          echo "  ✅ Migration directory found"
+
+          # 마이그레이션 파일 목록 확인
+          migration_files=$(ls ${MIGRATION_DIR}/*.sql 2>/dev/null | grep -v "_down.sql" | sort)
+          if [ -z "$migration_files" ]; then
+            echo "  ⚠️  No migration files found, skipping migrations"
+          else
+            migration_count=$(echo "$migration_files" | wc -l)
+            echo "  📊 Found ${migration_count} migration file(s) to apply"
+            
+            # 마이그레이션 파일 실행
+            for migration_file in $migration_files; do
+              filename=$(basename $migration_file)
+              echo "  📝 Applying migration: $filename"
+              
+              migration_error=$(mktemp)
+              if docker exec -i wealist-postgres psql \
+                -U ${POSTGRES_SUPERUSER} \
+                -d ${BOARD_DB_NAME} \
+                < $migration_file 2>&1 | tee "$migration_error"; then
+                echo "  ✅ Migration applied: $filename"
+              else
+                echo "  ❌ Migration failed: $filename" >&2
+                echo "  📋 Error details:" >&2
+                cat "$migration_error" >&2
+                echo "  📋 Migration file path: $migration_file" >&2
+                rm -f "$migration_error"
+                exit 1
+              fi
+              rm -f "$migration_error"
+            done
+            
+            echo "✅ All migrations applied successfully (${migration_count} file(s))"
+          fi
 
           # =============================================================================
           # Board Service 재시작
           # =============================================================================
           echo "🔄 Restarting board-service..."
-          docker compose -f ${COMPOSE_FILE} up -d --no-deps --force-recreate board-service
+          echo "  📍 Compose file: ${COMPOSE_FILE}"
+          echo "  ⏳ Stopping old container and starting new one..."
+          
+          restart_error=$(mktemp)
+          if ! docker compose -f ${COMPOSE_FILE} up -d --no-deps --force-recreate board-service 2>&1 | tee "$restart_error"; then
+            echo "  ❌ Failed to restart board-service" >&2
+            echo "  📋 Error details:" >&2
+            cat "$restart_error" >&2
+            echo "  📋 Recent service logs:" >&2
+            docker compose -f ${COMPOSE_FILE} logs --tail=50 board-service 2>&1 || echo "  ⚠️  Could not retrieve logs" >&2
+            echo "  📋 Container status:" >&2
+            docker ps -a --filter "name=board-service" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' >&2
+            rm -f "$restart_error"
+            exit 1
+          fi
+          rm -f "$restart_error"
+          
+          echo "  ✅ Board service container recreated"
+          echo "✅ Board service restarted successfully"
 
           # =============================================================================
           # Health Check
           # =============================================================================
           echo "🏥 Performing health check..."
+          echo "  ⏳ Waiting 10 seconds for service to initialize..."
           sleep 10
 
           MAX_RETRIES=12
+          HEALTH_ENDPOINT="http://localhost:8000/health"
+          echo "  📍 Health endpoint: ${HEALTH_ENDPOINT}"
+          echo "  📊 Max retries: ${MAX_RETRIES} (60 seconds total)"
+          
           for i in $(seq 1 $MAX_RETRIES); do
-            if curl -f -s http://localhost:8000/health > /dev/null 2>&1; then
+            health_output=$(mktemp)
+            if curl -f -s ${HEALTH_ENDPOINT} > "$health_output" 2>&1; then
+              echo "  ✅ Health check passed!"
+              echo "  📋 Health response:"
+              cat "$health_output"
+              rm -f "$health_output"
               echo "✅ Board Service is healthy!"
-              docker image prune -f
+              
+              # =============================================================================
+              # 리소스 정리
+              # =============================================================================
+              echo "🧹 Cleaning up unused images..."
+              cleanup_output=$(docker image prune -f 2>&1)
+              echo "  📋 Cleanup result:"
+              echo "$cleanup_output" | head -5
+              echo "✅ Cleanup completed"
+              
+              echo ""
               echo "✅ Deployment completed successfully!"
+              echo "📅 Deployment finished at: $(date '+%Y-%m-%d %H:%M:%S')"
               exit 0
             fi
-            echo "⏳ Waiting for service... ($i/$MAX_RETRIES)"
+            rm -f "$health_output"
+            echo "  ⏳ Waiting for service... ($i/$MAX_RETRIES)"
             sleep 5
           done
 
-          echo "❌ Health check failed!"
-          docker compose -f ${COMPOSE_FILE} logs --tail=50 board-service
+          echo "  ❌ Health check failed after ${MAX_RETRIES} attempts!" >&2
+          echo "  📋 Diagnostic information:" >&2
+          echo "" >&2
+          echo "  🔍 Container status:" >&2
+          docker ps -a --filter "name=board-service" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' >&2
+          echo "" >&2
+          echo "  📋 Recent service logs (last 50 lines):" >&2
+          docker compose -f ${COMPOSE_FILE} logs --tail=50 board-service 2>&1 >&2
+          echo "" >&2
+          echo "  🌐 Network connectivity test:" >&2
+          curl -v ${HEALTH_ENDPOINT} 2>&1 | head -20 >&2 || echo "  ⚠️  Could not connect to health endpoint" >&2
           exit 1
           DEPLOY_SCRIPT
 
