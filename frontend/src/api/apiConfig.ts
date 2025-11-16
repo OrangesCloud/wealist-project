@@ -1,10 +1,13 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
+// API Base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.wealist.co.kr';
+
 // 1. User/Workspace 서비스 (Java 백엔드) 기본 URL
-export const USER_REPO_API_URL = 'https://api.wealist.co.kr/user';
+export const USER_REPO_API_URL = `${API_BASE_URL}/api/users`;
 
 // 2. Board/Project 서비스 (Go 백엔드) 기본 URL
-export const BOARD_SERVICE_API_URL = 'https://api.wealist.co.kr/board';
+export const BOARD_SERVICE_API_URL = `${API_BASE_URL}/api/boards`;
 
 // ============================================================================
 // 인증 갱신 관련 변수
@@ -33,6 +36,7 @@ const RETRY_DELAY_MS = 1000; // 재시도 간격 (1초)
 export const userRepoClient = axios.create({
   baseURL: USER_REPO_API_URL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true, // CORS 인증 정보 포함
 });
 
 /**
@@ -41,6 +45,7 @@ export const userRepoClient = axios.create({
 export const boardServiceClient = axios.create({
   baseURL: BOARD_SERVICE_API_URL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true, // CORS 인증 정보 포함
 });
 
 // ============================================================================
