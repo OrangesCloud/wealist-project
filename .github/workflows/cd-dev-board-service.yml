@@ -334,15 +334,34 @@ jobs:
           # =============================================================================
           echo "🔄 Restarting board-service..."
           echo "  📍 Compose file: ${COMPOSE_FILE}"
+          
+          # Docker Compose 명령어 감지 (v1 vs v2)
+          echo "  🔍 Detecting Docker Compose version..."
+          if command -v docker-compose &> /dev/null; then
+            COMPOSE_CMD="docker-compose"
+            COMPOSE_VERSION=$(docker-compose version --short 2>/dev/null || echo "unknown")
+            echo "  📦 Using Docker Compose v1: docker-compose (version: ${COMPOSE_VERSION})"
+          elif docker compose version &> /dev/null 2>&1; then
+            COMPOSE_CMD="docker compose"
+            COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || echo "unknown")
+            echo "  📦 Using Docker Compose v2: docker compose (version: ${COMPOSE_VERSION})"
+          else
+            echo "  ❌ Docker Compose not found" >&2
+            echo "  📋 Please install Docker Compose:" >&2
+            echo "     - v1: sudo apt-get install docker-compose" >&2
+            echo "     - v2: sudo apt-get install docker-compose-plugin" >&2
+            exit 1
+          fi
+          
           echo "  ⏳ Stopping old container and starting new one..."
           
           restart_error=$(mktemp)
-          if ! docker compose -f ${COMPOSE_FILE} up -d --no-deps --force-recreate board-service 2>&1 | tee "$restart_error"; then
+          if ! $COMPOSE_CMD -f ${COMPOSE_FILE} up -d --no-deps --force-recreate board-service 2>&1 | tee "$restart_error"; then
             echo "  ❌ Failed to restart board-service" >&2
             echo "  📋 Error details:" >&2
             cat "$restart_error" >&2
             echo "  📋 Recent service logs:" >&2
-            docker compose -f ${COMPOSE_FILE} logs --tail=50 board-service 2>&1 || echo "  ⚠️  Could not retrieve logs" >&2
+            $COMPOSE_CMD -f ${COMPOSE_FILE} logs --tail=50 board-service 2>&1 || echo "  ⚠️  Could not retrieve logs" >&2
             echo "  📋 Container status:" >&2
             docker ps -a --filter "name=board-service" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' >&2
             rm -f "$restart_error"
@@ -400,7 +419,7 @@ jobs:
           docker ps -a --filter "name=board-service" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' >&2
           echo "" >&2
           echo "  📋 Recent service logs (last 50 lines):" >&2
-          docker compose -f ${COMPOSE_FILE} logs --tail=50 board-service 2>&1 >&2
+          $COMPOSE_CMD -f ${COMPOSE_FILE} logs --tail=50 board-service 2>&1 >&2
           echo "" >&2
           echo "  🌐 Network connectivity test:" >&2
           curl -v ${HEALTH_ENDPOINT} 2>&1 | head -20 >&2 || echo "  ⚠️  Could not connect to health endpoint" >&2
