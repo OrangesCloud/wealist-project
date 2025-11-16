@@ -50,6 +50,9 @@ Thumbs.db
 .claudeignore
 CLAUDE.md
 
+# ai
+.kiro/
+
 # Grafana
 grafana/volume/
 grafana/volume/**
