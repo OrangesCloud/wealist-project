@@ -2,6 +2,8 @@
 
 프로젝트 관리 도구의 Board 관리 시스템 RESTful API
 
+<!-- Updated: 2025-11-16 - Docker Compose v1 compatibility -->
+
 ## 목차
 
 - [소개](#소개)
