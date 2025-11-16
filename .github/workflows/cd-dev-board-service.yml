@@ -7,7 +7,7 @@ on:
     types:
       - completed
 
-  # 2. 인프라 변경 시 직접 실행
+  # 2. 인프라 변경 시 직접 실행 (deploy-dev 브랜치만)
   push:
     branches:
       - deploy-dev
