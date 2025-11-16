@@ -1,0 +1,80 @@
+package repository
+
+import (
+	"context"
+	"errors"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
+	"project-board-api/internal/domain"
+)
+
+// FieldOptionRepository defines the interface for field option data access
+type FieldOptionRepository interface {
+	Create(ctx context.Context, fieldOption *domain.FieldOption) error
+	FindByID(ctx context.Context, id uuid.UUID) (*domain.FieldOption, error)
+	FindByFieldType(ctx context.Context, fieldType domain.FieldType) ([]*domain.FieldOption, error)
+	Update(ctx context.Context, fieldOption *domain.FieldOption) error
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// fieldOptionRepositoryImpl is the GORM implementation of FieldOptionRepository
+type fieldOptionRepositoryImpl struct {
+	db *gorm.DB
+}
+
+// NewFieldOptionRepository creates a new instance of FieldOptionRepository
+func NewFieldOptionRepository(db *gorm.DB) FieldOptionRepository {
+	return &fieldOptionRepositoryImpl{db: db}
+}
+
+// Create creates a new field option
+func (r *fieldOptionRepositoryImpl) Create(ctx context.Context, fieldOption *domain.FieldOption) error {
+	if err := r.db.WithContext(ctx).Create(fieldOption).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// FindByID finds a field option by ID
+func (r *fieldOptionRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*domain.FieldOption, error) {
+	var fieldOption domain.FieldOption
+	if err := r.db.WithContext(ctx).
+		Where("id = ?", id).
+		First(&fieldOption).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		return nil, err
+	}
+	return &fieldOption, nil
+}
+
+// FindByFieldType finds all field options by field type, ordered by display_order
+func (r *fieldOptionRepositoryImpl) FindByFieldType(ctx context.Context, fieldType domain.FieldType) ([]*domain.FieldOption, error) {
+	var fieldOptions []*domain.FieldOption
+	if err := r.db.WithContext(ctx).
+		Where("field_type = ?", fieldType).
+		Order("display_order ASC").
+		Find(&fieldOptions).Error; err != nil {
+		return nil, err
+	}
+	return fieldOptions, nil
+}
+
+// Update updates a field option
+func (r *fieldOptionRepositoryImpl) Update(ctx context.Context, fieldOption *domain.FieldOption) error {
+	if err := r.db.WithContext(ctx).Save(fieldOption).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// Delete soft deletes a field option
+func (r *fieldOptionRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := r.db.WithContext(ctx).Delete(&domain.FieldOption{}, id).Error; err != nil {
+		return err
+	}
+	return nil
+}
