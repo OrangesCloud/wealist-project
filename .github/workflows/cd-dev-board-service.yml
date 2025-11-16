@@ -353,10 +353,25 @@ jobs:
             exit 1
           fi
           
-          echo "  ⏳ Stopping old container and starting new one..."
+          echo "  ⏳ Ensuring all required services are running..."
           
+          # 먼저 의존성 서비스들(postgres, redis)이 실행 중인지 확인하고 시작
+          echo "  📦 Starting infrastructure services (postgres, redis)..."
           restart_error=$(mktemp)
-          if ! $COMPOSE_CMD -f ${COMPOSE_FILE} up -d --no-deps --force-recreate board-service 2>&1 | tee "$restart_error"; then
+          if ! $COMPOSE_CMD -f ${COMPOSE_FILE} up -d postgres redis 2>&1 | tee "$restart_error"; then
+            echo "  ⚠️  Warning: Failed to start infrastructure services" >&2
+            cat "$restart_error" >&2
+          fi
+          rm -f "$restart_error"
+          
+          # 잠시 대기 (PostgreSQL 초기화 시간)
+          echo "  ⏳ Waiting for infrastructure services to be ready..."
+          sleep 5
+          
+          # board-service 재시작
+          echo "  🔄 Recreating board-service..."
+          restart_error=$(mktemp)
+          if ! $COMPOSE_CMD -f ${COMPOSE_FILE} up -d --force-recreate board-service 2>&1 | tee "$restart_error"; then
             echo "  ❌ Failed to restart board-service" >&2
             echo "  📋 Error details:" >&2
             cat "$restart_error" >&2
