@@ -93,14 +93,17 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 허용할 Origin 설정
-        configuration.setAllowedOriginPatterns(Arrays.asList(
-                "https://*.cloudfront.net",           // CloudFront 도메인
-                "https://wealist.co.kr",              // 프로덕션 도메인
-                "http://localhost:5173",              // Vite 개발 서버
-                "http://localhost:3000",              // 기존 개발 환경
-                "http://localhost:8000"               // 기존 개발 환경
-        ));
+        // 허용할 Origin 설정 - 개발 환경에서는 모든 Origin 허용
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        
+        // 또는 특정 Origin만 허용하려면 아래 주석 해제
+        // configuration.setAllowedOriginPatterns(Arrays.asList(
+        //         "https://*.cloudfront.net",           // CloudFront 도메인
+        //         "https://wealist.co.kr",              // 프로덕션 도메인
+        //         "http://localhost:5173",              // Vite 개발 서버
+        //         "http://localhost:3000",              // 기존 개발 환경
+        //         "http://localhost:8000"               // 기존 개발 환경
+        // ));
 
         // 허용할 HTTP 메서드
         configuration.setAllowedMethods(Arrays.asList(
@@ -109,6 +112,11 @@ public class SecurityConfig {
 
         // 허용할 헤더
         configuration.setAllowedHeaders(Arrays.asList("*"));
+
+        // 노출할 헤더 (클라이언트에서 접근 가능한 헤더)
+        configuration.setExposedHeaders(Arrays.asList(
+                "Authorization", "Content-Type", "X-Requested-With"
+        ));
 
         // 인증 정보 포함 허용
         configuration.setAllowCredentials(true);
