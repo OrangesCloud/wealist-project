@@ -28,15 +28,17 @@ type ProjectService interface {
 
 // projectServiceImpl is the implementation of ProjectService
 type projectServiceImpl struct {
-	projectRepo repository.ProjectRepository
-	userClient  client.UserClient
+	projectRepo       repository.ProjectRepository
+	fieldOptionRepo   repository.FieldOptionRepository
+	userClient        client.UserClient
 }
 
 // NewProjectService creates a new instance of ProjectService
-func NewProjectService(projectRepo repository.ProjectRepository, userClient client.UserClient) ProjectService {
+func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, userClient client.UserClient) ProjectService {
 	return &projectServiceImpl{
-		projectRepo: projectRepo,
-		userClient:  userClient,
+		projectRepo:     projectRepo,
+		fieldOptionRepo: fieldOptionRepo,
+		userClient:      userClient,
 	}
 }
 
@@ -325,19 +327,75 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 		return nil, response.NewForbiddenError("You are not a member of this project", "")
 	}
 
-	// Build project basic info
-	projectInfo := dto.ProjectBasicInfo{
-		ProjectID:   project.ID,
-		WorkspaceID: project.WorkspaceID,
-		Name:        project.Name,
-		Description: project.Description,
-		OwnerID:     project.OwnerID,
-		IsPublic:    project.IsPublic,
-		CreatedAt:   project.CreatedAt,
-		UpdatedAt:   project.UpdatedAt,
+	// Fetch workspace information
+	workspace, err := s.userClient.GetWorkspace(ctx, project.WorkspaceID, token)
+	if err != nil {
+		// Log error but continue with graceful degradation
+		workspace = &client.Workspace{
+			ID:   project.WorkspaceID,
+			Name: "",
+		}
 	}
 
-	// Define field definitions with options
+	// Build project basic info with workspace details
+	projectInfo := dto.ProjectBasicInfo{
+		ProjectID:        project.ID,
+		WorkspaceID:      project.WorkspaceID,
+		WorkspaceName:    workspace.Name,
+		WorkspaceEmail:   workspace.OwnerEmail,
+		Name:             project.Name,
+		Description:      project.Description,
+		OwnerID:          project.OwnerID,
+		IsPublic:         project.IsPublic,
+		CreatedAt:        project.CreatedAt,
+		UpdatedAt:        project.UpdatedAt,
+	}
+
+	// Fetch field options from database
+	stageOptions, err := s.fieldOptionRepo.FindByFieldType(ctx, domain.FieldTypeStage)
+	if err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch stage options", err.Error())
+	}
+
+	roleOptions, err := s.fieldOptionRepo.FindByFieldType(ctx, domain.FieldTypeRole)
+	if err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch role options", err.Error())
+	}
+
+	importanceOptions, err := s.fieldOptionRepo.FindByFieldType(ctx, domain.FieldTypeImportance)
+	if err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch importance options", err.Error())
+	}
+
+	// Convert field options to DTO format
+	stageFieldOptions := make([]dto.FieldOption, len(stageOptions))
+	for i, opt := range stageOptions {
+		stageFieldOptions[i] = dto.FieldOption{
+			OptionID:    opt.ID.String(),
+			OptionLabel: opt.Label,
+			OptionValue: opt.Value,
+		}
+	}
+
+	roleFieldOptions := make([]dto.FieldOption, len(roleOptions))
+	for i, opt := range roleOptions {
+		roleFieldOptions[i] = dto.FieldOption{
+			OptionID:    opt.ID.String(),
+			OptionLabel: opt.Label,
+			OptionValue: opt.Value,
+		}
+	}
+
+	importanceFieldOptions := make([]dto.FieldOption, len(importanceOptions))
+	for i, opt := range importanceOptions {
+		importanceFieldOptions[i] = dto.FieldOption{
+			OptionID:    opt.ID.String(),
+			OptionLabel: opt.Label,
+			OptionValue: opt.Value,
+		}
+	}
+
+	// Define field definitions with options from database
 	fields := []dto.FieldWithOptionsResponse{
 		{
 			FieldID:     "stage",
@@ -345,12 +403,7 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 			FieldType:   "select",
 			IsRequired:  true,
 			Description: "Current stage of the board",
-			Options: []dto.FieldOption{
-				{OptionID: "in_progress", OptionLabel: "In Progress", OptionValue: "in_progress"},
-				{OptionID: "pending", OptionLabel: "Pending", OptionValue: "pending"},
-				{OptionID: "approved", OptionLabel: "Approved", OptionValue: "approved"},
-				{OptionID: "review", OptionLabel: "Review", OptionValue: "review"},
-			},
+			Options:     stageFieldOptions,
 		},
 		{
 			FieldID:     "importance",
@@ -358,10 +411,7 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 			FieldType:   "select",
 			IsRequired:  true,
 			Description: "Priority level of the board",
-			Options: []dto.FieldOption{
-				{OptionID: "urgent", OptionLabel: "Urgent", OptionValue: "urgent"},
-				{OptionID: "normal", OptionLabel: "Normal", OptionValue: "normal"},
-			},
+			Options:     importanceFieldOptions,
 		},
 		{
 			FieldID:     "role",
@@ -369,10 +419,7 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 			FieldType:   "select",
 			IsRequired:  true,
 			Description: "Role responsible for the board",
-			Options: []dto.FieldOption{
-				{OptionID: "developer", OptionLabel: "Developer", OptionValue: "developer"},
-				{OptionID: "planner", OptionLabel: "Planner", OptionValue: "planner"},
-			},
+			Options:     roleFieldOptions,
 		},
 	}
 

@@ -40,9 +40,10 @@ func Setup(cfg Config) *gin.Engine {
 	boardRepo := repository.NewBoardRepository(cfg.DB)
 	participantRepo := repository.NewParticipantRepository(cfg.DB)
 	commentRepo := repository.NewCommentRepository(cfg.DB)
+	fieldOptionRepo := repository.NewFieldOptionRepository(cfg.DB)
 
 	// Initialize services with repository dependencies
-	projectService := service.NewProjectService(projectRepo, cfg.UserClient)
+	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient)
 	boardService := service.NewBoardService(boardRepo, projectRepo)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
 	commentService := service.NewCommentService(commentRepo, boardRepo)

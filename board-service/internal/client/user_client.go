@@ -22,6 +22,9 @@ type UserClient interface {
 
 	// GetWorkspaceProfile retrieves workspace-specific user profile
 	GetWorkspaceProfile(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*WorkspaceProfile, error)
+
+	// GetWorkspace retrieves workspace information
+	GetWorkspace(ctx context.Context, workspaceID uuid.UUID, token string) (*Workspace, error)
 }
 
 // WorkspaceValidationResponse represents the response from workspace validation endpoint
@@ -47,6 +50,18 @@ type WorkspaceProfile struct {
 	NickName        string    `json:"nickName"`
 	Email           string    `json:"email"`
 	ProfileImageURL string    `json:"profileImageUrl"`
+}
+
+// Workspace represents workspace information
+type Workspace struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	OwnerID     uuid.UUID `json:"ownerId"`
+	OwnerName   string    `json:"ownerName"`
+	OwnerEmail  string    `json:"ownerEmail"`
+	CreatedAt   string    `json:"createdAt"`
+	UpdatedAt   string    `json:"updatedAt"`
 }
 
 // userClient implements UserClient interface
@@ -165,6 +180,36 @@ func (c *userClient) GetWorkspaceProfile(ctx context.Context, workspaceID, userI
 	)
 
 	return &profile, nil
+}
+
+// GetWorkspace retrieves workspace information
+func (c *userClient) GetWorkspace(ctx context.Context, workspaceID uuid.UUID, token string) (*Workspace, error) {
+	url := fmt.Sprintf("%s/api/workspaces/%s", c.baseURL, workspaceID.String())
+
+	c.logger.Debug("Getting workspace",
+		zap.String("url", url),
+		zap.String("workspace_id", workspaceID.String()),
+	)
+
+	var workspace Workspace
+	if err := c.doRequest(ctx, "GET", url, token, &workspace); err != nil {
+		c.logger.Error("Failed to get workspace",
+			zap.Error(err),
+			zap.String("workspace_id", workspaceID.String()),
+		)
+		// Graceful degradation: return empty workspace
+		return &Workspace{
+			ID:   workspaceID,
+			Name: "",
+		}, nil
+	}
+
+	c.logger.Debug("Workspace retrieved",
+		zap.String("workspace_id", workspaceID.String()),
+		zap.String("name", workspace.Name),
+	)
+
+	return &workspace, nil
 }
 
 // doRequest performs an HTTP request with the given parameters
