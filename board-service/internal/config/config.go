@@ -65,17 +65,21 @@ type CORSConfig struct {
 }
 
 // Load loads configuration from file and environment variables
+// If config file doesn't exist, loads from environment variables only
 func Load(configPath string) (*Config, error) {
-	// Read config file
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	// Parse YAML
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
+
+	// Try to read config file (optional)
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		// Parse YAML if file exists
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse config file: %w", err)
+		}
+	} else {
+		// Config file doesn't exist - use defaults
+		fmt.Fprintf(os.Stderr, "Config file not found, using environment variables and defaults\n")
+		cfg = getDefaultConfig()
 	}
 
 	// Override with environment variables
@@ -87,6 +91,44 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// getDefaultConfig returns default configuration values
+func getDefaultConfig() Config {
+	return Config{
+		Server: ServerConfig{
+			Port:            "8000",
+			Mode:            "debug",
+			ReadTimeout:     10 * time.Second,
+			WriteTimeout:    10 * time.Second,
+			ShutdownTimeout: 30 * time.Second,
+		},
+		Database: DatabaseConfig{
+			Host:            "localhost",
+			Port:            "5432",
+			User:            "postgres",
+			Password:        "",
+			DBName:          "project_board",
+			MaxOpenConns:    25,
+			MaxIdleConns:    5,
+			ConnMaxLifetime: 5 * time.Minute,
+		},
+		Logger: LoggerConfig{
+			Level:      "info",
+			OutputPath: "stdout",
+		},
+		JWT: JWTConfig{
+			Secret:     "",
+			ExpireTime: 24 * time.Hour,
+		},
+		UserAPI: UserAPIConfig{
+			BaseURL: "http://localhost:8080",
+			Timeout: 5 * time.Second,
+		},
+		CORS: CORSConfig{
+			AllowedOrigins: "*",
+		},
+	}
 }
 
 // overrideFromEnv overrides configuration with environment variables
