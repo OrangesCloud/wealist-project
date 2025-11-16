@@ -145,7 +145,8 @@ jobs:
           }
 
           # 필수 환경 변수 로드
-          export AWS_ACCOUNT_ID=$(load_param "wealist_dev_aws_region")
+          # AWS Account ID는 IAM 메타데이터에서 가져오기
+          export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           export AWS_REGION="${AWS_REGION}"
           export VERSION="latest"
 
