@@ -145,39 +145,39 @@ jobs:
           }
 
           # 필수 환경 변수 로드
-          export AWS_ACCOUNT_ID=$(load_param "aws-account-id")
+          export AWS_ACCOUNT_ID=$(load_param "wealist_dev_aws_region")
           export AWS_REGION="${AWS_REGION}"
           export VERSION="latest"
 
           # PostgreSQL
-          export POSTGRES_SUPERUSER=$(load_param "postgres-superuser")
-          export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "postgres-superuser-password")
+          export POSTGRES_SUPERUSER=$(load_param "db/postgres_superuser")
+          export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/postgres_superuser_password")
 
           # User DB
-          export USER_DB_NAME=$(load_param "user-db-name")
-          export USER_DB_USER=$(load_param "user-db-user")
-          export USER_DB_PASSWORD=$(load_secret "user-db-password")
+          export USER_DB_NAME=$(load_param "db/user_db_name")
+          export USER_DB_USER=$(load_param "db/user_db_user")
+          export USER_DB_PASSWORD=$(load_secret "db/user_db_password")
 
           # Board DB
-          export BOARD_DB_NAME=$(load_param "board-db-name")
-          export BOARD_DB_USER=$(load_param "board-db-user")
-          export BOARD_DB_PASSWORD=$(load_secret "board-db-password")
+          export BOARD_DB_NAME=$(load_param "db/board_db_name")
+          export BOARD_DB_USER=$(load_param "db/board_db_user")
+          export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 
           # Redis
-          export REDIS_PASSWORD=$(load_secret "redis-password")
+          export REDIS_PASSWORD=$(load_secret "cache/redis_password")
 
           # JWT
-          export JWT_SECRET=$(load_secret "jwt-secret")
+          export JWT_SECRET=$(load_secret "jwt/jwt_secret")
           export JWT_ACCESS_TOKEN_EXPIRATION_MS="1800000"
           export JWT_REFRESH_TOKEN_EXPIRATION_MS="604800000"
 
           # OAuth
-          export GOOGLE_CLIENT_ID=$(load_param "google-client-id")
-          export GOOGLE_CLIENT_SECRET=$(load_secret "google-client-secret")
+          export GOOGLE_CLIENT_ID=$(load_secret "oauth/google_client_id")
+          export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google-client-secret")
 
           # Grafana
-          export GRAFANA_ADMIN_USER=$(load_param "grafana-admin-user")
-          export GRAFANA_ADMIN_PASSWORD=$(load_secret "grafana-admin-password")
+          export GRAFANA_ADMIN_USER=$(load_param "monitor/grafana_admin_user")
+          export GRAFANA_ADMIN_PASSWORD=$(load_secret "monitor/grafana_admin_password")
 
           # 환경 변수 검증
           required_vars=(
