@@ -271,12 +271,70 @@ jobs:
           echo "✅ Image pulled successfully"
 
           # =============================================================================
+          # 인프라 컨테이너 확인 및 시작
+          # =============================================================================
+          echo "🔍 Checking infrastructure services..."
+
+          # PostgreSQL 컨테이너 실행 여부 확인
+          if ! docker ps --format '{{.Names}}' | grep -q wealist-postgres; then
+            echo "  ⚠️  PostgreSQL container is not running"
+            echo "  🚀 Starting infrastructure services (postgres, redis)..."
+            
+            # Docker Compose 명령어 감지 (v1 vs v2)
+            echo "  🔍 Detecting Docker Compose version..."
+            if command -v docker-compose &> /dev/null; then
+              COMPOSE_CMD="docker-compose"
+              COMPOSE_VERSION=$(docker-compose version --short 2>/dev/null || echo "unknown")
+              echo "  📦 Using Docker Compose v1: docker-compose (version: ${COMPOSE_VERSION})"
+            elif docker compose version &> /dev/null 2>&1; then
+              COMPOSE_CMD="docker compose"
+              COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || echo "unknown")
+              echo "  📦 Using Docker Compose v2: docker compose (version: ${COMPOSE_VERSION})"
+            else
+              echo "  ❌ Docker Compose not found" >&2
+              echo "  📋 Please install Docker Compose:" >&2
+              echo "     - v1: sudo apt-get install docker-compose" >&2
+              echo "     - v2: sudo apt-get install docker-compose-plugin" >&2
+              exit 1
+            fi
+            
+            # 인프라 서비스 시작
+            infra_error=$(mktemp)
+            if ! $COMPOSE_CMD -f ${COMPOSE_FILE} up -d postgres redis 2>&1 | tee "$infra_error"; then
+              echo "  ❌ Failed to start infrastructure services" >&2
+              echo "  📋 Error details:" >&2
+              cat "$infra_error" >&2
+              echo "  📋 Docker Compose status:" >&2
+              $COMPOSE_CMD -f ${COMPOSE_FILE} ps 2>&1 || echo "  ⚠️  Could not retrieve status" >&2
+              rm -f "$infra_error"
+              exit 1
+            fi
+            rm -f "$infra_error"
+            
+            echo "  ✅ Infrastructure services started"
+            echo "  ⏳ Waiting for services to be ready (10 seconds)..."
+            sleep 10
+            
+            # 컨테이너 상태 확인
+            if ! docker ps --format '{{.Names}}' | grep -q wealist-postgres; then
+              echo "  ❌ PostgreSQL container failed to start" >&2
+              echo "  📋 Container status:" >&2
+              docker ps -a --filter "name=wealist-postgres" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' >&2
+              exit 1
+            fi
+            
+            echo "  ✅ Infrastructure services are ready"
+          else
+            echo "  ✅ Infrastructure services already running"
+          fi
+
+          # =============================================================================
           # 데이터베이스 마이그레이션 실행
           # =============================================================================
           echo "🗄️ Running database migrations..."
 
-          # PostgreSQL 컨테이너 확인
-          echo "  ⏳ Checking PostgreSQL container status..."
+          # PostgreSQL 컨테이너 확인 (이미 시작되어 있어야 함)
+          echo "  ⏳ Verifying PostgreSQL container is running..."
           if ! docker ps --format '{{.Names}}' | grep -q wealist-postgres; then
             echo "  ❌ PostgreSQL container is not running" >&2
             echo "  📋 Running containers:" >&2
@@ -335,38 +393,26 @@ jobs:
           echo "🔄 Restarting board-service..."
           echo "  📍 Compose file: ${COMPOSE_FILE}"
           
-          # Docker Compose 명령어 감지 (v1 vs v2)
-          echo "  🔍 Detecting Docker Compose version..."
-          if command -v docker-compose &> /dev/null; then
-            COMPOSE_CMD="docker-compose"
-            COMPOSE_VERSION=$(docker-compose version --short 2>/dev/null || echo "unknown")
-            echo "  📦 Using Docker Compose v1: docker-compose (version: ${COMPOSE_VERSION})"
-          elif docker compose version &> /dev/null 2>&1; then
-            COMPOSE_CMD="docker compose"
-            COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || echo "unknown")
-            echo "  📦 Using Docker Compose v2: docker compose (version: ${COMPOSE_VERSION})"
-          else
-            echo "  ❌ Docker Compose not found" >&2
-            echo "  📋 Please install Docker Compose:" >&2
-            echo "     - v1: sudo apt-get install docker-compose" >&2
-            echo "     - v2: sudo apt-get install docker-compose-plugin" >&2
-            exit 1
+          # Docker Compose 명령어는 이미 인프라 확인 단계에서 감지됨
+          # COMPOSE_CMD 변수가 설정되어 있지 않으면 다시 감지
+          if [ -z "${COMPOSE_CMD:-}" ]; then
+            echo "  🔍 Detecting Docker Compose version..."
+            if command -v docker-compose &> /dev/null; then
+              COMPOSE_CMD="docker-compose"
+              COMPOSE_VERSION=$(docker-compose version --short 2>/dev/null || echo "unknown")
+              echo "  📦 Using Docker Compose v1: docker-compose (version: ${COMPOSE_VERSION})"
+            elif docker compose version &> /dev/null 2>&1; then
+              COMPOSE_CMD="docker compose"
+              COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || echo "unknown")
+              echo "  📦 Using Docker Compose v2: docker compose (version: ${COMPOSE_VERSION})"
+            else
+              echo "  ❌ Docker Compose not found" >&2
+              echo "  📋 Please install Docker Compose:" >&2
+              echo "     - v1: sudo apt-get install docker-compose" >&2
+              echo "     - v2: sudo apt-get install docker-compose-plugin" >&2
+              exit 1
+            fi
           fi
-          
-          echo "  ⏳ Ensuring all required services are running..."
-          
-          # 먼저 의존성 서비스들(postgres, redis)이 실행 중인지 확인하고 시작
-          echo "  📦 Starting infrastructure services (postgres, redis)..."
-          restart_error=$(mktemp)
-          if ! $COMPOSE_CMD -f ${COMPOSE_FILE} up -d postgres redis 2>&1 | tee "$restart_error"; then
-            echo "  ⚠️  Warning: Failed to start infrastructure services" >&2
-            cat "$restart_error" >&2
-          fi
-          rm -f "$restart_error"
-          
-          # 잠시 대기 (PostgreSQL 초기화 시간)
-          echo "  ⏳ Waiting for infrastructure services to be ready..."
-          sleep 5
           
           # board-service 재시작
           echo "  🔄 Recreating board-service..."
