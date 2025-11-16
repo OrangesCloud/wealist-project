@@ -17,7 +17,7 @@ import (
 type BoardService interface {
 	CreateBoard(ctx context.Context, req *dto.CreateBoardRequest) (*dto.BoardResponse, error)
 	GetBoard(ctx context.Context, boardID uuid.UUID) (*dto.BoardDetailResponse, error)
-	GetBoardsByProject(ctx context.Context, projectID uuid.UUID) ([]*dto.BoardResponse, error)
+	GetBoardsByProject(ctx context.Context, projectID uuid.UUID, filters *dto.BoardFilters) ([]*dto.BoardResponse, error)
 	UpdateBoard(ctx context.Context, boardID uuid.UUID, req *dto.UpdateBoardRequest) (*dto.BoardResponse, error)
 	DeleteBoard(ctx context.Context, boardID uuid.UUID) error
 }
@@ -81,8 +81,8 @@ func (s *boardServiceImpl) GetBoard(ctx context.Context, boardID uuid.UUID) (*dt
 	return s.toBoardDetailResponse(board), nil
 }
 
-// GetBoardsByProject retrieves all boards for a project
-func (s *boardServiceImpl) GetBoardsByProject(ctx context.Context, projectID uuid.UUID) ([]*dto.BoardResponse, error) {
+// GetBoardsByProject retrieves all boards for a project with optional filters
+func (s *boardServiceImpl) GetBoardsByProject(ctx context.Context, projectID uuid.UUID, filters *dto.BoardFilters) ([]*dto.BoardResponse, error) {
 	// Verify project exists
 	_, err := s.projectRepo.FindByID(ctx, projectID)
 	if err != nil {
@@ -92,8 +92,8 @@ func (s *boardServiceImpl) GetBoardsByProject(ctx context.Context, projectID uui
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to verify project", err.Error())
 	}
 
-	// Fetch boards from repository
-	boards, err := s.boardRepo.FindByProjectID(ctx, projectID)
+	// Fetch boards from repository with filters
+	boards, err := s.boardRepo.FindByProjectID(ctx, projectID, filters)
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch boards", err.Error())
 	}

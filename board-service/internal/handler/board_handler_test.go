@@ -18,7 +18,7 @@ import (
 type MockBoardService struct {
 	CreateBoardFunc       func(ctx context.Context, req *dto.CreateBoardRequest) (*dto.BoardResponse, error)
 	GetBoardFunc          func(ctx context.Context, boardID uuid.UUID) (*dto.BoardDetailResponse, error)
-	GetBoardsByProjectFunc func(ctx context.Context, projectID uuid.UUID) ([]*dto.BoardResponse, error)
+	GetBoardsByProjectFunc func(ctx context.Context, projectID uuid.UUID, filters *dto.BoardFilters) ([]*dto.BoardResponse, error)
 	UpdateBoardFunc       func(ctx context.Context, boardID uuid.UUID, req *dto.UpdateBoardRequest) (*dto.BoardResponse, error)
 	DeleteBoardFunc       func(ctx context.Context, boardID uuid.UUID) error
 }
@@ -37,9 +37,9 @@ func (m *MockBoardService) GetBoard(ctx context.Context, boardID uuid.UUID) (*dt
 	return nil, nil
 }
 
-func (m *MockBoardService) GetBoardsByProject(ctx context.Context, projectID uuid.UUID) ([]*dto.BoardResponse, error) {
+func (m *MockBoardService) GetBoardsByProject(ctx context.Context, projectID uuid.UUID, filters *dto.BoardFilters) ([]*dto.BoardResponse, error) {
 	if m.GetBoardsByProjectFunc != nil {
-		return m.GetBoardsByProjectFunc(ctx, projectID)
+		return m.GetBoardsByProjectFunc(ctx, projectID, filters)
 	}
 	return nil, nil
 }
@@ -225,7 +225,7 @@ func TestBoardHandler_GetBoardsByProject(t *testing.T) {
 			name:      "성공: Project의 Board 목록 조회",
 			projectID: projectID.String(),
 			mockService: func(m *MockBoardService) {
-				m.GetBoardsByProjectFunc = func(ctx context.Context, id uuid.UUID) ([]*dto.BoardResponse, error) {
+				m.GetBoardsByProjectFunc = func(ctx context.Context, id uuid.UUID, filters *dto.BoardFilters) ([]*dto.BoardResponse, error) {
 					return []*dto.BoardResponse{
 						{
 							ID:        uuid.New(),
@@ -252,7 +252,7 @@ func TestBoardHandler_GetBoardsByProject(t *testing.T) {
 			name:      "실패: Project가 존재하지 않음",
 			projectID: projectID.String(),
 			mockService: func(m *MockBoardService) {
-				m.GetBoardsByProjectFunc = func(ctx context.Context, id uuid.UUID) ([]*dto.BoardResponse, error) {
+				m.GetBoardsByProjectFunc = func(ctx context.Context, id uuid.UUID, filters *dto.BoardFilters) ([]*dto.BoardResponse, error) {
 					return nil, response.NewAppError(response.ErrCodeNotFound, "Project not found", "")
 				}
 			},

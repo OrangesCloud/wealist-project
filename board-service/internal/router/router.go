@@ -47,6 +47,7 @@ func Setup(cfg Config) *gin.Engine {
 	boardService := service.NewBoardService(boardRepo, projectRepo)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
 	commentService := service.NewCommentService(commentRepo, boardRepo)
+	fieldOptionService := service.NewFieldOptionService(fieldOptionRepo)
 	projectMemberService := service.NewProjectMemberService(projectRepo, cfg.UserClient)
 	projectJoinRequestService := service.NewProjectJoinRequestService(projectRepo, cfg.UserClient)
 
@@ -55,6 +56,7 @@ func Setup(cfg Config) *gin.Engine {
 	boardHandler := handler.NewBoardHandler(boardService)
 	participantHandler := handler.NewParticipantHandler(participantService)
 	commentHandler := handler.NewCommentHandler(commentService)
+	fieldOptionHandler := handler.NewFieldOptionHandler(fieldOptionService)
 	projectMemberHandler := handler.NewProjectMemberHandler(projectMemberService)
 	projectJoinRequestHandler := handler.NewProjectJoinRequestHandler(projectJoinRequestService)
 
@@ -65,7 +67,7 @@ func Setup(cfg Config) *gin.Engine {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Setup API routes
-	setupRoutes(router, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, projectMemberHandler, projectJoinRequestHandler)
+	setupRoutes(router, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)
 
 	return router
 }
@@ -108,6 +110,7 @@ func setupRoutes(
 	boardHandler *handler.BoardHandler,
 	participantHandler *handler.ParticipantHandler,
 	commentHandler *handler.CommentHandler,
+	fieldOptionHandler *handler.FieldOptionHandler,
 	projectMemberHandler *handler.ProjectMemberHandler,
 	projectJoinRequestHandler *handler.ProjectJoinRequestHandler,
 ) {
@@ -170,6 +173,15 @@ func setupRoutes(
 			comments.GET("/board/:boardId", commentHandler.GetComments)
 			comments.PUT("/:commentId", commentHandler.UpdateComment)
 			comments.DELETE("/:commentId", commentHandler.DeleteComment)
+		}
+
+		// Field option routes
+		fieldOptions := api.Group("/field-options")
+		{
+			fieldOptions.GET("", fieldOptionHandler.GetFieldOptions)
+			fieldOptions.POST("", fieldOptionHandler.CreateFieldOption)
+			fieldOptions.PATCH("/:optionId", fieldOptionHandler.UpdateFieldOption)
+			fieldOptions.DELETE("/:optionId", fieldOptionHandler.DeleteFieldOption)
 		}
 	}
 

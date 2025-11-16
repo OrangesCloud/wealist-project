@@ -65,3 +65,25 @@ type BoardDetailResponse struct {
 	Participants []ParticipantResponse `json:"participants"`
 	Comments     []CommentResponse     `json:"comments"`
 }
+
+// BoardFilters represents the filter parameters for board queries
+type BoardFilters struct {
+	Stage      string `json:"stage,omitempty"`
+	Role       string `json:"role,omitempty"`
+	Importance string `json:"importance,omitempty"`
+}
+
+// GetStage returns the stage filter value
+func (f *BoardFilters) GetStage() string {
+	return f.Stage
+}
+
+// GetRole returns the role filter value
+func (f *BoardFilters) GetRole() string {
+	return f.Role
+}
+
+// GetImportance returns the importance filter value
+func (f *BoardFilters) GetImportance() string {
+	return f.Importance
+}
