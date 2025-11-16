@@ -41,25 +41,21 @@ jobs:
           cache-dependency-path: "frontend/pnpm-lock.yaml"
 
       # ============================================
-      # 2. SSM Parameter Store에서 VITE 값 조회 (각각 가져오기)
+      # 2. SSM Parameter Store에서 ALB 도메인 조회
       # ============================================
-      - name: 🌍 Fetch VITE URLs from SSM
+      - name: 🌍 Fetch ALB Domain from SSM
         id: fetch_secrets
         run: |
-          echo "🌐 Fetching API URLs from SSM Parameter Store..."
+          echo "🌐 Fetching ALB domain from SSM Parameter Store..."
 
-          # 1. User Service URL 조회
-          USER_URL=$(aws ssm get-parameter --name "${{ secrets.VITE_USER_SERVICE_SSM_PATH }}" --query "Parameter.Value" --output text)
+          # ALB 도메인 조회
+          ALB_DOMAIN=$(aws ssm get-parameter --name "/wealist/dev/alb/domain" --query "Parameter.Value" --output text)
 
-          # 2. Board Service URL 조회
-          BOARD_URL=$(aws ssm get-parameter --name "${{ secrets.VITE_BOARD_SERVICE_SSM_PATH }}" --query "Parameter.Value" --output text)
+          # GITHUB_ENV에 주입 (Vite 빌드에 사용)
+          echo "VITE_API_BASE_URL=https://$ALB_DOMAIN" >> $GITHUB_ENV
 
-          # 3. GITHUB_ENV에 주입 (Vite 빌드에 사용)
-          echo "VITE_USER_SERVICE_URL=$USER_URL" >> $GITHUB_ENV
-          echo "VITE_BOARD_SERVICE_URL=$BOARD_URL" >> $GITHUB_ENV
-
-          echo "✅ Fetched User URL: $USER_URL"
-          echo "✅ Fetched Board URL: $BOARD_URL"
+          echo "✅ Fetched ALB Domain: $ALB_DOMAIN"
+          echo "✅ API Base URL: https://$ALB_DOMAIN"
 
       - name: 📦 Install Dependencies
         run: |
