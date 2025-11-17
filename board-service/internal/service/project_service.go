@@ -80,6 +80,13 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to add project owner", err.Error())
 	}
 
+	// Create default field options for the project
+	if err := s.createDefaultFieldOptions(ctx, project.ID); err != nil {
+		// Log error but don't fail project creation
+		// The field options can be created manually later
+		// TODO: Add proper logging
+	}
+
 	// Convert to response DTO
 	return s.toProjectResponse(project), nil
 }
@@ -307,6 +314,42 @@ func (s *projectServiceImpl) SearchProjects(ctx context.Context, workspaceID, us
 	}, nil
 }
 
+// createDefaultFieldOptions creates default field options for a new project
+// by copying system default options
+func (s *projectServiceImpl) createDefaultFieldOptions(ctx context.Context, projectID uuid.UUID) error {
+	// Fetch system default field options
+	systemDefaults, err := s.fieldOptionRepo.FindSystemDefaults(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(systemDefaults) == 0 {
+		// No system defaults found, skip
+		return nil
+	}
+
+	// Create project-specific copies of system defaults
+	projectOptions := make([]*domain.FieldOption, len(systemDefaults))
+	for i, defaultOption := range systemDefaults {
+		projectOptions[i] = &domain.FieldOption{
+			ProjectID:       &projectID,
+			FieldType:       defaultOption.FieldType,
+			Value:           defaultOption.Value,
+			Label:           defaultOption.Label,
+			Color:           defaultOption.Color,
+			DisplayOrder:    defaultOption.DisplayOrder,
+			IsSystemDefault: false, // Project-specific options are not system defaults
+		}
+	}
+
+	// Batch create all project options
+	if err := s.fieldOptionRepo.CreateBatch(ctx, projectOptions); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // GetProjectInitSettings retrieves initial settings for a project including field definitions
 func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, projectID, userID uuid.UUID, token string) (*dto.ProjectInitSettingsResponse, error) {
 	// Fetch project from repository
@@ -351,18 +394,18 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 		UpdatedAt:        project.UpdatedAt,
 	}
 
-	// Fetch field options from database
-	stageOptions, err := s.fieldOptionRepo.FindByFieldType(ctx, domain.FieldTypeStage)
+	// Fetch project-specific field options from database
+	stageOptions, err := s.fieldOptionRepo.FindByProjectAndFieldType(ctx, projectID, domain.FieldTypeStage)
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch stage options", err.Error())
 	}
 
-	roleOptions, err := s.fieldOptionRepo.FindByFieldType(ctx, domain.FieldTypeRole)
+	roleOptions, err := s.fieldOptionRepo.FindByProjectAndFieldType(ctx, projectID, domain.FieldTypeRole)
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch role options", err.Error())
 	}
 
-	importanceOptions, err := s.fieldOptionRepo.FindByFieldType(ctx, domain.FieldTypeImportance)
+	importanceOptions, err := s.fieldOptionRepo.FindByProjectAndFieldType(ctx, projectID, domain.FieldTypeImportance)
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch importance options", err.Error())
 	}

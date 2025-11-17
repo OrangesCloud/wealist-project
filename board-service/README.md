@@ -207,12 +207,78 @@ API 표준화 작업으로 인해 엔드포인트와 필드명이 변경되었�
 코드 변경 후 Swagger 문서를 업데이트하려면:
 
 ```bash
-# Swagger 문서 생성
-swag init -g cmd/api/main.go -o docs
+# Swagger 문서 생성 (의존성 및 내부 패키지 파싱 포함)
+swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
 
 # 또는 Make 명령어 사용
 make swagger
 ```
+
+**중요**: `--parseDependency`와 `--parseInternal` 플래그를 반드시 포함해야 모든 DTO 스키마가 올바르게 생성됩니다.
+
+### Swagger 문서 검증
+
+Swagger 문서가 최신 상태인지 확인하려면:
+
+```bash
+# 엔드포인트 커버리지 검증
+./scripts/validate-swagger.sh
+
+# DTO 스키마 검증
+./scripts/validate-dto-schemas.sh
+
+# Godoc 주석 품질 검증
+./scripts/validate-godoc.sh
+```
+
+모든 검증 스크립트는 100% 커버리지를 목표로 하며, 누락된 항목이 있으면 오류와 함께 종료됩니다.
+
+### Swagger 문서 유지보수 가이드
+
+API 개발 시 Swagger 문서를 최신 상태로 유지하는 방법:
+
+1. **새 핸들러 추가 시**: 반드시 godoc 주석 추가
+2. **DTO 변경 시**: 변경 후 `swag init` 실행
+3. **라우터 변경 시**: 핸들러의 `@Router` 주석 업데이트
+4. **커밋 전**: 검증 스크립트 실행하여 문서 완전성 확인
+
+#### Godoc 주석 표준
+
+모든 핸들러 함수는 다음 형식의 godoc 주석을 포함해야 합니다:
+
+```go
+// HandlerName godoc
+// @Summary      간단한 요약 (한 줄)
+// @Description  상세한 설명
+// @Tags         tag-name
+// @Accept       json
+// @Produce      json
+// @Param        paramName paramType dataType required "description"
+// @Success      200 {object} response.SuccessResponse{data=dto.ResponseType}
+// @Failure      400 {object} response.ErrorResponse "error message"
+// @Failure      404 {object} response.ErrorResponse "not found"
+// @Failure      500 {object} response.ErrorResponse "internal error"
+// @Router       /api/path [method]
+func (h *Handler) HandlerName(c *gin.Context) {
+    // ...
+}
+```
+
+**필수 태그:**
+- `@Summary`: 엔드포인트 요약 (필수)
+- `@Tags`: API 그룹화 태그 (필수)
+- `@Router`: 라우트 경로 및 메서드 (필수)
+
+**권장 태그:**
+- `@Description`: 상세 설명
+- `@Param`: 모든 파라미터 문서화
+- `@Success`: 성공 응답 (상태 코드별)
+- `@Failure`: 에러 응답 (모든 가능한 상태 코드)
+
+자세한 가이드는 다음 문서를 참조하세요:
+- [Swagger 문서 가이드](docs/SWAGGER.md) - Swagger 생성 및 검증
+- [개발자 가이드](docs/DEVELOPER_GUIDELINES.md) - 전체 개발 워크플로우
+- [CI/CD 통합 가이드](docs/CI_CD_INTEGRATION.md) - CI/CD 파이프라인 및 자동화
 
 ## API 엔드포인트
 

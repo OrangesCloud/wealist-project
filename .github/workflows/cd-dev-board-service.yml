@@ -84,6 +84,32 @@ jobs:
           COMPOSE_FILE="${{ env.COMPOSE_FILE }}"
 
           # =============================================================================
+          # Swagger 문서 재생성 (배포 전)
+          # =============================================================================
+          echo "📚 Regenerating Swagger documentation..."
+          cd /home/ubuntu/wealist/board-service
+          
+          # swag 도구 설치 확인
+          if ! command -v swag &> /dev/null; then
+            echo "  ⏳ Installing swag tool..."
+            go install github.com/swaggo/swag/cmd/swag@latest
+            export PATH=$PATH:$(go env GOPATH)/bin
+          fi
+          
+          # Swagger 문서 생성
+          echo "  ⏳ Generating Swagger files..."
+          swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
+          
+          if [ -f "docs/swagger.yaml" ] && [ -f "docs/swagger.json" ]; then
+            echo "  ✅ Swagger documentation regenerated successfully"
+          else
+            echo "  ⚠️  Swagger generation may have failed, but continuing deployment..."
+          fi
+          
+          cd /home/ubuntu/wealist
+          echo ""
+
+          # =============================================================================
           # Parameter Store에서 환경변수 로드
           # =============================================================================
           echo "📥 Loading environment variables from Parameter Store..."

@@ -40,6 +40,28 @@ import (
 // @name Authorization
 // @description JWT 토큰을 입력하세요. 형식: Bearer {token}
 
+// Additional DTO schemas for documentation
+// These DTOs are defined in the codebase and should be included in swagger definitions
+// even if not directly used in current handler endpoints
+
+// BoardFilters represents filter parameters for board queries
+// @Description Board filtering parameters
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.BoardFilters
+
+// PaginatedBoardsResponse represents paginated board list response
+// @Description Paginated boards response with metadata
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.PaginatedBoardsResponse
+
+// UpdateBoardFieldRequest represents request to update a single board field
+// @Description Update a single board field (stage, importance, or role)
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.UpdateBoardFieldRequest
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load("configs/config.yaml")

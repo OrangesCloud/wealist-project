@@ -80,11 +80,11 @@ func (h *BoardHandler) GetBoard(c *gin.Context) {
 
 // GetBoardsByProject godoc
 // @Summary      Project의 Board 목록 조회
-// @Description  특정 Project에 속한 모든 Board를 조회합니다 (필터링 지원: customFields)
+// @Description  특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON 형식)
 // @Tags         boards
 // @Produce      json
 // @Param        projectId path string true "Project ID (UUID)"
-// @Param        customFields query string false "Custom Fields 필터 (JSON 형식, 예: {\"stage\":\"in_progress\",\"role\":\"developer\"})"
+// @Param        customFields query string false "Custom Fields 필터 JSON 객체. 예시: stage=in_progress, role=developer"
 // @Success      200 {object} response.SuccessResponse{data=[]dto.BoardResponse} "Board 목록 조회 성공"
 // @Failure      400 {object} response.ErrorResponse "잘못된 Project ID 또는 필터 파라미터"
 // @Failure      404 {object} response.ErrorResponse "Project를 찾을 수 없음"

@@ -15,7 +15,10 @@ type FieldOptionRepository interface {
 	Create(ctx context.Context, fieldOption *domain.FieldOption) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.FieldOption, error)
 	FindByFieldType(ctx context.Context, fieldType domain.FieldType) ([]*domain.FieldOption, error)
+	FindByProjectAndFieldType(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType) ([]*domain.FieldOption, error)
 	FindByFieldTypeAndValue(ctx context.Context, fieldType, value string) (*domain.FieldOption, error)
+	FindSystemDefaults(ctx context.Context) ([]*domain.FieldOption, error)
+	CreateBatch(ctx context.Context, fieldOptions []*domain.FieldOption) error
 	Update(ctx context.Context, fieldOption *domain.FieldOption) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -89,6 +92,41 @@ func (r *fieldOptionRepositoryImpl) Update(ctx context.Context, fieldOption *dom
 // Delete soft deletes a field option
 func (r *fieldOptionRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {
 	if err := r.db.WithContext(ctx).Delete(&domain.FieldOption{}, id).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// FindByProjectAndFieldType finds all field options for a specific project and field type
+func (r *fieldOptionRepositoryImpl) FindByProjectAndFieldType(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType) ([]*domain.FieldOption, error) {
+	var fieldOptions []*domain.FieldOption
+	if err := r.db.WithContext(ctx).
+		Where("project_id = ? AND field_type = ?", projectID, fieldType).
+		Order("display_order ASC").
+		Find(&fieldOptions).Error; err != nil {
+		return nil, err
+	}
+	return fieldOptions, nil
+}
+
+// FindSystemDefaults finds all system default field options (project_id is NULL)
+func (r *fieldOptionRepositoryImpl) FindSystemDefaults(ctx context.Context) ([]*domain.FieldOption, error) {
+	var fieldOptions []*domain.FieldOption
+	if err := r.db.WithContext(ctx).
+		Where("project_id IS NULL AND is_system_default = ?", true).
+		Order("field_type ASC, display_order ASC").
+		Find(&fieldOptions).Error; err != nil {
+		return nil, err
+	}
+	return fieldOptions, nil
+}
+
+// CreateBatch creates multiple field options in a single transaction
+func (r *fieldOptionRepositoryImpl) CreateBatch(ctx context.Context, fieldOptions []*domain.FieldOption) error {
+	if len(fieldOptions) == 0 {
+		return nil
+	}
+	if err := r.db.WithContext(ctx).Create(&fieldOptions).Error; err != nil {
 		return err
 	}
 	return nil
