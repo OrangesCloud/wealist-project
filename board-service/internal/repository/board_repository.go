@@ -14,7 +14,7 @@ import (
 type BoardRepository interface {
 	Create(ctx context.Context, board *domain.Board) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.Board, error)
-	FindByProjectID(ctx context.Context, projectID uuid.UUID) ([]*domain.Board, error)
+	FindByProjectID(ctx context.Context, projectID uuid.UUID, filters interface{}) ([]*domain.Board, error)
 	Update(ctx context.Context, board *domain.Board) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -53,14 +53,30 @@ func (r *boardRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*doma
 	return &board, nil
 }
 
-// FindByProjectID finds all boards by project ID
-func (r *boardRepositoryImpl) FindByProjectID(ctx context.Context, projectID uuid.UUID) ([]*domain.Board, error) {
+// FindByProjectID finds all boards by project ID with optional filters
+func (r *boardRepositoryImpl) FindByProjectID(ctx context.Context, projectID uuid.UUID, filters interface{}) ([]*domain.Board, error) {
 	var boards []*domain.Board
-	if err := r.db.WithContext(ctx).
-		Where("project_id = ?", projectID).
-		Find(&boards).Error; err != nil {
+	
+	// Start building the query
+	query := r.db.WithContext(ctx).Where("project_id = ?", projectID)
+	
+	// Apply filters if provided
+	if filters != nil {
+		// Type assertion to get customFields map
+		if customFields, ok := filters.(map[string]interface{}); ok {
+			// Apply JSONB filtering for each custom field
+			for key, value := range customFields {
+				// Use JSONB operator ->> to extract text value and compare
+				query = query.Where("custom_fields->>? = ?", key, value)
+			}
+		}
+	}
+	
+	// Execute the query
+	if err := query.Find(&boards).Error; err != nil {
 		return nil, err
 	}
+	
 	return boards, nil
 }
 

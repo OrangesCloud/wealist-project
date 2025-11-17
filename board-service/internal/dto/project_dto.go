@@ -89,14 +89,16 @@ type ProjectInitSettingsResponse struct {
 
 // ProjectBasicInfo represents basic project information
 type ProjectBasicInfo struct {
-	ProjectID   uuid.UUID `json:"projectId"`
-	WorkspaceID uuid.UUID `json:"workspaceId"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	OwnerID     uuid.UUID `json:"ownerId"`
-	IsPublic    bool      `json:"isPublic"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ProjectID      uuid.UUID `json:"projectId"`
+	WorkspaceID    uuid.UUID `json:"workspaceId"`
+	WorkspaceName  string    `json:"workspaceName,omitempty"`
+	WorkspaceEmail string    `json:"workspaceEmail,omitempty"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	OwnerID        uuid.UUID `json:"ownerId"`
+	IsPublic       bool      `json:"isPublic"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 // FieldWithOptionsResponse represents a field definition with its options
@@ -111,9 +113,13 @@ type FieldWithOptionsResponse struct {
 
 // FieldOption represents an option for a field
 type FieldOption struct {
-	OptionID    string `json:"optionId"`
-	OptionLabel string `json:"optionLabel"`
-	OptionValue string `json:"optionValue"`
+	OptionID     string `json:"optionId"`
+	OptionLabel  string `json:"optionLabel"`
+	OptionValue  string `json:"optionValue"`
+	Color        string `json:"color,omitempty"`
+	DisplayOrder int    `json:"displayOrder"`
+	FieldID      string `json:"fieldId,omitempty"`
+	Description  string `json:"description,omitempty"`
 }
 
 // FieldTypeInfo represents information about a field type

@@ -54,9 +54,28 @@ public class UserProfileController {
 
     @GetMapping("/workspace/{workspaceId}")
     @Operation(summary = "내 조직별 프로필 조회", description = "내 조직별 프로필을 조회합니다.")
-    public ResponseEntity<UserProfileResponse> getMyWorkspaceIdProfile(@PathVariable UUID workspaceId ,Principal principal) {
+    public ResponseEntity<UserProfileResponse> getMyWorkspaceIdProfile(
+            @PathVariable UUID workspaceId,
+            Principal principal,
+            jakarta.servlet.http.HttpServletRequest request) {
+        // Enhanced logging: Log incoming request details
+        log.info("=== RECEIVED REQUEST: Get Workspace Profile ===");
+        log.info("Request Method: {}", request.getMethod());
+        log.info("Request URI: {}", request.getRequestURI());
+        log.info("Request URL: {}", request.getRequestURL());
+        log.info("Path Variable - workspaceId: {}", workspaceId);
+        log.info("Remote Address: {}", request.getRemoteAddr());
+        log.info("Authorization Header Present: {}", request.getHeader("Authorization") != null);
+        
         UUID userId = extractUserId(principal);
-        UserProfileResponse response = userProfileService.workSpaceIdGetProfile(workspaceId,userId);
+        log.info("Authenticated userId: {}", userId);
+        
+        UserProfileResponse response = userProfileService.workSpaceIdGetProfile(workspaceId, userId);
+        
+        log.info("Workspace profile retrieved successfully: workspaceId={}, userId={}, profileId={}", 
+                workspaceId, userId, response.getProfileId());
+        log.info("=== END REQUEST: Get Workspace Profile ===");
+        
         return ResponseEntity.ok(response);
     }
 

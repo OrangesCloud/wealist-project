@@ -5,10 +5,10 @@ import "github.com/google/uuid"
 // Comment represents a comment on a board
 type Comment struct {
 	BaseModel
-	BoardID uuid.UUID `gorm:"type:uuid;not null;index" json:"board_id"`
-	UserID  uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
+	BoardID uuid.UUID `gorm:"type:uuid;not null;index:idx_comments_board_id" json:"board_id"`
+	UserID  uuid.UUID `gorm:"type:uuid;not null;index:idx_comments_user_id" json:"user_id"`
 	Content string    `gorm:"type:text;not null" json:"content"`
-	Board   Board     `gorm:"foreignKey:BoardID" json:"board,omitempty"`
+	Board   Board     `gorm:"foreignKey:BoardID;constraint:OnDelete:CASCADE" json:"board,omitempty"`
 }
 
 // TableName specifies the table name for Comment

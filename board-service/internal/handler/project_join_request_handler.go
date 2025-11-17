@@ -34,7 +34,7 @@ func NewProjectJoinRequestHandler(joinRequestService service.ProjectJoinRequestS
 // @Failure      404 {object} response.ErrorResponse "Project를 찾을 수 없음"
 // @Failure      409 {object} response.ErrorResponse "이미 멤버이거나 요청이 존재함"
 // @Failure      500 {object} response.ErrorResponse "서버 에러"
-// @Router       /projects/join-requests [post]
+// @Router       /join-requests [post]
 func (h *ProjectJoinRequestHandler) CreateJoinRequest(c *gin.Context) {
 	var req dto.CreateProjectJoinRequestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -143,7 +143,7 @@ func (h *ProjectJoinRequestHandler) GetJoinRequests(c *gin.Context) {
 // @Failure      403 {object} response.ErrorResponse "권한 없음"
 // @Failure      404 {object} response.ErrorResponse "가입 요청을 찾을 수 없음"
 // @Failure      500 {object} response.ErrorResponse "서버 에러"
-// @Router       /projects/join-requests/{joinRequestId} [put]
+// @Router       /join-requests/{joinRequestId} [put]
 func (h *ProjectJoinRequestHandler) UpdateJoinRequest(c *gin.Context) {
 	joinRequestIDStr := c.Param("joinRequestId")
 	joinRequestID, err := uuid.Parse(joinRequestIDStr)

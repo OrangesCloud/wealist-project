@@ -4,10 +4,10 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'ax
 const API_BASE_URL = 'https://api.wealist.co.kr';
 
 // 1. User/Workspace 서비스 (Java 백엔드) 기본 URL
-export const USER_REPO_API_URL = `${API_BASE_URL}/api/users`;
+export const USER_REPO_API_URL = 'http://localhost:8080';
 
 // 2. Board/Project 서비스 (Go 백엔드) 기본 URL
-export const BOARD_SERVICE_API_URL = `${API_BASE_URL}/api/boards`;
+export const BOARD_SERVICE_API_URL = 'http://localhost:8000';
 
 // ============================================================================
 // 인증 갱신 관련 변수

@@ -32,13 +32,35 @@ import (
 // @license.name  MIT
 // @license.url   https://opensource.org/licenses/MIT
 
-// @host      localhost:8000
 // @BasePath  /api
+// @schemes   http https
 
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
 // @description JWT 토큰을 입력하세요. 형식: Bearer {token}
+
+// Additional DTO schemas for documentation
+// These DTOs are defined in the codebase and should be included in swagger definitions
+// even if not directly used in current handler endpoints
+
+// BoardFilters represents filter parameters for board queries
+// @Description Board filtering parameters
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.BoardFilters
+
+// PaginatedBoardsResponse represents paginated board list response
+// @Description Paginated boards response with metadata
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.PaginatedBoardsResponse
+
+// UpdateBoardFieldRequest represents request to update a single board field
+// @Description Update a single board field (stage, importance, or role)
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.UpdateBoardFieldRequest
 
 func main() {
 	// Load configuration
@@ -86,6 +108,20 @@ func main() {
 		zap.String("database", cfg.Database.DBName),
 	)
 
+	// Run GORM auto-migration
+	log.Info("Running GORM auto-migration")
+	if err := database.AutoMigrate(db); err != nil {
+		log.Fatal("Failed to run auto-migration", zap.Error(err))
+	}
+	log.Info("Database schema migration completed successfully")
+
+	// Log complete User API configuration for debugging
+	log.Info("User API Configuration",
+		zap.String("base_url", cfg.UserAPI.BaseURL),
+		zap.Duration("timeout", cfg.UserAPI.Timeout),
+		zap.String("config_source", "Loaded from config.yaml and environment variables"),
+	)
+
 	// Initialize User API client
 	userClient := client.NewUserClient(
 		cfg.UserAPI.BaseURL,
@@ -93,9 +129,17 @@ func main() {
 		log.Logger,
 	)
 
-	log.Info("User API client initialized",
+	log.Info("User API client initialized successfully",
 		zap.String("base_url", cfg.UserAPI.BaseURL),
 		zap.Duration("timeout", cfg.UserAPI.Timeout),
+	)
+	
+	// Log example endpoint URLs for verification
+	log.Info("User API endpoint examples (for debugging)",
+		zap.String("validate_member", cfg.UserAPI.BaseURL+"/api/workspaces/{workspaceId}/validate-member/{userId}"),
+		zap.String("get_user", cfg.UserAPI.BaseURL+"/api/users/{userId}"),
+		zap.String("get_workspace_profile", cfg.UserAPI.BaseURL+"/api/profiles/workspace/{workspaceId}"),
+		zap.String("get_workspace", cfg.UserAPI.BaseURL+"/api/workspaces/{workspaceId}"),
 	)
 
 	// Setup router with dependency injection

@@ -22,6 +22,9 @@ type UserClient interface {
 
 	// GetWorkspaceProfile retrieves workspace-specific user profile
 	GetWorkspaceProfile(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*WorkspaceProfile, error)
+
+	// GetWorkspace retrieves workspace information
+	GetWorkspace(ctx context.Context, workspaceID uuid.UUID, token string) (*Workspace, error)
 }
 
 // WorkspaceValidationResponse represents the response from workspace validation endpoint
@@ -47,6 +50,18 @@ type WorkspaceProfile struct {
 	NickName        string    `json:"nickName"`
 	Email           string    `json:"email"`
 	ProfileImageURL string    `json:"profileImageUrl"`
+}
+
+// Workspace represents workspace information
+type Workspace struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	OwnerID     uuid.UUID `json:"ownerId"`
+	OwnerName   string    `json:"ownerName"`
+	OwnerEmail  string    `json:"ownerEmail"`
+	CreatedAt   string    `json:"createdAt"`
+	UpdatedAt   string    `json:"updatedAt"`
 }
 
 // userClient implements UserClient interface
@@ -167,11 +182,55 @@ func (c *userClient) GetWorkspaceProfile(ctx context.Context, workspaceID, userI
 	return &profile, nil
 }
 
+// GetWorkspace retrieves workspace information
+func (c *userClient) GetWorkspace(ctx context.Context, workspaceID uuid.UUID, token string) (*Workspace, error) {
+	url := fmt.Sprintf("%s/api/workspaces/%s", c.baseURL, workspaceID.String())
+
+	c.logger.Debug("Getting workspace",
+		zap.String("url", url),
+		zap.String("workspace_id", workspaceID.String()),
+	)
+
+	var workspace Workspace
+	if err := c.doRequest(ctx, "GET", url, token, &workspace); err != nil {
+		c.logger.Error("Failed to get workspace",
+			zap.Error(err),
+			zap.String("workspace_id", workspaceID.String()),
+		)
+		// Graceful degradation: return empty workspace
+		return &Workspace{
+			ID:   workspaceID,
+			Name: "",
+		}, nil
+	}
+
+	c.logger.Debug("Workspace retrieved",
+		zap.String("workspace_id", workspaceID.String()),
+		zap.String("name", workspace.Name),
+	)
+
+	return &workspace, nil
+}
+
 // doRequest performs an HTTP request with the given parameters
 func (c *userClient) doRequest(ctx context.Context, method, url, token string, result interface{}) error {
+	// Enhanced logging: Log request details before making the call
+	c.logger.Info("Making request to User Service",
+		zap.String("method", method),
+		zap.String("url", url),
+		zap.String("base_url", c.baseURL),
+		zap.Bool("has_token", token != ""),
+		zap.Duration("timeout", c.timeout),
+	)
+
 	// Create request with context
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
+		c.logger.Error("Failed to create HTTP request",
+			zap.Error(err),
+			zap.String("method", method),
+			zap.String("url", url),
+		)
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -179,9 +238,20 @@ func (c *userClient) doRequest(ctx context.Context, method, url, token string, r
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Set("Content-Type", "application/json")
 
+	// Log request headers (excluding sensitive token value)
+	c.logger.Debug("Request headers set",
+		zap.String("content_type", req.Header.Get("Content-Type")),
+		zap.Bool("has_authorization", req.Header.Get("Authorization") != ""),
+	)
+
 	// Execute request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.logger.Error("Failed to execute HTTP request",
+			zap.Error(err),
+			zap.String("method", method),
+			zap.String("url", url),
+		)
 		return fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -189,14 +259,34 @@ func (c *userClient) doRequest(ctx context.Context, method, url, token string, r
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		c.logger.Error("Failed to read response body",
+			zap.Error(err),
+			zap.String("url", url),
+			zap.Int("status_code", resp.StatusCode),
+		)
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	// Enhanced logging: Log response details
+	bodyPreview := string(body)
+	if len(bodyPreview) > 500 {
+		bodyPreview = bodyPreview[:500] + "... (truncated)"
+	}
+	
+	c.logger.Info("Received response from User Service",
+		zap.Int("status_code", resp.StatusCode),
+		zap.String("url", url),
+		zap.String("method", method),
+		zap.Int("body_length", len(body)),
+		zap.String("response_preview", bodyPreview),
+	)
+
 	// Check status code
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.logger.Warn("User API returned non-success status",
+		c.logger.Error("User API returned non-success status",
 			zap.Int("status_code", resp.StatusCode),
 			zap.String("url", url),
+			zap.String("method", method),
 			zap.String("response_body", string(body)),
 		)
 		return fmt.Errorf("user API returned status %d: %s", resp.StatusCode, string(body))
@@ -204,8 +294,17 @@ func (c *userClient) doRequest(ctx context.Context, method, url, token string, r
 
 	// Parse response
 	if err := json.Unmarshal(body, result); err != nil {
+		c.logger.Error("Failed to parse response JSON",
+			zap.Error(err),
+			zap.String("url", url),
+			zap.String("response_body", string(body)),
+		)
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
+
+	c.logger.Debug("Successfully parsed response",
+		zap.String("url", url),
+	)
 
 	return nil
 }

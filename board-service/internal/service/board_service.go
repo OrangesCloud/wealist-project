@@ -17,7 +17,7 @@ import (
 type BoardService interface {
 	CreateBoard(ctx context.Context, req *dto.CreateBoardRequest) (*dto.BoardResponse, error)
 	GetBoard(ctx context.Context, boardID uuid.UUID) (*dto.BoardDetailResponse, error)
-	GetBoardsByProject(ctx context.Context, projectID uuid.UUID) ([]*dto.BoardResponse, error)
+	GetBoardsByProject(ctx context.Context, projectID uuid.UUID, filters *dto.BoardFilters) ([]*dto.BoardResponse, error)
 	UpdateBoard(ctx context.Context, boardID uuid.UUID, req *dto.UpdateBoardRequest) (*dto.BoardResponse, error)
 	DeleteBoard(ctx context.Context, boardID uuid.UUID) error
 }
@@ -49,12 +49,12 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 
 	// Create domain model from request
 	board := &domain.Board{
-		ProjectID:  req.ProjectID,
-		Title:      req.Title,
-		Content:    req.Content,
-		Stage:      domain.Stage(req.Stage),
-		Importance: domain.Importance(req.Importance),
-		Role:       domain.Role(req.Role),
+		ProjectID:    req.ProjectID,
+		Title:        req.Title,
+		Content:      req.Content,
+		CustomFields: req.CustomFields,
+		AssigneeID:   req.AssigneeID,
+		DueDate:      req.DueDate,
 	}
 
 	// Save to repository
@@ -81,8 +81,8 @@ func (s *boardServiceImpl) GetBoard(ctx context.Context, boardID uuid.UUID) (*dt
 	return s.toBoardDetailResponse(board), nil
 }
 
-// GetBoardsByProject retrieves all boards for a project
-func (s *boardServiceImpl) GetBoardsByProject(ctx context.Context, projectID uuid.UUID) ([]*dto.BoardResponse, error) {
+// GetBoardsByProject retrieves all boards for a project with optional filters
+func (s *boardServiceImpl) GetBoardsByProject(ctx context.Context, projectID uuid.UUID, filters *dto.BoardFilters) ([]*dto.BoardResponse, error) {
 	// Verify project exists
 	_, err := s.projectRepo.FindByID(ctx, projectID)
 	if err != nil {
@@ -92,8 +92,14 @@ func (s *boardServiceImpl) GetBoardsByProject(ctx context.Context, projectID uui
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to verify project", err.Error())
 	}
 
-	// Fetch boards from repository
-	boards, err := s.boardRepo.FindByProjectID(ctx, projectID)
+	// Prepare filter parameter for repository
+	var filterParam interface{}
+	if filters != nil && filters.CustomFields != nil {
+		filterParam = filters.CustomFields
+	}
+
+	// Fetch boards from repository with filters
+	boards, err := s.boardRepo.FindByProjectID(ctx, projectID, filterParam)
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch boards", err.Error())
 	}
@@ -125,14 +131,14 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 	if req.Content != nil {
 		board.Content = *req.Content
 	}
-	if req.Stage != nil {
-		board.Stage = domain.Stage(*req.Stage)
+	if req.CustomFields != nil {
+		board.CustomFields = *req.CustomFields
 	}
-	if req.Importance != nil {
-		board.Importance = domain.Importance(*req.Importance)
+	if req.AssigneeID != nil {
+		board.AssigneeID = req.AssigneeID
 	}
-	if req.Role != nil {
-		board.Role = domain.Role(*req.Role)
+	if req.DueDate != nil {
+		board.DueDate = req.DueDate
 	}
 
 	// Save updated board
@@ -166,15 +172,16 @@ func (s *boardServiceImpl) DeleteBoard(ctx context.Context, boardID uuid.UUID) e
 // toBoardResponse converts domain.Board to dto.BoardResponse
 func (s *boardServiceImpl) toBoardResponse(board *domain.Board) *dto.BoardResponse {
 	return &dto.BoardResponse{
-		ID:         board.ID,
-		ProjectID:  board.ProjectID,
-		Title:      board.Title,
-		Content:    board.Content,
-		Stage:      string(board.Stage),
-		Importance: string(board.Importance),
-		Role:       string(board.Role),
-		CreatedAt:  board.CreatedAt,
-		UpdatedAt:  board.UpdatedAt,
+		ID:           board.ID,
+		ProjectID:    board.ProjectID,
+		AuthorID:     board.AuthorID,
+		AssigneeID:   board.AssigneeID,
+		Title:        board.Title,
+		Content:      board.Content,
+		CustomFields: board.CustomFields,
+		DueDate:      board.DueDate,
+		CreatedAt:    board.CreatedAt,
+		UpdatedAt:    board.UpdatedAt,
 	}
 }
 
