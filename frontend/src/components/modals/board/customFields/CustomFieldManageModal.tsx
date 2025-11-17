@@ -26,7 +26,7 @@ interface CustomFieldManageModalProps {
 }
 
 export const CustomFieldManageModal: React.FC<CustomFieldManageModalProps> = ({
-  projectId,
+  // projectId,
   editFieldData,
   onClose,
   afterFieldCreated,
@@ -42,7 +42,7 @@ export const CustomFieldManageModal: React.FC<CustomFieldManageModalProps> = ({
   const [fieldName, setFieldName] = useState('');
   const [fieldOptions, setFieldOptions] = useState<LocalFieldOption[]>([]);
   const [newOption, setNewOption] = useState('');
-  const [isRequired, _setIsRequired] = useState(false);
+  const [_isRequired, _setIsRequired] = useState(false);
 
   const [editingOption, setEditingOption] = useState<{
     option: LocalFieldOption;

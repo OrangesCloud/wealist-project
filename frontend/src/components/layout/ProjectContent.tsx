@@ -7,7 +7,7 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import { getDefaultColorByIndex } from '../../constants/colors';
 import { AssigneeAvatarStack } from '../common/AvartarStack';
 import { ProjectResponse, BoardResponse, Column, ViewState, FieldOption } from '../../types/board';
-import { getBoards, getBoardsByProject } from '../../api/board/boardService';
+import { getBoardsByProject } from '../../api/board/boardService';
 import { BoardDetailModal } from '../modals/board/BoardDetailModal';
 import { FilterBar } from '../modals/board/FilterBar';
 
@@ -361,21 +361,17 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
     const groupByField = viewState.currentView;
     let baseOptions: any[] = [];
-    let fieldKey: string = 'stage';
     let lookupField: 'stageOption' | 'roleOption' | 'importanceOption' = 'stageOption';
 
     // 1. 그룹화 기준에 따라 옵션 배열 선택
     if (groupByField === 'stage') {
       baseOptions = fieldOptionsLookup.stages || [];
-      fieldKey = 'stage';
       lookupField = 'stageOption';
     } else if (groupByField === 'role') {
       baseOptions = fieldOptionsLookup.roles || [];
-      fieldKey = 'role';
       lookupField = 'roleOption';
     } else if (groupByField === 'importance') {
       baseOptions = fieldOptionsLookup.importances || [];
-      fieldKey = 'importance';
       lookupField = 'importanceOption';
     } else {
       return [];
@@ -737,6 +733,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
           onBoardUpdated={fetchBoards}
           onBoardDeleted={fetchBoards}
           onEdit={handleBoardEdit}
+          fieldOptionsLookup={fieldOptionsLookup}
         />
       )}
     </>
