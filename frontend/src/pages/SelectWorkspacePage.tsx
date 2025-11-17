@@ -322,13 +322,13 @@ const SelectWorkspacePage: React.FC = () => {
             </div>
 
             {/* 💡 [NEW] 검색된 워크스페이스 목록 (가입 요청 목록) */}
-            {(searchedWorkspaces.length > 0 || isSearching) && (
+            {(searchedWorkspaces?.length > 0 || isSearching) && (
               <div className={`mb-4 border-2 ${theme.colors.border} rounded-lg shadow-md`}>
                 <h3 className="p-3 bg-gray-100 font-semibold text-sm rounded-t-lg">
-                  {isSearching ? '검색 중...' : `검색 결과 (${searchedWorkspaces.length}개)`}
+                  {isSearching ? '검색 중...' : `검색 결과 (${searchedWorkspaces?.length}개)`}
                 </h3>
                 <div className={`max-h-40 overflow-y-auto`}>
-                  {searchedWorkspaces.map((ws) => (
+                  {searchedWorkspaces?.map((ws) => (
                     <div
                       key={ws.workspaceId}
                       // 클릭 시 가입 요청 핸들러 호출
@@ -364,7 +364,7 @@ const SelectWorkspacePage: React.FC = () => {
               className={`max-h-60 overflow-y-auto border-2 ${theme.colors.border} rounded-lg mb-4`}
             >
               {workspaces && workspaces?.length > 0 ? (
-                workspaces.map((ws) => (
+                workspaces?.map((ws) => (
                   <div
                     key={ws.workspaceId}
                     aria-disabled={ws?.role === 'PENDING'}
@@ -549,13 +549,13 @@ const SelectWorkspacePage: React.FC = () => {
             </div>
 
             {/* 추가된 멤버 목록 (동일) */}
-            {pendingMembers.length > 0 && (
+            {pendingMembers?.length > 0 && (
               <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <p className={`${theme.font.size.sm} font-semibold ${theme.colors.text} mb-3`}>
-                  초대 예정 멤버 ({pendingMembers.length}명)
+                  초대 예정 멤버 ({pendingMembers?.length}명)
                 </p>
                 <div className="space-y-2">
-                  {pendingMembers.map((member) => (
+                  {pendingMembers?.map((member) => (
                     <div
                       key={member.id}
                       className="flex items-center justify-between bg-white p-2 rounded border border-gray-200"
