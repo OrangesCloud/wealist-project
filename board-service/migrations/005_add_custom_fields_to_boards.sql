@@ -29,10 +29,20 @@ WHERE custom_fields = '{}'::jsonb OR custom_fields IS NULL;
 CREATE INDEX IF NOT EXISTS idx_boards_custom_fields ON boards USING GIN (custom_fields);
 
 -- ============================================
--- Step 4: Drop old indexes (will be removed in future migration)
+-- Step 4: Drop old indexes for legacy columns
 -- ============================================
--- Note: We keep the old columns for now to allow rollback
--- They will be removed in a separate migration after verification
+DROP INDEX IF EXISTS idx_boards_stage;
+DROP INDEX IF EXISTS idx_boards_importance;
+DROP INDEX IF EXISTS idx_boards_role;
+
+-- ============================================
+-- Step 5: Drop legacy columns
+-- ============================================
+-- Remove the old stage, importance, and role columns
+-- Data has been migrated to custom_fields in Step 2
+ALTER TABLE boards DROP COLUMN IF EXISTS stage;
+ALTER TABLE boards DROP COLUMN IF EXISTS importance;
+ALTER TABLE boards DROP COLUMN IF EXISTS role;
 
 -- ============================================
 -- Comments for documentation
