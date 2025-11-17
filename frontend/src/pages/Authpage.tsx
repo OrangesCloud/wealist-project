@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 
 // ⚠️ 백엔드 OAuth2 인증 시작 엔드포인트
-const GOOGLE_AUTH_URL = `https://api.wealist.co.kr:8080/api/users/oauth2/authorization/google`;
+const GOOGLE_AUTH_URL = `https://api.wealist.co.kr/api/users/oauth2/authorization/google`;
 
 const AuthPage: React.FC = () => {
   const { theme } = useTheme();
