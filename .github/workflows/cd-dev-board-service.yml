@@ -329,63 +329,10 @@ jobs:
           fi
 
           # =============================================================================
-          # 데이터베이스 마이그레이션 실행
+          # NOTE: Database migrations are handled by GORM auto-migration
+          # SQL migration files are not used in this deployment
+          # Schema changes are automatically applied when board-service starts
           # =============================================================================
-          echo "🗄️ Running database migrations..."
-
-          # PostgreSQL 컨테이너 확인 (이미 시작되어 있어야 함)
-          echo "  ⏳ Verifying PostgreSQL container is running..."
-          if ! docker ps --format '{{.Names}}' | grep -q wealist-postgres; then
-            echo "  ❌ PostgreSQL container is not running" >&2
-            echo "  📋 Running containers:" >&2
-            docker ps --format 'table {{.Names}}\t{{.Status}}' >&2
-            exit 1
-          fi
-          echo "  ✅ PostgreSQL container is running"
-
-          # 마이그레이션 디렉토리 확인
-          MIGRATION_DIR="/home/ubuntu/wealist/board-service/migrations"
-          echo "  ⏳ Checking migration directory: ${MIGRATION_DIR}"
-          if [ ! -d "$MIGRATION_DIR" ]; then
-            echo "  ❌ Migration directory not found: $MIGRATION_DIR" >&2
-            echo "  📋 Current directory contents:" >&2
-            ls -la /home/ubuntu/wealist/board-service/ >&2
-            exit 1
-          fi
-          echo "  ✅ Migration directory found"
-
-          # 마이그레이션 파일 목록 확인
-          migration_files=$(ls ${MIGRATION_DIR}/*.sql 2>/dev/null | grep -v "_down.sql" | sort)
-          if [ -z "$migration_files" ]; then
-            echo "  ⚠️  No migration files found, skipping migrations"
-          else
-            migration_count=$(echo "$migration_files" | wc -l)
-            echo "  📊 Found ${migration_count} migration file(s) to apply"
-            
-            # 마이그레이션 파일 실행
-            for migration_file in $migration_files; do
-              filename=$(basename $migration_file)
-              echo "  📝 Applying migration: $filename"
-              
-              migration_error=$(mktemp)
-              if docker exec -i wealist-postgres psql \
-                -U ${POSTGRES_SUPERUSER} \
-                -d ${BOARD_DB_NAME} \
-                < $migration_file 2>&1 | tee "$migration_error"; then
-                echo "  ✅ Migration applied: $filename"
-              else
-                echo "  ❌ Migration failed: $filename" >&2
-                echo "  📋 Error details:" >&2
-                cat "$migration_error" >&2
-                echo "  📋 Migration file path: $migration_file" >&2
-                rm -f "$migration_error"
-                exit 1
-              fi
-              rm -f "$migration_error"
-            done
-            
-            echo "✅ All migrations applied successfully (${migration_count} file(s))"
-          fi
 
           # =============================================================================
           # Board Service 재시작
