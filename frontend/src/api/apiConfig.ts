@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
 // API Base URL from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.wealist.co.kr';
+const API_BASE_URL = 'https://api.wealist.co.kr';
 
 // 1. User/Workspace 서비스 (Java 백엔드) 기본 URL
 export const USER_REPO_API_URL = `${API_BASE_URL}/api/users`;

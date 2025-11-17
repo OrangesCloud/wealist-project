@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       reason:
-        description: '배포 사유 (선택)'
+        description: "배포 사유 (선택)"
         required: false
         type: string
 
@@ -38,8 +38,43 @@ jobs:
       github.event_name == 'push' ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     environment: development
-
     steps:
+      # ============================================
+      # 0. 🚀 워크플로우 이름 동적 변경 (추가할 부분)
+      # ============================================
+      - name: 📝 Update Workflow Run Name with Commit Message
+        uses: actions/github-script@v7
+        if: github.event_name == 'workflow_run'
+        with:
+          script: |
+            // 1. 트리거가 된 CI 워크플로우의 정보를 가져옵니다.
+            const triggered_workflow = await github.request('GET /repos/{owner}/{repo}/actions/runs/{run_id}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{ github.event.workflow_run.id }}
+            });
+
+            // 2. 해당 CI 워크플로우의 커밋 SHA와 메시지를 가져옵니다.
+            const head_sha = triggered_workflow.data.head_sha;
+            const commit_info = await github.request('GET /repos/{owner}/{repo}/commits/{commit_sha}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: head_sha
+            });
+
+            const commit_message = commit_info.data.commit.message.split('\n')[0].trim();
+            const short_sha = head_sha.substring(0, 7);
+
+            // 3. 현재 CD 워크플로우 실행의 이름을 업데이트합니다.
+            const new_name = `CD: ${commit_message} (${short_sha})`;
+            console.log(`Setting workflow name to: ${new_name}`);
+
+            await github.request('PATCH /repos/{owner}/{repo}/actions/runs/{run_id}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+              name: new_name
+            });
       # ============================================
       # 1. 코드 체크아웃
       # ============================================
@@ -83,22 +118,22 @@ jobs:
           cat > /tmp/deploy-user.sh << 'EOF'
           #!/bin/bash
           set -euo pipefail
-          
+
           echo "🚀 User Service Deployment Started"
-          
+
           # 환경 변수 로드 (Board Service CD와 동일한 파라미터 경로 사용)
           export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           export AWS_REGION=ap-northeast-2
           export PARAMETER_PREFIX=/wealist/dev
-          
+
           load_param() {
             aws ssm get-parameter --name "${PARAMETER_PREFIX}/$1" --query 'Parameter.Value' --output text --region ${AWS_REGION}
           }
-          
+
           load_secret() {
             aws ssm get-parameter --name "${PARAMETER_PREFIX}/$1" --with-decryption --query 'Parameter.Value' --output text --region ${AWS_REGION}
           }
-          
+
           # 환경 변수 로드
           export POSTGRES_SUPERUSER=$(load_param "db/postgres_superuser")
           export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/postgres_superuser_password")
@@ -114,26 +149,26 @@ jobs:
           export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google-client-secret")
           export GRAFANA_ADMIN_USER=$(load_param "monitor/grafana_admin_user")
           export GRAFANA_ADMIN_PASSWORD=$(load_secret "monitor/grafana_admin_password")
-          
+
           echo "✅ Parameters loaded"
-          
+
           # ECR 로그인
           aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-          
+
           # 이미지 Pull
           docker pull ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/wealist-dev-user-service:latest
-          
+
           # Docker Compose 명령어 결정
           if docker compose version &> /dev/null; then
             COMPOSE_CMD="docker compose"
           else
             COMPOSE_CMD="docker-compose"
           fi
-          
+
           # 컨테이너 재시작
           COMPOSE_FILE=/home/ubuntu/wealist/docker/compose/docker-compose.ec2-dev.yml
           $COMPOSE_CMD -f ${COMPOSE_FILE} up -d --force-recreate user-service
-          
+
           # Health Check
           echo "🏥 Health check..."
           sleep 15
@@ -146,17 +181,17 @@ jobs:
             echo "⏳ Waiting... ($i/15)"
             sleep 5
           done
-          
+
           echo "❌ Health check failed!"
           $COMPOSE_CMD -f ${COMPOSE_FILE} logs --tail=50 user-service
           exit 1
           EOF
-          
+
           chmod +x /tmp/deploy-user.sh
-          
+
           # SSM으로 스크립트 전송 및 실행
           SCRIPT_CONTENT=$(cat /tmp/deploy-user.sh | base64 -w 0)
-          
+
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
@@ -164,24 +199,24 @@ jobs:
             --region ${{ env.AWS_REGION }} \
             --output text \
             --query "Command.CommandId")
-          
+
           echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
           echo "✅ SSM Command ID: ${COMMAND_ID}"
-          
+
           # 명령 완료 대기
           echo "⏳ Waiting for deployment..."
           aws ssm wait command-executed \
             --command-id "${COMMAND_ID}" \
             --instance-id "${{ env.EC2_INSTANCE_ID }}" \
             --region ${{ env.AWS_REGION }}
-          
+
           # 결과 확인
           STATUS=$(aws ssm get-command-invocation \
             --command-id "${COMMAND_ID}" \
             --instance-id "${{ env.EC2_INSTANCE_ID }}" \
             --query "Status" \
             --output text)
-          
+
           if [ "$STATUS" != "Success" ]; then
             echo "❌ Deployment failed: $STATUS"
             aws ssm get-command-invocation \
@@ -191,7 +226,7 @@ jobs:
               --output text
             exit 1
           fi
-          
+
           echo "✅ Deployment successful!"
 
           echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
