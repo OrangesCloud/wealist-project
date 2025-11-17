@@ -47,7 +47,41 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # ============================================
-      # 3. 배포 스크립트 생성 (Git에서 관리)
+      # 3. docker-compose 파일을 EC2에 복사
+      # ============================================
+      - name: 📦 Upload docker-compose file to EC2
+        run: |
+          echo "📦 Uploading docker-compose file to EC2..."
+          
+          # docker-compose 파일을 Base64로 인코딩
+          COMPOSE_CONTENT=$(base64 -w 0 docker/compose/docker-compose.ec2-dev.yml)
+          
+          # SSM으로 파일 전송
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Upload docker-compose file - ${{ github.sha }}" \
+            --timeout-seconds 60 \
+            --parameters commands="[
+              \"echo 'Uploading docker-compose file...'\",
+              \"mkdir -p /home/ubuntu/wealist/docker/compose\",
+              \"echo '${COMPOSE_CONTENT}' | base64 -d > /home/ubuntu/wealist/docker/compose/docker-compose.ec2-dev.yml\",
+              \"chown ubuntu:ubuntu /home/ubuntu/wealist/docker/compose/docker-compose.ec2-dev.yml\",
+              \"echo '✅ docker-compose file uploaded successfully'\",
+              \"ls -lh /home/ubuntu/wealist/docker/compose/docker-compose.ec2-dev.yml\"
+            ]" \
+            --output text \
+            --query "Command.CommandId")
+          
+          echo "⏳ Waiting for file upload..."
+          aws ssm wait command-executed \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${{ env.EC2_INSTANCE_ID }}"
+          
+          echo "✅ docker-compose file uploaded"
+
+      # ============================================
+      # 4. 배포 스크립트 생성 (Git에서 관리)
       # ============================================
       - name: 📝 Prepare Deployment Script
         id: script
@@ -414,7 +448,7 @@ jobs:
           sleep 10
 
           MAX_RETRIES=12
-          HEALTH_ENDPOINT="http://localhost:8000/health"
+          HEALTH_ENDPOINT="http://localhost:8000/api/boards/health"
           echo "  📍 Health endpoint: ${HEALTH_ENDPOINT}"
           echo "  📊 Max retries: ${MAX_RETRIES} (60 seconds total)"
           
@@ -464,7 +498,7 @@ jobs:
           echo "✅ Deployment script prepared"
 
       # ============================================
-      # 4. SSM Run Command로 스크립트 전송 & 실행
+      # 5. SSM Run Command로 스크립트 전송 & 실행
       # ============================================
       - name: 🚀 Deploy via SSM Run Command
         id: deploy
@@ -518,7 +552,7 @@ jobs:
           echo ""
 
       # ============================================
-      # 5. 배포 결과 대기
+      # 6. 배포 결과 대기
       # ============================================
       - name: ⏳ Wait for Deployment
         run: |
@@ -602,7 +636,7 @@ jobs:
           echo "✅ Deployment completed successfully!"
 
       # ============================================
-      # 6. 배포 로그 출력
+      # 7. 배포 로그 출력
       # ============================================
       - name: 📋 Show Deployment Logs
         if: always()
@@ -618,7 +652,7 @@ jobs:
           echo "================================"
 
       # ============================================
-      # 7. Summary
+      # 8. Summary
       # ============================================
       - name: 📊 Deployment Summary
         if: always()
