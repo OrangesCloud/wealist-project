@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -84,9 +85,42 @@ func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger) Us
 	}
 }
 
+// buildURL constructs the full URL for User Service API calls
+// It intelligently handles base URLs that may or may not include /api/ prefix
+func (c *userClient) buildURL(endpoint string) string {
+	// Ensure endpoint starts with /
+	if !strings.HasPrefix(endpoint, "/") {
+		endpoint = "/" + endpoint
+	}
+
+	// Check if baseURL already contains /api/users or /api/
+	hasAPIUsers := strings.Contains(c.baseURL, "/api/users")
+	hasAPI := strings.Contains(c.baseURL, "/api/")
+
+	var finalURL string
+	if hasAPIUsers || hasAPI {
+		// Base URL already has API prefix, just append endpoint
+		finalURL = c.baseURL + endpoint
+	} else {
+		// Base URL doesn't have API prefix, add /api before endpoint
+		finalURL = c.baseURL + "/api" + endpoint
+	}
+
+	c.logger.Debug("Built URL for User Service",
+		zap.String("base_url", c.baseURL),
+		zap.String("endpoint", endpoint),
+		zap.String("final_url", finalURL),
+		zap.Bool("has_api_users", hasAPIUsers),
+		zap.Bool("has_api", hasAPI),
+		zap.Bool("has_api_prefix", hasAPIUsers || hasAPI),
+	)
+
+	return finalURL
+}
+
 // ValidateWorkspaceMember validates if a user is a member of a workspace
 func (c *userClient) ValidateWorkspaceMember(ctx context.Context, workspaceID, userID uuid.UUID, token string) (bool, error) {
-	url := fmt.Sprintf("%s/api/workspaces/%s/validate-member/%s", c.baseURL, workspaceID.String(), userID.String())
+	url := c.buildURL(fmt.Sprintf("/workspaces/%s/validate-member/%s", workspaceID.String(), userID.String()))
 
 	c.logger.Debug("Validating workspace member",
 		zap.String("url", url),
@@ -119,7 +153,7 @@ func (c *userClient) ValidateWorkspaceMember(ctx context.Context, workspaceID, u
 
 // GetUserProfile retrieves user profile information
 func (c *userClient) GetUserProfile(ctx context.Context, userID uuid.UUID, token string) (*UserProfile, error) {
-	url := fmt.Sprintf("%s/api/users/%s", c.baseURL, userID.String())
+	url := c.buildURL(fmt.Sprintf("/users/%s", userID.String()))
 
 	c.logger.Debug("Getting user profile",
 		zap.String("url", url),
@@ -149,7 +183,7 @@ func (c *userClient) GetUserProfile(ctx context.Context, userID uuid.UUID, token
 
 // GetWorkspaceProfile retrieves workspace-specific user profile
 func (c *userClient) GetWorkspaceProfile(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*WorkspaceProfile, error) {
-	url := fmt.Sprintf("%s/api/profiles/workspace/%s", c.baseURL, workspaceID.String())
+	url := c.buildURL(fmt.Sprintf("/profiles/workspace/%s", workspaceID.String()))
 
 	c.logger.Debug("Getting workspace profile",
 		zap.String("url", url),
@@ -184,7 +218,7 @@ func (c *userClient) GetWorkspaceProfile(ctx context.Context, workspaceID, userI
 
 // GetWorkspace retrieves workspace information
 func (c *userClient) GetWorkspace(ctx context.Context, workspaceID uuid.UUID, token string) (*Workspace, error) {
-	url := fmt.Sprintf("%s/api/workspaces/%s", c.baseURL, workspaceID.String())
+	url := c.buildURL(fmt.Sprintf("/workspaces/%s", workspaceID.String()))
 
 	c.logger.Debug("Getting workspace",
 		zap.String("url", url),
@@ -214,7 +248,10 @@ func (c *userClient) GetWorkspace(ctx context.Context, workspaceID uuid.UUID, to
 
 // doRequest performs an HTTP request with the given parameters
 func (c *userClient) doRequest(ctx context.Context, method, url, token string, result interface{}) error {
-	// Enhanced logging: Log request details before making the call
+	// Track request start time for processing time calculation
+	startTime := time.Now()
+
+	// Enhanced logging: Log detailed request information before making the call
 	c.logger.Info("Making request to User Service",
 		zap.String("method", method),
 		zap.String("url", url),
@@ -251,6 +288,7 @@ func (c *userClient) doRequest(ctx context.Context, method, url, token string, r
 			zap.Error(err),
 			zap.String("method", method),
 			zap.String("url", url),
+			zap.Duration("processing_time", time.Since(startTime)),
 		)
 		return fmt.Errorf("failed to execute request: %w", err)
 	}
@@ -263,34 +301,59 @@ func (c *userClient) doRequest(ctx context.Context, method, url, token string, r
 			zap.Error(err),
 			zap.String("url", url),
 			zap.Int("status_code", resp.StatusCode),
+			zap.Duration("processing_time", time.Since(startTime)),
 		)
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Enhanced logging: Log response details
+	// Calculate processing time
+	processingTime := time.Since(startTime)
+
+	// Enhanced logging: Log response details with processing time
 	bodyPreview := string(body)
 	if len(bodyPreview) > 500 {
 		bodyPreview = bodyPreview[:500] + "... (truncated)"
 	}
-	
-	c.logger.Info("Received response from User Service",
-		zap.Int("status_code", resp.StatusCode),
-		zap.String("url", url),
-		zap.String("method", method),
-		zap.Int("body_length", len(body)),
-		zap.String("response_preview", bodyPreview),
-	)
 
-	// Check status code
+	// Check status code and log accordingly
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Enhanced error logging with status code and response body
 		c.logger.Error("User API returned non-success status",
 			zap.Int("status_code", resp.StatusCode),
 			zap.String("url", url),
 			zap.String("method", method),
 			zap.String("response_body", string(body)),
+			zap.Bool("has_token", token != ""),
+			zap.Duration("processing_time", processingTime),
 		)
+
+		// Special handling for 403 Forbidden errors
+		if resp.StatusCode == http.StatusForbidden {
+			c.logger.Error("403 Forbidden error from User Service",
+				zap.String("requested_url", url),
+				zap.String("method", method),
+				zap.Bool("token_present", token != ""),
+				zap.String("response_body", string(body)),
+				zap.Duration("processing_time", processingTime),
+			)
+		}
+
 		return fmt.Errorf("user API returned status %d: %s", resp.StatusCode, string(body))
 	}
+
+	// Success response logging with processing time
+	c.logger.Info("Received successful response from User Service",
+		zap.Int("status_code", resp.StatusCode),
+		zap.String("url", url),
+		zap.String("method", method),
+		zap.Int("body_length", len(body)),
+		zap.Duration("processing_time", processingTime),
+	)
+
+	c.logger.Debug("Response body preview",
+		zap.String("url", url),
+		zap.String("response_preview", bodyPreview),
+	)
 
 	// Parse response
 	if err := json.Unmarshal(body, result); err != nil {
@@ -298,12 +361,14 @@ func (c *userClient) doRequest(ctx context.Context, method, url, token string, r
 			zap.Error(err),
 			zap.String("url", url),
 			zap.String("response_body", string(body)),
+			zap.Duration("processing_time", processingTime),
 		)
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	c.logger.Debug("Successfully parsed response",
 		zap.String("url", url),
+		zap.Duration("total_processing_time", processingTime),
 	)
 
 	return nil
