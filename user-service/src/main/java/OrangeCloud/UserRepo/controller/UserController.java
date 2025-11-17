@@ -45,9 +45,23 @@ public class UserController {
 
     @GetMapping("/{userId}")
     @Operation(summary = "사용자 정보 조회", description = "특정 사용자의 정보를 조회합니다.")
-    public ResponseEntity<User> getUserInfo(@PathVariable UUID userId) {
-        log.debug("Fetching user info for ID: {}", userId);
+    public ResponseEntity<User> getUserInfo(
+            @PathVariable UUID userId,
+            jakarta.servlet.http.HttpServletRequest request) {
+        // Enhanced logging: Log incoming request details
+        log.info("=== RECEIVED REQUEST: Get User Info ===");
+        log.info("Request Method: {}", request.getMethod());
+        log.info("Request URI: {}", request.getRequestURI());
+        log.info("Request URL: {}", request.getRequestURL());
+        log.info("Path Variable - userId: {}", userId);
+        log.info("Remote Address: {}", request.getRemoteAddr());
+        log.info("Authorization Header Present: {}", request.getHeader("Authorization") != null);
+        
         User user = userService.getUserById(userId);
+        
+        log.info("User info retrieved successfully: userId={}, email={}", userId, user.getEmail());
+        log.info("=== END REQUEST: Get User Info ===");
+        
         return ResponseEntity.ok(user);
     }
 

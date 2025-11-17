@@ -488,6 +488,64 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 3. `configs/config.yaml` 파일
 4. 기본값
 
+### User Service 연동 설정 검증
+
+board-service는 user-service와 통신하기 위해 올바른 base URL 설정이 필요합니다.
+
+**설정 확인 방법:**
+
+1. **애플리케이션 시작 로그 확인**
+   ```
+   User API Configuration validated:
+     - Base URL: http://user-service:8080
+     - Scheme: http
+     - Host: user-service:8080
+     - Timeout: 5s
+     - Source: USER_SERVICE_URL environment variable
+   ```
+
+2. **엔드포인트 예시 로그 확인**
+   ```
+   User API endpoint examples (for debugging):
+     - validate_member: http://user-service:8080/api/workspaces/{workspaceId}/validate-member/{userId}
+     - get_user: http://user-service:8080/api/users/{userId}
+     - get_workspace_profile: http://user-service:8080/api/profiles/workspace/{workspaceId}
+     - get_workspace: http://user-service:8080/api/workspaces/{workspaceId}
+   ```
+
+**일반적인 설정 오류:**
+
+1. **Trailing slash 문제**
+   - ❌ 잘못된 설정: `USER_SERVICE_URL=http://user-service:8080/`
+   - ✅ 올바른 설정: `USER_SERVICE_URL=http://user-service:8080`
+   - 시스템이 자동으로 trailing slash를 제거하고 경고를 표시합니다.
+
+2. **Docker 환경에서 localhost 사용**
+   - ❌ 잘못된 설정: `USER_SERVICE_URL=http://localhost:8080` (Docker 컨테이너 내부)
+   - ✅ 올바른 설정: `USER_SERVICE_URL=http://user-service:8080` (Docker service name)
+   - ✅ 로컬 개발: `USER_SERVICE_URL=http://localhost:8080` (호스트에서 직접 실행 시)
+
+3. **포트 번호 누락**
+   - ❌ 잘못된 설정: `USER_SERVICE_URL=http://user-service`
+   - ✅ 올바른 설정: `USER_SERVICE_URL=http://user-service:8080`
+
+**환경별 권장 설정:**
+
+- **로컬 개발 (호스트에서 직접 실행):**
+  ```bash
+  USER_SERVICE_URL=http://localhost:8080
+  ```
+
+- **Docker Compose:**
+  ```bash
+  USER_SERVICE_URL=http://user-service:8080
+  ```
+
+- **Kubernetes:**
+  ```bash
+  USER_SERVICE_URL=http://user-service.default.svc.cluster.local:8080
+  ```
+
 ### 프로덕션 환경 설정
 
 프로덕션 환경에서는 다음 사항을 반드시 확인하세요:
@@ -497,6 +555,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 - `LOG_LEVEL=info` 또는 `warn` 설정
 - 데이터베이스 비밀번호를 안전하게 관리
 - HTTPS 사용 (리버스 프록시 설정)
+- `USER_SERVICE_URL`이 올바른 내부 서비스 주소를 가리키는지 확인
 
 **자세한 설정 가이드**: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)를 참조하세요.
 

@@ -27,6 +27,31 @@ public class WorkspaceController {
     // 기본 CRUD 및 조회 API
     // ============================================================================
 
+    /**
+     * 워크스페이스 단일 조회
+     * GET /api/workspaces/{workspaceId}
+     */
+    @GetMapping("/{workspaceId}")
+    @Operation(summary = "워크스페이스 조회", description = "특정 워크스페이스의 정보를 조회합니다.")
+    public ResponseEntity<WorkspaceResponse> getWorkspace(
+            @PathVariable UUID workspaceId,
+            jakarta.servlet.http.HttpServletRequest request) {
+        // Enhanced logging: Log incoming request details
+        log.info("=== RECEIVED REQUEST: Get Workspace ===");
+        log.info("Request Method: {}", request.getMethod());
+        log.info("Request URI: {}", request.getRequestURI());
+        log.info("Request URL: {}", request.getRequestURL());
+        log.info("Path Variable - workspaceId: {}", workspaceId);
+        log.info("Remote Address: {}", request.getRemoteAddr());
+        log.info("Authorization Header Present: {}", request.getHeader("Authorization") != null);
+        
+        WorkspaceResponse workspace = workspaceService.getWorkspace(workspaceId);
+        
+        log.info("Workspace retrieved successfully: workspaceId={}, name={}", workspaceId, workspace.getWorkspaceName());
+        log.info("=== END REQUEST: Get Workspace ===");
+        
+        return ResponseEntity.ok(workspace);
+    }
 
 //    @GetMapping
 //    @Operation(summary = "워크스페이스 목록 조회", description = "워크스페이스 검색")
@@ -221,10 +246,22 @@ public class WorkspaceController {
     @Operation(summary = "워크스페이스 접근 확인", description = "특정 사용자가 워크스페이스에 접근 가능한지 확인합니다.")
     public ResponseEntity<WorkspaceValidationResponse> validateWorkspace(
             @PathVariable UUID workspaceId,
-            @PathVariable UUID userId) {
-        log.info("Validating workspace access (Controller): workspaceId={}, userId={}", workspaceId, userId);
+            @PathVariable UUID userId,
+            jakarta.servlet.http.HttpServletRequest request) {
+        // Enhanced logging: Log incoming request details
+        log.info("=== RECEIVED REQUEST: Validate Workspace Member ===");
+        log.info("Request Method: {}", request.getMethod());
+        log.info("Request URI: {}", request.getRequestURI());
+        log.info("Request URL: {}", request.getRequestURL());
+        log.info("Path Variables - workspaceId: {}, userId: {}", workspaceId, userId);
+        log.info("Remote Address: {}", request.getRemoteAddr());
+        log.info("Authorization Header Present: {}", request.getHeader("Authorization") != null);
+        
         boolean isValid = workspaceService.validateWorkspaceAccess(workspaceId, userId);
-        log.info("Workspace validation result (Controller): workspaceId={}, userId={}, isValid={}", workspaceId, userId, isValid);
+        
+        log.info("Workspace validation result: workspaceId={}, userId={}, isValid={}", workspaceId, userId, isValid);
+        log.info("=== END REQUEST: Validate Workspace Member ===");
+        
         WorkspaceValidationResponse response = WorkspaceValidationResponse.builder()
                 .workspaceId(workspaceId)
                 .userId(userId)
