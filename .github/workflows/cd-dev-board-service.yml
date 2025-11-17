@@ -1,13 +1,7 @@
 name: CD - Dev Board Service
 
 on:
-  # 1. CI 성공 시 자동 실행
-  workflow_run:
-    workflows: ["CI - Dev Board Service"]
-    types:
-      - completed
-
-  # 2. 인프라 변경 시 직접 실행 (deploy-dev 브랜치만)
+  # 1. 인프라 변경 시 직접 실행 (deploy-dev 브랜치만)
   push:
     branches:
       - deploy-dev
@@ -15,7 +9,7 @@ on:
       - "docker/compose/docker-compose.ec2-dev.yml"
       - ".github/workflows/cd-dev-board-service.yml"
 
-  # 3. 수동 실행 (강제 재배포)
+  # 2. 수동 실행 (강제 재배포)
   workflow_dispatch:
     inputs:
       reason:
@@ -33,11 +27,6 @@ jobs:
   deploy:
     name: Deploy to EC2 via SSM
     runs-on: ubuntu-latest
-    # workflow_run이면 성공 확인, 아니면 바로 실행
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     environment: development
 
     steps:

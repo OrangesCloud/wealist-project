@@ -72,6 +72,33 @@ curl https://api.wealist.co.kr/api/boards/health
 
 자세한 배포 가이드는 [docs/ALB_ROUTING_DEPLOYMENT.md](docs/ALB_ROUTING_DEPLOYMENT.md)를 참조하세요.
 
+### ALB 설정 검증
+
+ALB 설정이 올바르게 구성되었는지 확인하는 스크립트를 제공합니다.
+
+#### 1. API 엔드포인트 검증
+```bash
+# 기본 검증 (Health check만)
+./scripts/verify-alb-setup.sh
+
+# 상세 검증 (응답 내용 포함)
+VERBOSE=true ./scripts/verify-alb-setup.sh
+
+# 커스텀 ALB URL 사용
+ALB_URL=https://your-alb-url.com ./scripts/verify-alb-setup.sh
+```
+
+#### 2. Target Group Health 확인 (AWS CLI 필요)
+```bash
+# Target Group health 상태 및 Listener Rules 확인
+./scripts/check-alb-health.sh
+```
+
+**참고**: `check-alb-health.sh` 스크립트는 AWS CLI가 설치되어 있고 적절한 권한이 설정되어 있어야 합니다.
+
+#### 3. 상세 검증 가이드
+AWS Console에서 직접 확인하는 방법을 포함한 전체 검증 절차는 [docs/ALB_VERIFICATION_GUIDE.md](docs/ALB_VERIFICATION_GUIDE.md)를 참조하세요.
+
 ## 🚀 주요 기능
 
 - ✅ 워크스페이스 & 프로젝트 관리
