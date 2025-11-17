@@ -115,14 +115,6 @@ func main() {
 		zap.String("config_source", "Loaded from config.yaml and environment variables"),
 	)
 
-	// Validate User API base URL format
-	if err := validateBaseURL(cfg.UserAPI.BaseURL); err != nil {
-		log.Warn("User API base URL validation warning",
-			zap.Error(err),
-			zap.String("base_url", cfg.UserAPI.BaseURL),
-		)
-	}
-
 	// Initialize User API client
 	userClient := client.NewUserClient(
 		cfg.UserAPI.BaseURL,
