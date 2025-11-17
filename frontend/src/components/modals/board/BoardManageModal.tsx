@@ -40,7 +40,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   editData,
   workspaceId,
   onClose,
-  onBoardCreated,
+  // onBoardCreated,
   fieldOptionsLookup,
   handleCustomField,
 }) => {
