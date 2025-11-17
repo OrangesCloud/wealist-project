@@ -234,6 +234,27 @@ jobs:
           echo ""
 
           # =============================================================================
+          # 데이터베이스 초기화 및 권한 설정
+          # =============================================================================
+          echo "🗄️  Initializing database with proper permissions..."
+          echo "  📍 Database: ${BOARD_DB_NAME}"
+          echo "  📍 User: ${BOARD_DB_USER}"
+          
+          # 데이터베이스 삭제 및 재생성 (OWNER 설정으로 모든 권한 자동 부여)
+          docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -c "
+          DROP DATABASE IF EXISTS ${BOARD_DB_NAME};
+          CREATE DATABASE ${BOARD_DB_NAME} OWNER ${BOARD_DB_USER};
+          " 2>&1
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Database initialized with proper permissions"
+          else
+            echo "❌ Failed to initialize database" >&2
+            exit 1
+          fi
+          echo ""
+
+          # =============================================================================
           # ECR 로그인
           # =============================================================================
           echo "🔑 Logging into Amazon ECR..."
