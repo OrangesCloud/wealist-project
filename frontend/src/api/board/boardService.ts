@@ -2,57 +2,78 @@ import { boardServiceClient } from '../apiConfig';
 import { AxiosResponse } from 'axios';
 
 import {
+  SuccessResponse,
+  BoardResponse,
+  BoardDetailResponse,
+  CreateBoardRequest,
+  UpdateBoardRequest,
+  BoardFilters,
+  PaginatedBoardsResponse,
+  UpdateBoardFieldRequest,
   ProjectResponse,
   CreateProjectRequest,
   UpdateProjectRequest,
-  BoardResponse,
-  CreateBoardRequest,
-  UpdateBoardRequest,
-  PaginatedBoardsResponse,
-  MoveBoardRequest,
-  MoveBoardResponse,
-  FieldResponse,
-  FieldOptionResponse,
-  ViewResponse,
-  UpdateBoardOrderRequest,
+  PaginatedProjectsResponse,
+  ProjectInitSettingsResponse,
+  ProjectMemberResponse,
+  UpdateProjectMemberRoleRequest,
+  ProjectJoinRequestResponse,
+  CreateProjectJoinRequestRequest,
+  UpdateProjectJoinRequestRequest,
   CommentResponse,
   CreateCommentRequest,
   UpdateCommentRequest,
-  UpdateViewRequest,
-  CreateViewRequest,
-  SetMultiSelectValueRequest,
-  SetFieldValueRequest,
-  UpdateFieldOptionRequest,
+  ParticipantResponse,
+  AddParticipantRequest,
+  FieldOptionResponse,
   CreateFieldOptionRequest,
-  CreateFieldRequest,
-  UpdateFieldRequest,
-  ProjectInitSettingResponse,
-} from '../../types/board'; // 💡 최신 타입 임포트
+  UpdateFieldOptionRequest,
+} from '../../types/board';
 
 /**
  * ========================================
  * 목업 모드 전환
  * ========================================
  */
+const USE_MOCK_DATA = false; // 💡 목업 모드 ON/OFF
+
 // ============================================================================
 // 💡 [신규] 프로젝트 초기 데이터 로드 API
 // ============================================================================
 
 /**
  * 프로젝트 초기 페이지 로드에 필요한 모든 데이터를 조회합니다.
- * (보드, 필드/옵션, 필드 유형 목록 포함)
  * [API] GET /api/projects/{projectId}/init-settings
  */
 export const getProjectInitSettings = async (
   projectId: string,
-): Promise<ProjectInitSettingResponse> => {
-  // ⚠️ Mock data는 삭제하고 실제 API 호출만 남깁니다. (Mock 환경은 USE_MOCK_DATA로 제어)
+): Promise<ProjectInitSettingsResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      project: {
+        projectId: 'mock-project-id',
+        workspaceId: 'mock-workspace-id',
+        workspaceName: 'Mock Workspace',
+        workspaceEmail: 'workspace@example.com',
+        name: 'Mock Project',
+        description: 'Mock project description',
+        ownerId: 'mock-owner-id',
+        isPublic: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      fields: [],
+      fieldTypes: [],
+      defaultViewId: 'mock-view-id',
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: ProjectInitSettingResponse }> =
-      await boardServiceClient.get(`/api/projects/${projectId}/init-settings`);
+    const response: AxiosResponse<SuccessResponse<ProjectInitSettingsResponse>> =
+      await boardServiceClient.get(`/projects/${projectId}/init-settings`);
     return response.data.data;
   } catch (error) {
-    console.error('getProjectInitData error:', error);
+    console.error('getProjectInitSettings error:', error);
     throw error;
   }
 };
@@ -63,37 +84,90 @@ export const getProjectInitSettings = async (
 
 /**
  * 워크스페이스의 모든 프로젝트를 조회합니다.
- * GET /api/projects
- * @param workspaceId 워크스페이스 ID
- * @returns 프로젝트 배열
+ * [API] GET /api/projects/workspace/{workspaceId}
  */
-// 💡 [수정] token 인자 제거
 export const getProjects = async (workspaceId: string): Promise<ProjectResponse[]> => {
-  try {
-    // 💡 [수정 필요] API 명세에 따르면 PaginatedProjectsResponse DTO의 data 필드입니다.
-    // 💡 response.data.data는 PaginatedProjectsResponse 타입이어야 합니다.
-    const response: AxiosResponse<{ data: { projects: ProjectResponse[] } }> =
-      await boardServiceClient.get('/api/projects', {
-        params: { workspaceId },
-      });
+  if (USE_MOCK_DATA) {
+    return [
+      {
+        projectId: 'mock-project-1',
+        workspaceId: workspaceId,
+        name: 'Mock Project 1',
+        description: 'First mock project',
+        ownerId: 'mock-owner-1',
+        ownerName: 'Mock Owner',
+        ownerEmail: 'owner@example.com',
+        isPublic: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+  }
 
-    // 💡 [핵심 수정] projects 배열을 직접 추출하여 반환합니다.
-    return response?.data?.data?.projects || [];
+  try {
+    const response: AxiosResponse<SuccessResponse<ProjectResponse[]>> =
+      await boardServiceClient.get(`/projects/workspace/${workspaceId}`);
+    return response.data.data || [];
   } catch (error) {
     console.error('getProjects error:', error);
     throw error;
   }
 };
+
+/**
+ * 워크스페이스의 기본(default) 프로젝트를 조회합니다.
+ * [API] GET /api/projects/workspace/{workspaceId}/default
+ */
+export const getDefaultProject = async (workspaceId: string): Promise<ProjectResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      projectId: 'mock-default-project',
+      workspaceId: workspaceId,
+      name: 'Default Project',
+      description: 'Default mock project',
+      ownerId: 'mock-owner',
+      ownerName: 'Mock Owner',
+      ownerEmail: 'owner@example.com',
+      isPublic: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  try {
+    const response: AxiosResponse<SuccessResponse<ProjectResponse>> = await boardServiceClient.get(
+      `/projects/workspace/${workspaceId}/default`,
+    );
+    return response.data.data;
+  } catch (error) {
+    console.error('getDefaultProject error:', error);
+    throw error;
+  }
+};
+
 /**
  * 특정 프로젝트를 조회합니다.
- * GET /api/projects/{projectId}
+ * [API] GET /api/projects/{projectId}
  */
-// 💡 [수정] token 인자 제거
 export const getProject = async (projectId: string): Promise<ProjectResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      projectId: projectId,
+      workspaceId: 'mock-workspace-id',
+      name: 'Mock Project',
+      description: 'Mock project description',
+      ownerId: 'mock-owner-id',
+      ownerName: 'Mock Owner',
+      ownerEmail: 'owner@example.com',
+      isPublic: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: ProjectResponse }> = await boardServiceClient.get(
-      `/api/projects/${projectId}`,
-      {},
+    const response: AxiosResponse<SuccessResponse<ProjectResponse>> = await boardServiceClient.get(
+      `/projects/${projectId}`,
     );
     return response.data.data;
   } catch (error) {
@@ -104,15 +178,28 @@ export const getProject = async (projectId: string): Promise<ProjectResponse> =>
 
 /**
  * 새로운 프로젝트를 생성합니다.
- * POST /api/projects
+ * [API] POST /api/projects
  */
-// 💡 [수정] token 인자 제거
 export const createProject = async (data: CreateProjectRequest): Promise<ProjectResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      projectId: 'mock-new-project',
+      workspaceId: data.workspaceId,
+      name: data.name,
+      description: data.description || '',
+      ownerId: 'mock-owner-id',
+      ownerName: 'Mock Owner',
+      ownerEmail: 'owner@example.com',
+      isPublic: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: ProjectResponse }> = await boardServiceClient.post(
-      '/api/projects',
+    const response: AxiosResponse<SuccessResponse<ProjectResponse>> = await boardServiceClient.post(
+      '/projects',
       data,
-      {},
     );
     return response.data.data;
   } catch (error) {
@@ -123,18 +210,31 @@ export const createProject = async (data: CreateProjectRequest): Promise<Project
 
 /**
  * 프로젝트를 업데이트합니다.
- * PUT /api/projects/{projectId}
+ * [API] PUT /api/projects/{projectId}
  */
-// 💡 [수정] token 인자 제거
 export const updateProject = async (
   projectId: string,
-  data: UpdateProjectRequest, // 💡 UpdateProjectRequest DTO 사용
+  data: UpdateProjectRequest,
 ): Promise<ProjectResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      projectId: projectId,
+      workspaceId: 'mock-workspace-id',
+      name: data.name || 'Updated Project',
+      description: data.description || 'Updated description',
+      ownerId: 'mock-owner-id',
+      ownerName: 'Mock Owner',
+      ownerEmail: 'owner@example.com',
+      isPublic: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: ProjectResponse }> = await boardServiceClient.put(
-      `/api/projects/${projectId}`,
+    const response: AxiosResponse<SuccessResponse<ProjectResponse>> = await boardServiceClient.put(
+      `/projects/${projectId}`,
       data,
-      {},
     );
     return response.data.data;
   } catch (error) {
@@ -144,13 +244,16 @@ export const updateProject = async (
 };
 
 /**
- * 프로젝트를 삭제합니다. (Soft Delete)
- * DELETE /api/projects/{projectId}
+ * 프로젝트를 삭제합니다.
+ * [API] DELETE /api/projects/{projectId}
  */
-// 💡 [수정] token 인자 제거
 export const deleteProject = async (projectId: string): Promise<void> => {
+  if (USE_MOCK_DATA) {
+    return;
+  }
+
   try {
-    await boardServiceClient.delete(`/api/projects/${projectId}`, {});
+    await boardServiceClient.delete(`/projects/${projectId}`);
   } catch (error) {
     console.error('deleteProject error:', error);
     throw error;
@@ -159,24 +262,212 @@ export const deleteProject = async (projectId: string): Promise<void> => {
 
 /**
  * 프로젝트를 검색합니다.
- * GET /api/projects/search
- * @returns PaginatedProjectsResponse
+ * [API] GET /api/projects/search
  */
-// 💡 [수정] token 인자 제거
 export const searchProjects = async (
   workspaceId: string,
   query: string,
-): Promise<PaginatedBoardsResponse> => {
+  page: number = 1,
+  limit: number = 10,
+): Promise<PaginatedProjectsResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      projects: [],
+      total: 0,
+      page: page,
+      limit: limit,
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: PaginatedBoardsResponse }> = await boardServiceClient.get(
-      '/api/projects/search',
-      {
-        params: { workspaceId, query },
-      },
-    );
+    const response: AxiosResponse<SuccessResponse<PaginatedProjectsResponse>> =
+      await boardServiceClient.get('/projects/search', {
+        params: { workspaceId, query, page, limit },
+      });
     return response.data.data;
   } catch (error) {
     console.error('searchProjects error:', error);
+    throw error;
+  }
+};
+
+// ============================================================================
+// 프로젝트 멤버 관련 API
+// ============================================================================
+
+/**
+ * 프로젝트의 모든 멤버를 조회합니다.
+ * [API] GET /api/projects/{projectId}/members
+ */
+export const getProjectMembers = async (projectId: string): Promise<ProjectMemberResponse[]> => {
+  if (USE_MOCK_DATA) {
+    return [
+      {
+        memberId: 'mock-member-1',
+        projectId: projectId,
+        userId: 'mock-user-1',
+        userName: 'Mock User',
+        userEmail: 'user@example.com',
+        roleName: 'MEMBER',
+        joinedAt: new Date().toISOString(),
+      },
+    ];
+  }
+
+  try {
+    const response: AxiosResponse<SuccessResponse<ProjectMemberResponse[]>> =
+      await boardServiceClient.get(`/projects/${projectId}/members`);
+    return response.data.data || [];
+  } catch (error) {
+    console.error('getProjectMembers error:', error);
+    throw error;
+  }
+};
+
+/**
+ * 프로젝트 멤버의 역할을 변경합니다.
+ * [API] PUT /api/projects/{projectId}/members/{memberId}/role
+ */
+export const updateProjectMemberRole = async (
+  projectId: string,
+  memberId: string,
+  data: UpdateProjectMemberRoleRequest,
+): Promise<ProjectMemberResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      memberId: memberId,
+      projectId: projectId,
+      userId: 'mock-user-id',
+      userName: 'Mock User',
+      userEmail: 'user@example.com',
+      roleName: data.roleName,
+      joinedAt: new Date().toISOString(),
+    };
+  }
+
+  try {
+    const response: AxiosResponse<SuccessResponse<ProjectMemberResponse>> =
+      await boardServiceClient.put(`/projects/${projectId}/members/${memberId}/role`, data);
+    return response.data.data;
+  } catch (error) {
+    console.error('updateProjectMemberRole error:', error);
+    throw error;
+  }
+};
+
+/**
+ * 프로젝트에서 멤버를 제거합니다.
+ * [API] DELETE /api/projects/{projectId}/members/{memberId}
+ */
+export const removeProjectMember = async (projectId: string, memberId: string): Promise<void> => {
+  if (USE_MOCK_DATA) {
+    return;
+  }
+
+  try {
+    await boardServiceClient.delete(`/projects/${projectId}/members/${memberId}`);
+  } catch (error) {
+    console.error('removeProjectMember error:', error);
+    throw error;
+  }
+};
+
+// ============================================================================
+// 프로젝트 가입 요청 관련 API
+// ============================================================================
+
+/**
+ * 프로젝트 가입 요청 목록을 조회합니다.
+ * [API] GET /api/projects/{projectId}/join-requests
+ */
+export const getProjectJoinRequests = async (
+  projectId: string,
+  status?: string,
+): Promise<ProjectJoinRequestResponse[]> => {
+  if (USE_MOCK_DATA) {
+    return [
+      {
+        requestId: 'mock-request-1',
+        projectId: projectId,
+        userId: 'mock-user-1',
+        userName: 'Mock User',
+        userEmail: 'user@example.com',
+        status: 'PENDING',
+        requestedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+  }
+
+  try {
+    const response: AxiosResponse<SuccessResponse<ProjectJoinRequestResponse[]>> =
+      await boardServiceClient.get(`/projects/${projectId}/join-requests`, {
+        params: { status },
+      });
+    return response.data.data || [];
+  } catch (error) {
+    console.error('getProjectJoinRequests error:', error);
+    throw error;
+  }
+};
+
+/**
+ * 프로젝트 가입 요청을 생성합니다.
+ * [API] POST /api/join-requests
+ */
+export const createProjectJoinRequest = async (
+  data: CreateProjectJoinRequestRequest,
+): Promise<ProjectJoinRequestResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      requestId: 'mock-new-request',
+      projectId: data.projectId,
+      userId: 'mock-user-id',
+      userName: 'Mock User',
+      userEmail: 'user@example.com',
+      status: 'PENDING',
+      requestedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  try {
+    const response: AxiosResponse<SuccessResponse<ProjectJoinRequestResponse>> =
+      await boardServiceClient.post('/join-requests', data);
+    return response.data.data;
+  } catch (error) {
+    console.error('createProjectJoinRequest error:', error);
+    throw error;
+  }
+};
+
+/**
+ * 프로젝트 가입 요청을 승인/거부합니다.
+ * [API] PUT /api/join-requests/{joinRequestId}
+ */
+export const updateProjectJoinRequest = async (
+  joinRequestId: string,
+  data: UpdateProjectJoinRequestRequest,
+): Promise<ProjectJoinRequestResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      requestId: joinRequestId,
+      projectId: 'mock-project-id',
+      userId: 'mock-user-id',
+      userName: 'Mock User',
+      userEmail: 'user@example.com',
+      status: data.status,
+      requestedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  try {
+    const response: AxiosResponse<SuccessResponse<ProjectJoinRequestResponse>> =
+      await boardServiceClient.put(`/join-requests/${joinRequestId}`, data);
+    return response.data.data;
+  } catch (error) {
+    console.error('updateProjectJoinRequest error:', error);
     throw error;
   }
 };
@@ -186,32 +477,45 @@ export const searchProjects = async (
 // ============================================================================
 
 /**
- * 프로젝트의 보드를 조회합니다.
- * GET /api/boards
- * @returns 페이징된 보드 응답
+ * 프로젝트의 모든 보드를 조회합니다 (쿼리 파라미터 방식).
+ * [API] GET /api/boards?projectId={projectId}
  */
-// 💡 [수정] token 인자 제거
 export const getBoards = async (
   projectId: string,
-  filters?: {
-    stageId?: string;
-    roleId?: string;
-    importanceId?: string;
-    assigneeId?: string;
-    authorId?: string;
-    page?: number;
-    limit?: number;
-  },
-): Promise<PaginatedBoardsResponse> => {
-  try {
-    const params = { projectId, ...filters };
-    const response: AxiosResponse<{ data: PaginatedBoardsResponse }> = await boardServiceClient.get(
-      '/api/boards',
+  filters?: BoardFilters,
+): Promise<BoardResponse[]> => {
+  if (USE_MOCK_DATA) {
+    return [
       {
-        params,
+        boardId: 'mock-board-1',
+        projectId: projectId,
+        title: 'Mock Board',
+        content: 'Mock content',
+        customFields: {
+          stage: 'in_progress',
+          role: 'developer',
+          importance: 'normal',
+        },
+        authorId: 'mock-author',
+        assigneeId: 'mock-assignee',
+        dueDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
+    ];
+  }
+
+  try {
+    const params: any = { projectId };
+    if (filters?.customFields) {
+      params.customFields = JSON.stringify(filters.customFields);
+    }
+
+    const response: AxiosResponse<SuccessResponse<BoardResponse[]>> = await boardServiceClient.get(
+      '/boards',
+      { params },
     );
-    return response.data.data || { boards: [], total: 0, page: 1, limit: 20 };
+    return response.data.data || [];
   } catch (error) {
     console.error('getBoards error:', error);
     throw error;
@@ -219,16 +523,80 @@ export const getBoards = async (
 };
 
 /**
- * 특정 보드를 조회합니다.
- * GET /api/boards/{boardId}
+ * 프로젝트의 모든 보드를 조회합니다 (경로 파라미터 방식).
+ * [API] GET /api/boards/project/{projectId}
  */
-// 💡 [수정] token 인자 제거
-export const getBoard = async (boardId: string): Promise<BoardResponse> => {
+export const getBoardsByProject = async (
+  projectId: string,
+  filters?: BoardFilters,
+): Promise<BoardResponse[]> => {
+  if (USE_MOCK_DATA) {
+    return [
+      {
+        boardId: 'mock-board-1',
+        projectId: projectId,
+        title: 'Mock Board',
+        content: 'Mock content',
+        customFields: {
+          stage: 'in_progress',
+          role: 'developer',
+          importance: 'normal',
+        },
+        authorId: 'mock-author',
+        assigneeId: 'mock-assignee',
+        dueDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+  }
+
   try {
-    const response: AxiosResponse<{ data: BoardResponse }> = await boardServiceClient.get(
-      `/api/boards/${boardId}`,
-      {},
+    const params: any = {};
+    if (filters?.customFields) {
+      params.customFields = JSON.stringify(filters.customFields);
+    }
+
+    const response: AxiosResponse<SuccessResponse<BoardResponse[]>> = await boardServiceClient.get(
+      `/boards/project/${projectId}`,
+      { params },
     );
+    return response.data.data || [];
+  } catch (error) {
+    console.error('getBoardsByProject error:', error);
+    throw error;
+  }
+};
+
+/**
+ * 특정 보드를 조회합니다 (상세 정보 포함).
+ * [API] GET /api/boards/{boardId}
+ */
+export const getBoard = async (boardId: string): Promise<BoardDetailResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      boardId: boardId,
+      projectId: 'mock-project-id',
+      title: 'Mock Board',
+      content: 'Mock content',
+      customFields: {
+        stage: 'in_progress',
+        role: 'developer',
+        importance: 'normal',
+      },
+      authorId: 'mock-author',
+      assigneeId: 'mock-assignee',
+      dueDate: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      participants: [],
+      comments: [],
+    };
+  }
+
+  try {
+    const response: AxiosResponse<SuccessResponse<BoardDetailResponse>> =
+      await boardServiceClient.get(`/boards/${boardId}`);
     return response.data.data;
   } catch (error) {
     console.error('getBoard error:', error);
@@ -238,15 +606,28 @@ export const getBoard = async (boardId: string): Promise<BoardResponse> => {
 
 /**
  * 새로운 보드를 생성합니다.
- * POST /api/boards
+ * [API] POST /api/boards
  */
-// 💡 [수정] token 인자 제거
 export const createBoard = async (data: CreateBoardRequest): Promise<BoardResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      boardId: 'mock-new-board',
+      projectId: data.projectId,
+      title: data.title,
+      content: data.content || '',
+      customFields: data.customFields || {},
+      authorId: 'mock-author',
+      assigneeId: data.assigneeId || '',
+      dueDate: data.dueDate || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: BoardResponse }> = await boardServiceClient.post(
-      '/api/boards',
+    const response: AxiosResponse<SuccessResponse<BoardResponse>> = await boardServiceClient.post(
+      '/boards',
       data,
-      {},
     );
     return response.data.data;
   } catch (error) {
@@ -257,18 +638,31 @@ export const createBoard = async (data: CreateBoardRequest): Promise<BoardRespon
 
 /**
  * 보드를 업데이트합니다.
- * PUT /api/boards/{boardId}
+ * [API] PUT /api/boards/{boardId}
  */
-// 💡 [수정] token 인자 제거
 export const updateBoard = async (
   boardId: string,
   data: UpdateBoardRequest,
 ): Promise<BoardResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      boardId: boardId,
+      projectId: 'mock-project-id',
+      title: data.title || 'Updated Board',
+      content: data.content || 'Updated content',
+      customFields: data.customFields || {},
+      authorId: 'mock-author',
+      assigneeId: data.assigneeId || 'mock-assignee',
+      dueDate: data.dueDate || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: BoardResponse }> = await boardServiceClient.put(
-      `/api/boards/${boardId}`,
+    const response: AxiosResponse<SuccessResponse<BoardResponse>> = await boardServiceClient.put(
+      `/boards/${boardId}`,
       data,
-      {},
     );
     return response.data.data;
   } catch (error) {
@@ -279,73 +673,53 @@ export const updateBoard = async (
 
 /**
  * 보드를 삭제합니다.
- * DELETE /api/boards/{boardId}
+ * [API] DELETE /api/boards/{boardId}
  */
-// 💡 [수정] token 인자 제거
 export const deleteBoard = async (boardId: string): Promise<void> => {
+  if (USE_MOCK_DATA) {
+    return;
+  }
+
   try {
-    await boardServiceClient.delete(`/api/boards/${boardId}`, {});
+    await boardServiceClient.delete(`/boards/${boardId}`);
   } catch (error) {
     console.error('deleteBoard error:', error);
     throw error;
   }
 };
 
-/**
- * 보드를 이동합니다.
- * PUT /api/boards/{boardId}/move
- */
-// 💡 [수정] token 인자 제거
-export const moveBoard = async (
-  boardId: string,
-  data: MoveBoardRequest,
-): Promise<MoveBoardResponse> => {
-  try {
-    const response: AxiosResponse<{ data: MoveBoardResponse }> = await boardServiceClient.put(
-      `/api/boards/${boardId}/move`,
-      data,
-      {},
-    );
-    return response.data.data;
-  } catch (error) {
-    console.error('moveBoard error:', error);
-    throw error;
-  }
-};
-
 // ============================================================================
-// 커스텀 필드 관련 API
+// 필드 옵션 관련 API
 // ============================================================================
 
 /**
- * 프로젝트의 모든 커스텀 필드를 조회합니다.
- * GET /api/projects/{projectId}/fields
+ * 특정 필드 타입의 옵션 목록을 조회합니다.
+ * [API] GET /api/field-options?fieldType={fieldType}
  */
-// 💡 [수정] token 인자 제거
-export const getProjectFields = async (projectId: string): Promise<FieldResponse[]> => {
-  try {
-    const response: AxiosResponse<{ data: FieldResponse[] }> = await boardServiceClient.get(
-      `/api/projects/${projectId}/fields`,
-      {},
-    );
-    return response.data.data || [];
-  } catch (error) {
-    console.error('getProjectFields error:', error);
-    throw error;
+export const getFieldOptions = async (
+  fieldType: 'stage' | 'role' | 'importance',
+): Promise<FieldOptionResponse[]> => {
+  if (USE_MOCK_DATA) {
+    return [
+      {
+        optionId: 'mock-option-1',
+        fieldType: fieldType,
+        value: 'in_progress',
+        label: 'In Progress',
+        color: '#3b82f6',
+        displayOrder: 1,
+        isSystemDefault: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
   }
-};
 
-/**
- * 필드 옵션 목록 조회
- * GET /api/fields/{fieldId}/options
- */
-// 💡 [수정] token 인자 제거
-export const getFieldOptions = async (fieldId: string): Promise<FieldOptionResponse[]> => {
   try {
-    const response: AxiosResponse<{ data: FieldOptionResponse[] }> = await boardServiceClient.get(
-      `/api/fields/${fieldId}/options`,
-      {},
-    );
+    const response: AxiosResponse<SuccessResponse<FieldOptionResponse[]>> =
+      await boardServiceClient.get('/field-options', {
+        params: { fieldType },
+      });
     return response.data.data || [];
   } catch (error) {
     console.error('getFieldOptions error:', error);
@@ -353,101 +727,30 @@ export const getFieldOptions = async (fieldId: string): Promise<FieldOptionRespo
   }
 };
 
-// ============================================================================
-// 필드 CRUD API
-// ============================================================================
-
 /**
- * 새 커스텀 필드를 생성합니다.
- * POST /api/fields
+ * 새로운 필드 옵션을 생성합니다.
+ * [API] POST /api/field-options
  */
-// 💡 [수정] token 인자 제거
-export const createField = async (data: CreateFieldRequest): Promise<FieldResponse> => {
-  try {
-    const response: AxiosResponse<{ data: FieldResponse }> = await boardServiceClient.post(
-      '/api/fields',
-      data,
-      {},
-    );
-    return response.data.data;
-  } catch (error) {
-    console.error('createField error:', error);
-    throw error;
-  }
-};
-
-/**
- * 특정 필드를 조회합니다.
- * GET /api/fields/{fieldId}
- */
-// 💡 [수정] token 인자 제거
-export const getField = async (fieldId: string): Promise<FieldResponse> => {
-  try {
-    const response: AxiosResponse<{ data: FieldResponse }> = await boardServiceClient.get(
-      `/api/fields/${fieldId}`,
-      {},
-    );
-    return response.data.data;
-  } catch (error) {
-    console.error('getField error:', error);
-    throw error;
-  }
-};
-
-/**
- * 필드를 수정합니다.
- * PATCH /api/fields/{fieldId}
- */
-// 💡 [수정] token 인자 제거
-export const updateField = async (
-  fieldId: string,
-  data: UpdateFieldRequest,
-): Promise<FieldResponse> => {
-  try {
-    const response: AxiosResponse<{ data: FieldResponse }> = await boardServiceClient.patch(
-      `/api/fields/${fieldId}`,
-      data,
-      {},
-    );
-    return response.data.data;
-  } catch (error) {
-    console.error('updateField error:', error);
-    throw error;
-  }
-};
-
-/**
- * 필드를 삭제합니다.
- * DELETE /api/fields/{fieldId}
- */
-// 💡 [수정] token 인자 제거
-export const deleteField = async (fieldId: string): Promise<void> => {
-  try {
-    await boardServiceClient.delete(`/api/fields/${fieldId}`, {});
-  } catch (error) {
-    console.error('deleteField error:', error);
-    throw error;
-  }
-};
-
-// ============================================================================
-// 필드 옵션 CRUD API
-// ============================================================================
-
-/**
- * 필드 옵션을 생성합니다.
- * POST /api/field-options
- */
-// 💡 [수정] token 인자 제거
 export const createFieldOption = async (
   data: CreateFieldOptionRequest,
 ): Promise<FieldOptionResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      optionId: 'mock-new-option',
+      fieldType: data.fieldType,
+      value: data.value,
+      label: data.label,
+      color: data.color,
+      displayOrder: data.displayOrder || 0,
+      isSystemDefault: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: FieldOptionResponse }> = await boardServiceClient.post(
-      '/api/field-options',
-      data,
-      {},
-    );
+    const response: AxiosResponse<SuccessResponse<FieldOptionResponse>> =
+      await boardServiceClient.post('/field-options', data);
     return response.data.data;
   } catch (error) {
     console.error('createFieldOption error:', error);
@@ -457,19 +760,29 @@ export const createFieldOption = async (
 
 /**
  * 필드 옵션을 수정합니다.
- * PATCH /api/field-options/{optionId}
+ * [API] PATCH /api/field-options/{optionId}
  */
-// 💡 [수정] token 인자 제거
 export const updateFieldOption = async (
   optionId: string,
   data: UpdateFieldOptionRequest,
 ): Promise<FieldOptionResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      optionId: optionId,
+      fieldType: 'stage',
+      value: 'updated_value',
+      label: data.label || 'Updated Label',
+      color: data.color || '#000000',
+      displayOrder: data.displayOrder || 0,
+      isSystemDefault: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: FieldOptionResponse }> = await boardServiceClient.patch(
-      `/api/field-options/${optionId}`,
-      data,
-      {},
-    );
+    const response: AxiosResponse<SuccessResponse<FieldOptionResponse>> =
+      await boardServiceClient.patch(`/field-options/${optionId}`, data);
     return response.data.data;
   } catch (error) {
     console.error('updateFieldOption error:', error);
@@ -479,12 +792,15 @@ export const updateFieldOption = async (
 
 /**
  * 필드 옵션을 삭제합니다.
- * DELETE /api/field-options/{optionId}
+ * [API] DELETE /api/field-options/{optionId}
  */
-// 💡 [수정] token 인자 제거
 export const deleteFieldOption = async (optionId: string): Promise<void> => {
+  if (USE_MOCK_DATA) {
+    return;
+  }
+
   try {
-    await boardServiceClient.delete(`/api/field-options/${optionId}`, {});
+    await boardServiceClient.delete(`/field-options/${optionId}`);
   } catch (error) {
     console.error('deleteFieldOption error:', error);
     throw error;
@@ -492,149 +808,32 @@ export const deleteFieldOption = async (optionId: string): Promise<void> => {
 };
 
 // ============================================================================
-// 보드 필드 값 관리 API
-// ============================================================================
-
-export interface BoardFieldValuesResponse {
-  boardId: string;
-  fields: Record<string, any>; // map[field_id]value
-}
-
-/**
- * 보드의 모든 필드 값을 조회합니다.
- * GET /api/boards/{boardId}/field-values
- */
-// 💡 [수정] token 인자 제거 및 응답 DTO 변경
-export const getBoardFieldValues = async (boardId: string): Promise<BoardFieldValuesResponse> => {
-  try {
-    const response: AxiosResponse<{ data: BoardFieldValuesResponse }> =
-      await boardServiceClient.get(`/api/boards/${boardId}/field-values`, {});
-    return response.data.data;
-  } catch (error) {
-    console.error('getBoardFieldValues error:', error);
-    throw error;
-  }
-};
-
-/**
- * 보드의 필드 값을 설정합니다.
- * POST /api/board-field-values
- */
-// 💡 [수정] token 인자 제거
-export const setFieldValue = async (data: SetFieldValueRequest): Promise<void> => {
-  try {
-    // API 명세: 204 No Content
-    await boardServiceClient.post('/api/board-field-values', data, {});
-  } catch (error) {
-    console.error('setFieldValue error:', error);
-    throw error;
-  }
-};
-
-/**
- * 보드의 멀티 셀렉트 필드 값을 설정합니다.
- * POST /api/board-field-values/multi-select
- */
-// 💡 [수정] token 인자 제거 및 DTO 변경
-export const setMultiSelectValue = async (data: SetMultiSelectValueRequest): Promise<void> => {
-  try {
-    // API 명세: 204 No Content
-    await boardServiceClient.post('/api/board-field-values/multi-select', data, {});
-  } catch (error) {
-    console.error('setMultiSelectValue error:', error);
-    throw error;
-  }
-};
-
-/**
- * 보드의 필드 값을 삭제합니다.
- * DELETE /api/boards/{boardId}/field-values/{fieldId}
- */
-// 💡 [수정] token 인자 제거
-export const deleteFieldValue = async (boardId: string, fieldId: string): Promise<void> => {
-  try {
-    // API 명세: 204 No Content
-    await boardServiceClient.delete(`/api/boards/${boardId}/field-values/${fieldId}`, {});
-  } catch (error) {
-    console.error('deleteFieldValue error:', error);
-    throw error;
-  }
-};
-
-// ============================================================================
-// 순서 관리 API
-// ============================================================================
-
-export interface FieldOrder {
-  fieldId: string;
-  displayOrder: number;
-}
-export interface UpdateFieldOrderRequest {
-  fieldOrders: FieldOrder[];
-}
-
-export interface OptionOrder {
-  optionId: string;
-  displayOrder: number;
-}
-export interface UpdateOptionOrderRequest {
-  optionOrders: OptionOrder[];
-}
-
-/**
- * 프로젝트 필드의 순서를 변경합니다.
- * PUT /api/projects/{projectId}/fields/order
- */
-// 💡 [수정] token 인자 제거 및 DTO 변경
-export const updateFieldOrder = async (
-  projectId: string,
-  data: UpdateFieldOrderRequest,
-): Promise<void> => {
-  try {
-    // API 명세: 204 No Content
-    await boardServiceClient.put(`/api/projects/${projectId}/fields/order`, data, {});
-  } catch (error) {
-    console.error('updateFieldOrder error:', error);
-    throw error;
-  }
-};
-
-/**
- * 필드 옵션의 순서를 변경합니다.
- * PUT /api/fields/{fieldId}/options/order
- */
-// 💡 [수정] token 인자 제거 및 DTO 변경
-export const updateOptionOrder = async (
-  fieldId: string,
-  data: UpdateOptionOrderRequest,
-): Promise<void> => {
-  try {
-    // API 명세: 204 No Content
-    await boardServiceClient.put(`/api/fields/${fieldId}/options/order`, data, {});
-  } catch (error) {
-    console.error('updateOptionOrder error:', error);
-    throw error;
-  }
-};
-
-// ============================================================================
-// 댓글 관리 API (명세에 없으나 기존 코드에 존재하여 임시 유지)
+// 댓글 관련 API
 // ============================================================================
 
 /**
- * 보드의 모든 댓글을 조회합니다.
- * GET /api/comments (가정)
+ * 보드의 모든 댓글을 조회합니다 (쿼리 파라미터 방식).
+ * [API] GET /api/comments?boardId={boardId}
  */
-// 💡 [수정] token 인자 제거
 export const getComments = async (boardId: string): Promise<CommentResponse[]> => {
-  try {
-    // API 명세에는 없지만, 쿼리 파라미터로 boardId를 사용한다고 가정
-    const response: AxiosResponse<{ data: CommentResponse[] }> = await boardServiceClient.get(
-      '/api/comments',
+  if (USE_MOCK_DATA) {
+    return [
       {
-        params: { boardId },
+        commentId: 'mock-comment-1',
+        boardId: boardId,
+        userId: 'mock-user-1',
+        content: 'Mock comment',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
-    );
+    ];
+  }
+
+  try {
+    const response: AxiosResponse<SuccessResponse<CommentResponse[]>> =
+      await boardServiceClient.get('/comments', {
+        params: { boardId },
+      });
     return response.data.data || [];
   } catch (error) {
     console.error('getComments error:', error);
@@ -643,16 +842,53 @@ export const getComments = async (boardId: string): Promise<CommentResponse[]> =
 };
 
 /**
- * 새 댓글을 생성합니다.
- * POST /api/comments (가정)
+ * 보드의 모든 댓글을 조회합니다 (경로 파라미터 방식).
+ * [API] GET /api/comments/board/{boardId}
  */
-// 💡 [수정] token 인자 제거
-export const createComment = async (data: CreateCommentRequest): Promise<CommentResponse> => {
+export const getCommentsByBoard = async (boardId: string): Promise<CommentResponse[]> => {
+  if (USE_MOCK_DATA) {
+    return [
+      {
+        commentId: 'mock-comment-1',
+        boardId: boardId,
+        userId: 'mock-user-1',
+        content: 'Mock comment',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+  }
+
   try {
-    const response: AxiosResponse<{ data: CommentResponse }> = await boardServiceClient.post(
-      '/api/comments',
+    const response: AxiosResponse<SuccessResponse<CommentResponse[]>> =
+      await boardServiceClient.get(`/comments/board/${boardId}`);
+    return response.data.data || [];
+  } catch (error) {
+    console.error('getCommentsByBoard error:', error);
+    throw error;
+  }
+};
+
+/**
+ * 새 댓글을 생성합니다.
+ * [API] POST /api/comments
+ */
+export const createComment = async (data: CreateCommentRequest): Promise<CommentResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      commentId: 'mock-new-comment',
+      boardId: data.boardId,
+      userId: 'mock-user-id',
+      content: data.content,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  try {
+    const response: AxiosResponse<SuccessResponse<CommentResponse>> = await boardServiceClient.post(
+      '/comments',
       data,
-      {},
     );
     return response.data.data;
   } catch (error) {
@@ -663,18 +899,27 @@ export const createComment = async (data: CreateCommentRequest): Promise<Comment
 
 /**
  * 댓글을 수정합니다.
- * PUT /api/comments/{commentId} (가정)
+ * [API] PUT /api/comments/{commentId}
  */
-// 💡 [수정] token 인자 제거
 export const updateComment = async (
   commentId: string,
   data: UpdateCommentRequest,
 ): Promise<CommentResponse> => {
+  if (USE_MOCK_DATA) {
+    return {
+      commentId: commentId,
+      boardId: 'mock-board-id',
+      userId: 'mock-user-id',
+      content: data.content,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   try {
-    const response: AxiosResponse<{ data: CommentResponse }> = await boardServiceClient.put(
-      `/api/comments/${commentId}`,
+    const response: AxiosResponse<SuccessResponse<CommentResponse>> = await boardServiceClient.put(
+      `/comments/${commentId}`,
       data,
-      {},
     );
     return response.data.data;
   } catch (error) {
@@ -685,12 +930,15 @@ export const updateComment = async (
 
 /**
  * 댓글을 삭제합니다.
- * DELETE /api/comments/{commentId} (가정)
+ * [API] DELETE /api/comments/{commentId}
  */
-// 💡 [수정] token 인자 제거
 export const deleteComment = async (commentId: string): Promise<void> => {
+  if (USE_MOCK_DATA) {
+    return;
+  }
+
   try {
-    await boardServiceClient.delete(`/api/comments/${commentId}`, {});
+    await boardServiceClient.delete(`/comments/${commentId}`);
   } catch (error) {
     console.error('deleteComment error:', error);
     throw error;
@@ -698,140 +946,65 @@ export const deleteComment = async (commentId: string): Promise<void> => {
 };
 
 // ============================================================================
-// 뷰 관리 API
+// 참여자 관련 API
 // ============================================================================
 
 /**
- * 프로젝트별 뷰 목록 조회
- * GET /api/projects/{projectId}/views
+ * 보드의 모든 참여자를 조회합니다.
+ * [API] GET /api/participants/board/{boardId}
  */
-// 💡 [수정] token 인자 제거
-export const getProjectViews = async (projectId: string): Promise<ViewResponse[]> => {
+export const getParticipants = async (boardId: string): Promise<ParticipantResponse[]> => {
+  if (USE_MOCK_DATA) {
+    return [
+      {
+        id: 'mock-participant-1',
+        boardId: boardId,
+        userId: 'mock-user-1',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  }
+
   try {
-    const response: AxiosResponse<{ data: ViewResponse[] }> = await boardServiceClient.get(
-      `/api/projects/${projectId}/views`,
-      {},
-    );
+    const response: AxiosResponse<SuccessResponse<ParticipantResponse[]>> =
+      await boardServiceClient.get(`/participants/board/${boardId}`);
     return response.data.data || [];
   } catch (error) {
-    console.error('getProjectViews error:', error);
+    console.error('getParticipants error:', error);
     throw error;
   }
 };
 
 /**
- * 뷰를 생성합니다.
- * POST /api/views
+ * 보드에 참여자를 추가합니다.
+ * [API] POST /api/participants
  */
-// 💡 [수정] token 인자 제거
-export const createView = async (data: CreateViewRequest): Promise<ViewResponse> => {
+export const addParticipant = async (data: AddParticipantRequest): Promise<void> => {
+  if (USE_MOCK_DATA) {
+    return;
+  }
+
   try {
-    const response: AxiosResponse<{ data: ViewResponse }> = await boardServiceClient.post(
-      '/api/views',
-      data,
-      {},
-    );
-    return response.data.data;
+    await boardServiceClient.post('/participants', data);
   } catch (error) {
-    console.error('createView error:', error);
+    console.error('addParticipant error:', error);
     throw error;
   }
 };
 
 /**
- * 특정 뷰를 조회합니다.
- * GET /api/views/{viewId}
+ * 보드에서 참여자를 제거합니다.
+ * [API] DELETE /api/participants/board/{boardId}/user/{userId}
  */
-// 💡 [수정] token 인자 제거
-export const getView = async (viewId: string): Promise<ViewResponse> => {
-  try {
-    const response: AxiosResponse<{ data: ViewResponse }> = await boardServiceClient.get(
-      `/api/views/${viewId}`,
-      {},
-    );
-    return response.data.data;
-  } catch (error) {
-    console.error('getView error:', error);
-    throw error;
+export const removeParticipant = async (boardId: string, userId: string): Promise<void> => {
+  if (USE_MOCK_DATA) {
+    return;
   }
-};
 
-/**
- * 뷰를 수정합니다.
- * PATCH /api/views/{viewId}
- */
-// 💡 [수정] token 인자 제거
-export const updateView = async (
-  viewId: string,
-  data: UpdateViewRequest,
-): Promise<ViewResponse> => {
   try {
-    const response: AxiosResponse<{ data: ViewResponse }> = await boardServiceClient.patch(
-      `/api/views/${viewId}`,
-      data,
-      {},
-    );
-    return response.data.data;
+    await boardServiceClient.delete(`/participants/board/${boardId}/user/${userId}`);
   } catch (error) {
-    console.error('updateView error:', error);
-    throw error;
-  }
-};
-
-/**
- * 뷰를 삭제합니다.
- * DELETE /api/views/{viewId}
- */
-// 💡 [수정] token 인자 제거
-export const deleteView = async (viewId: string): Promise<void> => {
-  try {
-    // API 명세: 204 No Content
-    await boardServiceClient.delete(`/api/views/${viewId}`, {});
-  } catch (error) {
-    console.error('deleteView error:', error);
-    throw error;
-  }
-};
-
-/**
- * 뷰 적용하여 보드 조회
- * GET /api/views/{viewId}/boards
- * @returns PaginatedBoardsResponse (가정)
- */
-// 💡 [수정] token 인자 제거
-export const getBoardsByView = async (
-  viewId: string,
-  filters?: {
-    page?: number;
-    limit?: number;
-  },
-): Promise<PaginatedBoardsResponse> => {
-  try {
-    const response: AxiosResponse<{ data: PaginatedBoardsResponse }> = await boardServiceClient.get(
-      `/api/views/${viewId}/boards`,
-      {
-        params: filters,
-      },
-    );
-    // 응답 data 필드에는 보드 데이터가 페이징되어 포함된다고 가정
-    return response.data.data || { boards: [], total: 0, page: 1, limit: 20 };
-  } catch (error) {
-    console.error('getBoardsByView error:', error);
-    throw error;
-  }
-};
-
-/**
- * 뷰에서 보드 순서를 변경합니다.
- * PUT /api/view-board-orders
- */
-// 💡 [수정] token 인자 제거
-export const updateViewBoardOrder = async (data: UpdateBoardOrderRequest): Promise<void> => {
-  try {
-    // API 명세: 204 No Content
-    await boardServiceClient.put('/api/view-board-orders', data, {});
-  } catch (error) {
-    console.error('updateViewBoardOrder error:', error);
+    console.error('removeParticipant error:', error);
     throw error;
   }
 };

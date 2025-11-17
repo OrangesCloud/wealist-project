@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
 // Board represents a work board entity within a project
@@ -14,7 +15,7 @@ type Board struct {
 	AssigneeID   *uuid.UUID             `gorm:"type:uuid;index:idx_boards_assignee_id" json:"assignee_id"`
 	Title        string                 `gorm:"type:varchar(255);not null" json:"title"`
 	Content      string                 `gorm:"type:text" json:"content"`
-	CustomFields map[string]interface{} `gorm:"type:jsonb" json:"custom_fields"`
+	CustomFields datatypes.JSON `gorm:"type:jsonb" json:"custom_fields"`
 	DueDate      *time.Time             `gorm:"type:timestamp;index:idx_boards_due_date" json:"due_date"`
 	Project      Project                `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"project,omitempty"`
 	Participants []Participant          `gorm:"foreignKey:BoardID;constraint:OnDelete:CASCADE" json:"participants,omitempty"`

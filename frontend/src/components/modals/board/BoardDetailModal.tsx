@@ -1,16 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, AlertCircle, Tag, CheckSquare, MessageSquare, Send, Edit2, Trash2 } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
-import {
-  CustomStageResponse,
-  CustomRoleResponse,
-  CustomImportanceResponse,
-  BoardResponse,
-} from '../../../types/board';
+import { BoardResponse, FieldOption } from '../../../types/board';
 import { getBoard, deleteBoard } from '../../../api/board/boardService';
 import { getWorkspaceMembers } from '../../../api/user/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
 import { MOCK_STAGES, MOCK_ROLES, MOCK_IMPORTANCES } from '../../../mocks/board';
+
 interface BoardDetailModalProps {
   boardId: string;
   workspaceId: string;
@@ -22,10 +18,10 @@ interface BoardDetailModalProps {
     projectId: string;
     title: string;
     content: string;
-    stageId: string;
-    assigneeId?: string; // 단일 담당자 ID
-    roleIds: string[]; // 역할 ID 배열
-    importanceId?: string;
+    stage: string;
+    assigneeId?: string;
+    role: string;
+    importance?: string;
     dueDate?: string;
   }) => void;
 }
@@ -49,10 +45,28 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('');
   const [dueDate, setDueDate] = useState<string>('');
 
-  // Data state
-  const [stages, _setStages] = useState<CustomStageResponse[]>(MOCK_STAGES);
-  const [roles, _setRoles] = useState<CustomRoleResponse[]>(MOCK_ROLES);
-  const [importances, _setImportances] = useState<CustomImportanceResponse[]>(MOCK_IMPORTANCES);
+  // Data state - Mock 데이터를 FieldOption 타입으로 변환
+  const [stages, _setStages] = useState<FieldOption[]>(
+    MOCK_STAGES.map((s) => ({
+      optionId: s.stageId,
+      optionValue: s.stageId,
+      optionLabel: s.label,
+    })),
+  );
+  const [roles, _setRoles] = useState<FieldOption[]>(
+    MOCK_ROLES.map((r) => ({
+      optionId: r.roleId,
+      optionValue: r.roleId,
+      optionLabel: r.label,
+    })),
+  );
+  const [importances, _setImportances] = useState<FieldOption[]>(
+    MOCK_IMPORTANCES.map((i) => ({
+      optionId: i.importanceId,
+      optionValue: i.importanceId,
+      optionLabel: i.label,
+    })),
+  );
   const [_workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
 
   // UI state
@@ -60,7 +74,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   const [isLoadingBoard, setIsLoadingBoard] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Comment state (변경 없음)
+  // Comment state
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
 
@@ -71,26 +85,23 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
       try {
         const boardData: BoardResponse = await getBoard(boardId);
 
-        // 보드 데이터로 상태 초기화
         setProjectId(boardData.projectId || '');
         setTitle(boardData.title || '');
         setContent(boardData.content || '');
 
-        // 💡 [수정] customFields가 null일 경우 안전하게 빈 객체로 초기화
         const customFields = boardData.customFields || {};
 
-        // Custom Field ID 추출 로직
-        const stageIdFromCustomField = customFields.stageId || '';
+        // 💡 [수정] 새 customFields 구조에 맞춤
+        const stageIdFromCustomField = customFields.stage || '';
         setSelectedStageId(stageIdFromCustomField);
 
-        const roleIdsFromCustomField: string[] = customFields.roleIds || [];
-        setSelectedRoleId(roleIdsFromCustomField[0] || ''); // 단일 Role ID만 사용
+        const roleIdFromCustomField = customFields.role || '';
+        setSelectedRoleId(roleIdFromCustomField);
 
-        const importanceIdFromCustomField = customFields.importanceId || '';
+        const importanceIdFromCustomField = customFields.importance || '';
         setSelectedImportanceId(importanceIdFromCustomField);
 
-        // 💡 [수정] assignee가 null일 경우, .userId 접근 방지
-        const assigneeId: string = boardData.assignee?.userId || '';
+        const assigneeId: string = boardData.assigneeId || '';
         setSelectedAssigneeId(assigneeId);
 
         setDueDate(boardData.dueDate || '');
@@ -156,18 +167,11 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
     }
   };
 
-  // 💡 필드 정보 조회 헬퍼 함수 (Mock 기반)
-  const getFieldOption = (
-    options: CustomStageResponse[] | CustomRoleResponse[] | CustomImportanceResponse[],
-    id: string,
-  ) => {
-    return options.find(
-      // 💡 [수정] stageId, roleId, importanceId를 명시적으로 체크
-      (opt: any) => opt.stageId === id || opt.roleId === id || opt.importanceId === id,
-    );
+  // 💡 [수정] FieldOption 타입 사용
+  const getFieldOption = (options: FieldOption[], id: string) => {
+    return options.find((opt) => opt.optionId === id);
   };
 
-  // 로딩 중이면 로딩 UI 표시
   if (isLoadingBoard) {
     return (
       <div
@@ -189,13 +193,9 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
     );
   }
 
-  // 💡 [추가] UI 표시를 위한 필드 데이터 조회
   const currentStage = getFieldOption(stages, selectedStageId);
   const currentRole = getFieldOption(roles, selectedRoleId);
   const currentImportance = getFieldOption(importances, selectedImportanceId);
-
-  // 💡 [수정] 단일 담당자 조회
-  // const currentAssignee = workspaceMembers?.find((m) => m.userId === selectedAssigneeId);
 
   return (
     <div
@@ -209,7 +209,6 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between mb-4 pb-4 border-b border-gray-200">
           <div className="flex-1 pr-4">
-            {/* 💡 [수정] title이 null일 경우 대비 */}
             <h2 className="text-xl font-bold text-gray-800 mb-2">{title || '제목 없음'}</h2>
           </div>
           <div className="flex gap-2">
@@ -251,14 +250,16 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                 <span
                   className="w-3 h-3 rounded-full"
                   style={{
-                    backgroundColor: currentStage?.color || '#6B7280',
+                    backgroundColor:
+                      (MOCK_STAGES.find((s) => s.stageId === selectedStageId) as any)?.color ||
+                      '#6B7280',
                   }}
                 />
-                <span className="text-sm">{currentStage?.label || '알 수 없음'}</span>
+                <span className="text-sm">{currentStage?.optionLabel || '알 수 없음'}</span>
               </div>
             </div>
 
-            {/* Role (단일 선택) */}
+            {/* Role */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 <Tag className="w-4 h-4 inline mr-1" />
@@ -268,10 +269,12 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                 <span
                   className="w-3 h-3 rounded-full"
                   style={{
-                    backgroundColor: currentRole?.color || '#6B7280',
+                    backgroundColor:
+                      (MOCK_ROLES.find((r) => r.roleId === selectedRoleId) as any)?.color ||
+                      '#6B7280',
                   }}
                 />
-                <span className="text-sm">{currentRole?.label || '알 수 없음'}</span>
+                <span className="text-sm">{currentRole?.optionLabel || '알 수 없음'}</span>
               </div>
             </div>
           </div>
@@ -288,10 +291,15 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                   <span
                     className="w-3 h-3 rounded-full"
                     style={{
-                      backgroundColor: currentImportance?.color || '#6B7280',
+                      backgroundColor:
+                        (
+                          MOCK_IMPORTANCES.find(
+                            (i) => i.importanceId === selectedImportanceId,
+                          ) as any
+                        )?.color || '#6B7280',
                     }}
                   />
-                  <span className="text-sm">{currentImportance?.label || '알 수 없음'}</span>
+                  <span className="text-sm">{currentImportance?.optionLabel || '알 수 없음'}</span>
                 </>
               ) : (
                 <span className="text-sm text-gray-500">없음</span>
@@ -300,7 +308,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Comments Section (변경 없음) */}
+        {/* Comments Section */}
         <div className="pt-4 border-t border-gray-200">
           <div className="flex items-center gap-2 mb-4">
             <MessageSquare className="w-5 h-5 text-gray-700" />
@@ -351,15 +359,15 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
         <div className="flex gap-3 mt-6 pt-4 border-t border-gray-300">
           <button
             onClick={() => {
-              // 💡 [수정] onEdit으로 전달하는 데이터 구조를 단일 담당자 및 역할 배열로 변경
+              // 💡 [수정] 새 필드 구조에 맞춤
               onEdit({
                 boardId,
                 projectId,
                 title: title || '',
                 content: content || '',
-                stageId: selectedStageId,
-                roleIds: selectedRoleId ? [selectedRoleId] : [], // 단일 선택이어도 배열 형태로 전달
-                importanceId: selectedImportanceId,
+                stage: selectedStageId,
+                role: selectedRoleId,
+                importance: selectedImportanceId,
                 assigneeId: selectedAssigneeId,
                 dueDate: dueDate,
               });

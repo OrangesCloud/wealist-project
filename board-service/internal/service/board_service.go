@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"project-board-api/internal/domain"
@@ -38,6 +40,12 @@ func NewBoardService(boardRepo repository.BoardRepository, projectRepo repositor
 
 // CreateBoard creates a new board
 func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoardRequest) (*dto.BoardResponse, error) {
+	// Extract user_id from context (set by auth middleware as uuid.UUID)
+	authorID, exists := ctx.Value("user_id").(uuid.UUID)
+	if !exists {
+		return nil, response.NewAppError(response.ErrCodeUnauthorized, "User ID not found in context", "")
+	}
+
 	// Verify project exists
 	_, err := s.projectRepo.FindByID(ctx, req.ProjectID)
 	if err != nil {
@@ -47,12 +55,23 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to verify project", err.Error())
 	}
 
-	// Create domain model from request
+	// Convert CustomFields to datatypes.JSON
+	var customFieldsJSON datatypes.JSON
+	if req.CustomFields != nil {
+		jsonBytes, err := json.Marshal(req.CustomFields)
+		if err != nil {
+			return nil, response.NewAppError(response.ErrCodeInternal, "Failed to marshal custom fields", err.Error())
+		}
+		customFieldsJSON = jsonBytes
+	}
+
+	// Create domain model from request with AuthorID
 	board := &domain.Board{
 		ProjectID:    req.ProjectID,
+		AuthorID:     authorID,
 		Title:        req.Title,
 		Content:      req.Content,
-		CustomFields: req.CustomFields,
+		CustomFields: customFieldsJSON,
 		AssigneeID:   req.AssigneeID,
 		DueDate:      req.DueDate,
 	}
@@ -132,7 +151,12 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		board.Content = *req.Content
 	}
 	if req.CustomFields != nil {
-		board.CustomFields = *req.CustomFields
+		// Convert CustomFields to datatypes.JSON
+		jsonBytes, err := json.Marshal(*req.CustomFields)
+		if err != nil {
+			return nil, response.NewAppError(response.ErrCodeInternal, "Failed to marshal custom fields", err.Error())
+		}
+		board.CustomFields = jsonBytes
 	}
 	if req.AssigneeID != nil {
 		board.AssigneeID = req.AssigneeID
@@ -171,6 +195,12 @@ func (s *boardServiceImpl) DeleteBoard(ctx context.Context, boardID uuid.UUID) e
 
 // toBoardResponse converts domain.Board to dto.BoardResponse
 func (s *boardServiceImpl) toBoardResponse(board *domain.Board) *dto.BoardResponse {
+	// Convert datatypes.JSON to map[string]interface{}
+	var customFields map[string]interface{}
+	if len(board.CustomFields) > 0 {
+		_ = json.Unmarshal(board.CustomFields, &customFields)
+	}
+	
 	return &dto.BoardResponse{
 		ID:           board.ID,
 		ProjectID:    board.ProjectID,
@@ -178,7 +208,7 @@ func (s *boardServiceImpl) toBoardResponse(board *domain.Board) *dto.BoardRespon
 		AssigneeID:   board.AssigneeID,
 		Title:        board.Title,
 		Content:      board.Content,
-		CustomFields: board.CustomFields,
+		CustomFields: customFields,
 		DueDate:      board.DueDate,
 		CreatedAt:    board.CreatedAt,
 		UpdatedAt:    board.UpdatedAt,

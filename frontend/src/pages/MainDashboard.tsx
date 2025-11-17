@@ -18,12 +18,9 @@ import { getWorkspaceMembers } from '../api/user/userService';
 
 import {
   ProjectResponse,
-  CustomRoleResponse,
-  CustomImportanceResponse,
   FieldWithOptionsResponse,
-  FieldOptionsLookup,
-  CustomStageResponse,
-  FieldTypeInfo, // 💡 필드와 옵션 정보를 담는 통합 DTO
+  FieldOption,
+  FieldTypeInfo,
 } from '../types/board';
 import { WorkspaceMemberResponse } from '../types/user';
 import { CustomFieldManageModal } from '../components/modals/board/customFields/CustomFieldManageModal';
@@ -45,6 +42,13 @@ interface UIState {
   showCreateBoard?: boolean;
 }
 
+// 💡 [추가] 필드 옵션 룩업 인터페이스
+interface FieldOptionsLookup {
+  roles?: FieldOption[];
+  importances?: FieldOption[];
+  stages?: FieldOption[];
+}
+
 // =============================================================================
 // MainDashboard (컨테이너 역할)
 // =============================================================================
@@ -55,6 +59,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   const { theme } = useTheme();
   const currentRole = useRef<IROLES>('ORGANIZER');
   const canAccessSettings = currentRole.current === 'OWNER' || currentRole.current === 'ORGANIZER';
+
   // [핵심 상태]
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [selectedProject, setSelectedProject] = useState<ProjectResponse | null>(null);
@@ -70,10 +75,10 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   const [fieldOptionsLookup, setFieldOptionsLookup] = useState<FieldOptionsLookup>({
     roles: [],
     importances: [],
-    stages: [], // Stage도 룩업에 포함
+    stages: [],
   });
 
-  const [filedTypesLookup, setFieldTypesLookup] = useState<FieldTypeInfo[]>([]);
+  const [fieldTypesLookup, setFieldTypesLookup] = useState<FieldTypeInfo[]>([]);
 
   const toggleUiState = useCallback((key: keyof UIState, show?: boolean) => {
     setUiState((prev) => ({
@@ -82,33 +87,34 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     }));
   }, []);
 
-  // 💡 [추가] Helper: FieldWithOptionsResponse -> Custom DTO 변환
+  // 💡 [수정] Helper: FieldWithOptionsResponse -> FieldOption 변환
   const mapFieldOptions = (fields: FieldWithOptionsResponse[]): FieldOptionsLookup => {
-    const roles: CustomRoleResponse[] = [];
-    const importances: CustomImportanceResponse[] = [];
-    const stages: CustomStageResponse[] = [];
+    const roles: FieldOption[] = [];
+    const importances: FieldOption[] = [];
+    const stages: FieldOption[] = [];
 
     fields?.forEach((field) => {
-      // fieldType 확인 (백엔드는 'single_select' 또는 'multi_select'로 보냄)
-      if (field.fieldType === 'single_select' || field.fieldType === 'multi_select') {
+      // fieldType 확인
+      if (
+        field.fieldType === 'select' ||
+        field.fieldType === 'single_select' ||
+        field.fieldType === 'multi_select'
+      ) {
         field.options.forEach((opt) => {
-          const base = {
-            label: opt.label, // 💡 FieldOptionResponse의 label 사용
-            color: opt.color || '#6B7280', // 💡 기본 색상 제공
-            displayOrder: opt.displayOrder || 0,
-            fieldId: opt.fieldId || field.fieldId,
-            isSystemDefault: field.isSystemDefault || true,
-            description: opt.description || '',
+          const mappedOption: FieldOption = {
+            optionId: opt.optionId,
+            optionValue: opt.optionValue,
+            optionLabel: opt.optionLabel,
           };
 
-          // fieldName 확인 (백엔드는 name으로 보냄)
-          const fieldName = field.name;
-          if (fieldName === 'Role') {
-            roles?.push({ ...base, roleId: opt.optionId });
-          } else if (fieldName === 'Importance') {
-            importances?.push({ ...base, importanceId: opt.optionId });
-          } else if (fieldName === 'Stage') {
-            stages?.push({ ...base, stageId: opt.optionId });
+          // fieldName으로 분류
+          const fieldName = field.fieldName;
+          if (fieldName === 'Role' || fieldName === 'role') {
+            roles.push(mappedOption);
+          } else if (fieldName === 'Importance' || fieldName === 'importance') {
+            importances.push(mappedOption);
+          } else if (fieldName === 'Stage' || fieldName === 'stage') {
+            stages.push(mappedOption);
           }
         });
       }
@@ -138,7 +144,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     }
   }, [currentWorkspaceId, selectedProject]);
 
-  // 2. 워크스페이스 회원 조회 함수 (유지)
+  // 2. 워크스페이스 회원 조회 함수
   const fetchWorkspaceMembers = useCallback(async () => {
     if (!currentWorkspaceId) return;
     try {
@@ -155,15 +161,14 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
 
     setError(null);
     try {
-      // 💡 [API 호출] GET /api/projects/{projectId}/init-data
+      // 💡 [API 호출] GET /api/projects/{projectId}/init-settings
       const initData = await getProjectInitSettings(selectedProject.projectId);
+
       // 2. 필드 옵션 룩업 테이블 생성
       const fieldLookup = mapFieldOptions(initData.fields);
       setFieldTypesLookup(initData.fieldTypes);
       setFieldOptionsLookup(fieldLookup);
 
-      // 3. 멤버 업데이트 (InitData에서 멤버가 제공된다고 가정하면 이 호출로 대체 가능)
-      // setWorkspaceMembers(initData.members);
       console.log('✅ Project Init Data (Fields/Boards) Loaded.');
     } catch (err: any) {
       setError(`초기 컨텐츠 로드 실패: ${err.message}`);
@@ -174,12 +179,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   useEffect(() => {
     fetchProjects();
     fetchWorkspaceMembers();
-  }, []); // 💡 [핵심] selectedProject 변경 시 InitSettings 로드 트리거
+  }, []);
 
+  // 💡 [핵심] selectedProject 변경 시 InitSettings 로드 트리거
   useEffect(() => {
     if (selectedProject) {
-      // ⚠️ 루프 방지: ProjectContent가 fetchBoards를 완료해도 이 함수가 재실행되지 않도록,
-      // 이 useEffect는 오직 selectedProject 변경에만 반응합니다.
       fetchProjectContentInitSettings();
     }
   }, [selectedProject, fetchProjectContentInitSettings]);
@@ -192,13 +196,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   }, [fetchProjectContentInitSettings]);
 
   // 💡 필드가 생성된 후 호출될 핸들러
-  const afterFieldCreated = useCallback(() =>
-    // newField: any
-    {
-      toggleUiState('showManageModal', false);
-      setEditFieldData(null);
-      handleBoardContentUpdate(); // 💡 데이터 변경 알림 -> InitSettings 재실행
-    }, [handleBoardContentUpdate, toggleUiState]);
+  const afterFieldCreated = useCallback(() => {
+    toggleUiState('showManageModal', false);
+    setEditFieldData(null);
+    handleBoardContentUpdate(); // 💡 데이터 변경 알림 -> InitSettings 재실행
+  }, [handleBoardContentUpdate, toggleUiState]);
 
   const handleCustomField = useCallback(
     (editFieldData: any) => {
@@ -226,6 +228,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
         setShowProjectSelector={(show) => toggleUiState('showProjectSelector', show)}
         canAccessSettings={canAccessSettings}
       />
+
       {/* 2. 메인 콘텐츠 영역 */}
       <div className="flex-grow flex flex-col p-3 sm:p-6 overflow-auto mt-16 ml-20">
         {error && (
@@ -257,11 +260,13 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           </div>
         )}
       </div>
+
       {/* 3. 모달 영역 */}
       {/* UserProfile Modal */}
       {uiState?.showUserProfile && (
         <UserProfileModal onClose={() => toggleUiState('showUserProfile', false)} />
       )}
+
       {/* Create Project Modal */}
       {uiState?.showCreateProject && (
         <ProjectModal
@@ -270,6 +275,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           onProjectSaved={fetchProjects}
         />
       )}
+
       {/* Project Settings Modal */}
       {uiState?.showProjectSettings && selectedProject && (
         <ProjectModal
@@ -279,16 +285,18 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           onProjectSaved={fetchProjects}
         />
       )}
+
       {/* 💡 Custom Field Add Modal (필드 추가/정의) */}
       {uiState?.showManageModal && selectedProject && (
         <CustomFieldManageModal
           editFieldData={editFieldData}
-          filedTypesLookup={filedTypesLookup}
+          filedTypesLookup={fieldTypesLookup}
           projectId={selectedProject.projectId}
           onClose={() => toggleUiState('showManageModal', false)}
-          afterFieldCreated={afterFieldCreated} // 필드 생성 후 갱신 트리거
+          afterFieldCreated={afterFieldCreated}
         />
       )}
+
       {/* Create/Edit Board Modal */}
       {(editBoardData || uiState?.showCreateBoard) && selectedProject && (
         <BoardManageModal
@@ -301,7 +309,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           }}
           handleCustomField={handleCustomField}
           onBoardCreated={handleBoardContentUpdate}
-          // 💡 [추가] 필드 옵션 룩업 데이터 전달
           fieldOptionsLookup={fieldOptionsLookup}
         />
       )}

@@ -44,17 +44,11 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 
 		// Parse and validate token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			// Validate signing method (support both HMAC and RSA for Google OAuth)
-			switch token.Method.(type) {
-			case *jwt.SigningMethodHMAC:
-				return []byte(jwtSecret), nil
-			case *jwt.SigningMethodRSA:
-				// For Google OAuth tokens, we would verify using Google's public keys
-				// For now, we'll accept the token if it's properly formatted
-				return []byte(jwtSecret), nil
-			default:
+			// Validate signing method
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
 			}
+			return []byte(jwtSecret), nil
 		})
 
 		if err != nil || !token.Valid {

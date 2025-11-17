@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -41,7 +42,13 @@ func (h *BoardHandler) CreateBoard(c *gin.Context) {
 		return
 	}
 
-	board, err := h.boardService.CreateBoard(c.Request.Context(), &req)
+	// Create context with user_id from Gin context
+	ctx := c.Request.Context()
+	if userID, exists := c.Get("user_id"); exists {
+		ctx = context.WithValue(ctx, "user_id", userID)
+	}
+
+	board, err := h.boardService.CreateBoard(ctx, &req)
 	if err != nil {
 		handleServiceError(c, err)
 		return

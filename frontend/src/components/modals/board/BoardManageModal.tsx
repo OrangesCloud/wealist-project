@@ -3,10 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Tag, CheckSquare, AlertCircle, Plus, Settings } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
-// import { CUSTOM_FIELD_COLORS, ColorOption } from '../../../constants/colors';
 import {
   CreateBoardRequest,
-  FieldOptionsLookup,
+  FieldOption,
   IEditCustomFields,
   UpdateBoardRequest,
 } from '../../../types/board';
@@ -16,20 +15,23 @@ import { WorkspaceMemberResponse } from '../../../types/user';
 
 interface BoardManageModalProps {
   projectId: string;
-  // initial?: IFieldOption;
   editData?: {
     boardId: string;
     projectId: string;
     title: string;
     content: string;
-    stageId: string;
-    roleId: string;
-    importanceId: string;
+    stage: string;
+    role: string;
+    importance: string;
   } | null;
   workspaceId: string;
   onClose: () => void;
   onBoardCreated: () => void;
-  fieldOptionsLookup: FieldOptionsLookup;
+  fieldOptionsLookup: {
+    stages?: FieldOption[];
+    roles?: FieldOption[];
+    importances?: FieldOption[];
+  };
   handleCustomField: (editFieldData: IEditCustomFields | null) => void;
 }
 
@@ -43,18 +45,20 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   handleCustomField,
 }) => {
   const { theme } = useTheme();
+
   // Form state
   const [title, setTitle] = useState(editData?.title || '');
   const [content, setContent] = useState(editData?.content || '');
   const [selectedStageId, setSelectedStageId] = useState(
-    editData?.stageId || fieldOptionsLookup.stages?.[0]?.stageId || '',
+    editData?.stage || fieldOptionsLookup.stages?.[0]?.optionId || '',
   );
   const [selectedRoleId, setSelectedRoleId] = useState(
-    editData?.roleId || fieldOptionsLookup.roles?.[0]?.roleId || '',
+    editData?.role || fieldOptionsLookup.roles?.[0]?.optionId || '',
   );
   const [selectedImportanceId, setSelectedImportanceId] = useState(
-    editData?.importanceId || fieldOptionsLookup.importances?.[0]?.importanceId || '',
+    editData?.importance || fieldOptionsLookup.importances?.[0]?.optionId || '',
   );
+
   // Assignee search state
   const [assigneeSearch, _setAssigneeSearch] = useState('');
   const [_workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
@@ -64,12 +68,12 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   const [isLoadingFields, _setIsLoadingFields] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Dropdown states (변경 없음)
+  // Dropdown states
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showStageDropdown, setShowStageDropdown] = useState(false);
   const [showImportanceDropdown, setShowImportanceDropdown] = useState(false);
 
-  // 1.2 워크스페이스 멤버 조회 (유지)
+  // 워크스페이스 멤버 조회
   useEffect(() => {
     const fetchMembers = async () => {
       try {
@@ -85,7 +89,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
     }
   }, [workspaceId]);
 
-  // 1.3 드롭다운 외부 클릭 감지 (유지)
+  // 드롭다운 외부 클릭 감지
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -98,9 +102,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
       if (!target.closest('.importance-dropdown-container')) {
         setShowImportanceDropdown(false);
       }
-      // if (!target.closest('.assignee-dropdown-container')) {
-      //   setAssigneeSearch('');
-      // }
     };
 
     if (showRoleDropdown || showStageDropdown || showImportanceDropdown || assigneeSearch.trim()) {
@@ -112,7 +113,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
     };
   }, [showRoleDropdown, showStageDropdown, showImportanceDropdown, assigneeSearch]);
 
-  // 3. 제출 핸들러 (유지)
+  // 제출 핸들러
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -134,19 +135,31 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
     setError(null);
 
     try {
+      const customFields: Record<string, any> = {
+        stage: selectedStageId,
+      };
+
+      if (selectedRoleId) {
+        customFields.role = selectedRoleId;
+      }
+
+      if (selectedImportanceId) {
+        customFields.importance = selectedImportanceId;
+      }
+
       const boardData: CreateBoardRequest | UpdateBoardRequest = {
         projectId,
         title: title.trim(),
         content: content.trim() || undefined,
-        stageId: selectedStageId,
-        roleId: selectedRoleId || undefined,
-        importanceId: selectedImportanceId || undefined,
+        customFields,
       };
+
       if (editData?.boardId) {
         await updateBoard(editData!.boardId, boardData);
       } else {
         await createBoard(boardData as CreateBoardRequest);
       }
+
       alert(`✅  보드 ${editData?.boardId ? '수정' : '생성'} 완료!`);
       onBoardCreated();
       onClose();
@@ -159,27 +172,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
     }
   };
 
-  // Helper: Color Picker Component (유지)
-  // const renderColorPicker = (selectedColor: string, onColorChange: (color: string) => void) => (
-  //   <div className="grid grid-cols-6 gap-2 mt-2">
-  //     {CUSTOM_FIELD_COLORS?.map((color: ColorOption) => (
-  //       <button
-  //         key={color.hex}
-  //         type="button"
-  //         className={`w-8 h-8 rounded-md border-2 transition-all ${
-  //           selectedColor === color.hex
-  //             ? 'border-gray-800 ring-2 ring-blue-500 scale-110'
-  //             : 'border-gray-300 hover:scale-105'
-  //         }`}
-  //         style={{ backgroundColor: color.hex }}
-  //         onClick={() => onColorChange(color.hex)}
-  //         title={color.name}
-  //         disabled={isLoading}
-  //       />
-  //     ))}
-  //   </div>
-  // );
-
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[90]"
@@ -189,8 +181,8 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         className={`relative w-full max-w-2xl ${theme.colors.card} ${theme.effects.borderRadius} shadow-xl max-h-[90vh] flex flex-col overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header (변경 없음) */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4  flex-shrink-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
           <h2 className="text-xl font-bold text-gray-800">
             {editData?.boardId ? '보드 수정' : '새 보드 만들기'}
           </h2>
@@ -221,7 +213,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4 pb-4">
-              {/* Title, Content (유지) */}
+              {/* Title */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   보드 제목 <span className="text-red-500">*</span>
@@ -237,6 +229,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                 />
               </div>
 
+              {/* Content */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   설명 (선택)
@@ -268,51 +261,52 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   >
                     <span className="flex items-center gap-2">
                       {selectedStageId &&
-                        fieldOptionsLookup?.stages?.find((s) => s.stageId === selectedStageId) && (
+                        fieldOptionsLookup?.stages?.find((s) => s.optionId === selectedStageId) && (
                           <>
                             <span
                               className="w-3 h-3 rounded-full"
                               style={{
                                 backgroundColor:
-                                  fieldOptionsLookup?.stages?.find(
-                                    (s) => s.stageId === selectedStageId,
+                                  (
+                                    fieldOptionsLookup?.stages?.find(
+                                      (s) => s.optionId === selectedStageId,
+                                    ) as any
                                   )?.color || '#6B7280',
                               }}
                             />
                             {
-                              fieldOptionsLookup?.stages?.find((s) => s.stageId === selectedStageId)
-                                ?.label
+                              fieldOptionsLookup?.stages?.find(
+                                (s) => s.optionId === selectedStageId,
+                              )?.optionLabel
                             }
                           </>
                         )}
                     </span>
                     <CheckSquare className="w-4 h-4 text-gray-400" />
                   </button>
-                  {/* 드롭다운 메뉴 */}
                   {showStageDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {fieldOptionsLookup?.stages?.map((stage) => (
                         <button
-                          key={stage.stageId}
+                          key={stage.optionId}
                           type="button"
                           onClick={() => {
-                            setSelectedStageId(stage.stageId);
+                            setSelectedStageId(stage.optionId);
                             setShowStageDropdown(false);
                           }}
                           className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                            selectedStageId === stage.stageId ? 'bg-blue-50' : ''
+                            selectedStageId === stage.optionId ? 'bg-blue-50' : ''
                           }`}
                         >
                           <span
                             className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: stage.color || '#6B7280' }}
+                            style={{ backgroundColor: (stage as any).color || '#6B7280' }}
                           />
-                          {stage.label}
+                          {stage.optionLabel}
                         </button>
                       ))}
                       <button
                         type="button"
-                        // 💡 [수정] 인라인 생성 기능 비활성화
                         onClick={() => {
                           setShowStageDropdown(false);
                           handleCustomField({
@@ -343,50 +337,51 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   >
                     <span className="flex items-center gap-2">
                       {selectedRoleId &&
-                        fieldOptionsLookup?.roles?.find((r) => r.roleId === selectedRoleId) && (
+                        fieldOptionsLookup?.roles?.find((r) => r.optionId === selectedRoleId) && (
                           <>
                             <span
                               className="w-3 h-3 rounded-full"
                               style={{
                                 backgroundColor:
-                                  fieldOptionsLookup.roles.find((r) => r.roleId === selectedRoleId)
-                                    ?.color || '#6B7280',
+                                  (
+                                    fieldOptionsLookup.roles.find(
+                                      (r) => r.optionId === selectedRoleId,
+                                    ) as any
+                                  )?.color || '#6B7280',
                               }}
                             />
                             {
-                              fieldOptionsLookup.roles.find((r) => r.roleId === selectedRoleId)
-                                ?.label
+                              fieldOptionsLookup.roles.find((r) => r.optionId === selectedRoleId)
+                                ?.optionLabel
                             }
                           </>
                         )}
                     </span>
                     <Tag className="w-4 h-4 text-gray-400" />
                   </button>
-                  {/* 드롭다운 메뉴 */}
                   {showRoleDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {fieldOptionsLookup?.roles?.map((role) => (
                         <button
-                          key={role.roleId}
+                          key={role.optionId}
                           type="button"
                           onClick={() => {
-                            setSelectedRoleId(role.roleId);
+                            setSelectedRoleId(role.optionId);
                             setShowRoleDropdown(false);
                           }}
                           className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                            selectedRoleId === role.roleId ? 'bg-blue-50' : ''
+                            selectedRoleId === role.optionId ? 'bg-blue-50' : ''
                           }`}
                         >
                           <span
                             className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: role.color || '#6B7280' }}
+                            style={{ backgroundColor: (role as any).color || '#6B7280' }}
                           />
-                          {role.label}
+                          {role.optionLabel}
                         </button>
                       ))}
                       <button
                         type="button"
-                        // 💡 [수정] 인라인 생성 기능 비활성화
                         onClick={() => {
                           setShowRoleDropdown(false);
                           handleCustomField({
@@ -421,22 +416,24 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                     <span className="flex items-center gap-2">
                       {selectedImportanceId ? (
                         fieldOptionsLookup?.importances?.find(
-                          (i) => i.importanceId === selectedImportanceId,
+                          (i) => i.optionId === selectedImportanceId,
                         ) && (
                           <>
                             <span
                               className="w-3 h-3 rounded-full"
                               style={{
                                 backgroundColor:
-                                  fieldOptionsLookup.importances.find(
-                                    (i) => i.importanceId === selectedImportanceId,
+                                  (
+                                    fieldOptionsLookup.importances.find(
+                                      (i) => i.optionId === selectedImportanceId,
+                                    ) as any
                                   )?.color || '#6B7280',
                               }}
                             />
                             {
                               fieldOptionsLookup.importances.find(
-                                (i) => i.importanceId === selectedImportanceId,
-                              )?.label
+                                (i) => i.optionId === selectedImportanceId,
+                              )?.optionLabel
                             }
                           </>
                         )
@@ -446,31 +443,29 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                     </span>
                     <AlertCircle className="w-4 h-4 text-gray-400" />
                   </button>
-                  {/* 드롭다운 메뉴 */}
                   {showImportanceDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {fieldOptionsLookup?.importances?.map((importance) => (
                         <button
-                          key={importance.importanceId}
+                          key={importance.optionId}
                           type="button"
                           onClick={() => {
-                            setSelectedImportanceId(importance.importanceId);
+                            setSelectedImportanceId(importance.optionId);
                             setShowImportanceDropdown(false);
                           }}
                           className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                            selectedImportanceId === importance.importanceId ? 'bg-blue-50' : ''
+                            selectedImportanceId === importance.optionId ? 'bg-blue-50' : ''
                           }`}
                         >
                           <span
                             className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: importance.color || '#6B7280' }}
+                            style={{ backgroundColor: (importance as any).color || '#6B7280' }}
                           />
-                          {importance.label}
+                          {importance.optionLabel}
                         </button>
                       ))}
                       <button
                         type="button"
-                        // 💡 [수정] 인라인 생성 기능 비활성화
                         onClick={() => {
                           setShowImportanceDropdown(false);
                           handleCustomField({
@@ -487,24 +482,25 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   )}
                 </div>
 
+                {/* Field Management */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Plus className="w-4 h-4 inline mr-1" />
                     필드 추가
                   </label>
                   <button
-                    type="button" // 💡 [수정] 명시적으로 버튼 타입 지정 (폼 충돌 방지)
-                    onClick={() => handleCustomField(null)} // 💡 [수정] Prop 호출
+                    type="button"
+                    onClick={() => handleCustomField(null)}
                     className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between font-medium"
                     disabled={isLoading}
                   >
-                    {/* 💡 [수정] 텍스트 및 아이콘 수정 */}
                     <span className="text-gray-600">필드 생성하기</span>
                     <Settings className="w-4 h-4 text-gray-400" />
                   </button>
                 </div>
               </div>
-              {/* Actions (변경 없음) */}
+
+              {/* Actions */}
               <div className="flex gap-3 pt-4 border-t sticky bottom-0 bg-white">
                 <button
                   type="button"
@@ -521,7 +517,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   }`}
                   disabled={isLoading}
                 >
-                  {/* 💡 [수정] isEditMode 변수 사용 */}
                   {isLoading
                     ? editData?.boardId
                       ? '수정 중...'

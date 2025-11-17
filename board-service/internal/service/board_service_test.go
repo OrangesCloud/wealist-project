@@ -208,10 +208,12 @@ func (m *MockProjectRepository) UpdateJoinRequestStatus(ctx context.Context, id 
 
 func TestBoardService_CreateBoard(t *testing.T) {
 	projectID := uuid.New()
+	validUserID := uuid.New()
 	
 	tests := []struct {
 		name          string
 		req           *dto.CreateBoardRequest
+		ctx           context.Context
 		mockProject   func(*MockProjectRepository)
 		mockBoard     func(*MockBoardRepository)
 		wantErr       bool
@@ -219,6 +221,7 @@ func TestBoardService_CreateBoard(t *testing.T) {
 	}{
 		{
 			name: "성공: 정상적인 Board 생성",
+			ctx:  context.WithValue(context.Background(), "user_id", validUserID),
 			req: &dto.CreateBoardRequest{
 				ProjectID:  projectID,
 				Title:      "Test Board",
@@ -246,6 +249,7 @@ func TestBoardService_CreateBoard(t *testing.T) {
 		},
 		{
 			name: "성공: CustomFields 없이 Board 생성",
+			ctx:  context.WithValue(context.Background(), "user_id", validUserID),
 			req: &dto.CreateBoardRequest{
 				ProjectID: projectID,
 				Title:     "Test Board",
@@ -267,7 +271,21 @@ func TestBoardService_CreateBoard(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "실패: Context에 user_id가 없음",
+			ctx:  context.Background(),
+			req: &dto.CreateBoardRequest{
+				ProjectID: projectID,
+				Title:     "Test Board",
+				Content:   "Test Content",
+			},
+			mockProject: func(m *MockProjectRepository) {},
+			mockBoard:   func(m *MockBoardRepository) {},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeUnauthorized,
+		},
+		{
 			name: "실패: Project가 존재하지 않음",
+			ctx:  context.WithValue(context.Background(), "user_id", validUserID),
 			req: &dto.CreateBoardRequest{
 				ProjectID:  projectID,
 				Title:      "Test Board",
@@ -287,6 +305,7 @@ func TestBoardService_CreateBoard(t *testing.T) {
 		},
 		{
 			name: "실패: Board 생성 중 DB 에러",
+			ctx:  context.WithValue(context.Background(), "user_id", validUserID),
 			req: &dto.CreateBoardRequest{
 				ProjectID:  projectID,
 				Title:      "Test Board",
@@ -321,7 +340,7 @@ func TestBoardService_CreateBoard(t *testing.T) {
 			service := NewBoardService(mockBoardRepo, mockProjectRepo)
 
 			// When
-			got, err := service.CreateBoard(context.Background(), tt.req)
+			got, err := service.CreateBoard(tt.ctx, tt.req)
 
 			// Then
 			if tt.wantErr {
@@ -423,8 +442,11 @@ func TestBoardService_CreateBoard_CustomFields(t *testing.T) {
 				CustomFields: tt.customFields,
 			}
 
+			// Create context with user_id (as uuid.UUID type)
+			ctx := context.WithValue(context.Background(), "user_id", uuid.New())
+
 			// When
-			got, err := service.CreateBoard(context.Background(), req)
+			got, err := service.CreateBoard(ctx, req)
 
 			// Then
 			if err != nil {
