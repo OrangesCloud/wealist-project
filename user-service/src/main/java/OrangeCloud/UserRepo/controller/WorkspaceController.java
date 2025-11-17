@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/workspaces/api")
+@RequestMapping("/api/workspaces")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Workspace", description = "워크스페이스 관리 API")

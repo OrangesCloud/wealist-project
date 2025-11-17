@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/users/api")
+@RequestMapping("/api/users")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "User", description = "사용자 관리 API")
