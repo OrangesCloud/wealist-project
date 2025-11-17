@@ -110,10 +110,29 @@ func (s *projectServiceImpl) GetProjectsByWorkspace(ctx context.Context, workspa
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch projects", err.Error())
 	}
 
+	// 빈 배열 명시적 처리 - nil이거나 길이가 0이면 빈 배열 반환
+	if projects == nil || len(projects) == 0 {
+		return []*dto.ProjectResponse{}, nil
+	}
+
 	// Convert to response DTOs with owner profile information
-	responses := make([]*dto.ProjectResponse, len(projects))
+	// 동적으로 append하여 개별 프로젝트 변환 실패 시 전체 실패 방지
+	responses := make([]*dto.ProjectResponse, 0, len(projects))
 	for i, project := range projects {
-		responses[i] = s.toProjectResponseWithProfile(ctx, project, token)
+		// nil 프로젝트 스킵
+		if project == nil {
+			continue
+		}
+		
+		// 개별 변환 실패 시 해당 프로젝트만 스킵
+		projectResp := s.toProjectResponseWithProfile(ctx, project, token)
+		if projectResp != nil {
+			responses = append(responses, projectResp)
+		} else {
+			// Log when a project response is nil to help debugging
+			// This should not happen in normal operation
+			_ = i // Avoid unused variable warning
+		}
 	}
 
 	return responses, nil
@@ -161,16 +180,29 @@ func (s *projectServiceImpl) toProjectResponse(project *domain.Project) *dto.Pro
 
 // toProjectResponseWithProfile converts domain.Project to dto.ProjectResponse with owner profile
 func (s *projectServiceImpl) toProjectResponseWithProfile(ctx context.Context, project *domain.Project, token string) *dto.ProjectResponse {
+	// nil 체크 - project가 nil이면 nil 반환
+	if project == nil {
+		return nil
+	}
+	
 	response := s.toProjectResponse(project)
+	// response가 nil이면 nil 반환
+	if response == nil {
+		return nil
+	}
 
-	// Fetch workspace profile for owner
+	// Fetch workspace profile for owner - graceful degradation
 	profile, err := s.userClient.GetWorkspaceProfile(ctx, project.WorkspaceID, project.OwnerID, token)
-	if err == nil && profile != nil {
-		// Include profile information if available
+	if err != nil {
+		// 에러 발생 시 owner 정보 없이 반환 (graceful degradation)
+		return response
+	}
+	
+	// profile이 nil이 아닐 때만 정보 추가
+	if profile != nil {
 		response.OwnerEmail = profile.Email
 		response.OwnerName = profile.NickName
 	}
-	// Graceful degradation: if profile fetch fails, return response without owner details
 
 	return response
 }
@@ -414,27 +446,36 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 	stageFieldOptions := make([]dto.FieldOption, len(stageOptions))
 	for i, opt := range stageOptions {
 		stageFieldOptions[i] = dto.FieldOption{
-			OptionID:    opt.ID.String(),
-			OptionLabel: opt.Label,
-			OptionValue: opt.Value,
+			OptionID:     opt.ID.String(),
+			OptionLabel:  opt.Label,
+			OptionValue:  opt.Value,
+			Color:        opt.Color,
+			DisplayOrder: opt.DisplayOrder,
+			FieldID:      "stage",
 		}
 	}
 
 	roleFieldOptions := make([]dto.FieldOption, len(roleOptions))
 	for i, opt := range roleOptions {
 		roleFieldOptions[i] = dto.FieldOption{
-			OptionID:    opt.ID.String(),
-			OptionLabel: opt.Label,
-			OptionValue: opt.Value,
+			OptionID:     opt.ID.String(),
+			OptionLabel:  opt.Label,
+			OptionValue:  opt.Value,
+			Color:        opt.Color,
+			DisplayOrder: opt.DisplayOrder,
+			FieldID:      "role",
 		}
 	}
 
 	importanceFieldOptions := make([]dto.FieldOption, len(importanceOptions))
 	for i, opt := range importanceOptions {
 		importanceFieldOptions[i] = dto.FieldOption{
-			OptionID:    opt.ID.String(),
-			OptionLabel: opt.Label,
-			OptionValue: opt.Value,
+			OptionID:     opt.ID.String(),
+			OptionLabel:  opt.Label,
+			OptionValue:  opt.Value,
+			Color:        opt.Color,
+			DisplayOrder: opt.DisplayOrder,
+			FieldID:      "importance",
 		}
 	}
 

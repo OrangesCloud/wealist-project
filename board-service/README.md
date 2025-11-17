@@ -583,6 +583,20 @@ make test-coverage     # 테스트 커버리지 리포트 (HTML)
 make test-coverage-text # 테스트 커버리지 (텍스트)
 ```
 
+### 통합 테스트
+
+실제 user-service와 board-service를 사용한 통합 테스트:
+
+```bash
+# 전체 통합 테스트 실행 (user-service 로그인 포함)
+./board-service/scripts/integration-test.sh
+
+# 빠른 단일 엔드포인트 테스트
+./board-service/scripts/quick-test.sh projects
+```
+
+자세한 내용은 [TESTING_GUIDE_KR.md](TESTING_GUIDE_KR.md)를 참조하세요.
+
 ### 코드 품질
 
 ```bash

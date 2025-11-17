@@ -232,8 +232,14 @@ public class WorkspaceController {
     public ResponseEntity<List<WorkspaceMemberResponse>> getWorkspaceMembers(
             @PathVariable UUID workspaceId,
             Authentication authentication) {
+        // Authentication이 null인 경우 처리 (개발 환경에서 permitAll 설정 때문)
+        if (authentication == null) {
+            log.error("Authentication is null for getWorkspaceMembers. This should not happen in production.");
+            throw new IllegalStateException("Authentication required but not provided");
+        }
+        
         UUID userId = UUID.fromString(authentication.getName());
-        log.debug("Fetching workspace members: workspaceId={}", workspaceId);
+        log.debug("Fetching workspace members: workspaceId={}, userId={}", workspaceId, userId);
         List<WorkspaceMemberResponse> members = workspaceService.getWorkspaceMembers(workspaceId, userId);
         return ResponseEntity.ok(members);
     }

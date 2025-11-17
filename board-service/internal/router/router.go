@@ -114,8 +114,9 @@ func setupRoutes(
 	projectMemberHandler *handler.ProjectMemberHandler,
 	projectJoinRequestHandler *handler.ProjectJoinRequestHandler,
 ) {
-	// API group
+	// API group with authentication
 	api := router.Group("/api")
+	api.Use(middleware.Auth(jwtSecret))
 	{
 		// Project routes
 		projects := api.Group("/projects")
@@ -193,11 +194,4 @@ func setupRoutes(
 			fieldOptions.DELETE("/:optionId", fieldOptionHandler.DeleteFieldOption)
 		}
 	}
-
-	// Optional: Add authenticated routes group if needed
-	// authenticated := api.Group("")
-	// authenticated.Use(middleware.Auth(jwtSecret))
-	// {
-	//     // Add routes that require authentication here
-	// }
 }

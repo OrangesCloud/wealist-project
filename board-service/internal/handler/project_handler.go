@@ -177,18 +177,21 @@ func (h *ProjectHandler) GetProjectsByWorkspaceQuery(c *gin.Context) {
 		return
 	}
 
-	// Convert []*ProjectResponse to []ProjectResponse
-	projectList := make([]dto.ProjectResponse, len(projects))
-	for i, p := range projects {
-		projectList[i] = *p
+	// Convert []*ProjectResponse to []ProjectResponse with nil check
+	projectList := make([]dto.ProjectResponse, 0, len(projects))
+	for _, p := range projects {
+		// Skip nil pointers to prevent panic
+		if p != nil {
+			projectList = append(projectList, *p)
+		}
 	}
 
 	// 프론트엔드가 기대하는 형식으로 응답 (PaginatedProjectsResponse 형태)
 	response.SendSuccess(c, http.StatusOK, dto.PaginatedProjectsResponse{
 		Projects: projectList,
-		Total:    int64(len(projects)),
+		Total:    int64(len(projectList)),
 		Page:     1,
-		Limit:    len(projects),
+		Limit:    len(projectList),
 	})
 }
 

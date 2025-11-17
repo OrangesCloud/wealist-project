@@ -68,7 +68,8 @@ func (r *projectRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*do
 
 // FindByWorkspaceID finds all projects by workspace ID
 func (r *projectRepositoryImpl) FindByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]*domain.Project, error) {
-	var projects []*domain.Project
+	// Explicitly initialize empty array to prevent nil return
+	projects := make([]*domain.Project, 0)
 	if err := r.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).Find(&projects).Error; err != nil {
 		return nil, err
 	}

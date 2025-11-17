@@ -66,8 +66,12 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
-                        // ************ 나중에 아래 전체 허용 해제 필수 **********
-                        .requestMatchers("/**").permitAll()
+                        // Board-service에서 호출하는 검증 엔드포인트는 인증 불필요
+                        .requestMatchers("/api/workspaces/*/validate-member/*").permitAll()
+                        .requestMatchers("/api/users/*").permitAll()
+                        .requestMatchers("/api/profiles/**").permitAll()
+                        // 테스트용 토큰 생성 엔드포인트
+                        .requestMatchers("/api/users/test/*").permitAll()
                         // 나머지는 인증 필요
                         .anyRequest().authenticated()
                 )

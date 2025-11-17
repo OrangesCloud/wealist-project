@@ -113,9 +113,13 @@ type FieldWithOptionsResponse struct {
 
 // FieldOption represents an option for a field
 type FieldOption struct {
-	OptionID    string `json:"optionId"`
-	OptionLabel string `json:"optionLabel"`
-	OptionValue string `json:"optionValue"`
+	OptionID     string `json:"optionId"`
+	OptionLabel  string `json:"optionLabel"`
+	OptionValue  string `json:"optionValue"`
+	Color        string `json:"color,omitempty"`
+	DisplayOrder int    `json:"displayOrder"`
+	FieldID      string `json:"fieldId,omitempty"`
+	Description  string `json:"description,omitempty"`
 }
 
 // FieldTypeInfo represents information about a field type

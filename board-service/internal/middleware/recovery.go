@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +18,14 @@ func Recovery(logger *zap.Logger) gin.HandlerFunc {
 					zap.Any("error", err),
 					zap.String("path", c.Request.URL.Path),
 					zap.String("method", c.Request.Method),
-					zap.Stack("stack"),
+					zap.String("query", c.Request.URL.RawQuery),
+					zap.Stack("stacktrace"),
+				)
+
+				// Also print to stdout for debugging
+				logger.Info("Panic details",
+					zap.String("error_type", fmt.Sprintf("%T", err)),
+					zap.String("error_value", fmt.Sprintf("%v", err)),
 				)
 
 				// Return 500 error response

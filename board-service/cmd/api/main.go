@@ -108,6 +108,13 @@ func main() {
 		zap.String("database", cfg.Database.DBName),
 	)
 
+	// Run GORM auto-migration
+	log.Info("Running GORM auto-migration")
+	if err := database.AutoMigrate(db); err != nil {
+		log.Fatal("Failed to run auto-migration", zap.Error(err))
+	}
+	log.Info("Database schema migration completed successfully")
+
 	// Log complete User API configuration for debugging
 	log.Info("User API Configuration",
 		zap.String("base_url", cfg.UserAPI.BaseURL),
