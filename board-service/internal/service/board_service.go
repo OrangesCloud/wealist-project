@@ -203,7 +203,6 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		board.DueDate = req.DueDate
 	}
 
-	// Save updated board
 	if err := s.boardRepo.Update(ctx, board); err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update board", err.Error())
 	}
