@@ -11,15 +11,17 @@ import (
 
 // MockFieldOptionRepository is a mock implementation of FieldOptionRepository
 type MockFieldOptionRepository struct {
-	CreateFunc                    func(ctx context.Context, fieldOption *domain.FieldOption) error
-	FindByIDFunc                  func(ctx context.Context, id uuid.UUID) (*domain.FieldOption, error)
-	FindByFieldTypeFunc           func(ctx context.Context, fieldType domain.FieldType) ([]*domain.FieldOption, error)
-	FindByProjectAndFieldTypeFunc func(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType) ([]*domain.FieldOption, error)
-	FindByFieldTypeAndValueFunc   func(ctx context.Context, fieldType, value string) (*domain.FieldOption, error)
-	FindSystemDefaultsFunc        func(ctx context.Context) ([]*domain.FieldOption, error)
-	CreateBatchFunc               func(ctx context.Context, fieldOptions []*domain.FieldOption) error
-	UpdateFunc                    func(ctx context.Context, fieldOption *domain.FieldOption) error
-	DeleteFunc                    func(ctx context.Context, id uuid.UUID) error
+	CreateFunc                            func(ctx context.Context, fieldOption *domain.FieldOption) error
+	FindByIDFunc                          func(ctx context.Context, id uuid.UUID) (*domain.FieldOption, error)
+	FindByFieldTypeFunc                   func(ctx context.Context, fieldType domain.FieldType) ([]*domain.FieldOption, error)
+	FindByProjectAndFieldTypeFunc         func(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType) ([]*domain.FieldOption, error)
+	FindByFieldTypeAndValueFunc           func(ctx context.Context, fieldType, value string) (*domain.FieldOption, error)
+	FindByProjectAndFieldTypeAndValueFunc func(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType, value string) (*domain.FieldOption, error)
+	FindByIDsFunc                         func(ctx context.Context, ids []uuid.UUID) ([]*domain.FieldOption, error)
+	FindSystemDefaultsFunc                func(ctx context.Context) ([]*domain.FieldOption, error)
+	CreateBatchFunc                       func(ctx context.Context, fieldOptions []*domain.FieldOption) error
+	UpdateFunc                            func(ctx context.Context, fieldOption *domain.FieldOption) error
+	DeleteFunc                            func(ctx context.Context, id uuid.UUID) error
 }
 
 func (m *MockFieldOptionRepository) Create(ctx context.Context, fieldOption *domain.FieldOption) error {
@@ -82,6 +84,51 @@ func (m *MockFieldOptionRepository) CreateBatch(ctx context.Context, fieldOption
 	if m.CreateBatchFunc != nil {
 		return m.CreateBatchFunc(ctx, fieldOptions)
 	}
+	return nil
+}
+
+func (m *MockFieldOptionRepository) FindByProjectAndFieldTypeAndValue(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType, value string) (*domain.FieldOption, error) {
+	if m.FindByProjectAndFieldTypeAndValueFunc != nil {
+		return m.FindByProjectAndFieldTypeAndValueFunc(ctx, projectID, fieldType, value)
+	}
+	return nil, nil
+}
+
+func (m *MockFieldOptionRepository) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*domain.FieldOption, error) {
+	if m.FindByIDsFunc != nil {
+		return m.FindByIDsFunc(ctx, ids)
+	}
+	return nil, nil
+}
+
+// MockFieldOptionConverter is a mock implementation of FieldOptionConverter
+type MockFieldOptionConverter struct {
+	ConvertValuesToIDsFunc     func(ctx context.Context, projectID uuid.UUID, customFields map[string]interface{}) (map[string]interface{}, error)
+	ConvertIDsToValuesFunc     func(ctx context.Context, customFields map[string]interface{}) (map[string]interface{}, error)
+	ConvertIDsToValuesBatchFunc func(ctx context.Context, boards []*domain.Board) error
+}
+
+func (m *MockFieldOptionConverter) ConvertValuesToIDs(ctx context.Context, projectID uuid.UUID, customFields map[string]interface{}) (map[string]interface{}, error) {
+	if m.ConvertValuesToIDsFunc != nil {
+		return m.ConvertValuesToIDsFunc(ctx, projectID, customFields)
+	}
+	// Default: return as-is (no conversion)
+	return customFields, nil
+}
+
+func (m *MockFieldOptionConverter) ConvertIDsToValues(ctx context.Context, customFields map[string]interface{}) (map[string]interface{}, error) {
+	if m.ConvertIDsToValuesFunc != nil {
+		return m.ConvertIDsToValuesFunc(ctx, customFields)
+	}
+	// Default: return as-is (no conversion)
+	return customFields, nil
+}
+
+func (m *MockFieldOptionConverter) ConvertIDsToValuesBatch(ctx context.Context, boards []*domain.Board) error {
+	if m.ConvertIDsToValuesBatchFunc != nil {
+		return m.ConvertIDsToValuesBatchFunc(ctx, boards)
+	}
+	// Default: no-op
 	return nil
 }
 

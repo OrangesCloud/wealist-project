@@ -621,7 +621,7 @@ export const createBoard = async (data: CreateBoardRequest): Promise<BoardRespon
       updatedAt: new Date().toISOString(),
     };
   }
-
+  console.log(data);
   try {
     const response: AxiosResponse<SuccessResponse<BoardResponse>> = await boardServiceClient.post(
       '/boards',

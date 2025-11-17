@@ -45,20 +45,20 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   handleCustomField,
 }) => {
   const { theme } = useTheme();
-
+  console.log(fieldOptionsLookup);
   // Form state
   const [title, setTitle] = useState(editData?.title || '');
   const [content, setContent] = useState(editData?.content || '');
   const [selectedStageId, setSelectedStageId] = useState(
-    editData?.stage || fieldOptionsLookup.stages?.[0]?.optionId || '',
+    editData?.stage || fieldOptionsLookup.stages?.[0]?.optionValue || '',
   );
+  // Role과 Importance는 초기값이 없으면 빈 문자열로 설정 (사용자가 선택하도록 유도하거나, 옵션이 아닐 수 있음)
   const [selectedRoleId, setSelectedRoleId] = useState(
-    editData?.role || fieldOptionsLookup.roles?.[0]?.optionId || '',
+    editData?.role || fieldOptionsLookup.roles?.[0]?.optionValue || '', // 기존의 fieldOptionsLookup.roles?.[0]?.optionValue 제거
   );
   const [selectedImportanceId, setSelectedImportanceId] = useState(
-    editData?.importance || fieldOptionsLookup.importances?.[0]?.optionId || '',
+    editData?.importance || fieldOptionsLookup.importances?.[0]?.optionValue || '', // 기존의 fieldOptionsLookup.importances?.[0]?.optionValue 제거
   );
-
   // Assignee search state
   const [assigneeSearch, _setAssigneeSearch] = useState('');
   const [_workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
@@ -83,7 +83,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         console.error('❌ 워크스페이스 멤버 로드 실패:', err);
       }
     };
-
+    console.log(editData);
     if (workspaceId) {
       fetchMembers();
     }
@@ -147,13 +147,15 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         customFields.importance = selectedImportanceId;
       }
 
+      console.log(customFields);
+
       const boardData: CreateBoardRequest | UpdateBoardRequest = {
         projectId,
         title: title.trim(),
         content: content.trim() || undefined,
         customFields,
       };
-
+      console.log(boardData);
       if (editData?.boardId) {
         await updateBoard(editData!.boardId, boardData);
       } else {
@@ -161,8 +163,8 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
       }
 
       alert(`✅  보드 ${editData?.boardId ? '수정' : '생성'} 완료!`);
-      onBoardCreated();
-      onClose();
+      // onBoardCreated();
+      // onClose();
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
       console.error(`❌ 보드 ${editData?.boardId ? '수정' : '생성'} 실패:`, errorMsg);
@@ -261,7 +263,9 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   >
                     <span className="flex items-center gap-2">
                       {selectedStageId &&
-                        fieldOptionsLookup?.stages?.find((s) => s.optionId === selectedStageId) && (
+                        fieldOptionsLookup?.stages?.find(
+                          (s) => s.optionValue === selectedStageId,
+                        ) && (
                           <>
                             <span
                               className="w-3 h-3 rounded-full"
@@ -269,14 +273,14 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                                 backgroundColor:
                                   (
                                     fieldOptionsLookup?.stages?.find(
-                                      (s) => s.optionId === selectedStageId,
+                                      (s) => s.optionValue === selectedStageId,
                                     ) as any
                                   )?.color || '#6B7280',
                               }}
                             />
                             {
                               fieldOptionsLookup?.stages?.find(
-                                (s) => s.optionId === selectedStageId,
+                                (s) => s.optionValue === selectedStageId,
                               )?.optionLabel
                             }
                           </>
@@ -291,18 +295,18 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                           key={stage.optionId}
                           type="button"
                           onClick={() => {
-                            setSelectedStageId(stage.optionId);
+                            setSelectedStageId(stage.optionValue);
                             setShowStageDropdown(false);
                           }}
                           className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                            selectedStageId === stage.optionId ? 'bg-blue-50' : ''
+                            selectedStageId === stage.optionValue ? 'bg-blue-50' : ''
                           }`}
                         >
                           <span
                             className="w-3 h-3 rounded-full"
                             style={{ backgroundColor: (stage as any).color || '#6B7280' }}
                           />
-                          {stage.optionLabel}
+                          {stage?.optionLabel}
                         </button>
                       ))}
                       <button
@@ -323,7 +327,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   )}
                 </div>
 
-                {/* Role Selection */}
                 <div className="relative role-dropdown-container">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Tag className="w-4 h-4 inline mr-1" />
@@ -337,7 +340,9 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   >
                     <span className="flex items-center gap-2">
                       {selectedRoleId &&
-                        fieldOptionsLookup?.roles?.find((r) => r.optionId === selectedRoleId) && (
+                        fieldOptionsLookup?.roles?.find(
+                          (r) => r.optionValue === selectedRoleId,
+                        ) && (
                           <>
                             <span
                               className="w-3 h-3 rounded-full"
@@ -345,13 +350,13 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                                 backgroundColor:
                                   (
                                     fieldOptionsLookup.roles.find(
-                                      (r) => r.optionId === selectedRoleId,
+                                      (r) => r.optionValue === selectedRoleId,
                                     ) as any
                                   )?.color || '#6B7280',
                               }}
                             />
                             {
-                              fieldOptionsLookup.roles.find((r) => r.optionId === selectedRoleId)
+                              fieldOptionsLookup.roles.find((r) => r.optionValue === selectedRoleId)
                                 ?.optionLabel
                             }
                           </>
@@ -366,11 +371,11 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                           key={role.optionId}
                           type="button"
                           onClick={() => {
-                            setSelectedRoleId(role.optionId);
+                            setSelectedRoleId(role.optionValue);
                             setShowRoleDropdown(false);
                           }}
                           className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                            selectedRoleId === role.optionId ? 'bg-blue-50' : ''
+                            selectedRoleId === role.optionValue ? 'bg-blue-50' : ''
                           }`}
                         >
                           <span
@@ -416,7 +421,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                     <span className="flex items-center gap-2">
                       {selectedImportanceId ? (
                         fieldOptionsLookup?.importances?.find(
-                          (i) => i.optionId === selectedImportanceId,
+                          (i) => i.optionValue === selectedImportanceId,
                         ) && (
                           <>
                             <span
@@ -425,14 +430,14 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                                 backgroundColor:
                                   (
                                     fieldOptionsLookup.importances.find(
-                                      (i) => i.optionId === selectedImportanceId,
+                                      (i) => i.optionValue === selectedImportanceId,
                                     ) as any
                                   )?.color || '#6B7280',
                               }}
                             />
                             {
                               fieldOptionsLookup.importances.find(
-                                (i) => i.optionId === selectedImportanceId,
+                                (i) => i.optionValue === selectedImportanceId,
                               )?.optionLabel
                             }
                           </>
@@ -450,11 +455,11 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                           key={importance.optionId}
                           type="button"
                           onClick={() => {
-                            setSelectedImportanceId(importance.optionId);
+                            setSelectedImportanceId(importance.optionValue);
                             setShowImportanceDropdown(false);
                           }}
                           className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                            selectedImportanceId === importance.optionId ? 'bg-blue-50' : ''
+                            selectedImportanceId === importance.optionValue ? 'bg-blue-50' : ''
                           }`}
                         >
                           <span

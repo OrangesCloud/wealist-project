@@ -26,15 +26,31 @@ type BoardService interface {
 
 // boardServiceImpl is the implementation of BoardService
 type boardServiceImpl struct {
-	boardRepo   repository.BoardRepository
-	projectRepo repository.ProjectRepository
+	boardRepo           repository.BoardRepository
+	projectRepo         repository.ProjectRepository
+	fieldOptionRepo     repository.FieldOptionRepository
+	fieldOptionConverter FieldOptionConverter
+}
+
+// FieldOptionConverter handles conversion between field option values and IDs
+type FieldOptionConverter interface {
+	ConvertValuesToIDs(ctx context.Context, projectID uuid.UUID, customFields map[string]interface{}) (map[string]interface{}, error)
+	ConvertIDsToValues(ctx context.Context, customFields map[string]interface{}) (map[string]interface{}, error)
+	ConvertIDsToValuesBatch(ctx context.Context, boards []*domain.Board) error
 }
 
 // NewBoardService creates a new instance of BoardService
-func NewBoardService(boardRepo repository.BoardRepository, projectRepo repository.ProjectRepository) BoardService {
+func NewBoardService(
+	boardRepo repository.BoardRepository,
+	projectRepo repository.ProjectRepository,
+	fieldOptionRepo repository.FieldOptionRepository,
+	fieldOptionConverter FieldOptionConverter,
+) BoardService {
 	return &boardServiceImpl{
-		boardRepo:   boardRepo,
-		projectRepo: projectRepo,
+		boardRepo:            boardRepo,
+		projectRepo:          projectRepo,
+		fieldOptionRepo:      fieldOptionRepo,
+		fieldOptionConverter: fieldOptionConverter,
 	}
 }
 
@@ -55,10 +71,16 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to verify project", err.Error())
 	}
 
-	// Convert CustomFields to datatypes.JSON
+	// Convert CustomFields from values to IDs, then to datatypes.JSON
 	var customFieldsJSON datatypes.JSON
 	if req.CustomFields != nil {
-		jsonBytes, err := json.Marshal(req.CustomFields)
+		// Convert values to IDs
+		convertedFields, err := s.fieldOptionConverter.ConvertValuesToIDs(ctx, req.ProjectID, req.CustomFields)
+		if err != nil {
+			return nil, response.NewAppError(response.ErrCodeValidation, "Invalid custom field values", err.Error())
+		}
+		
+		jsonBytes, err := json.Marshal(convertedFields)
 		if err != nil {
 			return nil, response.NewAppError(response.ErrCodeInternal, "Failed to marshal custom fields", err.Error())
 		}
@@ -96,6 +118,11 @@ func (s *boardServiceImpl) GetBoard(ctx context.Context, boardID uuid.UUID) (*dt
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch board", err.Error())
 	}
 
+	// Convert IDs to values in customFields
+	if err := s.convertBoardCustomFieldsToValues(ctx, board); err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to convert custom fields", err.Error())
+	}
+
 	// Convert to detailed response DTO
 	return s.toBoardDetailResponse(board), nil
 }
@@ -121,6 +148,11 @@ func (s *boardServiceImpl) GetBoardsByProject(ctx context.Context, projectID uui
 	boards, err := s.boardRepo.FindByProjectID(ctx, projectID, filterParam)
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch boards", err.Error())
+	}
+
+	// Convert IDs to values in batch for all boards
+	if err := s.fieldOptionConverter.ConvertIDsToValuesBatch(ctx, boards); err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to convert custom fields", err.Error())
 	}
 
 	// Convert to response DTOs
@@ -151,8 +183,14 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		board.Content = *req.Content
 	}
 	if req.CustomFields != nil {
+		// Convert values to IDs
+		convertedFields, err := s.fieldOptionConverter.ConvertValuesToIDs(ctx, board.ProjectID, *req.CustomFields)
+		if err != nil {
+			return nil, response.NewAppError(response.ErrCodeValidation, "Invalid custom field values", err.Error())
+		}
+		
 		// Convert CustomFields to datatypes.JSON
-		jsonBytes, err := json.Marshal(*req.CustomFields)
+		jsonBytes, err := json.Marshal(convertedFields)
 		if err != nil {
 			return nil, response.NewAppError(response.ErrCodeInternal, "Failed to marshal custom fields", err.Error())
 		}
@@ -190,6 +228,31 @@ func (s *boardServiceImpl) DeleteBoard(ctx context.Context, boardID uuid.UUID) e
 		return response.NewAppError(response.ErrCodeInternal, "Failed to delete board", err.Error())
 	}
 
+	return nil
+}
+
+// convertBoardCustomFieldsToValues converts a single board's customFields from IDs to values
+func (s *boardServiceImpl) convertBoardCustomFieldsToValues(ctx context.Context, board *domain.Board) error {
+	if board.CustomFields == nil || len(board.CustomFields) == 0 {
+		return nil
+	}
+
+	var customFields map[string]interface{}
+	if err := json.Unmarshal(board.CustomFields, &customFields); err != nil {
+		return err
+	}
+
+	convertedFields, err := s.fieldOptionConverter.ConvertIDsToValues(ctx, customFields)
+	if err != nil {
+		return err
+	}
+
+	jsonBytes, err := json.Marshal(convertedFields)
+	if err != nil {
+		return err
+	}
+
+	board.CustomFields = jsonBytes
 	return nil
 }
 

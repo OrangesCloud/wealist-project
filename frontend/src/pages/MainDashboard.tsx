@@ -105,10 +105,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
             optionId: opt.optionId,
             optionValue: opt.optionValue,
             optionLabel: opt.optionLabel,
+            color: opt.color,
           };
 
           // fieldName으로 분류
-          const fieldName = field.fieldName;
+          const fieldName = field?.fieldName;
           if (fieldName === 'Role' || fieldName === 'role') {
             roles.push(mappedOption);
           } else if (fieldName === 'Importance' || fieldName === 'importance') {

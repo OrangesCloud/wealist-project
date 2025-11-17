@@ -157,7 +157,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
 
   // Helper function to get option by ID
   const getFieldOption = (options: FieldOption[], id: string) => {
-    return options.find((opt) => opt.optionId === id);
+    return options.find((opt) => opt.optionValue === id);
   };
 
   if (isLoadingBoard) {

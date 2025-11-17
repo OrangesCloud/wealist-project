@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -334,10 +335,12 @@ func TestBoardService_CreateBoard(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
 			mockBoardRepo := &MockBoardRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
+			mockConverter := &MockFieldOptionConverter{}
 			tt.mockProject(mockProjectRepo)
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			got, err := service.CreateBoard(tt.ctx, tt.req)
@@ -433,7 +436,9 @@ func TestBoardService_CreateBoard_CustomFields(t *testing.T) {
 				},
 			}
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
+			mockConverter := &MockFieldOptionConverter{}
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 			
 			req := &dto.CreateBoardRequest{
 				ProjectID:    projectID,
@@ -465,8 +470,14 @@ func TestBoardService_CreateBoard_CustomFields(t *testing.T) {
 					return
 				}
 				
+				var customFields map[string]interface{}
+				if err := json.Unmarshal(savedBoard.CustomFields, &customFields); err != nil {
+					t.Errorf("Failed to unmarshal CustomFields: %v", err)
+					return
+				}
+				
 				for key, expectedValue := range tt.wantFields {
-					if actualValue, ok := savedBoard.CustomFields[key]; !ok {
+					if actualValue, ok := customFields[key]; !ok {
 						t.Errorf("Board.CustomFields[%s] not found", key)
 					} else if actualValue != expectedValue {
 						t.Errorf("Board.CustomFields[%s] = %v, want %v", key, actualValue, expectedValue)
@@ -497,19 +508,20 @@ func TestBoardService_GetBoard(t *testing.T) {
 			boardID: boardID,
 			mockBoard: func(m *MockBoardRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					customFieldsJSON, _ := json.Marshal(map[string]interface{}{
+						"stage":      "in_progress",
+						"importance": "urgent",
+						"role":       "developer",
+					})
 					return &domain.Board{
 						BaseModel: domain.BaseModel{
 							ID:        boardID,
 							CreatedAt: time.Now(),
 							UpdatedAt: time.Now(),
 						},
-						Title:   "Test Board",
-						Content: "Test Content",
-						CustomFields: map[string]interface{}{
-							"stage":      "in_progress",
-							"importance": "urgent",
-							"role":       "developer",
-						},
+						Title:        "Test Board",
+						Content:      "Test Content",
+						CustomFields: customFieldsJSON,
 						Participants: []domain.Participant{},
 						Comments:     []domain.Comment{},
 					}, nil
@@ -535,9 +547,11 @@ func TestBoardService_GetBoard(t *testing.T) {
 			// Given
 			mockBoardRepo := &MockBoardRepository{}
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
+			mockConverter := &MockFieldOptionConverter{}
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			got, err := service.GetBoard(context.Background(), tt.boardID)
@@ -590,16 +604,17 @@ func TestBoardService_UpdateBoard(t *testing.T) {
 			},
 			mockBoard: func(m *MockBoardRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					customFieldsJSON, _ := json.Marshal(map[string]interface{}{
+						"stage": "in_progress",
+					})
 					return &domain.Board{
 						BaseModel: domain.BaseModel{
 							ID:        boardID,
 							CreatedAt: time.Now(),
 							UpdatedAt: time.Now(),
 						},
-						Title: "Old Title",
-						CustomFields: map[string]interface{}{
-							"stage": "in_progress",
-						},
+						Title:        "Old Title",
+						CustomFields: customFieldsJSON,
 					}, nil
 				}
 				m.UpdateFunc = func(ctx context.Context, board *domain.Board) error {
@@ -616,16 +631,17 @@ func TestBoardService_UpdateBoard(t *testing.T) {
 			},
 			mockBoard: func(m *MockBoardRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					customFieldsJSON, _ := json.Marshal(map[string]interface{}{
+						"stage": "in_progress",
+					})
 					return &domain.Board{
 						BaseModel: domain.BaseModel{
 							ID:        boardID,
 							CreatedAt: time.Now(),
 							UpdatedAt: time.Now(),
 						},
-						Title: "Test Board",
-						CustomFields: map[string]interface{}{
-							"stage": "in_progress",
-						},
+						Title:        "Test Board",
+						CustomFields: customFieldsJSON,
 					}, nil
 				}
 				m.UpdateFunc = func(ctx context.Context, board *domain.Board) error {
@@ -655,9 +671,11 @@ func TestBoardService_UpdateBoard(t *testing.T) {
 			// Given
 			mockBoardRepo := &MockBoardRepository{}
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
+			mockConverter := &MockFieldOptionConverter{}
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			got, err := service.UpdateBoard(context.Background(), tt.boardID, tt.req)
@@ -738,6 +756,7 @@ func TestBoardService_UpdateBoard_CustomFields(t *testing.T) {
 			var updatedBoard *domain.Board
 			mockBoardRepo := &MockBoardRepository{
 				FindByIDFunc: func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					customFieldsJSON, _ := json.Marshal(tt.existingFields)
 					return &domain.Board{
 						BaseModel: domain.BaseModel{
 							ID:        boardID,
@@ -745,7 +764,7 @@ func TestBoardService_UpdateBoard_CustomFields(t *testing.T) {
 							UpdatedAt: time.Now(),
 						},
 						Title:        "Test Board",
-						CustomFields: tt.existingFields,
+						CustomFields: customFieldsJSON,
 					}, nil
 				},
 				UpdateFunc: func(ctx context.Context, board *domain.Board) error {
@@ -755,7 +774,9 @@ func TestBoardService_UpdateBoard_CustomFields(t *testing.T) {
 			}
 			
 			mockProjectRepo := &MockProjectRepository{}
-			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
+			mockConverter := &MockFieldOptionConverter{}
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 			
 			req := &dto.UpdateBoardRequest{
 				CustomFields: &tt.updateFields,
@@ -780,8 +801,14 @@ func TestBoardService_UpdateBoard_CustomFields(t *testing.T) {
 				return
 			}
 			
+			var customFields map[string]interface{}
+			if err := json.Unmarshal(updatedBoard.CustomFields, &customFields); err != nil {
+				t.Errorf("Failed to unmarshal CustomFields: %v", err)
+				return
+			}
+			
 			for key, expectedValue := range tt.wantFields {
-				if actualValue, ok := updatedBoard.CustomFields[key]; !ok {
+				if actualValue, ok := customFields[key]; !ok {
 					t.Errorf("Board.CustomFields[%s] not found", key)
 				} else if actualValue != expectedValue {
 					t.Errorf("Board.CustomFields[%s] = %v, want %v", key, actualValue, expectedValue)
@@ -818,20 +845,18 @@ func TestBoardService_GetBoardsByProject_CustomFieldsFilter(t *testing.T) {
 			},
 			mockBoard: func(m *MockBoardRepository) {
 				m.FindByProjectIDFunc = func(ctx context.Context, pid uuid.UUID, filters interface{}) ([]*domain.Board, error) {
+					customFields1JSON, _ := json.Marshal(map[string]interface{}{"stage": "in_progress"})
+					customFields2JSON, _ := json.Marshal(map[string]interface{}{"stage": "approved"})
 					return []*domain.Board{
 						{
-							BaseModel: domain.BaseModel{ID: uuid.New()},
-							Title:     "Board 1",
-							CustomFields: map[string]interface{}{
-								"stage": "in_progress",
-							},
+							BaseModel:    domain.BaseModel{ID: uuid.New()},
+							Title:        "Board 1",
+							CustomFields: customFields1JSON,
 						},
 						{
-							BaseModel: domain.BaseModel{ID: uuid.New()},
-							Title:     "Board 2",
-							CustomFields: map[string]interface{}{
-								"stage": "approved",
-							},
+							BaseModel:    domain.BaseModel{ID: uuid.New()},
+							Title:        "Board 2",
+							CustomFields: customFields2JSON,
 						},
 					}, nil
 				}
@@ -856,13 +881,12 @@ func TestBoardService_GetBoardsByProject_CustomFieldsFilter(t *testing.T) {
 					// Simulate filtering
 					if customFields, ok := filters.(map[string]interface{}); ok {
 						if stage, ok := customFields["stage"]; ok && stage == "in_progress" {
+							customFieldsJSON, _ := json.Marshal(map[string]interface{}{"stage": "in_progress"})
 							return []*domain.Board{
 								{
-									BaseModel: domain.BaseModel{ID: uuid.New()},
-									Title:     "Board 1",
-									CustomFields: map[string]interface{}{
-										"stage": "in_progress",
-									},
+									BaseModel:    domain.BaseModel{ID: uuid.New()},
+									Title:        "Board 1",
+									CustomFields: customFieldsJSON,
 								},
 							}, nil
 						}
@@ -893,14 +917,15 @@ func TestBoardService_GetBoardsByProject_CustomFieldsFilter(t *testing.T) {
 						stage, hasStage := customFields["stage"]
 						importance, hasImportance := customFields["importance"]
 						if hasStage && hasImportance && stage == "in_progress" && importance == "urgent" {
+							customFieldsJSON, _ := json.Marshal(map[string]interface{}{
+								"stage":      "in_progress",
+								"importance": "urgent",
+							})
 							return []*domain.Board{
 								{
-									BaseModel: domain.BaseModel{ID: uuid.New()},
-									Title:     "Urgent Board",
-									CustomFields: map[string]interface{}{
-										"stage":      "in_progress",
-										"importance": "urgent",
-									},
+									BaseModel:    domain.BaseModel{ID: uuid.New()},
+									Title:        "Urgent Board",
+									CustomFields: customFieldsJSON,
 								},
 							}, nil
 						}
@@ -950,10 +975,12 @@ func TestBoardService_GetBoardsByProject_CustomFieldsFilter(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
 			mockBoardRepo := &MockBoardRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
+			mockConverter := &MockFieldOptionConverter{}
 			tt.mockProject(mockProjectRepo)
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			got, err := service.GetBoardsByProject(context.Background(), projectID, tt.filters)
@@ -1031,9 +1058,11 @@ func TestBoardService_DeleteBoard(t *testing.T) {
 			// Given
 			mockBoardRepo := &MockBoardRepository{}
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
+			mockConverter := &MockFieldOptionConverter{}
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			err := service.DeleteBoard(context.Background(), tt.boardID)

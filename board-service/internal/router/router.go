@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"project-board-api/internal/client"
+	"project-board-api/internal/converter"
 	"project-board-api/internal/handler"
 	"project-board-api/internal/middleware"
 	"project-board-api/internal/repository"
@@ -43,9 +44,12 @@ func Setup(cfg Config) *gin.Engine {
 	commentRepo := repository.NewCommentRepository(cfg.DB)
 	fieldOptionRepo := repository.NewFieldOptionRepository(cfg.DB)
 
+	// Initialize converters
+	fieldOptionConverter := converter.NewFieldOptionConverter(fieldOptionRepo)
+
 	// Initialize services with repository dependencies
 	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient)
-	boardService := service.NewBoardService(boardRepo, projectRepo)
+	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, fieldOptionConverter)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
 	commentService := service.NewCommentService(commentRepo, boardRepo)
 	fieldOptionService := service.NewFieldOptionService(fieldOptionRepo)

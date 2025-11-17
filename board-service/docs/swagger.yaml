@@ -22,35 +22,50 @@ definitions:
     - userId
     type: object
   project-board-api_internal_dto.BoardDetailResponse:
+    description: 'Detailed board response with value-based customFields, participants,
+      and comments customFields contains field type as key and value string as value
+      (not UUIDs) Example: {"importance": "high", "role": "developer", "stage": "in_progress"}'
     properties:
       assigneeId:
+        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
       authorId:
+        example: b2c3d4e5-f6a7-8901-bcde-f12345678901
         type: string
       boardId:
+        example: 1275eac5-f0f9-4bee-8235-576a0042f42b
         type: string
       comments:
         items:
           $ref: '#/definitions/project-board-api_internal_dto.CommentResponse'
         type: array
       content:
+        example: Add JWT-based authentication to the API
         type: string
       createdAt:
+        example: "2024-01-15T10:30:00Z"
         type: string
       customFields:
-        additionalProperties: true
+        additionalProperties:
+          type: string
+        example:
+          importance: high
         type: object
       dueDate:
+        example: "2024-12-31T23:59:59Z"
         type: string
       participants:
         items:
           $ref: '#/definitions/project-board-api_internal_dto.ParticipantResponse'
         type: array
       projectId:
+        example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
         type: string
       title:
+        example: Implement user authentication
         type: string
       updatedAt:
+        example: "2024-01-15T14:20:00Z"
         type: string
     type: object
   project-board-api_internal_dto.BoardFilters:
@@ -60,27 +75,42 @@ definitions:
         type: object
     type: object
   project-board-api_internal_dto.BoardResponse:
+    description: 'Board response with value-based customFields customFields contains
+      field type as key and value string as value (not UUIDs) Example: {"importance":
+      "high", "role": "developer", "stage": "in_progress"}'
     properties:
       assigneeId:
+        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
       authorId:
+        example: b2c3d4e5-f6a7-8901-bcde-f12345678901
         type: string
       boardId:
+        example: 1275eac5-f0f9-4bee-8235-576a0042f42b
         type: string
       content:
+        example: Add JWT-based authentication to the API
         type: string
       createdAt:
+        example: "2024-01-15T10:30:00Z"
         type: string
       customFields:
-        additionalProperties: true
+        additionalProperties:
+          type: string
+        example:
+          importance: high
         type: object
       dueDate:
+        example: "2024-12-31T23:59:59Z"
         type: string
       projectId:
+        example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
         type: string
       title:
+        example: Implement user authentication
         type: string
       updatedAt:
+        example: "2024-01-15T14:20:00Z"
         type: string
     type: object
   project-board-api_internal_dto.CommentResponse:
@@ -99,20 +129,32 @@ definitions:
         type: string
     type: object
   project-board-api_internal_dto.CreateBoardRequest:
+    description: 'Request body for creating a new board with value-based customFields
+      customFields should contain field type as key and value string as value Valid
+      field types: stage, role, importance Example values: stage="in_progress", role="developer",
+      importance="high"'
     properties:
       assigneeId:
+        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
       content:
+        example: Add JWT-based authentication to the API
         maxLength: 5000
         type: string
       customFields:
-        additionalProperties: true
+        additionalProperties:
+          type: string
+        example:
+          importance: high
         type: object
       dueDate:
+        example: "2024-12-31T23:59:59Z"
         type: string
       projectId:
+        example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
         type: string
       title:
+        example: Implement user authentication
         maxLength: 200
         minLength: 1
         type: string
@@ -179,6 +221,14 @@ definitions:
     type: object
   project-board-api_internal_dto.FieldOption:
     properties:
+      color:
+        type: string
+      description:
+        type: string
+      displayOrder:
+        type: integer
+      fieldId:
+        type: string
       optionId:
         type: string
       optionLabel:
@@ -382,18 +432,29 @@ definitions:
     - value
     type: object
   project-board-api_internal_dto.UpdateBoardRequest:
+    description: 'Request body for updating a board with value-based customFields
+      customFields should contain field type as key and value string as value Valid
+      field types: stage, role, importance Example values: stage="completed", role="designer",
+      importance="medium"'
     properties:
       assigneeId:
+        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
       content:
+        example: Refactor JWT implementation
         maxLength: 5000
         type: string
       customFields:
-        additionalProperties: true
+        additionalProperties:
+          type: string
+        example:
+          importance: medium
         type: object
       dueDate:
+        example: "2024-12-31T23:59:59Z"
         type: string
       title:
+        example: Update user authentication
         maxLength: 200
         minLength: 1
         type: string
@@ -474,14 +535,17 @@ info:
 paths:
   /boards:
     get:
-      description: 특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트
+      description: |-
+        특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트
+        응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
+        예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
       parameters:
       - description: Project ID (UUID)
         in: query
         name: projectId
         required: true
         type: string
-      - description: Custom Fields 필터 JSON 객체
+      - description: 'Custom Fields 필터 JSON 객체. 예시: {\'
         in: query
         name: customFields
         type: string
@@ -517,7 +581,12 @@ paths:
     post:
       consumes:
       - application/json
-      description: 새로운 Board를 생성합니다
+      description: |-
+        새로운 Board를 생성합니다
+        customFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)
+        유효한 필드 타입: stage, role, importance
+        예시 값: stage="in_progress", role="developer", importance="high"
+        잘못된 field value 제공 시 400 에러 반환
       parameters:
       - description: Board 생성 요청
         in: body
@@ -538,7 +607,7 @@ paths:
                   $ref: '#/definitions/project-board-api_internal_dto.BoardResponse'
               type: object
         "400":
-          description: 잘못된 요청
+          description: 잘못된 요청 또는 유효하지 않은 field value
           schema:
             $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
         "404":
@@ -584,7 +653,10 @@ paths:
       tags:
       - boards
     get:
-      description: Board ID로 상세 정보를 조회합니다 (참여자, 댓글 포함)
+      description: |-
+        Board ID로 상세 정보를 조회합니다 (참여자, 댓글 포함)
+        응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
+        예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
       parameters:
       - description: Board ID (UUID)
         in: path
@@ -621,7 +693,12 @@ paths:
     put:
       consumes:
       - application/json
-      description: Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할)
+      description: |-
+        Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할)
+        customFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)
+        유효한 필드 타입: stage, role, importance
+        예시 값: stage="completed", role="designer", importance="medium"
+        잘못된 field value 제공 시 400 에러 반환
       parameters:
       - description: Board ID (UUID)
         in: path
@@ -647,7 +724,7 @@ paths:
                   $ref: '#/definitions/project-board-api_internal_dto.BoardResponse'
               type: object
         "400":
-          description: 잘못된 요청
+          description: 잘못된 요청 또는 유효하지 않은 field value
           schema:
             $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
         "404":
@@ -663,15 +740,17 @@ paths:
       - boards
   /boards/project/{projectId}:
     get:
-      description: 특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON
-        형식)
+      description: |-
+        특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON 형식)
+        응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
+        예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
       parameters:
       - description: Project ID (UUID)
         in: path
         name: projectId
         required: true
         type: string
-      - description: 'Custom Fields 필터 JSON 객체. 예시: stage=in_progress, role=developer'
+      - description: 'Custom Fields 필터 JSON 객체. 예시: {\'
         in: query
         name: customFields
         type: string

@@ -187,6 +187,7 @@ export interface FieldOption {
   optionId: string;
   optionValue: string;
   optionLabel: string;
+  color?: string;
 }
 
 /**

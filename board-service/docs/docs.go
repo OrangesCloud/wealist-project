@@ -24,7 +24,7 @@ const docTemplate = `{
     "paths": {
         "/boards": {
             "get": {
-                "description": "특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트",
+                "description": "특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
                 "produces": [
                     "application/json"
                 ],
@@ -42,7 +42,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Custom Fields 필터 JSON 객체",
+                        "description": "Custom Fields 필터 JSON 객체. 예시: {\\",
                         "name": "customFields",
                         "in": "query"
                     }
@@ -90,7 +90,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "새로운 Board를 생성합니다",
+                "description": "새로운 Board를 생성합니다\ncustomFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)\n유효한 필드 타입: stage, role, importance\n예시 값: stage=\"in_progress\", role=\"developer\", importance=\"high\"\n잘못된 field value 제공 시 400 에러 반환",
                 "consumes": [
                     "application/json"
                 ],
@@ -132,7 +132,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "잘못된 요청",
+                        "description": "잘못된 요청 또는 유효하지 않은 field value",
                         "schema": {
                             "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
                         }
@@ -154,7 +154,7 @@ const docTemplate = `{
         },
         "/boards/project/{projectId}": {
             "get": {
-                "description": "특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON 형식)",
+                "description": "특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON 형식)\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
                 "produces": [
                     "application/json"
                 ],
@@ -172,7 +172,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Custom Fields 필터 JSON 객체. 예시: stage=in_progress, role=developer",
+                        "description": "Custom Fields 필터 JSON 객체. 예시: {\\",
                         "name": "customFields",
                         "in": "query"
                     }
@@ -222,7 +222,7 @@ const docTemplate = `{
         },
         "/boards/{boardId}": {
             "get": {
-                "description": "Board ID로 상세 정보를 조회합니다 (참여자, 댓글 포함)",
+                "description": "Board ID로 상세 정보를 조회합니다 (참여자, 댓글 포함)\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
                 "produces": [
                     "application/json"
                 ],
@@ -279,7 +279,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할)",
+                "description": "Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할)\ncustomFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)\n유효한 필드 타입: stage, role, importance\n예시 값: stage=\"completed\", role=\"designer\", importance=\"medium\"\n잘못된 field value 제공 시 400 에러 반환",
                 "consumes": [
                     "application/json"
                 ],
@@ -328,7 +328,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "잘못된 요청",
+                        "description": "잘못된 요청 또는 유효하지 않은 field value",
                         "schema": {
                             "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
                         }
@@ -2200,16 +2200,20 @@ const docTemplate = `{
             }
         },
         "project-board-api_internal_dto.BoardDetailResponse": {
+            "description": "Detailed board response with value-based customFields, participants, and comments customFields contains field type as key and value string as value (not UUIDs) Example: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
             "type": "object",
             "properties": {
                 "assigneeId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 },
                 "authorId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                 },
                 "boardId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "1275eac5-f0f9-4bee-8235-576a0042f42b"
                 },
                 "comments": {
                     "type": "array",
@@ -2218,17 +2222,25 @@ const docTemplate = `{
                     }
                 },
                 "content": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Add JWT-based authentication to the API"
                 },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
                 },
                 "customFields": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "example": {
+                        "importance": "high"
+                    }
                 },
                 "dueDate": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-12-31T23:59:59Z"
                 },
                 "participants": {
                     "type": "array",
@@ -2237,13 +2249,16 @@ const docTemplate = `{
                     }
                 },
                 "projectId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
                 },
                 "title": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Implement user authentication"
                 },
                 "updatedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-15T14:20:00Z"
                 }
             }
         },
@@ -2257,38 +2272,53 @@ const docTemplate = `{
             }
         },
         "project-board-api_internal_dto.BoardResponse": {
+            "description": "Board response with value-based customFields customFields contains field type as key and value string as value (not UUIDs) Example: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
             "type": "object",
             "properties": {
                 "assigneeId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 },
                 "authorId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                 },
                 "boardId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "1275eac5-f0f9-4bee-8235-576a0042f42b"
                 },
                 "content": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Add JWT-based authentication to the API"
                 },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
                 },
                 "customFields": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "example": {
+                        "importance": "high"
+                    }
                 },
                 "dueDate": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-12-31T23:59:59Z"
                 },
                 "projectId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
                 },
                 "title": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Implement user authentication"
                 },
                 "updatedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-15T14:20:00Z"
                 }
             }
         },
@@ -2316,6 +2346,7 @@ const docTemplate = `{
             }
         },
         "project-board-api_internal_dto.CreateBoardRequest": {
+            "description": "Request body for creating a new board with value-based customFields customFields should contain field type as key and value string as value Valid field types: stage, role, importance Example values: stage=\"in_progress\", role=\"developer\", importance=\"high\"",
             "type": "object",
             "required": [
                 "projectId",
@@ -2323,26 +2354,36 @@ const docTemplate = `{
             ],
             "properties": {
                 "assigneeId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 },
                 "content": {
                     "type": "string",
-                    "maxLength": 5000
+                    "maxLength": 5000,
+                    "example": "Add JWT-based authentication to the API"
                 },
                 "customFields": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "example": {
+                        "importance": "high"
+                    }
                 },
                 "dueDate": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-12-31T23:59:59Z"
                 },
                 "projectId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
                 },
                 "title": {
                     "type": "string",
                     "maxLength": 200,
-                    "minLength": 1
+                    "minLength": 1,
+                    "example": "Implement user authentication"
                 }
             }
         },
@@ -2430,6 +2471,18 @@ const docTemplate = `{
         "project-board-api_internal_dto.FieldOption": {
             "type": "object",
             "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "displayOrder": {
+                    "type": "integer"
+                },
+                "fieldId": {
+                    "type": "string"
+                },
                 "optionId": {
                     "type": "string"
                 },
@@ -2739,26 +2792,36 @@ const docTemplate = `{
             }
         },
         "project-board-api_internal_dto.UpdateBoardRequest": {
+            "description": "Request body for updating a board with value-based customFields customFields should contain field type as key and value string as value Valid field types: stage, role, importance Example values: stage=\"completed\", role=\"designer\", importance=\"medium\"",
             "type": "object",
             "properties": {
                 "assigneeId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 },
                 "content": {
                     "type": "string",
-                    "maxLength": 5000
+                    "maxLength": 5000,
+                    "example": "Refactor JWT implementation"
                 },
                 "customFields": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "example": {
+                        "importance": "medium"
+                    }
                 },
                 "dueDate": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-12-31T23:59:59Z"
                 },
                 "title": {
                     "type": "string",
                     "maxLength": 200,
-                    "minLength": 1
+                    "minLength": 1,
+                    "example": "Update user authentication"
                 }
             }
         },

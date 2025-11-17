@@ -1,7 +1,7 @@
 // src/components/modals/CustomFieldManagerModal.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Plus, Trash2, Tag, CheckSquare, AlertCircle, Calendar, User, Menu } from 'lucide-react';
+import { X, Plus, Trash2, Tag, CheckSquare, AlertCircle, Menu } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 
 import { FieldOptionResponse } from '../../../types/board';
