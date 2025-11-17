@@ -15,39 +15,6 @@ import (
 	"project-board-api/internal/response"
 )
 
-// MockUserClient is a mock implementation of UserClient
-type MockUserClient struct {
-	ValidateWorkspaceMemberFunc func(ctx context.Context, workspaceID, userID uuid.UUID, token string) (bool, error)
-	GetUserProfileFunc          func(ctx context.Context, userID uuid.UUID, token string) (*client.UserProfile, error)
-	GetWorkspaceProfileFunc     func(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*client.WorkspaceProfile, error)
-}
-
-func (m *MockUserClient) ValidateWorkspaceMember(ctx context.Context, workspaceID, userID uuid.UUID, token string) (bool, error) {
-	if m.ValidateWorkspaceMemberFunc != nil {
-		return m.ValidateWorkspaceMemberFunc(ctx, workspaceID, userID, token)
-	}
-	return true, nil
-}
-
-func (m *MockUserClient) GetUserProfile(ctx context.Context, userID uuid.UUID, token string) (*client.UserProfile, error) {
-	if m.GetUserProfileFunc != nil {
-		return m.GetUserProfileFunc(ctx, userID, token)
-	}
-	return &client.UserProfile{UserID: userID, Email: "test@example.com"}, nil
-}
-
-func (m *MockUserClient) GetWorkspaceProfile(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*client.WorkspaceProfile, error) {
-	if m.GetWorkspaceProfileFunc != nil {
-		return m.GetWorkspaceProfileFunc(ctx, workspaceID, userID, token)
-	}
-	return &client.WorkspaceProfile{
-		WorkspaceID: workspaceID,
-		UserID:      userID,
-		NickName:    "Test User",
-		Email:       "test@example.com",
-	}, nil
-}
-
 func TestProjectService_CreateProject(t *testing.T) {
 	workspaceID := uuid.New()
 	userID := uuid.New()
@@ -243,11 +210,12 @@ func TestProjectService_CreateProject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockUserClient)
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient)
 
 			// When
 			got, err := service.CreateProject(context.Background(), tt.req, userID, token)
@@ -411,11 +379,12 @@ func TestProjectService_GetProjectsByWorkspace(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockUserClient)
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient)
 
 			// When
 			got, err := service.GetProjectsByWorkspace(context.Background(), tt.workspaceID, userID, token)
@@ -566,11 +535,12 @@ func TestProjectService_GetDefaultProject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockUserClient)
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient)
 
 			// When
 			got, err := service.GetDefaultProject(context.Background(), tt.workspaceID, userID, token)
@@ -679,11 +649,12 @@ func TestProjectService_GetProject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockUserClient)
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient)
 
 			// When
 			got, err := service.GetProject(context.Background(), projectID, userID, token)
@@ -808,10 +779,11 @@ func TestProjectService_UpdateProject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
 
-			service := NewProjectService(mockProjectRepo, mockUserClient)
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient)
 
 			// When
 			got, err := service.UpdateProject(context.Background(), projectID, userID, tt.req)
@@ -916,10 +888,11 @@ func TestProjectService_DeleteProject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
 
-			service := NewProjectService(mockProjectRepo, mockUserClient)
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient)
 
 			// When
 			err := service.DeleteProject(context.Background(), projectID, userID)
@@ -1026,11 +999,12 @@ func TestProjectService_SearchProjects(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockUserClient)
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient)
 
 			// When
 			got, err := service.SearchProjects(context.Background(), workspaceID, userID, tt.query, tt.page, tt.limit, token)
@@ -1067,13 +1041,16 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 	token := "test-jwt-token"
 
 	tests := []struct {
-		name        string
-		mockProject func(*MockProjectRepository)
-		wantErr     bool
-		wantErrCode string
+		name             string
+		mockProject      func(*MockProjectRepository)
+		mockFieldOption  func(*MockFieldOptionRepository)
+		mockUser         func(*MockUserClient)
+		wantErr          bool
+		wantErrCode      string
+		wantFieldsCount  int
 	}{
 		{
-			name: "성공: 프로젝트 초기 설정 조회",
+			name: "성공: 프로젝트 초기 설정 조회 with 필드 옵션",
 			mockProject: func(m *MockProjectRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
 					return &domain.Project{
@@ -1089,7 +1066,96 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 					return true, nil
 				}
 			},
-			wantErr: false,
+			mockFieldOption: func(m *MockFieldOptionRepository) {
+				m.FindByFieldTypeFunc = func(ctx context.Context, ft domain.FieldType) ([]*domain.FieldOption, error) {
+					switch ft {
+					case domain.FieldTypeStage:
+						return []*domain.FieldOption{
+							{
+								BaseModel:    domain.BaseModel{ID: uuid.New()},
+								FieldType:    domain.FieldTypeStage,
+								Value:        "pending",
+								Label:        "대기",
+								Color:        "#F59E0B",
+								DisplayOrder: 1,
+							},
+							{
+								BaseModel:    domain.BaseModel{ID: uuid.New()},
+								FieldType:    domain.FieldTypeStage,
+								Value:        "in_progress",
+								Label:        "진행중",
+								Color:        "#3B82F6",
+								DisplayOrder: 2,
+							},
+						}, nil
+					case domain.FieldTypeRole:
+						return []*domain.FieldOption{
+							{
+								BaseModel:    domain.BaseModel{ID: uuid.New()},
+								FieldType:    domain.FieldTypeRole,
+								Value:        "developer",
+								Label:        "개발자",
+								Color:        "#8B5CF6",
+								DisplayOrder: 1,
+							},
+						}, nil
+					case domain.FieldTypeImportance:
+						return []*domain.FieldOption{
+							{
+								BaseModel:    domain.BaseModel{ID: uuid.New()},
+								FieldType:    domain.FieldTypeImportance,
+								Value:        "urgent",
+								Label:        "긴급",
+								Color:        "#EF4444",
+								DisplayOrder: 1,
+							},
+						}, nil
+					default:
+						return []*domain.FieldOption{}, nil
+					}
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.GetWorkspaceFunc = func(ctx context.Context, wID uuid.UUID, t string) (*client.Workspace, error) {
+					return &client.Workspace{
+						ID:         wID,
+						Name:       "Test Workspace",
+						OwnerEmail: "workspace@example.com",
+					}, nil
+				}
+			},
+			wantErr:         false,
+			wantFieldsCount: 3,
+		},
+		{
+			name: "성공: Workspace 조회 실패 시 graceful degradation",
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{
+						BaseModel:   domain.BaseModel{ID: projectID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+						WorkspaceID: workspaceID,
+						OwnerID:     ownerID,
+						Name:        "Test Project",
+						Description: "Test Description",
+						IsPublic:    true,
+					}, nil
+				}
+				m.IsProjectMemberFunc = func(ctx context.Context, pID, uID uuid.UUID) (bool, error) {
+					return true, nil
+				}
+			},
+			mockFieldOption: func(m *MockFieldOptionRepository) {
+				m.FindByFieldTypeFunc = func(ctx context.Context, ft domain.FieldType) ([]*domain.FieldOption, error) {
+					return []*domain.FieldOption{}, nil
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.GetWorkspaceFunc = func(ctx context.Context, wID uuid.UUID, t string) (*client.Workspace, error) {
+					return nil, errors.New("workspace API error")
+				}
+			},
+			wantErr:         false,
+			wantFieldsCount: 3,
 		},
 		{
 			name: "실패: 프로젝트가 존재하지 않음",
@@ -1098,8 +1164,10 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 					return nil, gorm.ErrRecordNotFound
 				}
 			},
-			wantErr:     true,
-			wantErrCode: response.ErrCodeNotFound,
+			mockFieldOption: func(m *MockFieldOptionRepository) {},
+			mockUser:        func(m *MockUserClient) {},
+			wantErr:         true,
+			wantErrCode:     response.ErrCodeNotFound,
 		},
 		{
 			name: "실패: 프로젝트 멤버가 아님",
@@ -1116,8 +1184,44 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 					return false, nil
 				}
 			},
+			mockFieldOption: func(m *MockFieldOptionRepository) {},
+			mockUser:        func(m *MockUserClient) {},
+			wantErr:         true,
+			wantErrCode:     response.ErrCodeForbidden,
+		},
+		{
+			name: "실패: Stage 옵션 조회 실패",
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{
+						BaseModel:   domain.BaseModel{ID: projectID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+						WorkspaceID: workspaceID,
+						OwnerID:     ownerID,
+						Name:        "Test Project",
+					}, nil
+				}
+				m.IsProjectMemberFunc = func(ctx context.Context, pID, uID uuid.UUID) (bool, error) {
+					return true, nil
+				}
+			},
+			mockFieldOption: func(m *MockFieldOptionRepository) {
+				m.FindByFieldTypeFunc = func(ctx context.Context, ft domain.FieldType) ([]*domain.FieldOption, error) {
+					if ft == domain.FieldTypeStage {
+						return nil, errors.New("database error")
+					}
+					return []*domain.FieldOption{}, nil
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.GetWorkspaceFunc = func(ctx context.Context, wID uuid.UUID, t string) (*client.Workspace, error) {
+					return &client.Workspace{
+						ID:   wID,
+						Name: "Test Workspace",
+					}, nil
+				}
+			},
 			wantErr:     true,
-			wantErrCode: response.ErrCodeForbidden,
+			wantErrCode: response.ErrCodeInternal,
 		},
 	}
 
@@ -1125,10 +1229,13 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
 			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
+			tt.mockFieldOption(mockFieldOptionRepo)
+			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockUserClient)
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient)
 
 			// When
 			got, err := service.GetProjectInitSettings(context.Background(), projectID, userID, token)
@@ -1153,8 +1260,11 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 					t.Error("GetProjectInitSettings() returned nil response")
 					return
 				}
-				if len(got.Fields) == 0 {
-					t.Error("GetProjectInitSettings() returned empty fields")
+				if len(got.Fields) != tt.wantFieldsCount {
+					t.Errorf("GetProjectInitSettings() fields count = %v, want %v", len(got.Fields), tt.wantFieldsCount)
+				}
+				if got.Project.ProjectID != projectID {
+					t.Errorf("GetProjectInitSettings() project ID = %v, want %v", got.Project.ProjectID, projectID)
 				}
 			}
 		})

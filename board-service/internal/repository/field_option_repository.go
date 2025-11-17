@@ -15,6 +15,7 @@ type FieldOptionRepository interface {
 	Create(ctx context.Context, fieldOption *domain.FieldOption) error
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.FieldOption, error)
 	FindByFieldType(ctx context.Context, fieldType domain.FieldType) ([]*domain.FieldOption, error)
+	FindByFieldTypeAndValue(ctx context.Context, fieldType, value string) (*domain.FieldOption, error)
 	Update(ctx context.Context, fieldOption *domain.FieldOption) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -61,6 +62,20 @@ func (r *fieldOptionRepositoryImpl) FindByFieldType(ctx context.Context, fieldTy
 		return nil, err
 	}
 	return fieldOptions, nil
+}
+
+// FindByFieldTypeAndValue finds a field option by field type and value
+func (r *fieldOptionRepositoryImpl) FindByFieldTypeAndValue(ctx context.Context, fieldType, value string) (*domain.FieldOption, error) {
+	var fieldOption domain.FieldOption
+	if err := r.db.WithContext(ctx).
+		Where("field_type = ? AND value = ?", fieldType, value).
+		First(&fieldOption).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &fieldOption, nil
 }
 
 // Update updates a field option

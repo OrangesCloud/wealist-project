@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// FieldOptionResponse represents the response for a field option
+// FieldOptionResponse represents the field option response
 type FieldOptionResponse struct {
 	OptionID        uuid.UUID `json:"optionId"`
 	FieldType       string    `json:"fieldType"`

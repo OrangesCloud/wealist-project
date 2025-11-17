@@ -8,25 +8,21 @@ import (
 
 // CreateBoardRequest represents the request to create a new board
 type CreateBoardRequest struct {
-	ProjectID  uuid.UUID  `json:"projectId" binding:"required"`
-	Title      string     `json:"title" binding:"required,min=1,max=200"`
-	Content    string     `json:"content" binding:"max=5000"`
-	Stage      string     `json:"stageId" binding:"required,oneof=in_progress pending approved review"`
-	Importance string     `json:"importanceId" binding:"required,oneof=urgent normal"`
-	Role       string     `json:"roleId" binding:"required,oneof=developer planner"`
-	AssigneeID *uuid.UUID `json:"assigneeId"`
-	DueDate    *time.Time `json:"dueDate"`
+	ProjectID    uuid.UUID              `json:"projectId" binding:"required"`
+	Title        string                 `json:"title" binding:"required,min=1,max=200"`
+	Content      string                 `json:"content" binding:"max=5000"`
+	CustomFields map[string]interface{} `json:"customFields"`
+	AssigneeID   *uuid.UUID             `json:"assigneeId"`
+	DueDate      *time.Time             `json:"dueDate"`
 }
 
 // UpdateBoardRequest represents the request to update a board
 type UpdateBoardRequest struct {
-	Title      *string    `json:"title" binding:"omitempty,min=1,max=200"`
-	Content    *string    `json:"content" binding:"omitempty,max=5000"`
-	Stage      *string    `json:"stageId" binding:"omitempty,oneof=in_progress pending approved review"`
-	Importance *string    `json:"importanceId" binding:"omitempty,oneof=urgent normal"`
-	Role       *string    `json:"roleId" binding:"omitempty,oneof=developer planner"`
-	AssigneeID *uuid.UUID `json:"assigneeId"`
-	DueDate    *time.Time `json:"dueDate"`
+	Title        *string                 `json:"title" binding:"omitempty,min=1,max=200"`
+	Content      *string                 `json:"content" binding:"omitempty,max=5000"`
+	CustomFields *map[string]interface{} `json:"customFields"`
+	AssigneeID   *uuid.UUID              `json:"assigneeId"`
+	DueDate      *time.Time              `json:"dueDate"`
 }
 
 // UpdateBoardFieldRequest represents the request to update a single board field
@@ -37,18 +33,16 @@ type UpdateBoardFieldRequest struct {
 
 // BoardResponse represents the board response
 type BoardResponse struct {
-	ID         uuid.UUID  `json:"boardId"`
-	ProjectID  uuid.UUID  `json:"projectId"`
-	AuthorID   uuid.UUID  `json:"authorId"`
-	AssigneeID *uuid.UUID `json:"assigneeId,omitempty"`
-	Title      string     `json:"title"`
-	Content    string     `json:"content"`
-	Stage      string     `json:"stageId"`
-	Importance string     `json:"importanceId"`
-	Role       string     `json:"roleId"`
-	DueDate    *time.Time `json:"dueDate,omitempty"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	UpdatedAt  time.Time  `json:"updatedAt"`
+	ID           uuid.UUID              `json:"boardId"`
+	ProjectID    uuid.UUID              `json:"projectId"`
+	AuthorID     uuid.UUID              `json:"authorId"`
+	AssigneeID   *uuid.UUID             `json:"assigneeId,omitempty"`
+	Title        string                 `json:"title"`
+	Content      string                 `json:"content"`
+	CustomFields map[string]interface{} `json:"customFields"`
+	DueDate      *time.Time             `json:"dueDate,omitempty"`
+	CreatedAt    time.Time              `json:"createdAt"`
+	UpdatedAt    time.Time              `json:"updatedAt"`
 }
 
 // PaginatedBoardsResponse represents paginated boards response
@@ -68,22 +62,5 @@ type BoardDetailResponse struct {
 
 // BoardFilters represents the filter parameters for board queries
 type BoardFilters struct {
-	Stage      string `json:"stage,omitempty"`
-	Role       string `json:"role,omitempty"`
-	Importance string `json:"importance,omitempty"`
-}
-
-// GetStage returns the stage filter value
-func (f *BoardFilters) GetStage() string {
-	return f.Stage
-}
-
-// GetRole returns the role filter value
-func (f *BoardFilters) GetRole() string {
-	return f.Role
-}
-
-// GetImportance returns the importance filter value
-func (f *BoardFilters) GetImportance() string {
-	return f.Importance
+	CustomFields map[string]interface{} `json:"customFields,omitempty"`
 }

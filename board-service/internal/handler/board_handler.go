@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -79,13 +80,11 @@ func (h *BoardHandler) GetBoard(c *gin.Context) {
 
 // GetBoardsByProject godoc
 // @Summary      Project의 Board 목록 조회
-// @Description  특정 Project에 속한 모든 Board를 조회합니다 (필터링 지원: stage, role, importance)
+// @Description  특정 Project에 속한 모든 Board를 조회합니다 (필터링 지원: customFields)
 // @Tags         boards
 // @Produce      json
 // @Param        projectId path string true "Project ID (UUID)"
-// @Param        stage query string false "Stage 필터 (in_progress, pending, review, approved)"
-// @Param        role query string false "Role 필터 (developer, planner)"
-// @Param        importance query string false "Importance 필터 (urgent, normal)"
+// @Param        customFields query string false "Custom Fields 필터 (JSON 형식, 예: {\"stage\":\"in_progress\",\"role\":\"developer\"})"
 // @Success      200 {object} response.SuccessResponse{data=[]dto.BoardResponse} "Board 목록 조회 성공"
 // @Failure      400 {object} response.ErrorResponse "잘못된 Project ID 또는 필터 파라미터"
 // @Failure      404 {object} response.ErrorResponse "Project를 찾을 수 없음"
@@ -99,17 +98,18 @@ func (h *BoardHandler) GetBoardsByProject(c *gin.Context) {
 		return
 	}
 
-	// Parse filter parameters
-	filters := &dto.BoardFilters{
-		Stage:      c.Query("stage"),
-		Role:       c.Query("role"),
-		Importance: c.Query("importance"),
-	}
-
-	// Validate filter parameters
-	if err := h.validateFilters(filters); err != nil {
-		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, err.Error())
-		return
+	// Parse customFields filter parameter
+	filters := &dto.BoardFilters{}
+	customFieldsStr := c.Query("customFields")
+	
+	if customFieldsStr != "" {
+		// Parse JSON string to map
+		var customFields map[string]interface{}
+		if err := json.Unmarshal([]byte(customFieldsStr), &customFields); err != nil {
+			response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid customFields format: must be valid JSON")
+			return
+		}
+		filters.CustomFields = customFields
 	}
 
 	boards, err := h.boardService.GetBoardsByProject(c.Request.Context(), projectID, filters)
@@ -121,45 +121,7 @@ func (h *BoardHandler) GetBoardsByProject(c *gin.Context) {
 	response.SendSuccess(c, http.StatusOK, boards)
 }
 
-// validateFilters validates the filter parameters
-func (h *BoardHandler) validateFilters(filters *dto.BoardFilters) error {
-	// Validate stage if provided
-	if filters.Stage != "" {
-		validStages := map[string]bool{
-			"in_progress": true,
-			"pending":     true,
-			"review":      true,
-			"approved":    true,
-		}
-		if !validStages[filters.Stage] {
-			return response.NewAppError(response.ErrCodeValidation, "Invalid stage value", "stage must be one of: in_progress, pending, review, approved")
-		}
-	}
 
-	// Validate role if provided
-	if filters.Role != "" {
-		validRoles := map[string]bool{
-			"developer": true,
-			"planner":   true,
-		}
-		if !validRoles[filters.Role] {
-			return response.NewAppError(response.ErrCodeValidation, "Invalid role value", "role must be one of: developer, planner")
-		}
-	}
-
-	// Validate importance if provided
-	if filters.Importance != "" {
-		validImportances := map[string]bool{
-			"urgent": true,
-			"normal": true,
-		}
-		if !validImportances[filters.Importance] {
-			return response.NewAppError(response.ErrCodeValidation, "Invalid importance value", "importance must be one of: urgent, normal")
-		}
-	}
-
-	return nil
-}
 
 // UpdateBoard godoc
 // @Summary      Board 수정

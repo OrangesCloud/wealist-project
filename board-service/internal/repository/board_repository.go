@@ -62,25 +62,12 @@ func (r *boardRepositoryImpl) FindByProjectID(ctx context.Context, projectID uui
 	
 	// Apply filters if provided
 	if filters != nil {
-		// Type assertion to get the filters struct
-		if boardFilters, ok := filters.(interface {
-			GetStage() string
-			GetRole() string
-			GetImportance() string
-		}); ok {
-			// Apply stage filter
-			if stage := boardFilters.GetStage(); stage != "" {
-				query = query.Where("stage = ?", stage)
-			}
-			
-			// Apply role filter
-			if role := boardFilters.GetRole(); role != "" {
-				query = query.Where("role = ?", role)
-			}
-			
-			// Apply importance filter
-			if importance := boardFilters.GetImportance(); importance != "" {
-				query = query.Where("importance = ?", importance)
+		// Type assertion to get customFields map
+		if customFields, ok := filters.(map[string]interface{}); ok {
+			// Apply JSONB filtering for each custom field
+			for key, value := range customFields {
+				// Use JSONB operator ->> to extract text value and compare
+				query = query.Where("custom_fields->>? = ?", key, value)
 			}
 		}
 	}

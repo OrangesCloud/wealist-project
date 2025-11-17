@@ -18,7 +18,7 @@ import (
 type MockBoardRepository struct {
 	CreateFunc         func(ctx context.Context, board *domain.Board) error
 	FindByIDFunc       func(ctx context.Context, id uuid.UUID) (*domain.Board, error)
-	FindByProjectIDFunc func(ctx context.Context, projectID uuid.UUID) ([]*domain.Board, error)
+	FindByProjectIDFunc func(ctx context.Context, projectID uuid.UUID, filters interface{}) ([]*domain.Board, error)
 	UpdateFunc         func(ctx context.Context, board *domain.Board) error
 	DeleteFunc         func(ctx context.Context, id uuid.UUID) error
 }
@@ -37,9 +37,9 @@ func (m *MockBoardRepository) FindByID(ctx context.Context, id uuid.UUID) (*doma
 	return nil, nil
 }
 
-func (m *MockBoardRepository) FindByProjectID(ctx context.Context, projectID uuid.UUID) ([]*domain.Board, error) {
+func (m *MockBoardRepository) FindByProjectID(ctx context.Context, projectID uuid.UUID, filters interface{}) ([]*domain.Board, error) {
 	if m.FindByProjectIDFunc != nil {
-		return m.FindByProjectIDFunc(ctx, projectID)
+		return m.FindByProjectIDFunc(ctx, projectID, filters)
 	}
 	return nil, nil
 }
@@ -223,9 +223,33 @@ func TestBoardService_CreateBoard(t *testing.T) {
 				ProjectID:  projectID,
 				Title:      "Test Board",
 				Content:    "Test Content",
-				Stage:      "in_progress",
-				Importance: "urgent",
-				Role:       "developer",
+				CustomFields: map[string]interface{}{
+					"stage":      "in_progress",
+					"importance": "urgent",
+					"role":       "developer",
+				},
+			},
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{}, nil
+				}
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.CreateFunc = func(ctx context.Context, board *domain.Board) error {
+					board.ID = uuid.New()
+					board.CreatedAt = time.Now()
+					board.UpdatedAt = time.Now()
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "성공: CustomFields 없이 Board 생성",
+			req: &dto.CreateBoardRequest{
+				ProjectID: projectID,
+				Title:     "Test Board",
+				Content:   "Test Content",
 			},
 			mockProject: func(m *MockProjectRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
@@ -248,9 +272,9 @@ func TestBoardService_CreateBoard(t *testing.T) {
 				ProjectID:  projectID,
 				Title:      "Test Board",
 				Content:    "Test Content",
-				Stage:      "in_progress",
-				Importance: "urgent",
-				Role:       "developer",
+				CustomFields: map[string]interface{}{
+					"stage": "in_progress",
+				},
 			},
 			mockProject: func(m *MockProjectRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
@@ -267,9 +291,9 @@ func TestBoardService_CreateBoard(t *testing.T) {
 				ProjectID:  projectID,
 				Title:      "Test Board",
 				Content:    "Test Content",
-				Stage:      "in_progress",
-				Importance: "urgent",
-				Role:       "developer",
+				CustomFields: map[string]interface{}{
+					"stage": "in_progress",
+				},
 			},
 			mockProject: func(m *MockProjectRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
@@ -322,6 +346,115 @@ func TestBoardService_CreateBoard(t *testing.T) {
 				if got.Title != tt.req.Title {
 					t.Errorf("CreateBoard() Title = %v, want %v", got.Title, tt.req.Title)
 				}
+				// Verify CustomFields are preserved
+				if tt.req.CustomFields != nil {
+					if got.CustomFields == nil {
+						t.Error("CreateBoard() CustomFields = nil, want non-nil")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestBoardService_CreateBoard_CustomFields(t *testing.T) {
+	projectID := uuid.New()
+	
+	tests := []struct {
+		name         string
+		customFields map[string]interface{}
+		wantFields   map[string]interface{}
+	}{
+		{
+			name: "CustomFields 저장: stage, role, importance",
+			customFields: map[string]interface{}{
+				"stage":      "in_progress",
+				"role":       "developer",
+				"importance": "urgent",
+			},
+			wantFields: map[string]interface{}{
+				"stage":      "in_progress",
+				"role":       "developer",
+				"importance": "urgent",
+			},
+		},
+		{
+			name: "CustomFields 저장: stage만",
+			customFields: map[string]interface{}{
+				"stage": "pending",
+			},
+			wantFields: map[string]interface{}{
+				"stage": "pending",
+			},
+		},
+		{
+			name:         "CustomFields 저장: 빈 맵",
+			customFields: map[string]interface{}{},
+			wantFields:   map[string]interface{}{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockProjectRepo := &MockProjectRepository{
+				FindByIDFunc: func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{}, nil
+				},
+			}
+			
+			var savedBoard *domain.Board
+			mockBoardRepo := &MockBoardRepository{
+				CreateFunc: func(ctx context.Context, board *domain.Board) error {
+					savedBoard = board
+					board.ID = uuid.New()
+					board.CreatedAt = time.Now()
+					board.UpdatedAt = time.Now()
+					return nil
+				},
+			}
+			
+			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+			
+			req := &dto.CreateBoardRequest{
+				ProjectID:    projectID,
+				Title:        "Test Board",
+				Content:      "Test Content",
+				CustomFields: tt.customFields,
+			}
+
+			// When
+			got, err := service.CreateBoard(context.Background(), req)
+
+			// Then
+			if err != nil {
+				t.Errorf("CreateBoard() unexpected error = %v", err)
+				return
+			}
+			
+			// Verify CustomFields were saved to domain model
+			if savedBoard == nil {
+				t.Fatal("Board was not saved")
+			}
+			
+			if len(tt.wantFields) > 0 {
+				if savedBoard.CustomFields == nil {
+					t.Error("Board.CustomFields = nil, want non-nil")
+					return
+				}
+				
+				for key, expectedValue := range tt.wantFields {
+					if actualValue, ok := savedBoard.CustomFields[key]; !ok {
+						t.Errorf("Board.CustomFields[%s] not found", key)
+					} else if actualValue != expectedValue {
+						t.Errorf("Board.CustomFields[%s] = %v, want %v", key, actualValue, expectedValue)
+					}
+				}
+			}
+			
+			// Verify CustomFields are in response
+			if got.CustomFields == nil && len(tt.wantFields) > 0 {
+				t.Error("Response.CustomFields = nil, want non-nil")
 			}
 		})
 	}
@@ -348,11 +481,13 @@ func TestBoardService_GetBoard(t *testing.T) {
 							CreatedAt: time.Now(),
 							UpdatedAt: time.Now(),
 						},
-						Title:        "Test Board",
-						Content:      "Test Content",
-						Stage:        domain.StageInProgress,
-						Importance:   domain.ImportanceUrgent,
-						Role:         domain.RoleDeveloper,
+						Title:   "Test Board",
+						Content: "Test Content",
+						CustomFields: map[string]interface{}{
+							"stage":      "in_progress",
+							"importance": "urgent",
+							"role":       "developer",
+						},
 						Participants: []domain.Participant{},
 						Comments:     []domain.Comment{},
 					}, nil
@@ -412,7 +547,10 @@ func TestBoardService_GetBoard(t *testing.T) {
 func TestBoardService_UpdateBoard(t *testing.T) {
 	boardID := uuid.New()
 	newTitle := "Updated Title"
-	newStage := "approved"
+	newCustomFields := map[string]interface{}{
+		"stage":      "approved",
+		"importance": "normal",
+	}
 	
 	tests := []struct {
 		name        string
@@ -427,7 +565,6 @@ func TestBoardService_UpdateBoard(t *testing.T) {
 			boardID: boardID,
 			req: &dto.UpdateBoardRequest{
 				Title: &newTitle,
-				Stage: &newStage,
 			},
 			mockBoard: func(m *MockBoardRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
@@ -437,10 +574,36 @@ func TestBoardService_UpdateBoard(t *testing.T) {
 							CreatedAt: time.Now(),
 							UpdatedAt: time.Now(),
 						},
-						Title:      "Old Title",
-						Stage:      domain.StageInProgress,
-						Importance: domain.ImportanceUrgent,
-						Role:       domain.RoleDeveloper,
+						Title: "Old Title",
+						CustomFields: map[string]interface{}{
+							"stage": "in_progress",
+						},
+					}, nil
+				}
+				m.UpdateFunc = func(ctx context.Context, board *domain.Board) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:    "성공: CustomFields 업데이트",
+			boardID: boardID,
+			req: &dto.UpdateBoardRequest{
+				CustomFields: &newCustomFields,
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					return &domain.Board{
+						BaseModel: domain.BaseModel{
+							ID:        boardID,
+							CreatedAt: time.Now(),
+							UpdatedAt: time.Now(),
+						},
+						Title: "Test Board",
+						CustomFields: map[string]interface{}{
+							"stage": "in_progress",
+						},
 					}, nil
 				}
 				m.UpdateFunc = func(ctx context.Context, board *domain.Board) error {
@@ -499,6 +662,304 @@ func TestBoardService_UpdateBoard(t *testing.T) {
 				}
 				if tt.req.Title != nil && got.Title != *tt.req.Title {
 					t.Errorf("UpdateBoard() Title = %v, want %v", got.Title, *tt.req.Title)
+				}
+			}
+		})
+	}
+}
+
+func TestBoardService_UpdateBoard_CustomFields(t *testing.T) {
+	boardID := uuid.New()
+	
+	tests := []struct {
+		name             string
+		existingFields   map[string]interface{}
+		updateFields     map[string]interface{}
+		wantFields       map[string]interface{}
+	}{
+		{
+			name: "CustomFields 수정: 전체 교체",
+			existingFields: map[string]interface{}{
+				"stage":      "in_progress",
+				"importance": "urgent",
+			},
+			updateFields: map[string]interface{}{
+				"stage":      "approved",
+				"importance": "normal",
+				"role":       "developer",
+			},
+			wantFields: map[string]interface{}{
+				"stage":      "approved",
+				"importance": "normal",
+				"role":       "developer",
+			},
+		},
+		{
+			name: "CustomFields 수정: 일부 필드만 변경",
+			existingFields: map[string]interface{}{
+				"stage":      "in_progress",
+				"importance": "urgent",
+				"role":       "planner",
+			},
+			updateFields: map[string]interface{}{
+				"stage": "approved",
+			},
+			wantFields: map[string]interface{}{
+				"stage": "approved",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			var updatedBoard *domain.Board
+			mockBoardRepo := &MockBoardRepository{
+				FindByIDFunc: func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					return &domain.Board{
+						BaseModel: domain.BaseModel{
+							ID:        boardID,
+							CreatedAt: time.Now(),
+							UpdatedAt: time.Now(),
+						},
+						Title:        "Test Board",
+						CustomFields: tt.existingFields,
+					}, nil
+				},
+				UpdateFunc: func(ctx context.Context, board *domain.Board) error {
+					updatedBoard = board
+					return nil
+				},
+			}
+			
+			mockProjectRepo := &MockProjectRepository{}
+			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+			
+			req := &dto.UpdateBoardRequest{
+				CustomFields: &tt.updateFields,
+			}
+
+			// When
+			got, err := service.UpdateBoard(context.Background(), boardID, req)
+
+			// Then
+			if err != nil {
+				t.Errorf("UpdateBoard() unexpected error = %v", err)
+				return
+			}
+			
+			// Verify CustomFields were updated in domain model
+			if updatedBoard == nil {
+				t.Fatal("Board was not updated")
+			}
+			
+			if updatedBoard.CustomFields == nil {
+				t.Error("Board.CustomFields = nil, want non-nil")
+				return
+			}
+			
+			for key, expectedValue := range tt.wantFields {
+				if actualValue, ok := updatedBoard.CustomFields[key]; !ok {
+					t.Errorf("Board.CustomFields[%s] not found", key)
+				} else if actualValue != expectedValue {
+					t.Errorf("Board.CustomFields[%s] = %v, want %v", key, actualValue, expectedValue)
+				}
+			}
+			
+			// Verify CustomFields are in response
+			if got.CustomFields == nil {
+				t.Error("Response.CustomFields = nil, want non-nil")
+			}
+		})
+	}
+}
+
+func TestBoardService_GetBoardsByProject_CustomFieldsFilter(t *testing.T) {
+	projectID := uuid.New()
+	
+	tests := []struct {
+		name        string
+		filters     *dto.BoardFilters
+		mockProject func(*MockProjectRepository)
+		mockBoard   func(*MockBoardRepository)
+		wantCount   int
+		wantErr     bool
+		wantErrCode string
+	}{
+		{
+			name: "성공: CustomFields 필터링 없이 조회",
+			filters: nil,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{}, nil
+				}
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByProjectIDFunc = func(ctx context.Context, pid uuid.UUID, filters interface{}) ([]*domain.Board, error) {
+					return []*domain.Board{
+						{
+							BaseModel: domain.BaseModel{ID: uuid.New()},
+							Title:     "Board 1",
+							CustomFields: map[string]interface{}{
+								"stage": "in_progress",
+							},
+						},
+						{
+							BaseModel: domain.BaseModel{ID: uuid.New()},
+							Title:     "Board 2",
+							CustomFields: map[string]interface{}{
+								"stage": "approved",
+							},
+						},
+					}, nil
+				}
+			},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name: "성공: stage 필터링",
+			filters: &dto.BoardFilters{
+				CustomFields: map[string]interface{}{
+					"stage": "in_progress",
+				},
+			},
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{}, nil
+				}
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByProjectIDFunc = func(ctx context.Context, pid uuid.UUID, filters interface{}) ([]*domain.Board, error) {
+					// Simulate filtering
+					if customFields, ok := filters.(map[string]interface{}); ok {
+						if stage, ok := customFields["stage"]; ok && stage == "in_progress" {
+							return []*domain.Board{
+								{
+									BaseModel: domain.BaseModel{ID: uuid.New()},
+									Title:     "Board 1",
+									CustomFields: map[string]interface{}{
+										"stage": "in_progress",
+									},
+								},
+							}, nil
+						}
+					}
+					return []*domain.Board{}, nil
+				}
+			},
+			wantCount: 1,
+			wantErr:   false,
+		},
+		{
+			name: "성공: 여러 필드로 필터링",
+			filters: &dto.BoardFilters{
+				CustomFields: map[string]interface{}{
+					"stage":      "in_progress",
+					"importance": "urgent",
+				},
+			},
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{}, nil
+				}
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByProjectIDFunc = func(ctx context.Context, pid uuid.UUID, filters interface{}) ([]*domain.Board, error) {
+					// Simulate AND filtering
+					if customFields, ok := filters.(map[string]interface{}); ok {
+						stage, hasStage := customFields["stage"]
+						importance, hasImportance := customFields["importance"]
+						if hasStage && hasImportance && stage == "in_progress" && importance == "urgent" {
+							return []*domain.Board{
+								{
+									BaseModel: domain.BaseModel{ID: uuid.New()},
+									Title:     "Urgent Board",
+									CustomFields: map[string]interface{}{
+										"stage":      "in_progress",
+										"importance": "urgent",
+									},
+								},
+							}, nil
+						}
+					}
+					return []*domain.Board{}, nil
+				}
+			},
+			wantCount: 1,
+			wantErr:   false,
+		},
+		{
+			name: "성공: 필터 조건에 맞는 보드 없음",
+			filters: &dto.BoardFilters{
+				CustomFields: map[string]interface{}{
+					"stage": "nonexistent",
+				},
+			},
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{}, nil
+				}
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByProjectIDFunc = func(ctx context.Context, pid uuid.UUID, filters interface{}) ([]*domain.Board, error) {
+					return []*domain.Board{}, nil
+				}
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:    "실패: Project가 존재하지 않음",
+			filters: nil,
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			mockBoard:   func(m *MockBoardRepository) {},
+			wantErr:     true,
+			wantErrCode: response.ErrCodeNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockProjectRepo := &MockProjectRepository{}
+			mockBoardRepo := &MockBoardRepository{}
+			tt.mockProject(mockProjectRepo)
+			tt.mockBoard(mockBoardRepo)
+			
+			service := NewBoardService(mockBoardRepo, mockProjectRepo)
+
+			// When
+			got, err := service.GetBoardsByProject(context.Background(), projectID, tt.filters)
+
+			// Then
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("GetBoardsByProject() error = nil, wantErr %v", tt.wantErr)
+					return
+				}
+				if appErr, ok := err.(*response.AppError); ok {
+					if appErr.Code != tt.wantErrCode {
+						t.Errorf("GetBoardsByProject() error code = %v, want %v", appErr.Code, tt.wantErrCode)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetBoardsByProject() unexpected error = %v", err)
+					return
+				}
+				if len(got) != tt.wantCount {
+					t.Errorf("GetBoardsByProject() count = %v, want %v", len(got), tt.wantCount)
+				}
+				// Verify CustomFields are in response
+				for _, board := range got {
+					if board.CustomFields == nil && tt.filters != nil && tt.filters.CustomFields != nil {
+						t.Error("Board.CustomFields = nil in response")
+					}
 				}
 			}
 		})

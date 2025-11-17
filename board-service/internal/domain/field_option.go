@@ -1,16 +1,16 @@
 package domain
 
-// FieldType represents the type of field that options belong to
+// FieldType represents the type of a custom field
 type FieldType string
 
+// FieldType constants
 const (
 	FieldTypeStage      FieldType = "stage"
 	FieldTypeRole       FieldType = "role"
 	FieldTypeImportance FieldType = "importance"
 )
 
-// FieldOption represents a configurable option for board fields
-// Users can customize these options (add, edit, delete) while system defaults are protected
+// FieldOption represents a selectable option for custom fields (stage, role, importance)
 type FieldOption struct {
 	BaseModel
 	FieldType       FieldType `gorm:"type:varchar(50);not null;index" json:"field_type"`
