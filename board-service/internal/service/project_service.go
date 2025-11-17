@@ -82,9 +82,9 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 
 	// Create default field options for the project
 	if err := s.createDefaultFieldOptions(ctx, project.ID); err != nil {
-		// Log error but don't fail project creation
-		// The field options can be created manually later
-		// TODO: Add proper logging
+		// Rollback project creation if field options fail
+		s.projectRepo.Delete(ctx, project.ID)
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to create default field options", err.Error())
 	}
 
 	// Convert to response DTO
@@ -347,30 +347,22 @@ func (s *projectServiceImpl) SearchProjects(ctx context.Context, workspaceID, us
 }
 
 // createDefaultFieldOptions creates default field options for a new project
-// by copying system default options
+// using hardcoded default values
 func (s *projectServiceImpl) createDefaultFieldOptions(ctx context.Context, projectID uuid.UUID) error {
-	// Fetch system default field options
-	systemDefaults, err := s.fieldOptionRepo.FindSystemDefaults(ctx)
-	if err != nil {
-		return err
-	}
+	// Get hardcoded default options
+	templates := getDefaultFieldOptions()
 
-	if len(systemDefaults) == 0 {
-		// No system defaults found, skip
-		return nil
-	}
-
-	// Create project-specific copies of system defaults
-	projectOptions := make([]*domain.FieldOption, len(systemDefaults))
-	for i, defaultOption := range systemDefaults {
+	// Create project-specific options from templates
+	projectOptions := make([]*domain.FieldOption, len(templates))
+	for i, template := range templates {
 		projectOptions[i] = &domain.FieldOption{
 			ProjectID:       &projectID,
-			FieldType:       defaultOption.FieldType,
-			Value:           defaultOption.Value,
-			Label:           defaultOption.Label,
-			Color:           defaultOption.Color,
-			DisplayOrder:    defaultOption.DisplayOrder,
-			IsSystemDefault: false, // Project-specific options are not system defaults
+			FieldType:       template.FieldType,
+			Value:           template.Value,
+			Label:           template.Label,
+			Color:           template.Color,
+			DisplayOrder:    template.DisplayOrder,
+			IsSystemDefault: false,
 		}
 	}
 

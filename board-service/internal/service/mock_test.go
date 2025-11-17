@@ -11,12 +11,15 @@ import (
 
 // MockFieldOptionRepository is a mock implementation of FieldOptionRepository
 type MockFieldOptionRepository struct {
-	CreateFunc                 func(ctx context.Context, fieldOption *domain.FieldOption) error
-	FindByIDFunc               func(ctx context.Context, id uuid.UUID) (*domain.FieldOption, error)
-	FindByFieldTypeFunc        func(ctx context.Context, fieldType domain.FieldType) ([]*domain.FieldOption, error)
-	FindByFieldTypeAndValueFunc func(ctx context.Context, fieldType, value string) (*domain.FieldOption, error)
-	UpdateFunc                 func(ctx context.Context, fieldOption *domain.FieldOption) error
-	DeleteFunc                 func(ctx context.Context, id uuid.UUID) error
+	CreateFunc                    func(ctx context.Context, fieldOption *domain.FieldOption) error
+	FindByIDFunc                  func(ctx context.Context, id uuid.UUID) (*domain.FieldOption, error)
+	FindByFieldTypeFunc           func(ctx context.Context, fieldType domain.FieldType) ([]*domain.FieldOption, error)
+	FindByProjectAndFieldTypeFunc func(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType) ([]*domain.FieldOption, error)
+	FindByFieldTypeAndValueFunc   func(ctx context.Context, fieldType, value string) (*domain.FieldOption, error)
+	FindSystemDefaultsFunc        func(ctx context.Context) ([]*domain.FieldOption, error)
+	CreateBatchFunc               func(ctx context.Context, fieldOptions []*domain.FieldOption) error
+	UpdateFunc                    func(ctx context.Context, fieldOption *domain.FieldOption) error
+	DeleteFunc                    func(ctx context.Context, id uuid.UUID) error
 }
 
 func (m *MockFieldOptionRepository) Create(ctx context.Context, fieldOption *domain.FieldOption) error {
@@ -57,6 +60,27 @@ func (m *MockFieldOptionRepository) Update(ctx context.Context, fieldOption *dom
 func (m *MockFieldOptionRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	if m.DeleteFunc != nil {
 		return m.DeleteFunc(ctx, id)
+	}
+	return nil
+}
+
+func (m *MockFieldOptionRepository) FindByProjectAndFieldType(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType) ([]*domain.FieldOption, error) {
+	if m.FindByProjectAndFieldTypeFunc != nil {
+		return m.FindByProjectAndFieldTypeFunc(ctx, projectID, fieldType)
+	}
+	return nil, nil
+}
+
+func (m *MockFieldOptionRepository) FindSystemDefaults(ctx context.Context) ([]*domain.FieldOption, error) {
+	if m.FindSystemDefaultsFunc != nil {
+		return m.FindSystemDefaultsFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *MockFieldOptionRepository) CreateBatch(ctx context.Context, fieldOptions []*domain.FieldOption) error {
+	if m.CreateBatchFunc != nil {
+		return m.CreateBatchFunc(ctx, fieldOptions)
 	}
 	return nil
 }

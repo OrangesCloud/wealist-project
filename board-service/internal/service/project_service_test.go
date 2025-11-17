@@ -1050,6 +1050,64 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 		wantFieldsCount  int
 	}{
 		{
+			name: "성공: 새 프로젝트의 초기 설정 조회 - 12개의 field options 반환",
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{
+						BaseModel:   domain.BaseModel{ID: projectID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+						WorkspaceID: workspaceID,
+						OwnerID:     ownerID,
+						Name:        "New Project",
+						Description: "New Project Description",
+						IsPublic:    true,
+					}, nil
+				}
+				m.IsProjectMemberFunc = func(ctx context.Context, pID, uID uuid.UUID) (bool, error) {
+					return true, nil
+				}
+			},
+			mockFieldOption: func(m *MockFieldOptionRepository) {
+				m.FindByProjectAndFieldTypeFunc = func(ctx context.Context, pID uuid.UUID, ft domain.FieldType) ([]*domain.FieldOption, error) {
+					switch ft {
+					case domain.FieldTypeStage:
+						return []*domain.FieldOption{
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeStage, Value: "pending", Label: "대기", Color: "#F59E0B", DisplayOrder: 1},
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeStage, Value: "in_progress", Label: "진행중", Color: "#3B82F6", DisplayOrder: 2},
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeStage, Value: "review", Label: "검토", Color: "#8B5CF6", DisplayOrder: 3},
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeStage, Value: "approved", Label: "완료", Color: "#10B981", DisplayOrder: 4},
+						}, nil
+					case domain.FieldTypeImportance:
+						return []*domain.FieldOption{
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeImportance, Value: "urgent", Label: "긴급", Color: "#EF4444", DisplayOrder: 1},
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeImportance, Value: "high", Label: "높음", Color: "#F97316", DisplayOrder: 2},
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeImportance, Value: "normal", Label: "보통", Color: "#10B981", DisplayOrder: 3},
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeImportance, Value: "low", Label: "낮음", Color: "#6B7280", DisplayOrder: 4},
+						}, nil
+					case domain.FieldTypeRole:
+						return []*domain.FieldOption{
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeRole, Value: "developer", Label: "개발자", Color: "#8B5CF6", DisplayOrder: 1},
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeRole, Value: "planner", Label: "기획자", Color: "#EC4899", DisplayOrder: 2},
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeRole, Value: "designer", Label: "디자이너", Color: "#F59E0B", DisplayOrder: 3},
+							{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeRole, Value: "qa", Label: "QA", Color: "#06B6D4", DisplayOrder: 4},
+						}, nil
+					default:
+						return []*domain.FieldOption{}, nil
+					}
+				}
+			},
+			mockUser: func(m *MockUserClient) {
+				m.GetWorkspaceFunc = func(ctx context.Context, wID uuid.UUID, t string) (*client.Workspace, error) {
+					return &client.Workspace{
+						ID:         wID,
+						Name:       "Test Workspace",
+						OwnerEmail: "workspace@example.com",
+					}, nil
+				}
+			},
+			wantErr:         false,
+			wantFieldsCount: 3,
+		},
+		{
 			name: "성공: 프로젝트 초기 설정 조회 with 필드 옵션",
 			mockProject: func(m *MockProjectRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
@@ -1067,12 +1125,13 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 				}
 			},
 			mockFieldOption: func(m *MockFieldOptionRepository) {
-				m.FindByFieldTypeFunc = func(ctx context.Context, ft domain.FieldType) ([]*domain.FieldOption, error) {
+				m.FindByProjectAndFieldTypeFunc = func(ctx context.Context, pID uuid.UUID, ft domain.FieldType) ([]*domain.FieldOption, error) {
 					switch ft {
 					case domain.FieldTypeStage:
 						return []*domain.FieldOption{
 							{
 								BaseModel:    domain.BaseModel{ID: uuid.New()},
+								ProjectID:    &pID,
 								FieldType:    domain.FieldTypeStage,
 								Value:        "pending",
 								Label:        "대기",
@@ -1081,6 +1140,7 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 							},
 							{
 								BaseModel:    domain.BaseModel{ID: uuid.New()},
+								ProjectID:    &pID,
 								FieldType:    domain.FieldTypeStage,
 								Value:        "in_progress",
 								Label:        "진행중",
@@ -1092,6 +1152,7 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 						return []*domain.FieldOption{
 							{
 								BaseModel:    domain.BaseModel{ID: uuid.New()},
+								ProjectID:    &pID,
 								FieldType:    domain.FieldTypeRole,
 								Value:        "developer",
 								Label:        "개발자",
@@ -1103,6 +1164,7 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 						return []*domain.FieldOption{
 							{
 								BaseModel:    domain.BaseModel{ID: uuid.New()},
+								ProjectID:    &pID,
 								FieldType:    domain.FieldTypeImportance,
 								Value:        "urgent",
 								Label:        "긴급",
@@ -1205,7 +1267,7 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 				}
 			},
 			mockFieldOption: func(m *MockFieldOptionRepository) {
-				m.FindByFieldTypeFunc = func(ctx context.Context, ft domain.FieldType) ([]*domain.FieldOption, error) {
+				m.FindByProjectAndFieldTypeFunc = func(ctx context.Context, pID uuid.UUID, ft domain.FieldType) ([]*domain.FieldOption, error) {
 					if ft == domain.FieldTypeStage {
 						return nil, errors.New("database error")
 					}
@@ -1269,4 +1331,140 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProjectService_GetProjectInitSettings_FieldOptionsCount(t *testing.T) {
+	projectID := uuid.New()
+	userID := uuid.New()
+	ownerID := uuid.New()
+	workspaceID := uuid.New()
+	token := "test-jwt-token"
+
+	t.Run("성공: 각 필드별로 정확히 4개의 옵션 반환", func(t *testing.T) {
+		// Given
+		mockProjectRepo := &MockProjectRepository{}
+		mockFieldOptionRepo := &MockFieldOptionRepository{}
+		mockUserClient := &MockUserClient{}
+
+		mockProjectRepo.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+			return &domain.Project{
+				BaseModel:   domain.BaseModel{ID: projectID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				WorkspaceID: workspaceID,
+				OwnerID:     ownerID,
+				Name:        "New Project",
+				Description: "New Project Description",
+				IsPublic:    true,
+			}, nil
+		}
+		mockProjectRepo.IsProjectMemberFunc = func(ctx context.Context, pID, uID uuid.UUID) (bool, error) {
+			return true, nil
+		}
+
+		mockFieldOptionRepo.FindByProjectAndFieldTypeFunc = func(ctx context.Context, pID uuid.UUID, ft domain.FieldType) ([]*domain.FieldOption, error) {
+			switch ft {
+			case domain.FieldTypeStage:
+				return []*domain.FieldOption{
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeStage, Value: "pending", Label: "대기", Color: "#F59E0B", DisplayOrder: 1},
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeStage, Value: "in_progress", Label: "진행중", Color: "#3B82F6", DisplayOrder: 2},
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeStage, Value: "review", Label: "검토", Color: "#8B5CF6", DisplayOrder: 3},
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeStage, Value: "approved", Label: "완료", Color: "#10B981", DisplayOrder: 4},
+				}, nil
+			case domain.FieldTypeImportance:
+				return []*domain.FieldOption{
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeImportance, Value: "urgent", Label: "긴급", Color: "#EF4444", DisplayOrder: 1},
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeImportance, Value: "high", Label: "높음", Color: "#F97316", DisplayOrder: 2},
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeImportance, Value: "normal", Label: "보통", Color: "#10B981", DisplayOrder: 3},
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeImportance, Value: "low", Label: "낮음", Color: "#6B7280", DisplayOrder: 4},
+				}, nil
+			case domain.FieldTypeRole:
+				return []*domain.FieldOption{
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeRole, Value: "developer", Label: "개발자", Color: "#8B5CF6", DisplayOrder: 1},
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeRole, Value: "planner", Label: "기획자", Color: "#EC4899", DisplayOrder: 2},
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeRole, Value: "designer", Label: "디자이너", Color: "#F59E0B", DisplayOrder: 3},
+					{BaseModel: domain.BaseModel{ID: uuid.New()}, ProjectID: &pID, FieldType: domain.FieldTypeRole, Value: "qa", Label: "QA", Color: "#06B6D4", DisplayOrder: 4},
+				}, nil
+			default:
+				return []*domain.FieldOption{}, nil
+			}
+		}
+
+		mockUserClient.GetWorkspaceFunc = func(ctx context.Context, wID uuid.UUID, t string) (*client.Workspace, error) {
+			return &client.Workspace{
+				ID:         wID,
+				Name:       "Test Workspace",
+				OwnerEmail: "workspace@example.com",
+			}, nil
+		}
+
+		service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient)
+
+		// When
+		got, err := service.GetProjectInitSettings(context.Background(), projectID, userID, token)
+
+		// Then
+		if err != nil {
+			t.Fatalf("GetProjectInitSettings() unexpected error = %v", err)
+		}
+		if got == nil {
+			t.Fatal("GetProjectInitSettings() returned nil response")
+		}
+
+		// Verify 3 fields are returned
+		if len(got.Fields) != 3 {
+			t.Errorf("Expected 3 fields, got %d", len(got.Fields))
+		}
+
+		// Count total options across all fields
+		totalOptions := 0
+		for _, field := range got.Fields {
+			totalOptions += len(field.Options)
+		}
+
+		// Verify 12 total field options are returned
+		if totalOptions != 12 {
+			t.Errorf("Expected 12 total field options, got %d", totalOptions)
+		}
+
+		// Verify stage field has 4 options
+		var stageField *dto.FieldWithOptionsResponse
+		for i := range got.Fields {
+			if got.Fields[i].FieldID == "stage" {
+				stageField = &got.Fields[i]
+				break
+			}
+		}
+		if stageField == nil {
+			t.Error("Stage field not found")
+		} else if len(stageField.Options) != 4 {
+			t.Errorf("Expected stage field to have 4 options, got %d", len(stageField.Options))
+		}
+
+		// Verify importance field has 4 options
+		var importanceField *dto.FieldWithOptionsResponse
+		for i := range got.Fields {
+			if got.Fields[i].FieldID == "importance" {
+				importanceField = &got.Fields[i]
+				break
+			}
+		}
+		if importanceField == nil {
+			t.Error("Importance field not found")
+		} else if len(importanceField.Options) != 4 {
+			t.Errorf("Expected importance field to have 4 options, got %d", len(importanceField.Options))
+		}
+
+		// Verify role field has 4 options
+		var roleField *dto.FieldWithOptionsResponse
+		for i := range got.Fields {
+			if got.Fields[i].FieldID == "role" {
+				roleField = &got.Fields[i]
+				break
+			}
+		}
+		if roleField == nil {
+			t.Error("Role field not found")
+		} else if len(roleField.Options) != 4 {
+			t.Errorf("Expected role field to have 4 options, got %d", len(roleField.Options))
+		}
+	})
 }
