@@ -459,7 +459,6 @@ definitions:
       requestId:
         type: string
     type: object
-host: localhost:8000
 info:
   contact:
     email: support@example.com
@@ -1701,6 +1700,9 @@ paths:
       summary: Workspace의 기본 Project 조회
       tags:
       - projects
+schemes:
+- http
+- https
 securityDefinitions:
   BearerAuth:
     description: 'JWT 토큰을 입력하세요. 형식: Bearer {token}'

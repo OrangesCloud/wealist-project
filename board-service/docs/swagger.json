@@ -1,4 +1,8 @@
 {
+    "schemes": [
+        "http",
+        "https"
+    ],
     "swagger": "2.0",
     "info": {
         "description": "프로젝트 보드 관리 시스템 API 서버입니다.\nBoard, Project, Comment, Participant 관리 기능을 제공합니다.",
@@ -13,7 +17,6 @@
         },
         "version": "1.0"
     },
-    "host": "localhost:8000",
     "basePath": "/api",
     "paths": {
         "/boards": {

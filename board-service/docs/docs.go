@@ -2689,9 +2689,9 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
-	Host:             "localhost:8000",
+	Host:             "",
 	BasePath:         "/api",
-	Schemes:          []string{},
+	Schemes:          []string{"http", "https"},
 	Title:            "Project Board Management API",
 	Description:      "프로젝트 보드 관리 시스템 API 서버입니다.\nBoard, Project, Comment, Participant 관리 기능을 제공합니다.",
 	InfoInstanceName: "swagger",
