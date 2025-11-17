@@ -121,6 +121,54 @@ func (h *BoardHandler) GetBoardsByProject(c *gin.Context) {
 	response.SendSuccess(c, http.StatusOK, boards)
 }
 
+// GetBoardsByProjectQuery godoc
+// @Summary      Project의 Board 목록 조회 (쿼리 파라미터 방식)
+// @Description  특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트
+// @Tags         boards
+// @Produce      json
+// @Param        projectId query string true "Project ID (UUID)"
+// @Param        customFields query string false "Custom Fields 필터 JSON 객체"
+// @Success      200 {object} response.SuccessResponse{data=[]dto.BoardResponse} "Board 목록 조회 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 Project ID 또는 필터 파라미터"
+// @Failure      404 {object} response.ErrorResponse "Project를 찾을 수 없음"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /boards [get]
+func (h *BoardHandler) GetBoardsByProjectQuery(c *gin.Context) {
+	projectIDStr := c.Query("projectId")
+	if projectIDStr == "" {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Project ID is required")
+		return
+	}
+	
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid project ID")
+		return
+	}
+
+	// Parse customFields filter parameter
+	filters := &dto.BoardFilters{}
+	customFieldsStr := c.Query("customFields")
+	
+	if customFieldsStr != "" {
+		// Parse JSON string to map
+		var customFields map[string]interface{}
+		if err := json.Unmarshal([]byte(customFieldsStr), &customFields); err != nil {
+			response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid customFields format: must be valid JSON")
+			return
+		}
+		filters.CustomFields = customFields
+	}
+
+	boards, err := h.boardService.GetBoardsByProject(c.Request.Context(), projectID, filters)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	response.SendSuccess(c, http.StatusOK, boards)
+}
+
 
 
 // UpdateBoard godoc

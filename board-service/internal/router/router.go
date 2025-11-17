@@ -120,6 +120,9 @@ func setupRoutes(
 		// Project routes
 		projects := api.Group("/projects")
 		{
+			// Frontend compatibility route (query parameter style)
+			projects.GET("", projectHandler.GetProjectsByWorkspaceQuery)
+			
 			// Existing routes
 			projects.POST("", projectHandler.CreateProject)
 			projects.GET("/workspace/:workspaceId", projectHandler.GetProjectsByWorkspace)
@@ -151,6 +154,9 @@ func setupRoutes(
 		// Board routes
 		boards := api.Group("/boards")
 		{
+			// Frontend compatibility route (query parameter style)
+			boards.GET("", boardHandler.GetBoardsByProjectQuery)
+			
 			boards.POST("", boardHandler.CreateBoard)
 			boards.GET("/:boardId", boardHandler.GetBoard)
 			boards.GET("/project/:projectId", boardHandler.GetBoardsByProject)
@@ -169,6 +175,9 @@ func setupRoutes(
 		// Comment routes
 		comments := api.Group("/comments")
 		{
+			// Frontend compatibility route (query parameter style)
+			comments.GET("", commentHandler.GetCommentsByQuery)
+			
 			comments.POST("", commentHandler.CreateComment)
 			comments.GET("/board/:boardId", commentHandler.GetComments)
 			comments.PUT("/:commentId", commentHandler.UpdateComment)

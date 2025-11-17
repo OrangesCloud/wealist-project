@@ -473,6 +473,47 @@ info:
   version: "1.0"
 paths:
   /boards:
+    get:
+      description: 특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트
+      parameters:
+      - description: Project ID (UUID)
+        in: query
+        name: projectId
+        required: true
+        type: string
+      - description: Custom Fields 필터 JSON 객체
+        in: query
+        name: customFields
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Board 목록 조회 성공
+          schema:
+            allOf:
+            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/project-board-api_internal_dto.BoardResponse'
+                  type: array
+              type: object
+        "400":
+          description: 잘못된 Project ID 또는 필터 파라미터
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+        "404":
+          description: Project를 찾을 수 없음
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+        "500":
+          description: 서버 에러
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+      summary: Project의 Board 목록 조회 (쿼리 파라미터 방식)
+      tags:
+      - boards
     post:
       consumes:
       - application/json
@@ -664,6 +705,43 @@ paths:
       tags:
       - boards
   /comments:
+    get:
+      description: 특정 Board의 모든 Comment를 조회합니다. 프론트엔드 호환용 엔드포인트
+      parameters:
+      - description: Board ID (UUID)
+        in: query
+        name: boardId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Comment 목록 조회 성공
+          schema:
+            allOf:
+            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/project-board-api_internal_dto.CommentResponse'
+                  type: array
+              type: object
+        "400":
+          description: 잘못된 Board ID
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+        "404":
+          description: Board를 찾을 수 없음
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+        "500":
+          description: 서버 에러
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+      summary: Board의 Comment 목록 조회 (쿼리 파라미터 방식)
+      tags:
+      - comments
     post:
       consumes:
       - application/json
@@ -1189,6 +1267,37 @@ paths:
       tags:
       - participants
   /projects:
+    get:
+      description: 특정 Workspace에 속한 모든 Project를 조회합니다. 프론트엔드 호환용 엔드포인트
+      parameters:
+      - description: Workspace ID (UUID)
+        in: query
+        name: workspaceId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Project 목록 조회 성공
+          schema:
+            allOf:
+            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/project-board-api_internal_dto.PaginatedProjectsResponse'
+              type: object
+        "400":
+          description: 잘못된 Workspace ID
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+        "500":
+          description: 서버 에러
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+      summary: Workspace의 Project 목록 조회 (쿼리 파라미터 방식)
+      tags:
+      - projects
     post:
       consumes:
       - application/json

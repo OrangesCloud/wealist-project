@@ -77,6 +77,39 @@ func (h *CommentHandler) GetComments(c *gin.Context) {
 	response.SendSuccess(c, http.StatusOK, comments)
 }
 
+// GetCommentsByQuery godoc
+// @Summary      Board의 Comment 목록 조회 (쿼리 파라미터 방식)
+// @Description  특정 Board의 모든 Comment를 조회합니다. 프론트엔드 호환용 엔드포인트
+// @Tags         comments
+// @Produce      json
+// @Param        boardId query string true "Board ID (UUID)"
+// @Success      200 {object} response.SuccessResponse{data=[]dto.CommentResponse} "Comment 목록 조회 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 Board ID"
+// @Failure      404 {object} response.ErrorResponse "Board를 찾을 수 없음"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /comments [get]
+func (h *CommentHandler) GetCommentsByQuery(c *gin.Context) {
+	boardIDStr := c.Query("boardId")
+	if boardIDStr == "" {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Board ID is required")
+		return
+	}
+	
+	boardID, err := uuid.Parse(boardIDStr)
+	if err != nil {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid board ID")
+		return
+	}
+
+	comments, err := h.commentService.GetComments(c.Request.Context(), boardID)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	response.SendSuccess(c, http.StatusOK, comments)
+}
+
 // UpdateComment godoc
 // @Summary      Comment 수정
 // @Description  Comment 내용을 수정합니다
