@@ -84,32 +84,6 @@ jobs:
           COMPOSE_FILE="${{ env.COMPOSE_FILE }}"
 
           # =============================================================================
-          # Swagger 문서 재생성 (배포 전)
-          # =============================================================================
-          echo "📚 Regenerating Swagger documentation..."
-          cd /home/ubuntu/wealist/board-service
-          
-          # swag 도구 설치 확인
-          if ! command -v swag &> /dev/null; then
-            echo "  ⏳ Installing swag tool..."
-            go install github.com/swaggo/swag/cmd/swag@latest
-            export PATH=$PATH:$(go env GOPATH)/bin
-          fi
-          
-          # Swagger 문서 생성
-          echo "  ⏳ Generating Swagger files..."
-          swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
-          
-          if [ -f "docs/swagger.yaml" ] && [ -f "docs/swagger.json" ]; then
-            echo "  ✅ Swagger documentation regenerated successfully"
-          else
-            echo "  ⚠️  Swagger generation may have failed, but continuing deployment..."
-          fi
-          
-          cd /home/ubuntu/wealist
-          echo ""
-
-          # =============================================================================
           # Parameter Store에서 환경변수 로드
           # =============================================================================
           echo "📥 Loading environment variables from Parameter Store..."
@@ -260,6 +234,43 @@ jobs:
           echo ""
 
           # =============================================================================
+          # 데이터베이스 초기화 및 권한 설정
+          # =============================================================================
+          echo "🗄️  Initializing database with proper permissions..."
+          echo "  📍 Database: ${BOARD_DB_NAME}"
+          echo "  📍 User: ${BOARD_DB_USER}"
+          
+          # 기존 연결 종료
+          echo "  🔌 Terminating existing connections..."
+          docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "
+          SELECT pg_terminate_backend(pg_stat_activity.pid)
+          FROM pg_stat_activity
+          WHERE pg_stat_activity.datname = '${BOARD_DB_NAME}'
+            AND pid <> pg_backend_pid();
+          " 2>&1 || echo "  ⚠️  No connections to terminate"
+          
+          # 데이터베이스 삭제 (별도 명령으로 실행)
+          echo "  🗑️  Dropping existing database..."
+          docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "DROP DATABASE IF EXISTS ${BOARD_DB_NAME};" 2>&1
+          
+          if [ $? -ne 0 ]; then
+            echo "  ❌ Failed to drop database" >&2
+            exit 1
+          fi
+          
+          # 데이터베이스 생성 (OWNER 설정으로 모든 권한 자동 부여)
+          echo "  📦 Creating database with owner ${BOARD_DB_USER}..."
+          docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "CREATE DATABASE ${BOARD_DB_NAME} OWNER ${BOARD_DB_USER};" 2>&1
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Database initialized with proper permissions"
+          else
+            echo "❌ Failed to create database" >&2
+            exit 1
+          fi
+          echo ""
+
+          # =============================================================================
           # ECR 로그인
           # =============================================================================
           echo "🔑 Logging into Amazon ECR..."
@@ -355,63 +366,10 @@ jobs:
           fi
 
           # =============================================================================
-          # 데이터베이스 마이그레이션 실행
+          # NOTE: Database migrations are handled by GORM auto-migration
+          # SQL migration files are not used in this deployment
+          # Schema changes are automatically applied when board-service starts
           # =============================================================================
-          echo "🗄️ Running database migrations..."
-
-          # PostgreSQL 컨테이너 확인 (이미 시작되어 있어야 함)
-          echo "  ⏳ Verifying PostgreSQL container is running..."
-          if ! docker ps --format '{{.Names}}' | grep -q wealist-postgres; then
-            echo "  ❌ PostgreSQL container is not running" >&2
-            echo "  📋 Running containers:" >&2
-            docker ps --format 'table {{.Names}}\t{{.Status}}' >&2
-            exit 1
-          fi
-          echo "  ✅ PostgreSQL container is running"
-
-          # 마이그레이션 디렉토리 확인
-          MIGRATION_DIR="/home/ubuntu/wealist/board-service/migrations"
-          echo "  ⏳ Checking migration directory: ${MIGRATION_DIR}"
-          if [ ! -d "$MIGRATION_DIR" ]; then
-            echo "  ❌ Migration directory not found: $MIGRATION_DIR" >&2
-            echo "  📋 Current directory contents:" >&2
-            ls -la /home/ubuntu/wealist/board-service/ >&2
-            exit 1
-          fi
-          echo "  ✅ Migration directory found"
-
-          # 마이그레이션 파일 목록 확인
-          migration_files=$(ls ${MIGRATION_DIR}/*.sql 2>/dev/null | grep -v "_down.sql" | sort)
-          if [ -z "$migration_files" ]; then
-            echo "  ⚠️  No migration files found, skipping migrations"
-          else
-            migration_count=$(echo "$migration_files" | wc -l)
-            echo "  📊 Found ${migration_count} migration file(s) to apply"
-            
-            # 마이그레이션 파일 실행
-            for migration_file in $migration_files; do
-              filename=$(basename $migration_file)
-              echo "  📝 Applying migration: $filename"
-              
-              migration_error=$(mktemp)
-              if docker exec -i wealist-postgres psql \
-                -U ${POSTGRES_SUPERUSER} \
-                -d ${BOARD_DB_NAME} \
-                < $migration_file 2>&1 | tee "$migration_error"; then
-                echo "  ✅ Migration applied: $filename"
-              else
-                echo "  ❌ Migration failed: $filename" >&2
-                echo "  📋 Error details:" >&2
-                cat "$migration_error" >&2
-                echo "  📋 Migration file path: $migration_file" >&2
-                rm -f "$migration_error"
-                exit 1
-              fi
-              rm -f "$migration_error"
-            done
-            
-            echo "✅ All migrations applied successfully (${migration_count} file(s))"
-          fi
 
           # =============================================================================
           # Board Service 재시작

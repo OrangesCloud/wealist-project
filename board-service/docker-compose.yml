@@ -25,7 +25,7 @@ services:
   board-service:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
     container_name: board-service
     ports:
       - "${SERVER_PORT:-8000}:8000"

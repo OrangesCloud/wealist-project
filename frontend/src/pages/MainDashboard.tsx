@@ -89,11 +89,11 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     const stages: CustomStageResponse[] = [];
 
     fields?.forEach((field) => {
-      // fieldType 확인 (백엔드는 'select'로 보냄)
-      if (field.fieldType === 'select' || field.fieldType === 'single_select' || field.fieldType === 'multi_select') {
+      // fieldType 확인 (백엔드는 'single_select' 또는 'multi_select'로 보냄)
+      if (field.fieldType === 'single_select' || field.fieldType === 'multi_select') {
         field.options.forEach((opt) => {
           const base = {
-            label: opt.optionLabel || opt.label, // 💡 백엔드는 optionLabel로 보냄
+            label: opt.label, // 💡 FieldOptionResponse의 label 사용
             color: opt.color || '#6B7280', // 💡 기본 색상 제공
             displayOrder: opt.displayOrder || 0,
             fieldId: opt.fieldId || field.fieldId,
@@ -101,8 +101,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
             description: opt.description || '',
           };
 
-          // fieldName 확인 (백엔드는 fieldName으로 보냄)
-          const fieldName = field.fieldName || field.name;
+          // fieldName 확인 (백엔드는 name으로 보냄)
+          const fieldName = field.name;
           if (fieldName === 'Role') {
             roles?.push({ ...base, roleId: opt.optionId });
           } else if (fieldName === 'Importance') {
