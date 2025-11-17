@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/users/api")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "User", description = "사용자 관리 API")
@@ -56,12 +56,12 @@ public class UserController {
         log.info("Path Variable - userId: {}", userId);
         log.info("Remote Address: {}", request.getRemoteAddr());
         log.info("Authorization Header Present: {}", request.getHeader("Authorization") != null);
-        
+
         User user = userService.getUserById(userId);
-        
+
         log.info("User info retrieved successfully: userId={}, email={}", userId, user.getEmail());
         log.info("=== END REQUEST: Get User Info ===");
-        
+
         return ResponseEntity.ok(user);
     }
 
@@ -97,11 +97,11 @@ public class UserController {
         userService.restoreUser(userId);
         return ResponseEntity.ok(MessageApiResponse.success("사용자가 복구되었습니다."));
     }
+
     @GetMapping("/test/{userid}")
-    public String returnToken(@PathVariable UUID userid){
+    public String returnToken(@PathVariable UUID userid) {
         String accessToken = tokenProvider.generateToken(userid);
         return accessToken;
     }
-
 
 }
