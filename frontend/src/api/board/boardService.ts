@@ -8,8 +8,6 @@ import {
   CreateBoardRequest,
   UpdateBoardRequest,
   BoardFilters,
-  PaginatedBoardsResponse,
-  UpdateBoardFieldRequest,
   ProjectResponse,
   CreateProjectRequest,
   UpdateProjectRequest,
