@@ -27,6 +27,7 @@ env:
   AWS_REGION: ap-northeast-2
   PARAMETER_PREFIX: /wealist/dev
   COMPOSE_FILE: /home/ubuntu/wealist/docker/compose/docker-compose.ec2-dev.yml
+  EC2_INSTANCE_ID: i-000f35cf67afa3c33
 
 jobs:
   deploy:
@@ -39,42 +40,6 @@ jobs:
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     environment: development
     steps:
-      # ============================================
-      # 0. 🚀 워크플로우 이름 동적 변경 (추가할 부분)
-      # ============================================
-      - name: 📝 Update Workflow Run Name with Commit Message
-        uses: actions/github-script@v7
-        if: github.event_name == 'workflow_run'
-        with:
-          script: |
-            // 1. 트리거가 된 CI 워크플로우의 정보를 가져옵니다.
-            const triggered_workflow = await github.request('GET /repos/{owner}/{repo}/actions/runs/{run_id}', {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: ${{ github.event.workflow_run.id }}
-            });
-
-            // 2. 해당 CI 워크플로우의 커밋 SHA와 메시지를 가져옵니다.
-            const head_sha = triggered_workflow.data.head_sha;
-            const commit_info = await github.request('GET /repos/{owner}/{repo}/commits/{commit_sha}', {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: head_sha
-            });
-
-            const commit_message = commit_info.data.commit.message.split('\n')[0].trim();
-            const short_sha = head_sha.substring(0, 7);
-
-            // 3. 현재 CD 워크플로우 실행의 이름을 업데이트합니다.
-            const new_name = `CD: ${commit_message} (${short_sha})`;
-            console.log(`Setting workflow name to: ${new_name}`);
-
-            await github.request('PATCH /repos/{owner}/{repo}/actions/runs/{run_id}', {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-              name: new_name
-            });
       # ============================================
       # 1. 코드 체크아웃
       # ============================================
@@ -99,21 +64,17 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       # ============================================
-      # 4. 배포 스크립트 준비 - Board Service와 동일한 방식 사용
-      # ============================================
-      - name: 📝 Prepare Deployment Script
-        id: script
-        run: |
-          echo "✅ Using inline SSM command (no separate script file needed)"
-
-      # ============================================
-      # 5. SSM Run Command로 배포 실행 - 간소화된 버전
+      # 4. SSM Run Command로 배포 실행
       # ============================================
       - name: 🚀 Deploy via SSM Run Command
         id: deploy
-        env:
-          EC2_INSTANCE_ID: i-000f35cf67afa3c33
         run: |
+          echo "📋 Deployment Configuration:"
+          echo "  - Instance ID: ${{ env.EC2_INSTANCE_ID }}"
+          echo "  - AWS Region: ${{ env.AWS_REGION }}"
+          echo "  - Commit SHA: ${{ github.sha }}"
+          echo ""
+          
           # 배포 스크립트를 heredoc으로 생성
           cat > /tmp/deploy-user.sh << 'EOF'
           #!/bin/bash
@@ -121,7 +82,7 @@ jobs:
 
           echo "🚀 User Service Deployment Started"
 
-          # 환경 변수 로드 (Board Service CD와 동일한 파라미터 경로 사용)
+          # 환경 변수 로드
           export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           export AWS_REGION=ap-northeast-2
           export PARAMETER_PREFIX=/wealist/dev
@@ -189,99 +150,174 @@ jobs:
 
           chmod +x /tmp/deploy-user.sh
 
-          # SSM으로 스크립트 전송 및 실행
-          SCRIPT_CONTENT=$(cat /tmp/deploy-user.sh | base64 -w 0)
+          # 스크립트를 Base64로 인코딩 (특수문자 안전하게 전송)
+          echo "📦 Encoding deployment script..."
+          SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-user.sh)
+          echo "✅ Script encoded (${#SCRIPT_BASE64} bytes)"
+          echo ""
 
+          # SSM Run Command 실행
+          echo "🚀 Sending command to EC2 instance..."
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "commands=[\"echo '${SCRIPT_CONTENT}' | base64 -d > /tmp/deploy.sh\",\"chmod +x /tmp/deploy.sh\",\"/tmp/deploy.sh\"]" \
-            --region ${{ env.AWS_REGION }} \
+            --comment "Deploy User Service - ${{ github.sha }}" \
+            --timeout-seconds 300 \
+            --parameters commands="[
+              \"echo '=== Deployment Script Received ===' \",
+              \"echo 'Timestamp: \$(date)' \",
+              \"echo 'Instance ID: \$(ec2-metadata --instance-id 2>/dev/null || echo 'N/A')' \",
+              \"echo '' \",
+              \"echo '${SCRIPT_BASE64}' | base64 -d > /tmp/deploy.sh\",
+              \"chmod +x /tmp/deploy.sh\",
+              \"echo '🚀 Starting deployment script execution...' \",
+              \"/tmp/deploy.sh 2>&1 | tee /tmp/deploy.log\",
+              \"DEPLOY_EXIT_CODE=\${PIPESTATUS[0]}\",
+              \"echo '' \",
+              \"echo '=== Deployment Script Finished ===' \",
+              \"echo 'Exit Code: '\$DEPLOY_EXIT_CODE \",
+              \"rm -f /tmp/deploy.sh\",
+              \"exit \$DEPLOY_EXIT_CODE\"
+            ]" \
             --output text \
             --query "Command.CommandId")
 
-          echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
-          echo "✅ SSM Command ID: ${COMMAND_ID}"
-
-          # 명령 완료 대기
-          echo "⏳ Waiting for deployment..."
-          aws ssm wait command-executed \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${{ env.EC2_INSTANCE_ID }}" \
-            --region ${{ env.AWS_REGION }}
-
-          # 결과 확인
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${{ env.EC2_INSTANCE_ID }}" \
-            --query "Status" \
-            --output text)
-
-          if [ "$STATUS" != "Success" ]; then
-            echo "❌ Deployment failed: $STATUS"
-            aws ssm get-command-invocation \
-              --command-id "${COMMAND_ID}" \
-              --instance-id "${{ env.EC2_INSTANCE_ID }}" \
-              --query "StandardErrorContent" \
-              --output text
+          if [ -z "$COMMAND_ID" ]; then
+            echo "❌ Failed to send SSM command - no Command ID returned"
             exit 1
           fi
 
-          echo "✅ Deployment successful!"
-
           echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
-          echo "✅ SSM Command ID: ${COMMAND_ID}"
+          echo "✅ Command sent successfully"
+          echo "📝 Command ID: ${COMMAND_ID}"
+          echo ""
 
-          # 명령 완료 대기
+      # ============================================
+      # 5. 배포 결과 대기
+      # ============================================
+      - name: ⏳ Wait for Deployment
+        run: |
+          COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
+          INSTANCE_ID="${{ env.EC2_INSTANCE_ID }}"
+
           echo "⏳ Waiting for deployment to complete..."
-          aws ssm wait command-executed \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
-            --region ${{ env.AWS_REGION }}
-
-          # 실행 결과 확인
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${{ env.EC2_INSTANCE_ID }}" \
-            --query "Status" \
-            --output text)
+          echo "  - Command ID: ${COMMAND_ID}"
+          echo "  - Instance ID: ${INSTANCE_ID}"
+          echo ""
+          
+          # 명령어 실행 대기 (최대 5분)
+          echo "⏳ Polling command status..."
+          MAX_WAIT=60  # 5분 (5초 간격)
+          WAIT_COUNT=0
+          LAST_OUTPUT_LINE=""
+          
+          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${INSTANCE_ID}" \
+              --query "Status" \
+              --output text 2>/dev/null || echo "Pending")
+            
+            # 30초마다 현재 출력 확인 (진행 상황 표시)
+            if [ $((WAIT_COUNT % 6)) -eq 0 ]; then
+              CURRENT_OUTPUT=$(aws ssm get-command-invocation \
+                --command-id "${COMMAND_ID}" \
+                --instance-id "${INSTANCE_ID}" \
+                --query "StandardOutputContent" \
+                --output text 2>/dev/null | tail -1)
+              
+              if [ "$CURRENT_OUTPUT" != "$LAST_OUTPUT_LINE" ] && [ -n "$CURRENT_OUTPUT" ]; then
+                echo "  [$((WAIT_COUNT * 5))s] Status: ${STATUS} | Last output: ${CURRENT_OUTPUT}"
+                LAST_OUTPUT_LINE="$CURRENT_OUTPUT"
+              else
+                echo "  [$((WAIT_COUNT * 5))s] Status: ${STATUS}"
+              fi
+            fi
+            
+            if [ "$STATUS" = "Success" ] || [ "$STATUS" = "Failed" ] || [ "$STATUS" = "TimedOut" ] || [ "$STATUS" = "Cancelled" ]; then
+              break
+            fi
+            
+            sleep 5
+            WAIT_COUNT=$((WAIT_COUNT + 1))
+          done
+          
+          # 타임아웃 체크
+          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+            echo ""
+            echo "⚠️  Polling timeout reached (5 minutes)"
+            echo "   Command may still be running on EC2"
+            echo "   Check SSM command status manually:"
+            echo "   aws ssm get-command-invocation --command-id ${COMMAND_ID} --instance-id ${INSTANCE_ID}"
+          fi
+          
+          echo ""
+          echo "📊 Final Status: ${STATUS}"
+          echo ""
 
           if [ "$STATUS" != "Success" ]; then
-            echo "❌ Deployment failed with status: $STATUS"
+            echo "❌ Deployment failed with status: ${STATUS}"
+            echo ""
+            echo "📋 Error Output:"
             aws ssm get-command-invocation \
               --command-id "${COMMAND_ID}" \
-              --instance-id "${{ env.EC2_INSTANCE_ID }}" \
+              --instance-id "${INSTANCE_ID}" \
               --query "StandardErrorContent" \
+              --output text
+            echo ""
+            echo "📋 Standard Output:"
+            aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${INSTANCE_ID}" \
+              --query "StandardOutputContent" \
               --output text
             exit 1
           fi
 
-          echo "✅ Deployment successful!"
+          echo "✅ Deployment completed successfully!"
 
       # ============================================
       # 6. 배포 로그 출력
       # ============================================
       - name: 📋 Show Deployment Logs
         if: always()
-        env:
-          EC2_INSTANCE_ID: i-000f35cf67afa3c33
         run: |
+          echo "📋 Full Deployment Output:"
+          echo "================================"
           aws ssm get-command-invocation \
             --command-id "${{ steps.deploy.outputs.command-id }}" \
             --instance-id "${{ env.EC2_INSTANCE_ID }}" \
             --query "StandardOutputContent" \
-            --output text
+            --output text || echo "⚠️  Could not retrieve output"
+          echo ""
+          echo "================================"
 
       # ============================================
       # 7. Summary
       # ============================================
       - name: 📊 Deployment Summary
-        env:
-          EC2_INSTANCE_ID: i-000f35cf67afa3c33
+        if: always()
         run: |
-          echo "### ✅ User Service Deployed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trigger:** \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Instance:** \`${{ env.EC2_INSTANCE_ID }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Command:** \`${{ steps.deploy.outputs.command-id }}\`" >> $GITHUB_STEP_SUMMARY
+          STATUS="${{ job.status }}"
+          
+          if [ "$STATUS" = "success" ]; then
+            ICON="✅"
+            TITLE="User Service Deployed Successfully"
+          else
+            ICON="❌"
+            TITLE="User Service Deployment Failed"
+          fi
+          
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ### ${ICON} ${TITLE}
+
+          - **Commit:** \`${{ github.sha }}\`
+          - **Instance:** \`${{ env.EC2_INSTANCE_ID }}\`
+          - **Command ID:** \`${{ steps.deploy.outputs.command-id }}\`
+          - **Status:** ${STATUS}
+          - **Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          
+          #### Quick Links
+          - [View Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF
