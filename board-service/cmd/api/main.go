@@ -25,6 +25,7 @@ import (
 // @version         1.0
 // @description     프로젝트 보드 관리 시스템 API 서버입니다.
 // @description     Board, Project, Comment, Participant 관리 기능을 제공합니다.
+// @description     ALB path-based routing with /api/boards prefix
 
 // @contact.name   API Support
 // @contact.email  support@example.com
