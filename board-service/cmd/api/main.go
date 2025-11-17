@@ -108,10 +108,13 @@ func main() {
 		zap.String("database", cfg.Database.DBName),
 	)
 
-	// Run GORM auto-migration
-	log.Info("Running GORM auto-migration")
-	if err := database.AutoMigrate(db); err != nil {
-		log.Fatal("Failed to run auto-migration", zap.Error(err))
+	// Run GORM auto-migration with retry logic
+	log.Info("Running GORM auto-migration with retry logic")
+	if err := database.SafeAutoMigrateWithRetry(db, log.Logger, 3); err != nil {
+		log.Fatal("Failed to run auto-migration",
+			zap.Error(err),
+			zap.String("hint", "Check database connection and schema conflicts"),
+		)
 	}
 	log.Info("Database schema migration completed successfully")
 
