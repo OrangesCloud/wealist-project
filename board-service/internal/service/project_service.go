@@ -28,15 +28,17 @@ type ProjectService interface {
 
 // projectServiceImpl is the implementation of ProjectService
 type projectServiceImpl struct {
-	projectRepo repository.ProjectRepository
-	userClient  client.UserClient
+	projectRepo       repository.ProjectRepository
+	fieldOptionRepo   repository.FieldOptionRepository
+	userClient        client.UserClient
 }
 
 // NewProjectService creates a new instance of ProjectService
-func NewProjectService(projectRepo repository.ProjectRepository, userClient client.UserClient) ProjectService {
+func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, userClient client.UserClient) ProjectService {
 	return &projectServiceImpl{
-		projectRepo: projectRepo,
-		userClient:  userClient,
+		projectRepo:     projectRepo,
+		fieldOptionRepo: fieldOptionRepo,
+		userClient:      userClient,
 	}
 }
 
@@ -78,6 +80,13 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to add project owner", err.Error())
 	}
 
+	// Create default field options for the project
+	if err := s.createDefaultFieldOptions(ctx, project.ID); err != nil {
+		// Rollback project creation if field options fail
+		s.projectRepo.Delete(ctx, project.ID)
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to create default field options", err.Error())
+	}
+
 	// Convert to response DTO
 	return s.toProjectResponse(project), nil
 }
@@ -101,10 +110,29 @@ func (s *projectServiceImpl) GetProjectsByWorkspace(ctx context.Context, workspa
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch projects", err.Error())
 	}
 
+	// 빈 배열 명시적 처리 - nil이거나 길이가 0이면 빈 배열 반환
+	if projects == nil || len(projects) == 0 {
+		return []*dto.ProjectResponse{}, nil
+	}
+
 	// Convert to response DTOs with owner profile information
-	responses := make([]*dto.ProjectResponse, len(projects))
+	// 동적으로 append하여 개별 프로젝트 변환 실패 시 전체 실패 방지
+	responses := make([]*dto.ProjectResponse, 0, len(projects))
 	for i, project := range projects {
-		responses[i] = s.toProjectResponseWithProfile(ctx, project, token)
+		// nil 프로젝트 스킵
+		if project == nil {
+			continue
+		}
+		
+		// 개별 변환 실패 시 해당 프로젝트만 스킵
+		projectResp := s.toProjectResponseWithProfile(ctx, project, token)
+		if projectResp != nil {
+			responses = append(responses, projectResp)
+		} else {
+			// Log when a project response is nil to help debugging
+			// This should not happen in normal operation
+			_ = i // Avoid unused variable warning
+		}
 	}
 
 	return responses, nil
@@ -152,16 +180,29 @@ func (s *projectServiceImpl) toProjectResponse(project *domain.Project) *dto.Pro
 
 // toProjectResponseWithProfile converts domain.Project to dto.ProjectResponse with owner profile
 func (s *projectServiceImpl) toProjectResponseWithProfile(ctx context.Context, project *domain.Project, token string) *dto.ProjectResponse {
+	// nil 체크 - project가 nil이면 nil 반환
+	if project == nil {
+		return nil
+	}
+	
 	response := s.toProjectResponse(project)
+	// response가 nil이면 nil 반환
+	if response == nil {
+		return nil
+	}
 
-	// Fetch workspace profile for owner
+	// Fetch workspace profile for owner - graceful degradation
 	profile, err := s.userClient.GetWorkspaceProfile(ctx, project.WorkspaceID, project.OwnerID, token)
-	if err == nil && profile != nil {
-		// Include profile information if available
+	if err != nil {
+		// 에러 발생 시 owner 정보 없이 반환 (graceful degradation)
+		return response
+	}
+	
+	// profile이 nil이 아닐 때만 정보 추가
+	if profile != nil {
 		response.OwnerEmail = profile.Email
 		response.OwnerName = profile.NickName
 	}
-	// Graceful degradation: if profile fetch fails, return response without owner details
 
 	return response
 }
@@ -305,6 +346,34 @@ func (s *projectServiceImpl) SearchProjects(ctx context.Context, workspaceID, us
 	}, nil
 }
 
+// createDefaultFieldOptions creates default field options for a new project
+// using hardcoded default values
+func (s *projectServiceImpl) createDefaultFieldOptions(ctx context.Context, projectID uuid.UUID) error {
+	// Get hardcoded default options
+	templates := getDefaultFieldOptions()
+
+	// Create project-specific options from templates
+	projectOptions := make([]*domain.FieldOption, len(templates))
+	for i, template := range templates {
+		projectOptions[i] = &domain.FieldOption{
+			ProjectID:       &projectID,
+			FieldType:       template.FieldType,
+			Value:           template.Value,
+			Label:           template.Label,
+			Color:           template.Color,
+			DisplayOrder:    template.DisplayOrder,
+			IsSystemDefault: false,
+		}
+	}
+
+	// Batch create all project options
+	if err := s.fieldOptionRepo.CreateBatch(ctx, projectOptions); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // GetProjectInitSettings retrieves initial settings for a project including field definitions
 func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, projectID, userID uuid.UUID, token string) (*dto.ProjectInitSettingsResponse, error) {
 	// Fetch project from repository
@@ -325,19 +394,84 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 		return nil, response.NewForbiddenError("You are not a member of this project", "")
 	}
 
-	// Build project basic info
-	projectInfo := dto.ProjectBasicInfo{
-		ProjectID:   project.ID,
-		WorkspaceID: project.WorkspaceID,
-		Name:        project.Name,
-		Description: project.Description,
-		OwnerID:     project.OwnerID,
-		IsPublic:    project.IsPublic,
-		CreatedAt:   project.CreatedAt,
-		UpdatedAt:   project.UpdatedAt,
+	// Fetch workspace information
+	workspace, err := s.userClient.GetWorkspace(ctx, project.WorkspaceID, token)
+	if err != nil {
+		// Log error but continue with graceful degradation
+		workspace = &client.Workspace{
+			ID:   project.WorkspaceID,
+			Name: "",
+		}
 	}
 
-	// Define field definitions with options
+	// Build project basic info with workspace details
+	projectInfo := dto.ProjectBasicInfo{
+		ProjectID:        project.ID,
+		WorkspaceID:      project.WorkspaceID,
+		WorkspaceName:    workspace.Name,
+		WorkspaceEmail:   workspace.OwnerEmail,
+		Name:             project.Name,
+		Description:      project.Description,
+		OwnerID:          project.OwnerID,
+		IsPublic:         project.IsPublic,
+		CreatedAt:        project.CreatedAt,
+		UpdatedAt:        project.UpdatedAt,
+	}
+
+	// Fetch project-specific field options from database
+	stageOptions, err := s.fieldOptionRepo.FindByProjectAndFieldType(ctx, projectID, domain.FieldTypeStage)
+	if err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch stage options", err.Error())
+	}
+
+	roleOptions, err := s.fieldOptionRepo.FindByProjectAndFieldType(ctx, projectID, domain.FieldTypeRole)
+	if err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch role options", err.Error())
+	}
+
+	importanceOptions, err := s.fieldOptionRepo.FindByProjectAndFieldType(ctx, projectID, domain.FieldTypeImportance)
+	if err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch importance options", err.Error())
+	}
+
+	// Convert field options to DTO format
+	stageFieldOptions := make([]dto.FieldOption, len(stageOptions))
+	for i, opt := range stageOptions {
+		stageFieldOptions[i] = dto.FieldOption{
+			OptionID:     opt.ID.String(),
+			OptionLabel:  opt.Label,
+			OptionValue:  opt.Value,
+			Color:        opt.Color,
+			DisplayOrder: opt.DisplayOrder,
+			FieldID:      "stage",
+		}
+	}
+
+	roleFieldOptions := make([]dto.FieldOption, len(roleOptions))
+	for i, opt := range roleOptions {
+		roleFieldOptions[i] = dto.FieldOption{
+			OptionID:     opt.ID.String(),
+			OptionLabel:  opt.Label,
+			OptionValue:  opt.Value,
+			Color:        opt.Color,
+			DisplayOrder: opt.DisplayOrder,
+			FieldID:      "role",
+		}
+	}
+
+	importanceFieldOptions := make([]dto.FieldOption, len(importanceOptions))
+	for i, opt := range importanceOptions {
+		importanceFieldOptions[i] = dto.FieldOption{
+			OptionID:     opt.ID.String(),
+			OptionLabel:  opt.Label,
+			OptionValue:  opt.Value,
+			Color:        opt.Color,
+			DisplayOrder: opt.DisplayOrder,
+			FieldID:      "importance",
+		}
+	}
+
+	// Define field definitions with options from database
 	fields := []dto.FieldWithOptionsResponse{
 		{
 			FieldID:     "stage",
@@ -345,12 +479,7 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 			FieldType:   "select",
 			IsRequired:  true,
 			Description: "Current stage of the board",
-			Options: []dto.FieldOption{
-				{OptionID: "in_progress", OptionLabel: "In Progress", OptionValue: "in_progress"},
-				{OptionID: "pending", OptionLabel: "Pending", OptionValue: "pending"},
-				{OptionID: "approved", OptionLabel: "Approved", OptionValue: "approved"},
-				{OptionID: "review", OptionLabel: "Review", OptionValue: "review"},
-			},
+			Options:     stageFieldOptions,
 		},
 		{
 			FieldID:     "importance",
@@ -358,10 +487,7 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 			FieldType:   "select",
 			IsRequired:  true,
 			Description: "Priority level of the board",
-			Options: []dto.FieldOption{
-				{OptionID: "urgent", OptionLabel: "Urgent", OptionValue: "urgent"},
-				{OptionID: "normal", OptionLabel: "Normal", OptionValue: "normal"},
-			},
+			Options:     importanceFieldOptions,
 		},
 		{
 			FieldID:     "role",
@@ -369,10 +495,7 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 			FieldType:   "select",
 			IsRequired:  true,
 			Description: "Role responsible for the board",
-			Options: []dto.FieldOption{
-				{OptionID: "developer", OptionLabel: "Developer", OptionValue: "developer"},
-				{OptionID: "planner", OptionLabel: "Planner", OptionValue: "planner"},
-			},
+			Options:     roleFieldOptions,
 		},
 	}
 

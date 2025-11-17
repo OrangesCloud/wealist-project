@@ -124,6 +124,77 @@ func (h *ProjectHandler) GetProjectsByWorkspace(c *gin.Context) {
 	response.SendSuccess(c, http.StatusOK, projects)
 }
 
+// GetProjectsByWorkspaceQuery godoc
+// @Summary      Workspace의 Project 목록 조회 (쿼리 파라미터 방식)
+// @Description  특정 Workspace에 속한 모든 Project를 조회합니다. 프론트엔드 호환용 엔드포인트
+// @Tags         projects
+// @Produce      json
+// @Param        workspaceId query string true "Workspace ID (UUID)"
+// @Success      200 {object} response.SuccessResponse{data=dto.PaginatedProjectsResponse} "Project 목록 조회 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 Workspace ID"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /projects [get]
+func (h *ProjectHandler) GetProjectsByWorkspaceQuery(c *gin.Context) {
+	workspaceIDStr := c.Query("workspaceId")
+	if workspaceIDStr == "" {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Workspace ID is required")
+		return
+	}
+	
+	workspaceID, err := uuid.Parse(workspaceIDStr)
+	if err != nil {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid workspace ID")
+		return
+	}
+
+	// Extract user ID from context (set by Auth middleware)
+	userID, exists := c.Get("user_id")
+	if !exists {
+		response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "User ID not found in context")
+		return
+	}
+	userUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "Invalid user ID format")
+		return
+	}
+
+	// Extract JWT token from context (set by Auth middleware)
+	token, exists := c.Get("jwtToken")
+	if !exists {
+		response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "JWT token not found in context")
+		return
+	}
+	tokenStr, ok := token.(string)
+	if !ok {
+		response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "Invalid token format")
+		return
+	}
+
+	projects, err := h.projectService.GetProjectsByWorkspace(c.Request.Context(), workspaceID, userUUID, tokenStr)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	// Convert []*ProjectResponse to []ProjectResponse with nil check
+	projectList := make([]dto.ProjectResponse, 0, len(projects))
+	for _, p := range projects {
+		// Skip nil pointers to prevent panic
+		if p != nil {
+			projectList = append(projectList, *p)
+		}
+	}
+
+	// 프론트엔드가 기대하는 형식으로 응답 (PaginatedProjectsResponse 형태)
+	response.SendSuccess(c, http.StatusOK, dto.PaginatedProjectsResponse{
+		Projects: projectList,
+		Total:    int64(len(projectList)),
+		Page:     1,
+		Limit:    len(projectList),
+	})
+}
+
 // GetDefaultProject godoc
 // @Summary      Workspace의 기본 Project 조회
 // @Description  특정 Workspace의 기본(default) Project를 조회합니다

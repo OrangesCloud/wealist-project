@@ -3,8 +3,9 @@
 -- Initial Schema Migration
 -- ============================================
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- Enable UUID extension (must be run as superuser)
+-- This should be done during database initialization
+-- CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ============================================
 -- Table: projects

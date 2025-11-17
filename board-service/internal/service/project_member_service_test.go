@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"project-board-api/internal/client"
 	"project-board-api/internal/domain"
 	"project-board-api/internal/response"
 )

@@ -207,12 +207,78 @@ API 표준화 작업으로 인해 엔드포인트와 필드명이 변경되었�
 코드 변경 후 Swagger 문서를 업데이트하려면:
 
 ```bash
-# Swagger 문서 생성
-swag init -g cmd/api/main.go -o docs
+# Swagger 문서 생성 (의존성 및 내부 패키지 파싱 포함)
+swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
 
 # 또는 Make 명령어 사용
 make swagger
 ```
+
+**중요**: `--parseDependency`와 `--parseInternal` 플래그를 반드시 포함해야 모든 DTO 스키마가 올바르게 생성됩니다.
+
+### Swagger 문서 검증
+
+Swagger 문서가 최신 상태인지 확인하려면:
+
+```bash
+# 엔드포인트 커버리지 검증
+./scripts/validate-swagger.sh
+
+# DTO 스키마 검증
+./scripts/validate-dto-schemas.sh
+
+# Godoc 주석 품질 검증
+./scripts/validate-godoc.sh
+```
+
+모든 검증 스크립트는 100% 커버리지를 목표로 하며, 누락된 항목이 있으면 오류와 함께 종료됩니다.
+
+### Swagger 문서 유지보수 가이드
+
+API 개발 시 Swagger 문서를 최신 상태로 유지하는 방법:
+
+1. **새 핸들러 추가 시**: 반드시 godoc 주석 추가
+2. **DTO 변경 시**: 변경 후 `swag init` 실행
+3. **라우터 변경 시**: 핸들러의 `@Router` 주석 업데이트
+4. **커밋 전**: 검증 스크립트 실행하여 문서 완전성 확인
+
+#### Godoc 주석 표준
+
+모든 핸들러 함수는 다음 형식의 godoc 주석을 포함해야 합니다:
+
+```go
+// HandlerName godoc
+// @Summary      간단한 요약 (한 줄)
+// @Description  상세한 설명
+// @Tags         tag-name
+// @Accept       json
+// @Produce      json
+// @Param        paramName paramType dataType required "description"
+// @Success      200 {object} response.SuccessResponse{data=dto.ResponseType}
+// @Failure      400 {object} response.ErrorResponse "error message"
+// @Failure      404 {object} response.ErrorResponse "not found"
+// @Failure      500 {object} response.ErrorResponse "internal error"
+// @Router       /api/path [method]
+func (h *Handler) HandlerName(c *gin.Context) {
+    // ...
+}
+```
+
+**필수 태그:**
+- `@Summary`: 엔드포인트 요약 (필수)
+- `@Tags`: API 그룹화 태그 (필수)
+- `@Router`: 라우트 경로 및 메서드 (필수)
+
+**권장 태그:**
+- `@Description`: 상세 설명
+- `@Param`: 모든 파라미터 문서화
+- `@Success`: 성공 응답 (상태 코드별)
+- `@Failure`: 에러 응답 (모든 가능한 상태 코드)
+
+자세한 가이드는 다음 문서를 참조하세요:
+- [Swagger 문서 가이드](docs/SWAGGER.md) - Swagger 생성 및 검증
+- [개발자 가이드](docs/DEVELOPER_GUIDELINES.md) - 전체 개발 워크플로우
+- [CI/CD 통합 가이드](docs/CI_CD_INTEGRATION.md) - CI/CD 파이프라인 및 자동화
 
 ## API 엔드포인트
 
@@ -422,6 +488,64 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 3. `configs/config.yaml` 파일
 4. 기본값
 
+### User Service 연동 설정 검증
+
+board-service는 user-service와 통신하기 위해 올바른 base URL 설정이 필요합니다.
+
+**설정 확인 방법:**
+
+1. **애플리케이션 시작 로그 확인**
+   ```
+   User API Configuration validated:
+     - Base URL: http://user-service:8080
+     - Scheme: http
+     - Host: user-service:8080
+     - Timeout: 5s
+     - Source: USER_SERVICE_URL environment variable
+   ```
+
+2. **엔드포인트 예시 로그 확인**
+   ```
+   User API endpoint examples (for debugging):
+     - validate_member: http://user-service:8080/api/workspaces/{workspaceId}/validate-member/{userId}
+     - get_user: http://user-service:8080/api/users/{userId}
+     - get_workspace_profile: http://user-service:8080/api/profiles/workspace/{workspaceId}
+     - get_workspace: http://user-service:8080/api/workspaces/{workspaceId}
+   ```
+
+**일반적인 설정 오류:**
+
+1. **Trailing slash 문제**
+   - ❌ 잘못된 설정: `USER_SERVICE_URL=http://user-service:8080/`
+   - ✅ 올바른 설정: `USER_SERVICE_URL=http://user-service:8080`
+   - 시스템이 자동으로 trailing slash를 제거하고 경고를 표시합니다.
+
+2. **Docker 환경에서 localhost 사용**
+   - ❌ 잘못된 설정: `USER_SERVICE_URL=http://localhost:8080` (Docker 컨테이너 내부)
+   - ✅ 올바른 설정: `USER_SERVICE_URL=http://user-service:8080` (Docker service name)
+   - ✅ 로컬 개발: `USER_SERVICE_URL=http://localhost:8080` (호스트에서 직접 실행 시)
+
+3. **포트 번호 누락**
+   - ❌ 잘못된 설정: `USER_SERVICE_URL=http://user-service`
+   - ✅ 올바른 설정: `USER_SERVICE_URL=http://user-service:8080`
+
+**환경별 권장 설정:**
+
+- **로컬 개발 (호스트에서 직접 실행):**
+  ```bash
+  USER_SERVICE_URL=http://localhost:8080
+  ```
+
+- **Docker Compose:**
+  ```bash
+  USER_SERVICE_URL=http://user-service:8080
+  ```
+
+- **Kubernetes:**
+  ```bash
+  USER_SERVICE_URL=http://user-service.default.svc.cluster.local:8080
+  ```
+
 ### 프로덕션 환경 설정
 
 프로덕션 환경에서는 다음 사항을 반드시 확인하세요:
@@ -431,6 +555,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 - `LOG_LEVEL=info` 또는 `warn` 설정
 - 데이터베이스 비밀번호를 안전하게 관리
 - HTTPS 사용 (리버스 프록시 설정)
+- `USER_SERVICE_URL`이 올바른 내부 서비스 주소를 가리키는지 확인
 
 **자세한 설정 가이드**: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)를 참조하세요.
 
@@ -457,6 +582,20 @@ make test-short        # 빠른 테스트 (race detector 없이)
 make test-coverage     # 테스트 커버리지 리포트 (HTML)
 make test-coverage-text # 테스트 커버리지 (텍스트)
 ```
+
+### 통합 테스트
+
+실제 user-service와 board-service를 사용한 통합 테스트:
+
+```bash
+# 전체 통합 테스트 실행 (user-service 로그인 포함)
+./board-service/scripts/integration-test.sh
+
+# 빠른 단일 엔드포인트 테스트
+./board-service/scripts/quick-test.sh projects
+```
+
+자세한 내용은 [TESTING_GUIDE_KR.md](TESTING_GUIDE_KR.md)를 참조하세요.
 
 ### 코드 품질
 

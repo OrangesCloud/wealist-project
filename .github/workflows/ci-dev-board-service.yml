@@ -51,7 +51,62 @@ jobs:
           go mod download
 
       # ============================================
-      # 4. Go 테스트 실행 (현재 테스트 이슈로 스킵)
+      # 4. Swagger 도구 설치
+      # ============================================
+      - name: 📚 Install Swagger Tools
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@latest
+          echo "✅ Swagger tools installed"
+
+      # ============================================
+      # 5. Swagger 문서 생성
+      # ============================================
+      - name: 📝 Generate Swagger Documentation
+        run: |
+          cd board-service
+          swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
+          echo "✅ Swagger documentation generated"
+
+      # ============================================
+      # 6. Swagger 문서 검증
+      # ============================================
+      - name: ✅ Validate Swagger Documentation
+        run: |
+          cd board-service
+          
+          echo "🔍 Running Swagger validation scripts..."
+          
+          # 엔드포인트 커버리지 검증
+          echo "📊 Validating endpoint coverage..."
+          if ./scripts/validate-swagger.sh; then
+            echo "✅ Endpoint coverage validation passed"
+          else
+            echo "❌ Endpoint coverage validation failed"
+            exit 1
+          fi
+          
+          # DTO 스키마 검증
+          echo "📋 Validating DTO schemas..."
+          if ./scripts/validate-dto-schemas.sh; then
+            echo "✅ DTO schema validation passed"
+          else
+            echo "❌ DTO schema validation failed"
+            exit 1
+          fi
+          
+          # Godoc 주석 품질 검증
+          echo "📝 Validating godoc annotations..."
+          if ./scripts/validate-godoc.sh; then
+            echo "✅ Godoc annotation validation passed"
+          else
+            echo "❌ Godoc annotation validation failed"
+            exit 1
+          fi
+          
+          echo "✅ All Swagger validations passed"
+
+      # ============================================
+      # 7. Go 테스트 실행 (현재 테스트 이슈로 스킵)
       # ============================================
       - name: 🧪 Run Go Tests
         continue-on-error: true  # 테스트 실패해도 계속 진행
@@ -60,7 +115,7 @@ jobs:
           go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build"
 
       # ============================================
-      # 5. Go 빌드 검증 (Docker 빌드 전 사전 검증)
+      # 8. Go 빌드 검증 (Docker 빌드 전 사전 검증)
       # ============================================
       - name: 🔨 Verify Go Build
         run: |
@@ -69,7 +124,7 @@ jobs:
           echo "✅ Go binary build successful"
 
       # ============================================
-      # 6. AWS Credentials 설정
+      # 9. AWS Credentials 설정
       # ============================================
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -79,7 +134,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # ============================================
-      # 7. 이미지 태그 생성
+      # 10. 이미지 태그 생성
       # ============================================
       - name: 🏷️ Generate Image Tags
         id: image-info
@@ -98,7 +153,7 @@ jobs:
           echo "🐳 Full Image: ${FULL_IMAGE}"
 
       # ============================================
-      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시
+      # 11. Amazon ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
       - name: 🐳 Login to ECR, Build and Push Docker Image
         env:
@@ -130,7 +185,7 @@ jobs:
           echo "  - ${LATEST_IMAGE}"
 
       # ============================================
-      # 10. 빌드 결과 요약
+      # 12. 빌드 결과 요약
       # ============================================
       - name: 📋 Build Summary
         run: |
@@ -140,3 +195,5 @@ jobs:
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Swagger Validation:** ✅ Passed" >> $GITHUB_STEP_SUMMARY

@@ -258,6 +258,58 @@ func (c *Config) validate() error {
 	if c.UserAPI.Timeout == 0 {
 		return fmt.Errorf("user api timeout is required")
 	}
+	
+	// Validate and normalize User API Base URL
+	if err := c.validateUserAPIBaseURL(); err != nil {
+		return err
+	}
+	
+	return nil
+}
+
+// validateUserAPIBaseURL validates and normalizes the User API base URL
+func (c *Config) validateUserAPIBaseURL() error {
+	baseURL := c.UserAPI.BaseURL
+	
+	// Check for trailing slash and remove it
+	if strings.HasSuffix(baseURL, "/") {
+		fmt.Fprintf(os.Stderr, "Warning: User API base URL has trailing slash, removing it: %s\n", baseURL)
+		c.UserAPI.BaseURL = strings.TrimSuffix(baseURL, "/")
+		baseURL = c.UserAPI.BaseURL
+	}
+	
+	// Parse URL to validate format
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return fmt.Errorf("invalid user api base url format '%s': %w", baseURL, err)
+	}
+	
+	// Validate scheme
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("user api base url must use http or https scheme, got: %s", parsedURL.Scheme)
+	}
+	
+	// Validate host is present
+	if parsedURL.Host == "" {
+		return fmt.Errorf("user api base url missing host: %s", baseURL)
+	}
+	
+	// Log configuration details for debugging
+	fmt.Fprintf(os.Stderr, "User API Configuration validated:\n")
+	fmt.Fprintf(os.Stderr, "  - Base URL: %s\n", c.UserAPI.BaseURL)
+	fmt.Fprintf(os.Stderr, "  - Scheme: %s\n", parsedURL.Scheme)
+	fmt.Fprintf(os.Stderr, "  - Host: %s\n", parsedURL.Host)
+	fmt.Fprintf(os.Stderr, "  - Timeout: %s\n", c.UserAPI.Timeout)
+	
+	// Check environment variable sources
+	if userServiceURL := os.Getenv("USER_SERVICE_URL"); userServiceURL != "" {
+		fmt.Fprintf(os.Stderr, "  - Source: USER_SERVICE_URL environment variable\n")
+	} else if userAPIBaseURL := os.Getenv("USER_API_BASE_URL"); userAPIBaseURL != "" {
+		fmt.Fprintf(os.Stderr, "  - Source: USER_API_BASE_URL environment variable\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "  - Source: config.yaml file\n")
+	}
+	
 	return nil
 }
 

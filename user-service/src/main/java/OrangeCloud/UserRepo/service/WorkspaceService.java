@@ -145,6 +145,40 @@ public class WorkspaceService {
     }
 
     // ============================================================================
+    // Workspace 조회
+    // ============================================================================
+
+    /**
+     * 특정 Workspace 정보를 조회합니다.
+     * Board Service에서 호출하는 엔드포인트용
+     */
+    @Transactional(readOnly = true)
+    public WorkspaceResponse getWorkspace(UUID workspaceId) {
+        log.info("Fetching workspace: workspaceId={}", workspaceId);
+
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> {
+                    log.warn("Workspace not found: {}", workspaceId);
+                    return new IllegalArgumentException("Workspace not found");
+                });
+
+        User owner = userRepository.findById(workspace.getOwnerId())
+                .orElseThrow(() -> {
+                    log.warn("Owner not found: {}", workspace.getOwnerId());
+                    return new UserNotFoundException("Owner not found");
+                });
+
+        UserProfile ownerProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, workspace.getOwnerId())
+                .orElseThrow(() -> {
+                    log.warn("Owner profile not found: {}", workspace.getOwnerId());
+                    return new UserNotFoundException("Owner profile not found");
+                });
+
+        log.info("Workspace retrieved: workspaceId={}, name={}", workspaceId, workspace.getWorkspaceName());
+        return convertToWorkspaceResponse(workspace, owner, ownerProfile);
+    }
+
+    // ============================================================================
     // Workspace 설정 관리 (신규 추가)
     // ============================================================================
 

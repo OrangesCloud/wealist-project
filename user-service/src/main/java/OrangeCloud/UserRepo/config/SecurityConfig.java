@@ -75,11 +75,6 @@ public class SecurityConfig {
                                 .addFilterBefore(jwtAuthenticationFilter, JwtExceptionFilter.class)
 
                                 // OAuth2 로그인 설정 추가
-                                // .oauth2Login(oauth2 -> oauth2
-                                // .userInfoEndpoint(userInfo -> userInfo
-                                // .userService(customOAuth2UserService))
-                                // .successHandler(oAuth2SuccessHandler))
-                                // OAuth2 로그인 설정 추가
                                 .oauth2Login(oauth2 -> oauth2
                                                 .userInfoEndpoint(userInfo -> userInfo
                                                                 .userService(customOAuth2UserService))

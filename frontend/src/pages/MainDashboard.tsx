@@ -89,23 +89,25 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     const stages: CustomStageResponse[] = [];
 
     fields?.forEach((field) => {
-      // name을 기반으로 시스템 필드를 식별
-      if (field.fieldType === 'single_select' || field.fieldType === 'multi_select') {
+      // fieldType 확인 (백엔드는 'select'로 보냄)
+      if (field.fieldType === 'select' || field.fieldType === 'single_select' || field.fieldType === 'multi_select') {
         field.options.forEach((opt) => {
           const base = {
-            label: opt.label,
-            color: opt.color,
-            displayOrder: opt.displayOrder,
-            fieldId: opt.fieldId,
-            isSystemDefault: field.isSystemDefault,
+            label: opt.optionLabel || opt.label, // 💡 백엔드는 optionLabel로 보냄
+            color: opt.color || '#6B7280', // 💡 기본 색상 제공
+            displayOrder: opt.displayOrder || 0,
+            fieldId: opt.fieldId || field.fieldId,
+            isSystemDefault: field.isSystemDefault || true,
             description: opt.description || '',
           };
 
-          if (field.name === 'Role') {
+          // fieldName 확인 (백엔드는 fieldName으로 보냄)
+          const fieldName = field.fieldName || field.name;
+          if (fieldName === 'Role') {
             roles?.push({ ...base, roleId: opt.optionId });
-          } else if (field.name === 'Importance') {
+          } else if (fieldName === 'Importance') {
             importances?.push({ ...base, importanceId: opt.optionId });
-          } else if (field.name === 'Stage') {
+          } else if (fieldName === 'Stage') {
             stages?.push({ ...base, stageId: opt.optionId });
           }
         });
