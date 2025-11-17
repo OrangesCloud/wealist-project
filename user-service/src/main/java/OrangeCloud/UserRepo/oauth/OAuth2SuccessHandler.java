@@ -18,40 +18,40 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-    private final JwtTokenProvider jwtTokenProvider;
+        private final JwtTokenProvider jwtTokenProvider;
 
-    @Value("${oauth2.redirect-url:http://localhost:3000/oauth/callback}")
-    private String redirectUrl;
+        // @Value("${oauth2.redirect-url:http://localhost:3000/oauth/callback}")
+        @Value("${oauth2.redirect-url: https://wealist.co.kr/oauth/callback}")
+        private String redirectUrl;
 
-    @Override
-    public void onAuthenticationSuccess(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Authentication authentication
-    ) throws IOException {
-        CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
+        @Override
+        public void onAuthenticationSuccess(
+                        HttpServletRequest request,
+                        HttpServletResponse response,
+                        Authentication authentication) throws IOException {
+                CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
 
-        log.info("OAuth2 login successful: email={}, userId={}", oAuth2User.getEmail(), oAuth2User.getUserId());
+                log.info("OAuth2 login successful: email={}, userId={}", oAuth2User.getEmail(), oAuth2User.getUserId());
 
-        // JWT 토큰 생성
-        String accessToken = jwtTokenProvider.generateToken(oAuth2User.getUserId());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(oAuth2User.getUserId());
+                // JWT 토큰 생성
+                String accessToken = jwtTokenProvider.generateToken(oAuth2User.getUserId());
+                String refreshToken = jwtTokenProvider.generateRefreshToken(oAuth2User.getUserId());
 
-        log.debug("Tokens generated: accessToken length={}, refreshToken length={}", 
-                accessToken.length(), refreshToken.length());
+                log.debug("Tokens generated: accessToken length={}, refreshToken length={}",
+                                accessToken.length(), refreshToken.length());
 
-        // 프론트엔드로 리다이렉트 (쿼리 파라미터로 토큰 전달)
-        String targetUrl = UriComponentsBuilder.fromUriString(redirectUrl)
-                .queryParam("accessToken", accessToken)
-                .queryParam("refreshToken", refreshToken)
-                .queryParam("userId", oAuth2User.getUserId().toString())
-                .queryParam("email", oAuth2User.getEmail())
-                .queryParam("nickName", oAuth2User.getName())
-                .build()
-                .encode() // UTF-8로 인코딩 (예: 한글을 %ED%95%9C으로 변환)
-                .toUriString();
+                // 프론트엔드로 리다이렉트 (쿼리 파라미터로 토큰 전달)
+                String targetUrl = UriComponentsBuilder.fromUriString(redirectUrl)
+                                .queryParam("accessToken", accessToken)
+                                .queryParam("refreshToken", refreshToken)
+                                .queryParam("userId", oAuth2User.getUserId().toString())
+                                .queryParam("email", oAuth2User.getEmail())
+                                .queryParam("nickName", oAuth2User.getName())
+                                .build()
+                                .encode() // UTF-8로 인코딩 (예: 한글을 %ED%95%9C으로 변환)
+                                .toUriString();
 
-        log.info("Redirecting to: {}", targetUrl);
-        getRedirectStrategy().sendRedirect(request, response, targetUrl);
-    }
+                log.info("Redirecting to: {}", targetUrl);
+                getRedirectStrategy().sendRedirect(request, response, targetUrl);
+        }
 }
