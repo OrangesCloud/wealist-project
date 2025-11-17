@@ -11,6 +11,67 @@
 | **Board Service** | Gin (Go) | 8000 | ✅ Active | 보드/칸반 관리, 커스텀 필드 |
 | **Frontend** | React (TypeScript) | 3000 | 🚧 Dev | 프론트엔드 애플리케이션 |
 
+## 🌐 ALB Path-Based Routing
+
+AWS 환경에서는 Application Load Balancer(ALB)를 통해 서비스별 경로 기반 라우팅을 제공합니다.
+
+### 라우팅 구조
+
+```
+Client Request
+    ↓
+ALB (https://api.wealist.co.kr)
+    ├─ /api/users/*   → User Service (port 8080)
+    └─ /api/boards/*  → Board Service (port 8000)
+```
+
+### 환경별 설정
+
+#### 로컬 개발 환경
+- ALB 없이 직접 서비스 접근
+- Context/Base Path 설정 없음
+
+```bash
+# User Service
+curl http://localhost:8080/api/workspaces/all
+
+# Board Service
+curl http://localhost:8000/health
+```
+
+#### AWS 환경 (Production)
+- ALB를 통한 통합 엔드포인트
+- 서비스별 prefix 자동 제거
+
+```bash
+# User Service (ALB → /api/users 제거 → User Service)
+curl https://api.wealist.co.kr/api/users/api/workspaces/all
+
+# Board Service (ALB → /api/boards 제거 → Board Service)
+curl https://api.wealist.co.kr/api/boards/health
+```
+
+### API 엔드포인트 예시
+
+| 환경 | User Service | Board Service |
+|------|-------------|---------------|
+| **로컬** | `http://localhost:8080/api/workspaces/all` | `http://localhost:8000/health` |
+| **AWS** | `https://api.wealist.co.kr/api/users/api/workspaces/all` | `https://api.wealist.co.kr/api/boards/health` |
+
+### 서비스별 Path 설정
+
+**User Service (Spring Boot)**
+- AWS 환경: `server.servlet.context-path=/api/users` (application-aws.yml)
+- 로컬 환경: Context path 없음 (application-local.yml)
+- Profile 전환: `SPRING_PROFILES_ACTIVE` 환경 변수
+
+**Board Service (Go)**
+- AWS 환경: `SERVER_BASE_PATH=/api/boards` 환경 변수
+- 로컬 환경: `SERVER_BASE_PATH=""` (빈 문자열)
+- 환경 전환: `ENV` 환경 변수
+
+자세한 배포 가이드는 [docs/ALB_ROUTING_DEPLOYMENT.md](docs/ALB_ROUTING_DEPLOYMENT.md)를 참조하세요.
+
 ## 🚀 주요 기능
 
 - ✅ 워크스페이스 & 프로젝트 관리

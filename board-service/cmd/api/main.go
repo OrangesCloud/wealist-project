@@ -151,6 +151,7 @@ func main() {
 		Logger:     log.Logger,
 		JWTSecret:  cfg.JWT.Secret,
 		UserClient: userClient,
+		BasePath:   cfg.Server.BasePath,
 	}
 
 	r := router.Setup(routerConfig)

@@ -34,6 +34,9 @@ services:
     hostname: user-service
 
     environment:
+      # Spring Profile (AWS environment with context path)
+      - SPRING_PROFILES_ACTIVE=aws
+      
       # Server Configuration
       - SERVER_PORT=8080
       - USER_SERVICE_PORT=8080
@@ -116,6 +119,7 @@ services:
       # Server Configuration
       - ENV=dev
       - SERVER_PORT=8000
+      - SERVER_BASE_PATH=/api/boards
       - LOG_LEVEL=${LOG_LEVEL:-debug}
 
       # Database Configuration

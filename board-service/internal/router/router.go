@@ -20,6 +20,7 @@ type Config struct {
 	Logger     *zap.Logger
 	JWTSecret  string
 	UserClient client.UserClient
+	BasePath   string
 }
 
 // Setup initializes the router with all dependencies and routes
@@ -60,14 +61,24 @@ func Setup(cfg Config) *gin.Engine {
 	projectMemberHandler := handler.NewProjectMemberHandler(projectMemberService)
 	projectJoinRequestHandler := handler.NewProjectJoinRequestHandler(projectJoinRequestService)
 
+	// Create base path group if configured
+	var baseGroup *gin.RouterGroup
+	if cfg.BasePath != "" {
+		baseGroup = router.Group(cfg.BasePath)
+		cfg.Logger.Info("Base path configured for ALB routing", zap.String("base_path", cfg.BasePath))
+	} else {
+		baseGroup = router.Group("")
+		cfg.Logger.Info("No base path configured, using root path")
+	}
+
 	// Health check endpoint
-	router.GET("/health", healthCheckHandler(cfg.DB))
+	baseGroup.GET("/health", healthCheckHandler(cfg.DB))
 
 	// Swagger documentation endpoint
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	baseGroup.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Setup API routes
-	setupRoutes(router, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)
+	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)
 
 	return router
 }
@@ -104,7 +115,7 @@ func healthCheckHandler(db *gorm.DB) gin.HandlerFunc {
 
 // setupRoutes configures all API routes
 func setupRoutes(
-	router *gin.Engine,
+	baseGroup *gin.RouterGroup,
 	jwtSecret string,
 	projectHandler *handler.ProjectHandler,
 	boardHandler *handler.BoardHandler,
@@ -115,7 +126,7 @@ func setupRoutes(
 	projectJoinRequestHandler *handler.ProjectJoinRequestHandler,
 ) {
 	// API group with authentication
-	api := router.Group("/api")
+	api := baseGroup.Group("/api")
 	api.Use(middleware.Auth(jwtSecret))
 	{
 		// Project routes
