@@ -1,19 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, ChevronDown, Eye, Table, LayoutGrid, Settings } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
-import {
-  CustomImportanceResponse,
-  CustomRoleResponse,
-  CustomStageResponse,
-  TLayout,
-  TView,
-} from '../../../types/board';
-// 💡 새로운 필터 옵션 객체 타입 정의 (ID와 타입 포함)
-// interface FilterOptionData {
-//   value: string; // 필터링에 사용할 ID (예: stageId, roleId)
-//   label: string;
-//   type: 'status' | 'role' | 'importance' | 'default';
-// }
+import { FieldOption, TLayout, TView } from '../../../types/board';
+
 interface FilterBarProps {
   onSearchChange: (search: string) => void;
   onViewChange: (view: TView) => void;
@@ -25,10 +14,10 @@ interface FilterBarProps {
   currentLayout?: TLayout;
   showCompleted?: boolean;
 
-  // 💡 [추가] 동적 필터 옵션 데이터
-  stageOptions: CustomStageResponse[];
-  roleOptions: CustomRoleResponse[];
-  importanceOptions: CustomImportanceResponse[];
+  // 💡 [수정] FieldOption 타입 사용
+  stageOptions: FieldOption[];
+  roleOptions: FieldOption[];
+  importanceOptions: FieldOption[];
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
@@ -48,12 +37,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const [searchValue, setSearchValue] = useState('');
   const [_selectedFilter, _setSelectedFilter] = useState('all');
 
-  // 💡 showViewModal 대신 showViewDropdown을 그대로 사용 (JSX와 충돌 방지)
   const [showViewDropdown, setShowViewDropdown] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
   // Refs for outside click detection
-  const viewDropdownRef = useRef<HTMLDivElement>(null); // 💡 viewModalRef를 viewDropdownRef로 명확화
+  const viewDropdownRef = useRef<HTMLDivElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
   const handleSearchChange = (value: string) => {
@@ -66,58 +54,20 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     setShowViewDropdown(false);
   };
 
-  // const handleFilterSelect = (value: string) => {
-  //   setSelectedFilter(value);
-  //   onFilterChange(value); // 💡 상위 컴포넌트에 필터 ID 전달
-  //   setShowFilterDropdown(false);
-  // };
-
-  // 💡 [수정] 동적 필터 옵션 생성 (useMemo)
-  // const dynamicFilterOptions = useMemo(() => {
-  //   // 1. 기본 필터
-  //   const defaultOptions: FilterOptionData[] = [
-  //     { value: 'all', label: '전체', type: 'default' },
-  //     // { value: 'my_assigned', label: '내가 담당한 것만', type: 'assignee' },
-  //   ];
-
-  //   // 2. Stage/Role/Importance 옵션 추가
-  //   const fieldOptions: FilterOptionData[] = [];
-
-  //   // Stage Options (Status 필터로 사용)
-  //   stageOptions?.forEach((s) => {
-  //     fieldOptions.push({ value: s.stageId, label: `단계: ${s.label}`, type: 'status' });
-  //   });
-
-  //   // Role Options
-  //   roleOptions?.forEach((r) => {
-  //     fieldOptions.push({ value: r.roleId, label: `역할: ${r.label}`, type: 'role' });
-  //   });
-
-  //   // Importance Options
-  //   importanceOptions?.forEach((i) => {
-  //     fieldOptions.push({ value: i.importanceId, label: `중요도: ${i.label}`, type: 'importance' });
-  //   });
-
-  //   return [...defaultOptions, ...fieldOptions];
-  // }, [stageOptions, roleOptions, importanceOptions]);
-
   // 외부 클릭 감지
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
 
-      // View dropdown 외부 클릭
       if (viewDropdownRef.current && !viewDropdownRef.current.contains(target)) {
         setShowViewDropdown(false);
       }
 
-      // Filter dropdown 외부 클릭
       if (filterDropdownRef.current && !filterDropdownRef.current.contains(target)) {
         setShowFilterDropdown(false);
       }
     };
 
-    // showViewModal 대신 showViewDropdown 상태 사용
     if (showViewDropdown || showFilterDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
@@ -125,7 +75,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showViewDropdown, showFilterDropdown]); // 💡 showViewModal -> showViewDropdown으로 수정
+  }, [showViewDropdown, showFilterDropdown]);
 
   return (
     <div
@@ -147,7 +97,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       <div className="relative" ref={viewDropdownRef}>
         <button
           onClick={() => {
-            setShowViewDropdown(!showViewDropdown); // 💡 showViewModal -> showViewDropdown
+            setShowViewDropdown(!showViewDropdown);
             setShowFilterDropdown(false);
           }}
           className={`flex items-center gap-2 px-4 py-2 border ${theme.colors.border} rounded-md ${theme.colors.card} hover:bg-gray-50 transition-colors`}
@@ -158,7 +108,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             className={`w-4 h-4 transition-transform ${showViewDropdown ? 'rotate-180' : ''}`}
           />
         </button>
-        {showViewDropdown && ( // 💡 showViewModal -> showViewDropdown
+        {showViewDropdown && (
           <div
             className={`absolute top-full mt-2 right-0 w-64 ${theme.colors.card} border ${theme.colors.border} rounded-lg shadow-lg z-10 p-4`}
           >
@@ -208,7 +158,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             {/* Divider */}
             <div className="border-t border-gray-200 my-3"></div>
 
-            {/* View By (Group By) - 현재는 Mock이지만 나중에 필드 목록으로 채워져야 함 */}
+            {/* View By (Group By) */}
             <div>
               <h4 className="text-xs font-semibold text-gray-500 mb-2">그룹 기준</h4>
               <button
@@ -267,47 +217,21 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <button
           onClick={() => {
             setShowFilterDropdown(!showFilterDropdown);
-            setShowViewDropdown(false); // 💡 showViewModal -> showViewDropdown
+            setShowViewDropdown(false);
           }}
           className={`flex items-center gap-2 px-4 py-2 border ${theme.colors.border} rounded-md ${theme.colors.card} hover:bg-gray-50 transition-colors`}
         >
-          <span className="text-sm font-medium">
-            필터 준비중~
-            {/* 필터: {dynamicFilterOptions.find((f) => f.value === selectedFilter)?.label || '전체'} */}
-          </span>
+          <span className="text-sm font-medium">필터 준비중~</span>
           <ChevronDown className="w-4 h-4" />
         </button>
         {showFilterDropdown && (
           <div
             className={`absolute top-full mt-2 left-0 w-64 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.effects.borderRadius} shadow-lg z-10`}
           >
-            {/* <div className="p-3 max-h-80 overflow-y-auto">
-              <h3 className="text-xs text-gray-400 mb-2 px-1 font-semibold">
-                필터 ({dynamicFilterOptions.length})
-              </h3>
-              {dynamicFilterOptions.map(
-                (
-                  option, // 💡 [수정] 동적 필터 옵션 사용
-                ) => (
-                  <button
-                    key={option.value}
-                    onClick={() => handleFilterSelect(option.value)}
-                    className={`w-full px-3 py-2 text-left text-sm rounded transition truncate ${
-                      selectedFilter === option.value
-                        ? 'bg-blue-100 text-blue-700 font-semibold'
-                        : 'hover:bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ),
-              )}
-            </div> */}
-            {/* <div className="pt-2 pb-2 border-t"> */}
-            <div className="pt-2 pb-2 ">
+            <div className="pt-2 pb-2">
               <button
                 onClick={() => {
-                  // onManageClick(); // 💡 Custom Field Manager Modal 오픈 요청
+                  // onManageClick();
                   setShowFilterDropdown(false);
                 }}
                 className={`w-full px-6 py-2 text-left text-sm flex items-center gap-2 text-blue-500 hover:bg-gray-100 ${theme.effects.borderRadius} transition`}
