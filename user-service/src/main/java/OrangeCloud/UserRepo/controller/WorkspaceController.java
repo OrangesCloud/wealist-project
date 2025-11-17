@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/workspaces")
+@RequestMapping("/api/workspaces/api")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Workspace", description = "워크스페이스 관리 API")
@@ -44,27 +44,31 @@ public class WorkspaceController {
         log.info("Path Variable - workspaceId: {}", workspaceId);
         log.info("Remote Address: {}", request.getRemoteAddr());
         log.info("Authorization Header Present: {}", request.getHeader("Authorization") != null);
-        
+
         WorkspaceResponse workspace = workspaceService.getWorkspace(workspaceId);
-        
-        log.info("Workspace retrieved successfully: workspaceId={}, name={}", workspaceId, workspace.getWorkspaceName());
+
+        log.info("Workspace retrieved successfully: workspaceId={}, name={}", workspaceId,
+                workspace.getWorkspaceName());
         log.info("=== END REQUEST: Get Workspace ===");
-        
+
         return ResponseEntity.ok(workspace);
     }
 
-//    @GetMapping
-//    @Operation(summary = "워크스페이스 목록 조회", description = "워크스페이스 검색")
-//    public ResponseEntity<List<WorkspaceResponse>> getWorkspaces(Authentication authentication) {
-//        UUID userId = UUID.fromString(authentication.getName());
-//        log.debug("Fetching workspaces for user: {}", userId);
-//        List<WorkspaceResponse> workspaces = workspaceService.SearchgetUserWorkspaces(userId);
-//        return ResponseEntity.ok(workspaces);
-//    }
+    // @GetMapping
+    // @Operation(summary = "워크스페이스 목록 조회", description = "워크스페이스 검색")
+    // public ResponseEntity<List<WorkspaceResponse>> getWorkspaces(Authentication
+    // authentication) {
+    // UUID userId = UUID.fromString(authentication.getName());
+    // log.debug("Fetching workspaces for user: {}", userId);
+    // List<WorkspaceResponse> workspaces =
+    // workspaceService.SearchgetUserWorkspaces(userId);
+    // return ResponseEntity.ok(workspaces);
+    // }
     // public 워크 스페이스
     @GetMapping("/public/{workspaceName}")
     @Operation(summary = "퍼블릭인 워크스페이스 모두 조회", description = "퍼블릭 워크스페이스 검색")
-    public ResponseEntity<List<WorkspaceResponse>> getPublicWorkspaces(@PathVariable String workspaceName, Authentication authentication) {
+    public ResponseEntity<List<WorkspaceResponse>> getPublicWorkspaces(@PathVariable String workspaceName,
+            Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         log.debug("Fetching workspaces for user: {}", userId);
         List<WorkspaceResponse> workspaces = workspaceService.searchPublicWorkspaces(workspaceName);
@@ -76,10 +80,7 @@ public class WorkspaceController {
      * GET /api/workspaces
      */
     @GetMapping("/all")
-    @Operation(
-            summary = "워크스페이스 목록 조회",
-            description = "현재 사용자가 속한 모든 워크스페이스를 조회합니다. (OWNER / MEMBER / PENDING 상태 포함)"
-    )
+    @Operation(summary = "워크스페이스 목록 조회", description = "현재 사용자가 속한 모든 워크스페이스를 조회합니다. (OWNER / MEMBER / PENDING 상태 포함)")
     public ResponseEntity<List<UserWorkspaceResponse>> userGetWorkspaces(Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         log.debug("Fetching workspaces for user: {}", userId);
@@ -88,10 +89,8 @@ public class WorkspaceController {
         return ResponseEntity.ok(workspaces);
     }
 
-
     @GetMapping("/owner/{ownerId}/workspaces")
-    @Operation(summary = "오너 유저가 만든 모든(false,true) 워크스페이스 조회",
-            description = "ownerId로 해당 사용자가 만든 모든 워크스페이스를 조회합니다. query가 있으면 이름으로 필터링")
+    @Operation(summary = "오너 유저가 만든 모든(false,true) 워크스페이스 조회", description = "ownerId로 해당 사용자가 만든 모든 워크스페이스를 조회합니다. query가 있으면 이름으로 필터링")
     public ResponseEntity<List<WorkspaceResponse>> getWorkspacesByOwner(
             @PathVariable UUID ownerId,
             @RequestParam(required = false) String query) {
@@ -99,8 +98,6 @@ public class WorkspaceController {
         List<WorkspaceResponse> workspaces = workspaceService.getWorkspacesByOwner(ownerId, query);
         return ResponseEntity.ok(workspaces);
     }
-
-
 
     /**
      * 워크스페이스 생성
@@ -189,8 +186,6 @@ public class WorkspaceController {
         return ResponseEntity.ok().build();
     }
 
-
-
     /**
      * 기본 워크스페이스 설정
      * POST /api/workspaces/default
@@ -205,7 +200,6 @@ public class WorkspaceController {
         workspaceService.setDefaultWorkspace(request.getWorkspaceId(), userId);
         return ResponseEntity.ok().build();
     }
-
 
     // ============================================================================
     // 워크스페이스 멤버 관리
@@ -237,7 +231,7 @@ public class WorkspaceController {
             log.error("Authentication is null for getWorkspaceMembers. This should not happen in production.");
             throw new IllegalStateException("Authentication required but not provided");
         }
-        
+
         UUID userId = UUID.fromString(authentication.getName());
         log.debug("Fetching workspace members: workspaceId={}, userId={}", workspaceId, userId);
         List<WorkspaceMemberResponse> members = workspaceService.getWorkspaceMembers(workspaceId, userId);
@@ -262,12 +256,12 @@ public class WorkspaceController {
         log.info("Path Variables - workspaceId: {}, userId: {}", workspaceId, userId);
         log.info("Remote Address: {}", request.getRemoteAddr());
         log.info("Authorization Header Present: {}", request.getHeader("Authorization") != null);
-        
+
         boolean isValid = workspaceService.validateWorkspaceAccess(workspaceId, userId);
-        
+
         log.info("Workspace validation result: workspaceId={}, userId={}, isValid={}", workspaceId, userId, isValid);
         log.info("=== END REQUEST: Validate Workspace Member ===");
-        
+
         WorkspaceValidationResponse response = WorkspaceValidationResponse.builder()
                 .workspaceId(workspaceId)
                 .userId(userId)
