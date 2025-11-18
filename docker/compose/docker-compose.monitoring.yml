@@ -39,6 +39,10 @@ services:
       - '--web.enable-lifecycle'
       - '--storage.tsdb.retention.time=30d'
 
+    # 볼륨 마운트 설정
+    # - 호스트 경로는 이 docker-compose 파일의 위치(docker/compose/)를 기준으로 해석됩니다
+    # - ../../prometheus/config -> 프로젝트 루트의 prometheus/config 디렉토리
+    # - :ro 플래그는 read-only 마운트를 의미하여 컨테이너가 설정 파일을 수정할 수 없도록 합니다
     volumes:
       - ../../prometheus/config:/etc/prometheus:ro
       - prometheus-data:/prometheus

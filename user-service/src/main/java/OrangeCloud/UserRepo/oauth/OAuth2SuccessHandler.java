@@ -1,6 +1,7 @@
 package OrangeCloud.UserRepo.oauth;
 
 import OrangeCloud.UserRepo.util.JwtTokenProvider;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -18,8 +19,13 @@ import java.io.IOException;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
         private final JwtTokenProvider jwtTokenProvider;
-        @Value("${app.oauth2.redirect-url:http://localhost:3000/oauth/callback}")
+        @Value("${oauth2.redirect-url}")
         private String redirectUrl;
+
+        @PostConstruct
+        public void init() {
+                log.info("OAuth2SuccessHandler initialized with redirect URL: {}", redirectUrl);
+        }
 
         @Override
         public void onAuthenticationSuccess(

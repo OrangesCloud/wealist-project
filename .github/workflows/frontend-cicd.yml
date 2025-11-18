@@ -36,7 +36,7 @@ jobs:
           echo "📥 Loading configuration from Parameter Store..."
           
           AWS_REGION=$(aws ssm get-parameter \
-            --name "/wealist/ci/aws-region" \
+            --name "/wealist/dev/ci/aws_region" \
             --query 'Parameter.Value' \
             --output text)
           

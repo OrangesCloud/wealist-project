@@ -11,6 +11,9 @@ on:
 
 # env section removed - values loaded from Parameter Store in steps
 
+permissions:
+  contents: read
+
 jobs:
   build-and-push:
     name: Build & Push to ECR
@@ -77,20 +80,36 @@ jobs:
           echo "📥 Loading CI configuration from Parameter Store..."
           
           AWS_REGION=$(aws ssm get-parameter \
-            --name "/wealist/ci/aws-region" \
+            --name "/wealist/dev/ci/aws_region" \
             --query 'Parameter.Value' \
             --output text)
           
           ECR_REPOSITORY=$(aws ssm get-parameter \
-            --name "/wealist/ci/ecr-repository-name" \
+            --name "/wealist/dev/ci/ecr_repository_user" \
             --query 'Parameter.Value' \
             --output text)
           
           AWS_ACCOUNT_ID=$(aws ssm get-parameter \
-            --name "/wealist/ci/aws-account-id" \
+            --name "/wealist/dev/ci/aws_account_id" \
             --query 'Parameter.Value' \
             --output text)
           
+          # Validate parameters
+          if [ -z "$AWS_REGION" ] || [ -z "$ECR_REPOSITORY" ] || [ -z "$AWS_ACCOUNT_ID" ]; then
+            echo "❌ Failed to load required parameters from Parameter Store"
+            echo "   Please ensure the following parameters exist:"
+            echo "   - /wealist/dev/ci/aws_region"
+            echo "   - /wealist/dev/ci/ecr_repository_user"
+            echo "   - /wealist/dev/ci/aws_account_id"
+            exit 1
+          fi
+          
+          # Export to GITHUB_ENV for subsequent steps
+          echo "AWS_REGION=${AWS_REGION}" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=${ECR_REPOSITORY}" >> $GITHUB_ENV
+          echo "AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}" >> $GITHUB_ENV
+          
+          # Also export to outputs
           echo "aws-region=${AWS_REGION}" >> $GITHUB_OUTPUT
           echo "ecr-repository=${ECR_REPOSITORY}" >> $GITHUB_OUTPUT
           echo "aws-account-id=${AWS_ACCOUNT_ID}" >> $GITHUB_OUTPUT
@@ -130,7 +149,7 @@ jobs:
         run: |
           # ECR 로그인
           echo "🔑 Logging into Amazon ECR..."
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          aws ecr get-login-password --region ${{ steps.config.outputs.aws-region }} | \
             docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
           # Docker 이미지 빌드
@@ -162,3 +181,6 @@ jobs:
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next:** CD workflow will be triggered automatically via workflow_run" >> $GITHUB_STEP_SUMMARY
+
