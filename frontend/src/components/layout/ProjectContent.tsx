@@ -114,6 +114,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       });
 
       stages.forEach((stage: FieldOption) => {
+        // 여기 걸러야하나?
         stageMap.set(stage.optionValue, { stage, boards: [] });
       });
 
@@ -256,7 +257,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     );
 
     let filteredBoardsByCompletion = boardsToProcess;
-
+    console.log(showCompleted);
     if (!showCompleted) {
       const completedStageIds = stageOptions
         ?.filter((s) => s.optionLabel === '완료')
@@ -457,24 +458,24 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       console.log('🔍 [DRAG] newFieldValue:', newFieldValue);
 
       // 1. 로컬 상태 업데이트를 위한 새 보드 생성
-      const updatedBoard: BoardResponse = {
-        ...draggedBoard,
-        customFields: {
-          ...draggedBoard.customFields,
-          [fieldKeyName]: newFieldValue,
-        },
-      };
+      // const updatedBoard: BoardResponse = {
+      //   ...draggedBoard,
+      //   customFields: {
+      //     ...draggedBoard.customFields,
+      //     [fieldKeyName]: newFieldValue,
+      //   },
+      // };
 
       // 🔥 수정: columns 대신 currentViewColumns 기반으로 업데이트
-      const newColumns = currentViewColumns.map((col) => {
-        if (col.stageId === draggedFromColumn) {
-          return { ...col, boards: col.boards.filter((t) => t.boardId !== draggedBoard.boardId) };
-        }
-        if (col.stageId === targetColumnId) {
-          return { ...col, boards: [...col.boards, updatedBoard] };
-        }
-        return col;
-      });
+      // const newColumns = currentViewColumns.map((col) => {
+      //   if (col.stageId === draggedFromColumn) {
+      //     return { ...col, boards: col.boards.filter((t) => t.boardId !== draggedBoard.boardId) };
+      //   }
+      //   if (col.stageId === targetColumnId) {
+      //     return { ...col, boards: [...col.boards, updatedBoard] };
+      //   }
+      //   return col;
+      // });
 
       // 2. 낙관적 UI 업데이트
       // 🔥 주의: stage 뷰가 아닐 때는 columns를 직접 업데이트하면 안됨

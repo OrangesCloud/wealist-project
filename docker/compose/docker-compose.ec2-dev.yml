@@ -29,14 +29,15 @@ services:
 
   # User Service (Spring Boot)
   user-service:
-    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-dev-user-service:${VERSION:-latest}
+    # 💡 [수정됨] VERSION 대신 USER_SERVICE_VERSION 변수 사용
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-dev-user-service:${USER_SERVICE_VERSION:-latest}
     container_name: wealist-user-service
     hostname: user-service
 
     environment:
       # Spring Profile (AWS environment with context path)
       - SPRING_PROFILES_ACTIVE=aws
-      
+
       # Server Configuration
       - SERVER_PORT=8080
       - USER_SERVICE_PORT=8080
@@ -85,7 +86,14 @@ services:
         condition: service_healthy
 
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/users/actuator/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--spider",
+          "http://localhost:8080/api/users/actuator/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -103,15 +111,16 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.6'
+          cpus: "0.6"
           memory: 512M
         reservations:
-          cpus: '0.3'
+          cpus: "0.3"
           memory: 256M
 
   # Board Service (Go)
   board-service:
-    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-dev-board-service:${VERSION:-latest}
+    # 💡 [수정됨] VERSION 대신 BOARD_SERVICE_VERSION 변수 사용
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-dev-board-service:${BOARD_SERVICE_VERSION:-latest}
     container_name: wealist-board-service
     hostname: board-service
 
@@ -131,8 +140,8 @@ services:
       # JWT Configuration (User Service와 동일해야 함!)
       - SECRET_KEY=${JWT_SECRET}
 
-      # Service URLs
-      - USER_SERVICE_URL=http://user-service:8080
+      # Service URLs (include context-path for service-to-service communication)
+      - USER_SERVICE_URL=http://user-service:8080/api/users
 
       # CORS Configuration
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
@@ -152,7 +161,14 @@ services:
         condition: service_healthy
 
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/api/boards/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--spider",
+          "http://localhost:8000/api/boards/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -170,10 +186,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.4'
+          cpus: "0.4"
           memory: 256M
         reservations:
-          cpus: '0.2'
+          cpus: "0.2"
           memory: 128M
 
   # ===========================================================================
@@ -231,10 +247,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.4'
+          cpus: "0.4"
           memory: 384M
         reservations:
-          cpus: '0.2'
+          cpus: "0.2"
           memory: 256M
 
   # Redis Cache
@@ -263,7 +279,15 @@ services:
       - wealist-net
 
     healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "--no-auth-warning",
+          "-a",
+          "${REDIS_PASSWORD}",
+          "ping",
+        ]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -281,10 +305,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.2'
+          cpus: "0.2"
           memory: 256M
         reservations:
-          cpus: '0.1'
+          cpus: "0.1"
           memory: 128M
 
   # ===========================================================================
@@ -300,12 +324,12 @@ services:
     user: "0:0"
 
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--web.enable-lifecycle'
-      - '--storage.tsdb.retention.time=15d'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+      - "--storage.tsdb.retention.time=15d"
 
     volumes:
       - ../../prometheus/config:/etc/prometheus:ro
@@ -336,10 +360,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.3'
+          cpus: "0.3"
           memory: 256M
         reservations:
-          cpus: '0.15'
+          cpus: "0.15"
           memory: 128M
 
   # Grafana - Visualization
@@ -373,7 +397,8 @@ services:
     restart: unless-stopped
 
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      test:
+        ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -389,10 +414,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.2'
+          cpus: "0.2"
           memory: 128M
         reservations:
-          cpus: '0.1'
+          cpus: "0.1"
           memory: 64M
 
   # ===========================================================================
@@ -438,10 +463,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.1'
+          cpus: "0.1"
           memory: 64M
         reservations:
-          cpus: '0.05'
+          cpus: "0.05"
           memory: 32M
 
   # PostgreSQL Exporter
@@ -482,10 +507,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.1'
+          cpus: "0.1"
           memory: 64M
         reservations:
-          cpus: '0.05'
+          cpus: "0.05"
           memory: 32M
 
   # Node Exporter (호스트 메트릭 수집)
@@ -495,10 +520,10 @@ services:
     hostname: node-exporter
 
     command:
-      - '--path.rootfs=/host'
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - "--path.rootfs=/host"
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
 
     volumes:
       - /proc:/host/proc:ro
@@ -530,10 +555,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.1'
+          cpus: "0.1"
           memory: 64M
         reservations:
-          cpus: '0.05'
+          cpus: "0.05"
           memory: 32M
 
 # =============================================================================
