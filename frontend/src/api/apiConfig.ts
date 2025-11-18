@@ -23,7 +23,7 @@ const getApiBaseUrl = (path: string): string => {
   return `https://api.wealist.co.kr${path}`;
 };
 
-export const USER_REPO_API_URL = getApiBaseUrl('/api');
+export const USER_REPO_API_URL = getApiBaseUrl('/api/users');
 export const BOARD_SERVICE_API_URL = getApiBaseUrl('/api/boards/api');
 
 // ============================================================================
