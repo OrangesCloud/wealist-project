@@ -189,14 +189,17 @@ jobs:
           # 2. 🚨 OAuth/URL 환경 변수 추가 (새로운 로직)
           # ===============================================
           # Spring Security Client Redirect Base URL (예: https://api.wealist.co.kr)
-          export OAUTH2_CLIENT_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base" || echo "")
+          export OAUTH2_CLIENT_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base" 2>/dev/null || echo "http://localhost:8080")
           # OAuth Success Handler 최종 Redirect URL (예: https://wealist.co.kr/oauth/callback)
-          export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url" || echo "")
+          export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url" 2>/dev/null || echo "http://localhost:3000/oauth/callback")
+          # OAuth Client Redirect URI (Spring Security에서 사용)
+          export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH2_CLIENT_REDIRECT_BASE}/api/users/login/oauth2/code/google"
           export SPRING_PROFILES_ACTIVE="aws" # AWS 프로파일 활성화
 
           echo "✅ Parameters loaded, Profiles set to aws"
           echo "   - OAUTH2_CLIENT_REDIRECT_BASE=${OAUTH2_CLIENT_REDIRECT_BASE}"
           echo "   - OAUTH2_REDIRECT_URL_ENV=${OAUTH2_REDIRECT_URL_ENV}"
+          echo "   - OAUTH2_CLIENT_REDIRECT_URI=${OAUTH2_CLIENT_REDIRECT_URI}"
 
 
           # ECR 로그인
