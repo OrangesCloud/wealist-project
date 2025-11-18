@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { useAuth } from '../../../contexts/AuthContext';
 // 💡 [수정] 정적 Import로 변경하고, 토큰 인수가 제거된 함수를 사용합니다.
 import { createProject, updateProject } from '../../../api/board/boardService';
 // 💡 [수정] types/board.ts에서 ProjectResponse를 가져옵니다.
@@ -17,6 +16,7 @@ interface ProjectModalProps {
   project?: ProjectResponse; // 편집 모드일 때만 전달
   onClose: () => void;
   onProjectSaved: () => void; // 생성 또는 수정 후 호출
+  onProjectCreated?: (createObj: ProjectResponse) => void;
 }
 
 export const ProjectModal: React.FC<ProjectModalProps> = ({
@@ -24,11 +24,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   project,
   onClose,
   onProjectSaved,
+  onProjectCreated,
 }) => {
   const { theme } = useTheme();
   const isEditMode = !!project;
 
-  const { nickName } = useAuth();
   const [name, setName] = useState(project?.name || '');
   const [description, setDescription] = useState(project?.description || '');
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +36,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
   // project prop이 변경되면 폼 리셋
   useEffect(() => {
+    console.log(project);
     if (project) {
       setName(project.name);
       setDescription(project.description || '');
@@ -63,25 +64,27 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           name: name.trim(),
           description: description.trim() || undefined,
         });
-        console.log('✅ 프로젝트 수정 성공:', name);
+        alert(`✅ ${name} + '이 수정되었습니다!'`);
       } else {
-        console.log(nickName);
-        await createProject({
+        const newProjectResponse: ProjectResponse = await createProject({
           workspaceId: workspaceId,
           name: name.trim(),
           description: description.trim() || undefined,
         });
-        alert(name + '이 생성되었습니다!');
-        console.log('✅ 프로젝트 생성 성공:', name);
+
+        alert(`✅ ${name} + '이 생성되었습니다!'`);
+
+        if (newProjectResponse) {
+          onProjectCreated?.(newProjectResponse); // ✨ Optional Chaining을 사용하여 안전하게 호출
+        } else {
+          onProjectSaved();
+        }
       }
 
       onProjectSaved();
       onClose();
     } catch (err: any) {
-      // AxiosError가 처리되므로 err.response.data.message 등을 사용할 수 있지만,
-      // 여기서는 간결하게 err.message를 사용합니다.
       const errorMsg = err.response?.data?.error?.message || err.message;
-
       console.error(isEditMode ? '❌ 프로젝트 수정 실패:' : '❌ 프로젝트 생성 실패:', errorMsg);
       setError(
         errorMsg ||
@@ -119,7 +122,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <div className="mb-4 p-3 bg-gray-50 rounded-lg">
             <div className="text-xs text-gray-500 mb-1">프로젝트 소유자</div>
             <div className="text-sm font-medium text-gray-700">
-              {project.ownerName} ({project.ownerEmail})
+              {project.ownerName}
+              {/* ({project.ownerEmail}) */}
             </div>
           </div>
         )}
