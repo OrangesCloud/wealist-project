@@ -125,7 +125,7 @@ jobs:
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
-          ECR_REGISTRY="${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com"
+          ECR_REGISTRY="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
           FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:${IMAGE_TAG}"
           LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:latest"
@@ -142,8 +142,8 @@ jobs:
           ECR_REGISTRY: ${{ steps.image-info.outputs.ecr-registry }}
         run: |
           # ECR 로그인
-          echo "🔑 Logging into Amazon ECR..."
-          aws ecr get-login-password --region ap-northeast-2 | \
+          echo "🔑 Logging into Amazon ECR...22"
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
           # Docker 이미지 빌드 & 푸시
@@ -176,7 +176,7 @@ jobs:
 
       - name: 📋 Prepare Docker Compose File
         run: |
-          cat docker/compose/docker-compose.ec2-dev.yml > /tmp/docker-compose.yml
+          cat docker/compose/docker-compose.monitoring.yml > /tmp/docker-compose.yml
           echo "Docker Compose file prepared"
 
       - name: 📝 Create Deployment Script (Parameter Store)
@@ -291,7 +291,7 @@ jobs:
           echo "✅ Environment file created"
 
           # ECR 로그인
-          echo "🔑 Logging into Amazon ECR..."
+          echo "🔑 Logging into Amazon ECR...3"
           aws ecr get-login-password --region ${AWS_REGION} | \
             docker login --username AWS --password-stdin \
             ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com

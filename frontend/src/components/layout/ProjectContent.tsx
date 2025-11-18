@@ -115,6 +115,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       });
 
       stages.forEach((stage: FieldOption) => {
+        // 여기 걸러야하나?
         stageMap.set(stage.optionValue, { stage, boards: [] });
       });
 
@@ -257,7 +258,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     );
 
     let filteredBoardsByCompletion = boardsToProcess;
-
+    console.log(showCompleted);
     if (!showCompleted) {
       const completedStageIds = stageOptions
         ?.filter((s) => s.optionLabel === '완료')
