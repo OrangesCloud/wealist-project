@@ -175,6 +175,9 @@ jobs:
               "JWT_SECRET"
               "GOOGLE_CLIENT_ID"
               "GOOGLE_CLIENT_SECRET"
+              "OAUTH2_CLIENT_REDIRECT_BASE"
+              "OAUTH2_REDIRECT_URL_ENV"
+              "OAUTH2_CLIENT_REDIRECT_URI"
               "GRAFANA_ADMIN_PASSWORD"
             )
             
@@ -322,6 +325,25 @@ jobs:
           # OAuth
           export GOOGLE_CLIENT_ID=$(load_secret "oauth/google_client_id")
           export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google-client-secret")
+          
+          # OAuth URLs (user-service에서 필요)
+          export OAUTH2_CLIENT_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
+          if [ -z "$OAUTH2_CLIENT_REDIRECT_BASE" ]; then
+            echo "❌ ERROR: Parameter 'url/oauth2_client_redirect_base' not found in Parameter Store" >&2
+            echo "Please set the parameter using:" >&2
+            echo "  aws ssm put-parameter --name '/wealist/dev/url/oauth2_client_redirect_base' --value 'https://api.wealist.co.kr' --type String" >&2
+            exit 1
+          fi
+          
+          export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
+          if [ -z "$OAUTH2_REDIRECT_URL_ENV" ]; then
+            echo "❌ ERROR: Parameter 'url/oauth2_redirect_url' not found in Parameter Store" >&2
+            echo "Please set the parameter using:" >&2
+            echo "  aws ssm put-parameter --name '/wealist/dev/url/oauth2_redirect_url' --value 'https://wealist.co.kr/oauth/callback' --type String" >&2
+            exit 1
+          fi
+          
+          export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH2_CLIENT_REDIRECT_BASE}/api/users/login/oauth2/code/google"
 
           # Grafana
           export GRAFANA_ADMIN_USER=$(load_param "monitor/grafana_admin_user")
@@ -370,6 +392,9 @@ jobs:
           echo "   - JWT_REFRESH_TOKEN_EXPIRATION_MS: ${JWT_REFRESH_TOKEN_EXPIRATION_MS}"
           echo "   - GOOGLE_CLIENT_ID: [REDACTED]"
           echo "   - GOOGLE_CLIENT_SECRET: [REDACTED]"
+          echo "   - OAUTH2_CLIENT_REDIRECT_BASE: ${OAUTH2_CLIENT_REDIRECT_BASE}"
+          echo "   - OAUTH2_REDIRECT_URL_ENV: ${OAUTH2_REDIRECT_URL_ENV}"
+          echo "   - OAUTH2_CLIENT_REDIRECT_URI: ${OAUTH2_CLIENT_REDIRECT_URI}"
           echo "   - GRAFANA_ADMIN_USER: ${GRAFANA_ADMIN_USER}"
           echo "   - GRAFANA_ADMIN_PASSWORD: [REDACTED]"
           echo "   - USER_SERVICE_URL: ${USER_SERVICE_URL}"
