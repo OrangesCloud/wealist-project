@@ -9,10 +9,7 @@ on:
       - ".github/workflows/ci-dev-user-service.yml"
   workflow_dispatch:
 
-env:
-  AWS_REGION: ap-northeast-2
-  ECR_REPOSITORY: wealist-dev-user-service
-  AWS_ACCOUNT_ID: "290008131187"  # Wealist Dev AWS Account
+# env section removed - values loaded from Parameter Store in steps
 
 jobs:
   build-and-push:
@@ -69,18 +66,50 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ap-northeast-2
 
       # ============================================
-      # 6. 이미지 태그 생성
+      # 6. Parameter Store에서 설정 로드
+      # ============================================
+      - name: 📥 Load Configuration from Parameter Store
+        id: config
+        run: |
+          echo "📥 Loading CI configuration from Parameter Store..."
+          
+          AWS_REGION=$(aws ssm get-parameter \
+            --name "/wealist/ci/aws-region" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          ECR_REPOSITORY=$(aws ssm get-parameter \
+            --name "/wealist/ci/ecr-repository-name" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          AWS_ACCOUNT_ID=$(aws ssm get-parameter \
+            --name "/wealist/ci/aws-account-id" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          echo "aws-region=${AWS_REGION}" >> $GITHUB_OUTPUT
+          echo "ecr-repository=${ECR_REPOSITORY}" >> $GITHUB_OUTPUT
+          echo "aws-account-id=${AWS_ACCOUNT_ID}" >> $GITHUB_OUTPUT
+          
+          echo "✅ Configuration loaded successfully"
+          echo "  - AWS Region: ${AWS_REGION}"
+          echo "  - ECR Repository: ${ECR_REPOSITORY}"
+          echo "  - AWS Account ID: ${AWS_ACCOUNT_ID}"
+
+      # ============================================
+      # 7. 이미지 태그 생성
       # ============================================
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
-          ECR_REGISTRY="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          ECR_REGISTRY="${{ steps.config.outputs.aws-account-id }}.dkr.ecr.${{ steps.config.outputs.aws-region }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
-          FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
-          LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          FULL_IMAGE="${ECR_REGISTRY}/${{ steps.config.outputs.ecr-repository }}:${IMAGE_TAG}"
+          LATEST_IMAGE="${ECR_REGISTRY}/${{ steps.config.outputs.ecr-repository }}:latest"
 
           echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
@@ -91,7 +120,7 @@ jobs:
           echo "🐳 Full Image: ${FULL_IMAGE}"
 
       # ============================================
-      # 7. Amazon ECR 로그인 & 이미지 빌드 & 푸시
+      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
       - name: 🐳 Login to ECR, Build and Push Docker Image
         env:
