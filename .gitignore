@@ -3,8 +3,8 @@
 .env.local
 .env.dev
 .env.prod
-docker/env/.env.dev
-docker/env/.env.ec2-dev
+
+docker/env/*
 
 # Docker
 postgres-data/
@@ -75,7 +75,6 @@ frontend/dist/
 frontend/node_modules/
 frontend/.pnp
 frontend/.pnp.js
-frontend/.env
 frontend/docker-compose.yml
 frontend/Dockerfile.local
 docker-compose.base.yml
