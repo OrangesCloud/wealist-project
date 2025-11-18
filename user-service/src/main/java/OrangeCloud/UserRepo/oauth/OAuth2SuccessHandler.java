@@ -19,7 +19,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         private final JwtTokenProvider jwtTokenProvider;
         // @Value("${oauth2.redirect-url:http://localhost:3000/oauth/callback}")
-        @Value("${oauth2.redirect-url: https://wealist.co.kr/oauth/callback}")
+        // @Value("${oauth2.redirect-url: https://wealist.co.kr/oauth/callback}")
+        @Value("${app.oauth2.redirect-url:http://localhost:3000/oauth/callback}")
         private String redirectUrl;
 
         @Override

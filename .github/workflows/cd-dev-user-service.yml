@@ -58,10 +58,10 @@ jobs:
       - name: 📦 Upload docker-compose file to EC2
         run: |
           echo "📦 Uploading docker-compose file to EC2..."
-          
+
           # docker-compose 파일을 Base64로 인코딩
           COMPOSE_CONTENT=$(base64 -w 0 docker/compose/docker-compose.ec2-dev.yml)
-          
+
           # SSM으로 파일 전송
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
@@ -78,12 +78,12 @@ jobs:
             ]" \
             --output text \
             --query "Command.CommandId")
-          
+
           echo "⏳ Waiting for file upload..."
           aws ssm wait command-executed \
             --command-id "${COMMAND_ID}" \
             --instance-id "${{ env.EC2_INSTANCE_ID }}"
-          
+
           echo "✅ docker-compose file uploaded"
 
       # ============================================
@@ -97,7 +97,7 @@ jobs:
           echo "  - AWS Region: ${{ env.AWS_REGION }}"
           echo "  - Commit SHA: ${{ github.sha }}"
           echo ""
-          
+
           # 배포 스크립트를 heredoc으로 생성
           cat > /tmp/deploy-user.sh << 'EOF'
           #!/bin/bash
@@ -117,7 +117,9 @@ jobs:
           load_secret() {
             aws ssm get-parameter --name "${PARAMETER_PREFIX}/$1" --with-decryption --query 'Parameter.Value' --output text --region ${AWS_REGION}
           }
-
+          # ===============================================
+          # 1. 시크릿 및 DB 환경 변수 로드 (기존 로직)
+          # ===============================================
           # 환경 변수 로드
           export POSTGRES_SUPERUSER=$(load_param "db/postgres_superuser")
           export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/postgres_superuser_password")
@@ -134,7 +136,19 @@ jobs:
           export GRAFANA_ADMIN_USER=$(load_param "monitor/grafana_admin_user")
           export GRAFANA_ADMIN_PASSWORD=$(load_secret "monitor/grafana_admin_password")
 
-          echo "✅ Parameters loaded"
+          # ===============================================
+          # 2. 🚨 OAuth/URL 환경 변수 추가 (새로운 로직)
+          # ===============================================
+          # Spring Security Client Redirect Base URL (예: https://api.wealist.co.kr)
+          export OAUTH2_CLIENT_REDIRECT_BASE=$(load_param "url/api_base_domain")
+          # OAuth Success Handler 최종 Redirect URL (예: https://wealist.co.kr/oauth/callback)
+          export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/front_redirect_domain")
+          export SPRING_PROFILES_ACTIVE="aws" # AWS 프로파일 활성화
+
+          echo "✅ Parameters loaded, Profiles set to aws"
+          echo "   - OAUTH2_CLIENT_REDIRECT_BASE=${OAUTH2_CLIENT_REDIRECT_BASE}"
+          echo "   - OAUTH2_REDIRECT_URL_ENV=${OAUTH2_REDIRECT_URL_ENV}"
+
 
           # ECR 로그인
           aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
@@ -227,13 +241,13 @@ jobs:
           echo "  - Command ID: ${COMMAND_ID}"
           echo "  - Instance ID: ${INSTANCE_ID}"
           echo ""
-          
+
           # 명령어 실행 대기 (최대 5분)
           echo "⏳ Polling command status..."
           MAX_WAIT=60  # 5분 (5초 간격)
           WAIT_COUNT=0
           LAST_OUTPUT_LINE=""
-          
+
           while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
             STATUS=$(aws ssm get-command-invocation \
               --command-id "${COMMAND_ID}" \
@@ -264,7 +278,7 @@ jobs:
             sleep 5
             WAIT_COUNT=$((WAIT_COUNT + 1))
           done
-          
+
           # 타임아웃 체크
           if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
             echo ""
@@ -273,7 +287,7 @@ jobs:
             echo "   Check SSM command status manually:"
             echo "   aws ssm get-command-invocation --command-id ${COMMAND_ID} --instance-id ${INSTANCE_ID}"
           fi
-          
+
           echo ""
           echo "📊 Final Status: ${STATUS}"
           echo ""
@@ -322,7 +336,7 @@ jobs:
         if: always()
         run: |
           STATUS="${{ job.status }}"
-          
+
           if [ "$STATUS" = "success" ]; then
             ICON="✅"
             TITLE="User Service Deployed Successfully"
@@ -330,7 +344,7 @@ jobs:
             ICON="❌"
             TITLE="User Service Deployment Failed"
           fi
-          
+
           cat >> $GITHUB_STEP_SUMMARY << EOF
           ### ${ICON} ${TITLE}
 
@@ -339,7 +353,7 @@ jobs:
           - **Command ID:** \`${{ steps.deploy.outputs.command-id }}\`
           - **Status:** ${STATUS}
           - **Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          
+
           #### Quick Links
           - [View Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
           - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})

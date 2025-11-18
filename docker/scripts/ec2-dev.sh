@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # =============================================================================
 # weAlist EC2 Dev Environment Helper Script
@@ -84,7 +84,48 @@ run_compose() {
 
 # 명령어 처리
 case "${1:-}" in
-    up)
+    up)# 1. 환경 변수 파일 확인 및 로드 (AWS 변수 주입)
+        check_env_file
+        source "$ENV_FILE" 
+
+        # 🚨 [주의]: ECR 로그인은 이 스크립트가 자동 수행할 수 없습니다. 
+        #           이전에 안내드린 'docker login'을 사전에 실행해야 합니다.
+
+        # 2. ECR 자동 태그 조회 로직 추가 (연관 배열 대신 일반 배열 사용)
+        
+        # 일반 배열: 서비스 이름과 레포지토리 이름을 순서대로 매칭합니다.
+        SERVICE_NAMES=("USER_SERVICE" "BOARD_SERVICE")
+        REPO_NAMES=("wealist-dev-user-service" "wealist-dev-board-service")
+        
+        info "ECR에서 서비스별 최신 이미지 태그를 조회하여 환경 변수에 설정합니다..."
+        
+        # 배열 인덱스를 사용하여 순회
+        for i in "${!SERVICE_NAMES[@]}"; do
+            SERVICE_NAME_BASE="${SERVICE_NAMES[$i]}"
+            REPO_NAME="${REPO_NAMES[$i]}"
+            VERSION_VAR_NAME="${SERVICE_NAME_BASE}_VERSION" # USER_SERVICE_VERSION, BOARD_SERVICE_VERSION
+            
+            info "  - 레포지토리: ${REPO_NAME} 조회 중..."
+            
+            DEFAULT_VERSION=$(grep "^${VERSION_VAR_NAME}=" "$ENV_FILE" | cut -d '=' -f 2 | tr -d '[:space:]' || echo "latest")
+            
+            LATEST_TAG=$(aws ecr describe-images \
+                --repository-name "${REPO_NAME}" \
+                --region ${AWS_REGION} \
+                --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags | [0]' \
+                --output text 2>/dev/null)
+                
+            if [ -n "$LATEST_TAG" ] && [ "$LATEST_TAG" != "None" ] && [ "$LATEST_TAG" != "null" ]; then
+                export "$VERSION_VAR_NAME"="$LATEST_TAG"
+                success "  ✓ ${REPO_NAME}: 태그 ${LATEST_TAG} 으로 설정되었습니다."
+            else
+                export "$VERSION_VAR_NAME"="${DEFAULT_VERSION}"
+                warning "  ✗ ${REPO_NAME}: ECR 태그를 가져올 수 없어 기본값 (${!VERSION_VAR_NAME})을 사용합니다."
+                warning "    (AWS CLI 권한 및 ECR 로그인 상태를 확인하세요.)"
+            fi
+        done
+        
+        # 3. Docker Compose 실행
         info "EC2 Dev 환경 시작 중..."
         run_compose up -d
         success "모든 서비스가 시작되었습니다."
@@ -93,6 +134,9 @@ case "${1:-}" in
 
     up-fg)
         info "EC2 Dev 환경 시작 중 (포그라운드)..."
+        # up-fg도 최신 태그를 가져오도록 로직을 복사하는 것이 좋으나,
+        # 편의상 up에서만 자동 태그 조회를 유지하고, up-fg는 현재 환경 변수를 사용하도록 둡니다.
+        # (만약 up-fg에서도 태그 자동 조회가 필요하다면, up 블록 로직을 복사/적용해야 합니다.)
         run_compose up
         ;;
 
