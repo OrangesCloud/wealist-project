@@ -86,23 +86,31 @@ func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger) Us
 }
 
 // buildURL constructs the full URL for User Service API calls
-// It intelligently handles base URLs that may or may not include /api/ prefix
+// It intelligently handles base URLs that may or may not include context path
+// 
+// Examples:
+//   - baseURL: http://user-service:8080/api/users, endpoint: /workspaces/123
+//     -> http://user-service:8080/api/users/api/workspaces/123
+//   - baseURL: http://user-service:8080, endpoint: /workspaces/123
+//     -> http://user-service:8080/api/workspaces/123
 func (c *userClient) buildURL(endpoint string) string {
 	// Ensure endpoint starts with /
 	if !strings.HasPrefix(endpoint, "/") {
 		endpoint = "/" + endpoint
 	}
 
-	// Check if baseURL already contains /api/users or /api/
-	hasAPIUsers := strings.Contains(c.baseURL, "/api/users")
-	hasAPI := strings.Contains(c.baseURL, "/api/")
-
+	// Check if baseURL already contains context path (e.g., /api/users)
+	hasContextPath := strings.Contains(c.baseURL, "/api/users") || strings.Contains(c.baseURL, "/api/boards")
+	
 	var finalURL string
-	if hasAPIUsers || hasAPI {
-		// Base URL already has API prefix, just append endpoint
-		finalURL = c.baseURL + endpoint
+	if hasContextPath {
+		// Base URL already has context path, add /api before endpoint
+		// This handles service-to-service communication in Docker where
+		// user-service has context-path: /api/users
+		finalURL = c.baseURL + "/api" + endpoint
 	} else {
-		// Base URL doesn't have API prefix, add /api before endpoint
+		// Base URL doesn't have context path (local development)
+		// Just add /api before endpoint
 		finalURL = c.baseURL + "/api" + endpoint
 	}
 
@@ -110,9 +118,7 @@ func (c *userClient) buildURL(endpoint string) string {
 		zap.String("base_url", c.baseURL),
 		zap.String("endpoint", endpoint),
 		zap.String("final_url", finalURL),
-		zap.Bool("has_api_users", hasAPIUsers),
-		zap.Bool("has_api", hasAPI),
-		zap.Bool("has_api_prefix", hasAPIUsers || hasAPI),
+		zap.Bool("has_context_path", hasContextPath),
 	)
 
 	return finalURL
