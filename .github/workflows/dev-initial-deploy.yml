@@ -126,7 +126,7 @@ jobs:
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
-          ECR_REGISTRY="${{ secrets.WEALIST_DEV_AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          ECR_REGISTRY="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
           FULL_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:${IMAGE_TAG}"
           LATEST_IMAGE="${ECR_REGISTRY}/wealist-dev-board-service:latest"
