@@ -143,7 +143,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.image-info.outputs.ecr-registry }}
         run: |
           # ECR 로그인
-          echo "🔑 Logging into Amazon ECR..."
+          echo "🔑 Logging into Amazon ECR...22"
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
@@ -292,7 +292,7 @@ jobs:
           echo "✅ Environment file created"
 
           # ECR 로그인
-          echo "🔑 Logging into Amazon ECR..."
+          echo "🔑 Logging into Amazon ECR...3"
           aws ecr get-login-password --region ${AWS_REGION} | \
             docker login --username AWS --password-stdin \
             ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
