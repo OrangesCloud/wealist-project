@@ -29,7 +29,6 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
 
                 log.info("OAuth2 login successful: email={}, userId={}", oAuth2User.getEmail(), oAuth2User.getUserId());
-
                 // JWT 토큰 생성
                 String accessToken = jwtTokenProvider.generateToken(oAuth2User.getUserId());
                 String refreshToken = jwtTokenProvider.generateRefreshToken(oAuth2User.getUserId());
