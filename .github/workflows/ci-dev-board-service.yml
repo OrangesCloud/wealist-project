@@ -46,17 +46,17 @@ jobs:
           
           # Load parameters
           AWS_REGION=$(aws ssm get-parameter \
-            --name "/wealist/ci/aws-region" \
+            --name "/wealist/dev/ci/aws_region" \
             --query 'Parameter.Value' \
             --output text)
           
           ECR_REPOSITORY=$(aws ssm get-parameter \
-            --name "/wealist/ci/ecr-repository-name" \
+            --name "/wealist/dev/ci/ecr_repository_board" \
             --query 'Parameter.Value' \
             --output text)
           
           AWS_ACCOUNT_ID=$(aws ssm get-parameter \
-            --name "/wealist/ci/aws-account-id" \
+            --name "/wealist/dev/ci/aws_account_id" \
             --query 'Parameter.Value' \
             --output text)
           
@@ -64,9 +64,9 @@ jobs:
           if [ -z "$AWS_REGION" ] || [ -z "$ECR_REPOSITORY" ] || [ -z "$AWS_ACCOUNT_ID" ]; then
             echo "❌ Failed to load required parameters from Parameter Store"
             echo "   Please ensure the following parameters exist:"
-            echo "   - /wealist/ci/aws-region"
-            echo "   - /wealist/ci/ecr-repository-name"
-            echo "   - /wealist/ci/aws-account-id"
+            echo "   - /wealist/dev/ci/aws_region"
+            echo "   - /wealist/dev/ci/ecr_repository_board"
+            echo "   - /wealist/dev/ci/aws_account_id"
             exit 1
           fi
           
