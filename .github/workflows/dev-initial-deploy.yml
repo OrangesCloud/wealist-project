@@ -177,7 +177,7 @@ jobs:
 
       - name: 📋 Prepare Docker Compose File
         run: |
-          cat docker/compose/docker-compose.ec2-dev.yml > /tmp/docker-compose.yml
+          cat docker/compose/docker-compose.monitoring.yml > /tmp/docker-compose.yml
           echo "Docker Compose file prepared"
 
       - name: 📝 Create Deployment Script (Parameter Store)
