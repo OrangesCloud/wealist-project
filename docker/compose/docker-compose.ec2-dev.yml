@@ -131,8 +131,8 @@ services:
       # JWT Configuration (User Service와 동일해야 함!)
       - SECRET_KEY=${JWT_SECRET}
 
-      # Service URLs
-      - USER_SERVICE_URL=http://user-service:8080
+      # Service URLs (include context-path for service-to-service communication)
+      - USER_SERVICE_URL=http://user-service:8080/api/users
 
       # CORS Configuration
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
