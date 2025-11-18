@@ -225,6 +225,9 @@ jobs:
           export GRAFANA_ADMIN_USER=$(load_param "monitor/grafana_admin_user")
           export GRAFANA_ADMIN_PASSWORD=$(load_secret "monitor/grafana_admin_password")
 
+          # Service URLs
+          export USER_SERVICE_URL=$(load_param "service/user_service_url")
+
           # 환경 변수 검증
           required_vars=(
             "AWS_ACCOUNT_ID"
@@ -235,6 +238,7 @@ jobs:
             "BOARD_DB_PASSWORD"
             "REDIS_PASSWORD"
             "JWT_SECRET"
+            "USER_SERVICE_URL"
           )
 
           for var in "${required_vars[@]}"; do
@@ -254,6 +258,7 @@ jobs:
           echo "   - REDIS_PASSWORD: [REDACTED]"
           echo "   - JWT_SECRET: [REDACTED]"
           echo "   - GOOGLE_CLIENT_ID: [REDACTED]"
+          echo "   - USER_SERVICE_URL: ${USER_SERVICE_URL}"
           echo ""
 
           # =============================================================================
