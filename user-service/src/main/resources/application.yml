@@ -55,9 +55,13 @@ spring:
             scope:
               - email
               - profile
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+#            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             # ✅ 변경 권장: 실제 서비스 도메인으로 명시적 지정
             #redirect-uri: https://api.wealist.co.kr/api/users/login/oauth2/code/google
+            #
+            # 💡 [로컬/배포 분리 적용됨] Client Redirect Base URL
+            redirect-uri: ${OAUTH2_CLIENT_REDIRECT_BASE:http://localhost:8080}/login/oauth2/code/google
+
             authorization-grant-type: authorization_code
             client-name: Google
         provider:
@@ -80,16 +84,19 @@ server:
   error:
     whitelabel.enabled: false
     include-exception: true
+  # 💡 [핵심 추가]: 로컬 환경에서는 Context Path를 사용하지 않음 (빈 문자열)
+  servlet:
+    context-path: ""
 
 jwt:
   secret: ${JWT_SECRET}
   access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS}
   refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS}
 
-# OAuth2 설정
+# OAuth2 기본 local 값으로 설정
 oauth2:
-  # redirect-url: ${OAUTH2_REDIRECT_URL:http://localhost:3000/oauth/callback}
-  redirect-url: https://wealist.co.kr/oauth/callback
+  # 💡 [로컬/배포 분리 적용됨] Success Handler 최종 Redirect URL
+  redirect-url: ${OAUTH2_REDIRECT_URL_ENV:http://localhost:3000/oauth/callback}
 logging:
   level:
     OrangeCloud: DEBUG
@@ -123,3 +130,10 @@ management:
     metrics:
       export:
         enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: aws # AWS 프로파일 활성화 시 오버라이드
+
