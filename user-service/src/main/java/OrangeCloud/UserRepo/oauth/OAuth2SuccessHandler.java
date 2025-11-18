@@ -18,8 +18,6 @@ import java.io.IOException;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
         private final JwtTokenProvider jwtTokenProvider;
-        // @Value("${oauth2.redirect-url:http://localhost:3000/oauth/callback}")
-        // @Value("${oauth2.redirect-url: https://wealist.co.kr/oauth/callback}")
         @Value("${app.oauth2.redirect-url:http://localhost:3000/oauth/callback}")
         private String redirectUrl;
 
@@ -51,6 +49,18 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                                 .toUriString();
 
                 log.info("Redirecting to: {}", targetUrl);
+
+                // 🔑 추가된 핵심 로직: 세션에 남아있는 임시 인증 정보 및 속성 정리
+                // 1. 부모 클래스가 제공하는 메서드를 호출하여 세션의 임시 속성(에러/요청 정보 등)을 지웁니다.
+                // 이는 SimpleUrlAuthenticationSuccessHandler의 표준 세션 클리어 방식입니다.
+                clearAuthenticationAttributes(request);
+
+                // 2. (선택적이지만 안전함) 세션 자체를 무효화하여 확실히 StateLess를 보장합니다.
+                if (request.getSession(false) != null) {
+                        log.debug("Invalidating HTTP session after successful OAuth2 login.");
+                        request.getSession(false).invalidate();
+                }
+
                 getRedirectStrategy().sendRedirect(request, response, targetUrl);
         }
 }
