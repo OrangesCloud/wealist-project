@@ -14,7 +14,7 @@ const OAUTH_BASE =
     : BASE_DOMAIN;
 
 // ⚠️ 백엔드 OAuth2 인증 시작 엔드포인트
-const GOOGLE_AUTH_URL = `${OAUTH_BASE}/oauth2/authorization/google`;
+const GOOGLE_AUTH_URL = `${OAUTH_BASE}/api/users/oauth2/authorization/google`;
 const AuthPage: React.FC = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
