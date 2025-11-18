@@ -3,6 +3,8 @@
 .env.local
 .env.dev
 .env.prod
+docker/env/.env.dev
+docker/env/.env.ec2-dev
 
 # Docker
 postgres-data/
