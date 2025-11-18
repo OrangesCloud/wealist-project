@@ -242,3 +242,13 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Swagger Validation:** ✅ Passed" >> $GITHUB_STEP_SUMMARY
 
+      # ============================================
+      # 14. CD 워크플로우 트리거
+      # ============================================
+      - name: 🚀 Trigger CD Workflow
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: board-service-ci-complete
+          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
+

@@ -1,7 +1,12 @@
 name: CD - Dev User Service
 
 on:
-  # 1. CI 완료 후 자동 실행
+  # 1. CI 완료 후 자동 실행 (repository dispatch)
+  repository_dispatch:
+    types:
+      - user-service-ci-complete
+
+  # 2. CI 완료 후 자동 실행 (workflow_run - 기본 브랜치용)
   workflow_run:
     workflows: ["CI - Dev User Service"]
     types:
@@ -9,7 +14,7 @@ on:
     branches:
       - deploy-dev
 
-  # 2. 인프라 변경 시 직접 실행
+  # 3. 인프라 변경 시 직접 실행
   push:
     branches:
       - deploy-dev
@@ -33,7 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: development
     # workflow_run으로 트리거된 경우, CI가 성공했을 때만 실행
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    # repository_dispatch는 항상 실행 (CI 성공 시에만 발생하므로)
+    if: ${{ github.event_name == 'repository_dispatch' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     steps:
       # ============================================
       # 1. 코드 체크아웃
@@ -186,14 +192,14 @@ jobs:
           # ===============================================
           # 2. 🚨 OAuth/URL 환경 변수 추가 (새로운 로직)
           # ===============================================
-          # Spring Security Client Redirect Base URL (예: https://api.wealist.co.kr)
-          export OAUTH2_CLIENT_REDIRECT_BASE=$(load_param "url/api_base_domain")
+          # Spring Security Client Redirect URI (전체 경로)
+          export OAUTH2_CLIENT_REDIRECT_URI=$(load_param "url/api_base_domain")
           # OAuth Success Handler 최종 Redirect URL (예: https://wealist.co.kr/oauth/callback)
           export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/front_redirect_domain")
           export SPRING_PROFILES_ACTIVE="aws" # AWS 프로파일 활성화
 
           echo "✅ Parameters loaded, Profiles set to aws"
-          echo "   - OAUTH2_CLIENT_REDIRECT_BASE=${OAUTH2_CLIENT_REDIRECT_BASE}"
+          echo "   - OAUTH2_CLIENT_REDIRECT_URI=${OAUTH2_CLIENT_REDIRECT_URI}"
           echo "   - OAUTH2_REDIRECT_URL_ENV=${OAUTH2_REDIRECT_URL_ENV}"
 
 
