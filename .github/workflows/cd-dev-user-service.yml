@@ -51,22 +51,22 @@ jobs:
           
           # CD 관련 파라미터 로드
           AWS_REGION=$(aws ssm get-parameter \
-            --name "/wealist/cd/aws-region" \
+            --name "/wealist/dev/cd/aws_region" \
             --query 'Parameter.Value' \
             --output text)
           
           PARAMETER_PREFIX=$(aws ssm get-parameter \
-            --name "/wealist/cd/parameter-prefix" \
+            --name "/wealist/dev/cd/parameter_prefix" \
             --query 'Parameter.Value' \
             --output text)
           
           COMPOSE_FILE_PATH=$(aws ssm get-parameter \
-            --name "/wealist/cd/compose-file-path" \
+            --name "/wealist/dev/cd/compose_file_path" \
             --query 'Parameter.Value' \
             --output text)
           
           EC2_INSTANCE_ID=$(aws ssm get-parameter \
-            --name "/wealist/cd/ec2-instance-id" \
+            --name "/wealist/dev/cd/ec2_instance_id" \
             --query 'Parameter.Value' \
             --output text)
           
