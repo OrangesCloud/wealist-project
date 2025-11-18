@@ -258,6 +258,7 @@ jobs:
           echo "   - REDIS_PASSWORD: [REDACTED]"
           echo "   - JWT_SECRET: [REDACTED]"
           echo "   - GOOGLE_CLIENT_ID: [REDACTED]"
+          echo "   - USER_SERVICE_URL: ${USER_SERVICE_URL}"
           echo ""
 
           # =============================================================================
