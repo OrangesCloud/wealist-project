@@ -173,6 +173,9 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
   // 5. 드래그 앤 드롭 및 정렬 로직 (useCallback 유지)
   const handleDragStart = (board: BoardResponse, columnId: string): void => {
+    console.log('🔍 [DRAG START] board:', board.title);
+    console.log('🔍 [DRAG START] columnId:', columnId);
+    console.log('🔍 [DRAG START] currentView:', viewState.currentView);
     setDraggedBoard(board);
     setDraggedFromColumn(columnId);
   };
@@ -188,72 +191,6 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     setDragOverBoardId(null);
     setDragOverColumn(null);
   };
-
-  const handleDrop = useCallback(
-    async (targetColumnId: string): Promise<void> => {
-      if (!draggedBoard || !draggedFromColumn) return;
-
-      const targetColumn = columns.find((col) => col.stageId === targetColumnId);
-      if (!targetColumn) {
-        handleDragEnd();
-        return;
-      }
-
-      // 같은 컬럼이면 무시
-      if (draggedFromColumn === targetColumnId) {
-        handleDragEnd();
-        return;
-      }
-
-      // 🔥 현재 뷰 타입에 따라 업데이트할 필드 결정
-      const fieldKeyName = viewState.currentView as 'stage' | 'role' | 'importance';
-
-      // 🔥 UNASSIGNED로 이동하는 경우 해당 필드를 undefined로 설정
-      const newFieldValue = targetColumnId === 'UNASSIGNED' ? undefined : targetColumnId;
-
-      // 1. 로컬 상태 업데이트를 위한 새 보드 생성
-      const updatedBoard: BoardResponse = {
-        ...draggedBoard,
-        customFields: {
-          ...draggedBoard.customFields,
-          [fieldKeyName]: newFieldValue,
-        },
-      };
-
-      const newColumns = columns.map((col) => {
-        if (col.stageId === draggedFromColumn) {
-          return { ...col, boards: col.boards.filter((t) => t.boardId !== draggedBoard.boardId) };
-        }
-        if (col.stageId === targetColumnId) {
-          return { ...col, boards: [...col.boards, updatedBoard] };
-        }
-        return col;
-      });
-
-      // 2. 낙관적 UI 업데이트
-      setColumns(newColumns);
-      handleDragEnd();
-
-      // 3. 🔥 API 호출 - 실제 DB 업데이트
-      try {
-        await updateBoard(draggedBoard.boardId, {
-          customFields: {
-            ...draggedBoard.customFields,
-            [fieldKeyName]: newFieldValue,
-          },
-        });
-        console.log(
-          `✅ [API SUCCESS] 보드 이동 완료: ${draggedBoard.title} → ${targetColumn.title} (${fieldKeyName}: ${newFieldValue})`,
-        );
-      } catch (error) {
-        console.error('❌ [API ERROR] 보드 이동 실패:', error);
-        // 🔥 실패 시 롤백
-        setColumns(columns);
-        alert('보드 이동에 실패했습니다. 다시 시도해주세요.');
-      }
-    },
-    [draggedBoard, draggedFromColumn, columns, viewState.currentView],
-  );
 
   const handleColumnDragStart = (column: Column): void => {
     setDraggedColumn(column);
@@ -489,6 +426,84 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     return result;
   }, [allProcessedBoards, viewState, fieldOptionsLookup, columns, stageOptions]);
 
+  const handleDrop = useCallback(
+    async (targetColumnId: string): Promise<void> => {
+      if (!draggedBoard || !draggedFromColumn) return;
+
+      // 🔥 수정: columns 대신 currentViewColumns 사용
+      const targetColumn = currentViewColumns.find((col) => col.stageId === targetColumnId);
+      if (!targetColumn) {
+        console.log('❌ [DROP] targetColumn을 찾을 수 없음:', targetColumnId);
+        handleDragEnd();
+        return;
+      }
+
+      // 같은 컬럼이면 무시
+      if (draggedFromColumn === targetColumnId) {
+        handleDragEnd();
+        return;
+      }
+
+      // 🔥 현재 뷰 타입에 따라 업데이트할 필드 결정
+      const fieldKeyName = viewState.currentView as 'stage' | 'role' | 'importance';
+
+      // 🔥 UNASSIGNED로 이동하는 경우 해당 필드를 undefined로 설정
+      const newFieldValue = targetColumnId === 'UNASSIGNED' ? undefined : targetColumnId;
+
+      console.log('🔍 [DRAG] viewState.currentView:', viewState.currentView);
+      console.log('🔍 [DRAG] fieldKeyName:', fieldKeyName);
+      console.log('🔍 [DRAG] draggedBoard.customFields:', draggedBoard.customFields);
+      console.log('🔍 [DRAG] targetColumnId:', targetColumnId);
+      console.log('🔍 [DRAG] newFieldValue:', newFieldValue);
+
+      // 1. 로컬 상태 업데이트를 위한 새 보드 생성
+      const updatedBoard: BoardResponse = {
+        ...draggedBoard,
+        customFields: {
+          ...draggedBoard.customFields,
+          [fieldKeyName]: newFieldValue,
+        },
+      };
+
+      // 🔥 수정: columns 대신 currentViewColumns 기반으로 업데이트
+      const newColumns = currentViewColumns.map((col) => {
+        if (col.stageId === draggedFromColumn) {
+          return { ...col, boards: col.boards.filter((t) => t.boardId !== draggedBoard.boardId) };
+        }
+        if (col.stageId === targetColumnId) {
+          return { ...col, boards: [...col.boards, updatedBoard] };
+        }
+        return col;
+      });
+
+      // 2. 낙관적 UI 업데이트
+      // 🔥 주의: stage 뷰가 아닐 때는 columns를 직접 업데이트하면 안됨
+      // fetchBoards를 호출하여 전체 데이터를 새로고침해야 함
+
+      // 3. 🔥 API 호출 - 실제 DB 업데이트
+      try {
+        await updateBoard(draggedBoard.boardId, {
+          customFields: {
+            ...draggedBoard.customFields,
+            [fieldKeyName]: newFieldValue,
+          },
+        });
+        console.log(
+          `✅ [API SUCCESS] 보드 이동 완료: ${draggedBoard.title} → ${targetColumn.title} (${fieldKeyName}: ${newFieldValue})`,
+        );
+
+        // 🔥 API 성공 후 데이터 새로고침
+        await fetchBoards();
+      } catch (error) {
+        console.error('❌ [API ERROR] 보드 이동 실패:', error);
+        alert('보드 이동에 실패했습니다. 다시 시도해주세요.');
+      } finally {
+        handleDragEnd();
+      }
+    },
+    [draggedBoard, draggedFromColumn, currentViewColumns, viewState.currentView, fetchBoards],
+  );
+
   // 로딩 상태 처리
   if (isLoading && (stageOptions === undefined || stageOptions.length === 0)) {
     return <LoadingSpinner message="보드와 필드 데이터를 로드 중..." />;
@@ -657,6 +672,9 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                   }
                 }}
                 onDrop={() => {
+                  console.log('🔍 [DROP] draggedColumn:', draggedColumn);
+                  console.log('🔍 [DROP] draggedBoard:', draggedBoard);
+                  console.log('🔍 [DROP] column.stageId:', column.stageId);
                   draggedColumn ? handleColumnDrop(column) : handleDrop(column.stageId);
                 }}
                 className={`w-full lg:w-80 lg:flex-shrink-0 relative transition-all ${
