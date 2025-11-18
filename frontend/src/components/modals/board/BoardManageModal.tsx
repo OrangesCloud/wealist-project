@@ -40,12 +40,11 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   editData,
   workspaceId,
   onClose,
-  // onBoardCreated,
+  onBoardCreated,
   fieldOptionsLookup,
   handleCustomField,
 }) => {
   const { theme } = useTheme();
-  console.log(fieldOptionsLookup);
   // Form state
   const [title, setTitle] = useState(editData?.title || '');
   const [content, setContent] = useState(editData?.content || '');
@@ -83,7 +82,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         console.error('❌ 워크스페이스 멤버 로드 실패:', err);
       }
     };
-    console.log(editData);
     if (workspaceId) {
       fetchMembers();
     }
@@ -163,8 +161,8 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
       }
 
       alert(`✅  보드 ${editData?.boardId ? '수정' : '생성'} 완료!`);
-      // onBoardCreated();
-      // onClose();
+      onBoardCreated();
+      onClose();
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
       console.error(`❌ 보드 ${editData?.boardId ? '수정' : '생성'} 실패:`, errorMsg);
