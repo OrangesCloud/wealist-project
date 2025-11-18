@@ -8,8 +8,7 @@ on:
       - ".github/workflows/frontend-cicd.yml"
   workflow_dispatch:
 
-env:
-  AWS_REGION: ap-northeast-2
+# env section removed - values loaded from Parameter Store in steps
 
 jobs:
   deploy:
@@ -26,7 +25,25 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ap-northeast-2
+
+      # ============================================
+      # 2. Parameter Store에서 설정 로드
+      # ============================================
+      - name: 📥 Load Configuration from Parameter Store
+        id: config
+        run: |
+          echo "📥 Loading configuration from Parameter Store..."
+          
+          AWS_REGION=$(aws ssm get-parameter \
+            --name "/wealist/ci/aws-region" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          echo "aws-region=${AWS_REGION}" >> $GITHUB_OUTPUT
+          
+          echo "✅ Configuration loaded successfully"
+          echo "  - AWS Region: ${AWS_REGION}"
 
       - name: ⚙️ Setup pnpm
         uses: pnpm/action-setup@v2

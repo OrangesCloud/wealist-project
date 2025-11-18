@@ -17,11 +17,7 @@ on:
         required: false
         type: string
 
-env:
-  AWS_REGION: ap-northeast-2
-  PARAMETER_PREFIX: /wealist/dev
-  COMPOSE_FILE: /home/ubuntu/wealist/docker/compose/docker-compose.ec2-dev.yml
-  EC2_INSTANCE_ID: i-000f35cf67afa3c33
+# env section removed - values loaded from Parameter Store in steps
 
 jobs:
   deploy:
@@ -43,17 +39,58 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ap-northeast-2
 
       # ============================================
-      # 3. ECR 로그인
+      # 3. Parameter Store에서 설정 로드
+      # ============================================
+      - name: 📥 Load Configuration from Parameter Store
+        id: config
+        run: |
+          echo "📥 Loading CD configuration from Parameter Store..."
+          
+          # CD 관련 파라미터 로드
+          AWS_REGION=$(aws ssm get-parameter \
+            --name "/wealist/cd/aws-region" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          PARAMETER_PREFIX=$(aws ssm get-parameter \
+            --name "/wealist/cd/parameter-prefix" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          COMPOSE_FILE_PATH=$(aws ssm get-parameter \
+            --name "/wealist/cd/compose-file-path" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          EC2_INSTANCE_ID=$(aws ssm get-parameter \
+            --name "/wealist/cd/ec2-instance-id" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          # 출력 변수로 설정
+          echo "aws-region=${AWS_REGION}" >> $GITHUB_OUTPUT
+          echo "parameter-prefix=${PARAMETER_PREFIX}" >> $GITHUB_OUTPUT
+          echo "compose-file-path=${COMPOSE_FILE_PATH}" >> $GITHUB_OUTPUT
+          echo "ec2-instance-id=${EC2_INSTANCE_ID}" >> $GITHUB_OUTPUT
+          
+          echo "✅ Configuration loaded successfully"
+          echo "  - AWS Region: ${AWS_REGION}"
+          echo "  - Parameter Prefix: ${PARAMETER_PREFIX}"
+          echo "  - Compose File Path: ${COMPOSE_FILE_PATH}"
+          echo "  - EC2 Instance ID: ${EC2_INSTANCE_ID}"
+
+      # ============================================
+      # 4. ECR 로그인
       # ============================================
       - name: 🔑 Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       # ============================================
-      # 4. docker-compose 파일을 EC2에 복사
+      # 5. docker-compose 파일을 EC2에 복사
       # ============================================
       - name: 📦 Upload docker-compose file to EC2
         run: |
@@ -64,7 +101,7 @@ jobs:
 
           # SSM으로 파일 전송
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
+            --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
             --document-name "AWS-RunShellScript" \
             --comment "Upload docker-compose file - ${{ github.sha }}" \
             --timeout-seconds 60 \
@@ -82,19 +119,19 @@ jobs:
           echo "⏳ Waiting for file upload..."
           aws ssm wait command-executed \
             --command-id "${COMMAND_ID}" \
-            --instance-id "${{ env.EC2_INSTANCE_ID }}"
+            --instance-id "${{ steps.config.outputs.ec2-instance-id }}"
 
           echo "✅ docker-compose file uploaded"
 
       # ============================================
-      # 5. SSM Run Command로 배포 실행
+      # 6. SSM Run Command로 배포 실행
       # ============================================
       - name: 🚀 Deploy via SSM Run Command
         id: deploy
         run: |
           echo "📋 Deployment Configuration:"
-          echo "  - Instance ID: ${{ env.EC2_INSTANCE_ID }}"
-          echo "  - AWS Region: ${{ env.AWS_REGION }}"
+          echo "  - Instance ID: ${{ steps.config.outputs.ec2-instance-id }}"
+          echo "  - AWS Region: ${{ steps.config.outputs.aws-region }}"
           echo "  - Commit SHA: ${{ github.sha }}"
           echo ""
 
@@ -111,11 +148,11 @@ jobs:
           export PARAMETER_PREFIX=/wealist/dev
 
           load_param() {
-            aws ssm get-parameter --name "${PARAMETER_PREFIX}/$1" --query 'Parameter.Value' --output text --region ${AWS_REGION}
+            aws ssm get-parameter --name "${PARAMETER_PREFIX}/$1" --query 'Parameter.Value' --output text --region "${AWS_REGION}"
           }
 
           load_secret() {
-            aws ssm get-parameter --name "${PARAMETER_PREFIX}/$1" --with-decryption --query 'Parameter.Value' --output text --region ${AWS_REGION}
+            aws ssm get-parameter --name "${PARAMETER_PREFIX}/$1" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}"
           }
           # ===============================================
           # 1. 시크릿 및 DB 환경 변수 로드 (기존 로직)
@@ -196,7 +233,7 @@ jobs:
           # SSM Run Command 실행
           echo "🚀 Sending command to EC2 instance..."
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
+            --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
             --document-name "AWS-RunShellScript" \
             --comment "Deploy User Service - ${{ github.sha }}" \
             --timeout-seconds 300 \
@@ -230,12 +267,12 @@ jobs:
           echo ""
 
       # ============================================
-      # 6. 배포 결과 대기
+      # 7. 배포 결과 대기
       # ============================================
       - name: ⏳ Wait for Deployment
         run: |
           COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
-          INSTANCE_ID="${{ env.EC2_INSTANCE_ID }}"
+          INSTANCE_ID="${{ steps.config.outputs.ec2-instance-id }}"
 
           echo "⏳ Waiting for deployment to complete..."
           echo "  - Command ID: ${COMMAND_ID}"
@@ -314,7 +351,7 @@ jobs:
           echo "✅ Deployment completed successfully!"
 
       # ============================================
-      # 7. 배포 로그 출력
+      # 8. 배포 로그 출력
       # ============================================
       - name: 📋 Show Deployment Logs
         if: always()
@@ -323,14 +360,14 @@ jobs:
           echo "================================"
           aws ssm get-command-invocation \
             --command-id "${{ steps.deploy.outputs.command-id }}" \
-            --instance-id "${{ env.EC2_INSTANCE_ID }}" \
+            --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
             --query "StandardOutputContent" \
             --output text || echo "⚠️  Could not retrieve output"
           echo ""
           echo "================================"
 
       # ============================================
-      # 8. Summary
+      # 9. Summary
       # ============================================
       - name: 📊 Deployment Summary
         if: always()
@@ -349,7 +386,7 @@ jobs:
           ### ${ICON} ${TITLE}
 
           - **Commit:** \`${{ github.sha }}\`
-          - **Instance:** \`${{ env.EC2_INSTANCE_ID }}\`
+          - **Instance:** \`${{ steps.config.outputs.ec2-instance-id }}\`
           - **Command ID:** \`${{ steps.deploy.outputs.command-id }}\`
           - **Status:** ${STATUS}
           - **Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')

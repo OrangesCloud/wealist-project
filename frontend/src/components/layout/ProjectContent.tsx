@@ -88,6 +88,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     stageId ? stageOptions?.find((i) => i.optionValue === stageId) : undefined;
 
   const fetchBoards = useCallback(async () => {
+    console.log('gh');
     if (!selectedProject || !stageOptions || stageOptions.length === 0) {
       setColumns([]);
       return;
@@ -428,7 +429,8 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         const orderB = (stages.find((o) => o.optionValue === b.stageId) as any)?.displayOrder || 0;
         return orderA - orderB;
       });
-
+      if (!viewState.showCompleted && viewState?.currentView === 'stage')
+        return result.filter((ele) => ele.stageId !== 'approved');
       return result;
     }
 
