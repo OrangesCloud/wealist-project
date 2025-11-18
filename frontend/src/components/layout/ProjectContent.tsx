@@ -331,46 +331,108 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
   // 7. 뷰 기준에 따라 컬럼을 재구성 (useMemo)
   const currentViewColumns = useMemo(() => {
-    // 🔥 보드가 없을 때 빈 컬럼 구조 반환
-    if (!allProcessedBoards || allProcessedBoards.length === 0) {
-      if (
-        fieldOptionsLookup?.stages?.length &&
-        fieldOptionsLookup?.stages?.length > 0 &&
-        viewState?.currentLayout === 'board'
-      ) {
-        const stages = fieldOptionsLookup.stages;
+    // 💡 [수정] 필터링이 완료된 보드만 사용합니다.
+    const filteredBoards = allProcessedBoards;
+
+    // 🔥 보드가 없을 때, 현재 뷰 기준에 맞는 빈 컬럼 구조를 생성합니다.
+    if (filteredBoards.length === 0) {
+      if (viewState?.currentLayout === 'board') {
+        let options: FieldOption[] = [];
+        let groupByField: 'stage' | 'role' | 'importance' | undefined = viewState?.currentView;
+
+        if (groupByField === 'stage') {
+          options = fieldOptionsLookup?.stages || [];
+        } else if (groupByField === 'role') {
+          options = fieldOptionsLookup?.roles || [];
+        } else if (groupByField === 'importance') {
+          options = fieldOptionsLookup?.importances || [];
+        }
+
         const UNASSIGNED_ID = 'UNASSIGNED';
-        const emptyColumns = [
+        const emptyColumns: Column[] = [
           {
             stageId: UNASSIGNED_ID,
             title: '미분류',
             color: '#B3B3B3',
             boards: [],
           },
-          ...stages.map((stage) => ({
-            stageId: stage.optionValue,
-            title: stage.optionLabel,
-            color: (stage as any).color,
+          ...options.map((option) => ({
+            stageId: option.optionValue,
+            title: option.optionLabel,
+            color: (option as any).color, // 타입 캐스팅 필요
             boards: [],
           })),
         ];
+        // 💡 미분류를 제외한 나머지 컬럼만 정렬 (stage의 경우 fetchBoards에서 이미 정렬됨)
+        if (groupByField !== 'stage') {
+          emptyColumns.sort((a, b) => {
+            if (a.stageId === UNASSIGNED_ID) return -1;
+            if (b.stageId === UNASSIGNED_ID) return 1;
+            const orderA =
+              (options.find((o) => o.optionValue === a.stageId) as any)?.displayOrder || 0;
+            const orderB =
+              (options.find((o) => o.optionValue === b.stageId) as any)?.displayOrder || 0;
+            return orderA - orderB;
+          });
+        }
         return emptyColumns;
       }
       return [];
     }
 
-    if (stageOptions?.length === 0 && viewState.currentView === 'stage') {
-      return [];
-    }
-
     const groupByField = viewState.currentView;
 
-    // 🔥 stage일 때는 원본 columns 그대로 사용
+    // 🔥 stage일 때는 원본 columns를 사용하지 않고,
+    //    필터링된 boards를 다시 stage 기준으로 그룹화해야 합니다. (showCompleted 적용을 위해)
     if (groupByField === 'stage') {
-      return columns;
+      const stageMap = new Map<string, Column>();
+      const stages = fieldOptionsLookup?.stages || [];
+      const UNASSIGNED_ID = 'UNASSIGNED';
+
+      // 1. 컬럼 기본 구조 생성 (fetchBoards의 로직 재사용)
+      stageMap.set(UNASSIGNED_ID, {
+        stageId: UNASSIGNED_ID,
+        title: '미분류',
+        color: '#B3B3B3',
+        boards: [],
+      } as Column);
+
+      stages.forEach((stage: FieldOption) => {
+        stageMap.set(stage.optionValue, {
+          stageId: stage.optionValue,
+          title: stage.optionLabel,
+          color: (stage as any).color,
+          boards: [],
+        } as Column);
+      });
+
+      // 2. 필터링된 보드(filteredBoards = allProcessedBoards)를 그룹화
+      filteredBoards.forEach((board) => {
+        const stageId = board.stageId || UNASSIGNED_ID;
+        const targetColumn = stageMap.get(stageId === UNASSIGNED_ID ? UNASSIGNED_ID : stageId);
+
+        if (targetColumn) {
+          targetColumn.boards.push(board as any);
+        } else {
+          // stageId가 유효하지 않은 경우 미분류에 추가
+          stageMap.get(UNASSIGNED_ID)!.boards.push(board as any);
+        }
+      });
+
+      // 3. 순서 정렬
+      const result = Array.from(stageMap.values()).sort((a, b) => {
+        if (a.stageId === UNASSIGNED_ID) return -1;
+        if (b.stageId === UNASSIGNED_ID) return 1;
+
+        const orderA = (stages.find((o) => o.optionValue === a.stageId) as any)?.displayOrder || 0;
+        const orderB = (stages.find((o) => o.optionValue === b.stageId) as any)?.displayOrder || 0;
+        return orderA - orderB;
+      });
+
+      return result;
     }
 
-    // role이나 importance일 때만 재그룹화
+    // role이나 importance일 때만 재그룹화 (기존 로직 유지, filteredBoards 사용)
     let baseOptions: any[] = [];
     let lookupField: 'roleOption' | 'importanceOption';
 
@@ -403,7 +465,8 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       });
     });
 
-    allProcessedBoards?.forEach((board) => {
+    // 💡 [수정] allProcessedBoards 대신 filteredBoards 사용
+    filteredBoards?.forEach((board) => {
       const optionValue = (board as any)[lookupField]?.optionValue;
 
       if (optionValue && groupedMap.has(optionValue)) {
@@ -414,7 +477,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     });
 
     const result = Array.from(groupedMap.values()).sort((a, b) => {
-      if (a.stageId === UNASSIGNED_ID) return -1; // 🔥 미분류를 맨 앞으로
+      if (a.stageId === UNASSIGNED_ID) return -1;
       if (b.stageId === UNASSIGNED_ID) return 1;
 
       const orderA =
