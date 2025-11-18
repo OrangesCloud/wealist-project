@@ -34,6 +34,9 @@ services:
     hostname: user-service
 
     environment:
+      # Spring Profile (AWS environment with context path)
+      - SPRING_PROFILES_ACTIVE=aws
+      
       # Server Configuration
       - SERVER_PORT=8080
       - USER_SERVICE_PORT=8080
@@ -82,7 +85,7 @@ services:
         condition: service_healthy
 
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/users/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -116,6 +119,7 @@ services:
       # Server Configuration
       - ENV=dev
       - SERVER_PORT=8000
+      - SERVER_BASE_PATH=/api/boards
       - LOG_LEVEL=${LOG_LEVEL:-debug}
 
       # Database Configuration
@@ -148,7 +152,7 @@ services:
         condition: service_healthy
 
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/api/boards/health"]
       interval: 30s
       timeout: 10s
       retries: 3

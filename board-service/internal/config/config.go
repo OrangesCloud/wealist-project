@@ -24,6 +24,7 @@ type Config struct {
 type ServerConfig struct {
 	Port            string        `yaml:"port"`
 	Mode            string        `yaml:"mode"` // debug, release
+	BasePath        string        `yaml:"base_path"`
 	ReadTimeout     time.Duration `yaml:"read_timeout"`
 	WriteTimeout    time.Duration `yaml:"write_timeout"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout"`
@@ -155,6 +156,11 @@ func (c *Config) overrideFromEnv() {
 	// Current format can override if ENV not set
 	if mode := os.Getenv("SERVER_MODE"); mode != "" && os.Getenv("ENV") == "" {
 		c.Server.Mode = mode
+	}
+	
+	// Base path for ALB routing
+	if basePath := os.Getenv("SERVER_BASE_PATH"); basePath != "" {
+		c.Server.BasePath = basePath
 	}
 
 	// Database - DATABASE_URL takes precedence (original format)

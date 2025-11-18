@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"project-board-api/internal/domain"
@@ -24,20 +26,42 @@ type BoardService interface {
 
 // boardServiceImpl is the implementation of BoardService
 type boardServiceImpl struct {
-	boardRepo   repository.BoardRepository
-	projectRepo repository.ProjectRepository
+	boardRepo           repository.BoardRepository
+	projectRepo         repository.ProjectRepository
+	fieldOptionRepo     repository.FieldOptionRepository
+	fieldOptionConverter FieldOptionConverter
+}
+
+// FieldOptionConverter handles conversion between field option values and IDs
+type FieldOptionConverter interface {
+	ConvertValuesToIDs(ctx context.Context, projectID uuid.UUID, customFields map[string]interface{}) (map[string]interface{}, error)
+	ConvertIDsToValues(ctx context.Context, customFields map[string]interface{}) (map[string]interface{}, error)
+	ConvertIDsToValuesBatch(ctx context.Context, boards []*domain.Board) error
 }
 
 // NewBoardService creates a new instance of BoardService
-func NewBoardService(boardRepo repository.BoardRepository, projectRepo repository.ProjectRepository) BoardService {
+func NewBoardService(
+	boardRepo repository.BoardRepository,
+	projectRepo repository.ProjectRepository,
+	fieldOptionRepo repository.FieldOptionRepository,
+	fieldOptionConverter FieldOptionConverter,
+) BoardService {
 	return &boardServiceImpl{
-		boardRepo:   boardRepo,
-		projectRepo: projectRepo,
+		boardRepo:            boardRepo,
+		projectRepo:          projectRepo,
+		fieldOptionRepo:      fieldOptionRepo,
+		fieldOptionConverter: fieldOptionConverter,
 	}
 }
 
 // CreateBoard creates a new board
 func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoardRequest) (*dto.BoardResponse, error) {
+	// Extract user_id from context (set by auth middleware as uuid.UUID)
+	authorID, exists := ctx.Value("user_id").(uuid.UUID)
+	if !exists {
+		return nil, response.NewAppError(response.ErrCodeUnauthorized, "User ID not found in context", "")
+	}
+
 	// Verify project exists
 	_, err := s.projectRepo.FindByID(ctx, req.ProjectID)
 	if err != nil {
@@ -47,12 +71,29 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to verify project", err.Error())
 	}
 
-	// Create domain model from request
+	// Convert CustomFields from values to IDs, then to datatypes.JSON
+	var customFieldsJSON datatypes.JSON
+	if req.CustomFields != nil {
+		// Convert values to IDs
+		convertedFields, err := s.fieldOptionConverter.ConvertValuesToIDs(ctx, req.ProjectID, req.CustomFields)
+		if err != nil {
+			return nil, response.NewAppError(response.ErrCodeValidation, "Invalid custom field values", err.Error())
+		}
+		
+		jsonBytes, err := json.Marshal(convertedFields)
+		if err != nil {
+			return nil, response.NewAppError(response.ErrCodeInternal, "Failed to marshal custom fields", err.Error())
+		}
+		customFieldsJSON = jsonBytes
+	}
+
+	// Create domain model from request with AuthorID
 	board := &domain.Board{
 		ProjectID:    req.ProjectID,
+		AuthorID:     authorID,
 		Title:        req.Title,
 		Content:      req.Content,
-		CustomFields: req.CustomFields,
+		CustomFields: customFieldsJSON,
 		AssigneeID:   req.AssigneeID,
 		DueDate:      req.DueDate,
 	}
@@ -75,6 +116,11 @@ func (s *boardServiceImpl) GetBoard(ctx context.Context, boardID uuid.UUID) (*dt
 			return nil, response.NewAppError(response.ErrCodeNotFound, "Board not found", "")
 		}
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch board", err.Error())
+	}
+
+	// Convert IDs to values in customFields
+	if err := s.convertBoardCustomFieldsToValues(ctx, board); err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to convert custom fields", err.Error())
 	}
 
 	// Convert to detailed response DTO
@@ -102,6 +148,11 @@ func (s *boardServiceImpl) GetBoardsByProject(ctx context.Context, projectID uui
 	boards, err := s.boardRepo.FindByProjectID(ctx, projectID, filterParam)
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch boards", err.Error())
+	}
+
+	// Convert IDs to values in batch for all boards
+	if err := s.fieldOptionConverter.ConvertIDsToValuesBatch(ctx, boards); err != nil {
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to convert custom fields", err.Error())
 	}
 
 	// Convert to response DTOs
@@ -132,7 +183,18 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		board.Content = *req.Content
 	}
 	if req.CustomFields != nil {
-		board.CustomFields = *req.CustomFields
+		// Convert values to IDs
+		convertedFields, err := s.fieldOptionConverter.ConvertValuesToIDs(ctx, board.ProjectID, *req.CustomFields)
+		if err != nil {
+			return nil, response.NewAppError(response.ErrCodeValidation, "Invalid custom field values", err.Error())
+		}
+		
+		// Convert CustomFields to datatypes.JSON
+		jsonBytes, err := json.Marshal(convertedFields)
+		if err != nil {
+			return nil, response.NewAppError(response.ErrCodeInternal, "Failed to marshal custom fields", err.Error())
+		}
+		board.CustomFields = jsonBytes
 	}
 	if req.AssigneeID != nil {
 		board.AssigneeID = req.AssigneeID
@@ -141,7 +203,6 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		board.DueDate = req.DueDate
 	}
 
-	// Save updated board
 	if err := s.boardRepo.Update(ctx, board); err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update board", err.Error())
 	}
@@ -169,8 +230,39 @@ func (s *boardServiceImpl) DeleteBoard(ctx context.Context, boardID uuid.UUID) e
 	return nil
 }
 
+// convertBoardCustomFieldsToValues converts a single board's customFields from IDs to values
+func (s *boardServiceImpl) convertBoardCustomFieldsToValues(ctx context.Context, board *domain.Board) error {
+	if board.CustomFields == nil || len(board.CustomFields) == 0 {
+		return nil
+	}
+
+	var customFields map[string]interface{}
+	if err := json.Unmarshal(board.CustomFields, &customFields); err != nil {
+		return err
+	}
+
+	convertedFields, err := s.fieldOptionConverter.ConvertIDsToValues(ctx, customFields)
+	if err != nil {
+		return err
+	}
+
+	jsonBytes, err := json.Marshal(convertedFields)
+	if err != nil {
+		return err
+	}
+
+	board.CustomFields = jsonBytes
+	return nil
+}
+
 // toBoardResponse converts domain.Board to dto.BoardResponse
 func (s *boardServiceImpl) toBoardResponse(board *domain.Board) *dto.BoardResponse {
+	// Convert datatypes.JSON to map[string]interface{}
+	var customFields map[string]interface{}
+	if len(board.CustomFields) > 0 {
+		_ = json.Unmarshal(board.CustomFields, &customFields)
+	}
+	
 	return &dto.BoardResponse{
 		ID:           board.ID,
 		ProjectID:    board.ProjectID,
@@ -178,7 +270,7 @@ func (s *boardServiceImpl) toBoardResponse(board *domain.Board) *dto.BoardRespon
 		AssigneeID:   board.AssigneeID,
 		Title:        board.Title,
 		Content:      board.Content,
-		CustomFields: board.CustomFields,
+		CustomFields: customFields,
 		DueDate:      board.DueDate,
 		CreatedAt:    board.CreatedAt,
 		UpdatedAt:    board.UpdatedAt,

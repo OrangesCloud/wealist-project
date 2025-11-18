@@ -168,7 +168,7 @@ public class WorkspaceService {
                     return new UserNotFoundException("Owner not found");
                 });
 
-        UserProfile ownerProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, workspace.getOwnerId())
+        UserProfile ownerProfile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, workspace.getOwnerId())
                 .orElseThrow(() -> {
                     log.warn("Owner profile not found: {}", workspace.getOwnerId());
                     return new UserNotFoundException("Owner profile not found");

@@ -21,6 +21,8 @@ type FieldOptionRepository interface {
 	CreateBatch(ctx context.Context, fieldOptions []*domain.FieldOption) error
 	Update(ctx context.Context, fieldOption *domain.FieldOption) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*domain.FieldOption, error)
+	FindByProjectAndFieldTypeAndValue(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType, value string) (*domain.FieldOption, error)
 }
 
 // fieldOptionRepositoryImpl is the GORM implementation of FieldOptionRepository
@@ -130,4 +132,33 @@ func (r *fieldOptionRepositoryImpl) CreateBatch(ctx context.Context, fieldOption
 		return err
 	}
 	return nil
+}
+
+// FindByIDs finds multiple field options by their IDs in a single query
+func (r *fieldOptionRepositoryImpl) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*domain.FieldOption, error) {
+	if len(ids) == 0 {
+		return []*domain.FieldOption{}, nil
+	}
+	
+	var fieldOptions []*domain.FieldOption
+	if err := r.db.WithContext(ctx).
+		Where("id IN ?", ids).
+		Find(&fieldOptions).Error; err != nil {
+		return nil, err
+	}
+	return fieldOptions, nil
+}
+
+// FindByProjectAndFieldTypeAndValue finds a field option by project ID, field type, and value
+func (r *fieldOptionRepositoryImpl) FindByProjectAndFieldTypeAndValue(ctx context.Context, projectID uuid.UUID, fieldType domain.FieldType, value string) (*domain.FieldOption, error) {
+	var fieldOption domain.FieldOption
+	if err := r.db.WithContext(ctx).
+		Where("project_id = ? AND field_type = ? AND value = ?", projectID, fieldType, value).
+		First(&fieldOption).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &fieldOption, nil
 }

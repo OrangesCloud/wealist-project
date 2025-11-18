@@ -1,31 +1,138 @@
 // src/types/board.ts
 
 // =======================================================
-// Board Service - 공통 DTO
+// Common Types
 // =======================================================
 
 /**
- * @summary 사용자 정보 (dto.UserInfo)
+ * @summary 공통 응답 래퍼 (response.SuccessResponse)
  */
-export interface UserInfo {
-  userId: string;
-  name: string;
-  email: string;
-  isActive: boolean;
+export interface SuccessResponse<T = any> {
+  data: T;
+  requestId: string;
 }
 
 /**
+ * @summary 공통 에러 응답 (response.ErrorResponse)
+ */
+export interface ErrorResponse {
+  error: any;
+  requestId: string;
+}
+
+// =======================================================
+// Board Types
+// =======================================================
+
+/**
+ * @summary 보드 응답 DTO (dto.BoardResponse)
+ * [API: GET /api/boards/{boardId}, POST /api/boards, PUT /api/boards/{boardId}]
+ */
+export interface BoardResponse {
+  boardId: string;
+  projectId: string;
+  title: string;
+  content: string;
+  assigneeId: string;
+  authorId: string;
+  dueDate: string;
+  customFields: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * @summary 보드 상세 응답 DTO (dto.BoardDetailResponse)
+ * [API: GET /api/boards/{boardId}]
+ */
+export interface BoardDetailResponse extends BoardResponse {
+  participants: ParticipantResponse[];
+  comments: CommentResponse[];
+}
+
+/**
+ * @summary 보드 생성 요청 (dto.CreateBoardRequest)
+ * [API: POST /api/boards]
+ */
+export interface CreateBoardRequest {
+  projectId: string;
+  title: string;
+  content?: string;
+  assigneeId?: string;
+  dueDate?: string;
+  customFields?: Record<string, any>;
+}
+
+/**
+ * @summary 보드 수정 요청 (dto.UpdateBoardRequest)
+ * [API: PUT /api/boards/{boardId}]
+ */
+export interface UpdateBoardRequest {
+  title?: string;
+  content?: string;
+  assigneeId?: string;
+  dueDate?: string;
+  customFields?: Record<string, any>;
+}
+
+/**
+ * @summary 보드 필터 (dto.BoardFilters)
+ */
+export interface BoardFilters {
+  customFields?: Record<string, any>;
+}
+
+/**
+ * @summary 페이징된 보드 목록 (dto.PaginatedBoardsResponse)
+ */
+export interface PaginatedBoardsResponse {
+  boards: BoardResponse[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/**
+ * @summary 보드 필드 수정 요청 (dto.UpdateBoardFieldRequest)
+ */
+export interface UpdateBoardFieldRequest {
+  fieldId: 'stage' | 'importance' | 'role';
+  value: string;
+}
+
+// =======================================================
+// Project Types
+// =======================================================
+
+/**
  * @summary 프로젝트 응답 DTO (dto.ProjectResponse)
- * [API: GET /api/projects]
+ * [API: GET /api/projects/{projectId}, POST /api/projects, PUT /api/projects/{projectId}]
  */
 export interface ProjectResponse {
   projectId: string;
   workspaceId: string;
   name: string;
-  description?: string;
+  description: string;
   ownerId: string;
   ownerName: string;
   ownerEmail: string;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * @summary 프로젝트 기본 정보 (dto.ProjectBasicInfo)
+ */
+export interface ProjectBasicInfo {
+  projectId: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceEmail: string;
+  name: string;
+  description: string;
+  ownerId: string;
+  isPublic: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,213 +156,186 @@ export interface UpdateProjectRequest {
   description?: string;
 }
 
-// =======================================================
-// Board API 요청/응답 타입
-// =======================================================
-
 /**
- * @summary 보드 응답 DTO (dto.BoardResponse)
- * [API: GET /api/boards/{boardId}]
+ * @summary 페이징된 프로젝트 목록 (dto.PaginatedProjectsResponse)
+ * [API: GET /api/projects/search]
  */
-export interface BoardResponse {
-  boardId: string;
-  title: string;
-  content: string;
-  projectId: string;
-  position: string;
-  dueDate: string;
-  createdAt: string;
-  updatedAt: string;
-  author: UserInfo;
-  assignee: UserInfo;
-  /**
-   * @description 파싱된 커스텀 필드 값들. 예: { stageId: "uuid", roleIds: ["uuid1", "uuid2"] }
-   */
-  customFields: Record<string, any>;
-}
-
-/**
- * @summary 보드 생성 요청 (dto.CreateBoardRequest)
- * [API: POST /api/boards]
- * @description 레거시 필드 (stageId, importanceId)는 DTO에 포함시키지만, customFields로 대체 권장
- */
-export interface CreateBoardRequest {
-  projectId: string;
-  title: string;
-  content?: string;
-  stageId?: string;
-  importanceId?: string;
-  roleId?: string;
-
-  // 레거시 필드 (백엔드 호환을 위해 유지)
-  dueDate?: string;
-  roleIds?: string[]; // 멀티 셀렉트
-  assigneeId?: string; // 단일 사용자 ID
-}
-
-/**
- * @summary 보드 수정 요청 (dto.UpdateBoardRequest)
- * [API: PUT /api/boards/{boardId}]
- */
-export interface UpdateBoardRequest extends Partial<CreateBoardRequest> {}
-
-/**
- * @summary 페이징된 보드 목록 응답 (dto.PaginatedBoardsResponse)
- * [API: GET /api/boards]
- */
-export interface PaginatedBoardsResponse {
-  boards: BoardResponse[];
+export interface PaginatedProjectsResponse {
+  projects: ProjectResponse[];
   total: number;
   page: number;
   limit: number;
 }
 
 // =======================================================
-// Custom Field API 응답/요청 타입
+// Project Init Settings Types
 // =======================================================
 
 /**
- * @summary 커스텀 필드 응답 DTO (dto.FieldResponse)
+ * @summary 필드 타입 정보 (dto.FieldTypeInfo)
  */
-export interface FieldResponse {
-  fieldId: string;
-  projectId: string;
-  name: string;
+export interface FieldTypeInfo {
+  typeId: string;
+  typeName: string;
   description: string;
-  fieldType:
-    | 'text'
-    | 'number'
-    | 'single_select'
-    | 'multi_select'
-    | 'date'
-    | 'datetime'
-    | 'single_user'
-    | 'multi_user'
-    | 'checkbox'
-    | 'url';
-  isRequired: boolean;
-  isSystemDefault: boolean;
-  displayOrder: number;
-  config: Record<string, any>;
 }
 
 /**
- * @summary 필드 옵션 응답 DTO (dto.OptionResponse)
- * @description Stage, Role, Importance 등의 선택지를 포함
+ * @summary 필드 옵션 (dto.FieldOption)
+ */
+export interface FieldOption {
+  optionId: string;
+  optionValue: string;
+  optionLabel: string;
+  color?: string;
+}
+
+/**
+ * @summary 옵션이 포함된 필드 응답 (dto.FieldWithOptionsResponse)
+ */
+export interface FieldWithOptionsResponse {
+  fieldId: string;
+  fieldName: string;
+  fieldType: string;
+  description: string;
+  isRequired: boolean;
+  options: FieldOption[];
+}
+
+/**
+ * @summary 프로젝트 초기 설정 응답 (dto.ProjectInitSettingsResponse)
+ * [API: GET /api/projects/{projectId}/init-settings]
+ */
+export interface ProjectInitSettingsResponse {
+  project: ProjectBasicInfo;
+  fields: FieldWithOptionsResponse[];
+  fieldTypes: FieldTypeInfo[];
+  defaultViewId: string;
+}
+
+// =======================================================
+// Field Option Types
+// =======================================================
+
+/**
+ * @summary 필드 옵션 응답 (dto.FieldOptionResponse)
+ * [API: GET /api/field-options, POST /api/field-options, PATCH /api/field-options/{optionId}]
  */
 export interface FieldOptionResponse {
   optionId: string;
-  fieldId: string;
-  label: string;
-  description: string;
-  color: string;
-  displayOrder: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// 💡 Mock Data 호환성 및 프론트엔드 LookUp용 타입 (FieldOptionResponse 기반)
-
-export interface BaseFieldOption {
+  fieldType: string;
+  value: string;
   label: string;
   color: string;
   displayOrder: number;
-  level?: number;
-  fieldId: string; // 소속 필드 ID
   isSystemDefault: boolean;
-  description: string;
-}
-
-/**
- * @summary Stage 옵션 타입 (프론트엔드 LookUp용 - optionId를 stageId로 사용)
- */
-export interface CustomStageResponse extends BaseFieldOption {
-  stageId: string; // FieldOptionResponse.optionId와 동일
-}
-
-/**
- * @summary Role 옵션 타입 (프론트엔드 LookUp용 - optionId를 roleId로 사용)
- */
-export interface CustomRoleResponse extends BaseFieldOption {
-  roleId: string; // FieldOptionResponse.optionId와 동일
-}
-
-/**
- * @summary Importance 옵션 타입 (프론트엔드 LookUp용 - optionId를 importanceId로 사용)
- */
-export interface CustomImportanceResponse extends BaseFieldOption {
-  importanceId: string; // FieldOptionResponse.optionId와 동일
-}
-
-// =======================================================
-// 그 외 API 요청/응답 타입
-// =======================================================
-
-/**
- * @summary 보드 이동 요청 (dto.MoveBoardRequest)
- * [API: PUT /api/boards/{boardId}/move]
- */
-export interface MoveBoardRequest {
-  viewId: string;
-  groupByFieldId: string;
-  newFieldValue: string; // 새로운 필드 옵션 ID (예: Stage ID)
-  beforePosition?: string;
-  afterPosition?: string;
-}
-
-/**
- * @summary 보드 이동 응답 (dto.MoveBoardResponse)
- */
-export interface MoveBoardResponse {
-  boardId: string;
-  newFieldValue: string;
-  newPosition: string;
-  message: string;
-}
-
-/**
- * @summary 뷰 응답 DTO (dto.ViewResponse)
- */
-export interface ViewResponse {
-  viewId: string;
-  projectId: string;
-  name: string;
-  description?: string;
-  isDefault: boolean;
-  isShared: boolean;
-  filters: Record<string, any>; // 필터 조건
-  groupByFieldId?: string;
-  sortBy?: string;
-  sortDirection?: 'asc' | 'desc';
   createdAt: string;
   updatedAt: string;
 }
 
 /**
- * @summary 뷰 순서 변경 요청 (dto.UpdateBoardOrderRequest)
- * [API: PUT /api/view-board-orders]
+ * @summary 필드 옵션 생성 요청 (dto.CreateFieldOptionRequest)
+ * [API: POST /api/field-options]
  */
-export interface UpdateBoardOrderRequest {
-  viewId: string;
-  boardOrders: Array<{ boardId: string; position: string }>;
+export interface CreateFieldOptionRequest {
+  fieldType: 'stage' | 'role' | 'importance';
+  value: string;
+  label: string;
+  color: string;
+  displayOrder?: number;
 }
 
 /**
- * @summary 댓글 응답 (가정된 DTO)
+ * @summary 필드 옵션 수정 요청 (dto.UpdateFieldOptionRequest)
+ * [API: PATCH /api/field-options/{optionId}]
+ */
+export interface UpdateFieldOptionRequest {
+  label?: string;
+  color?: string;
+  displayOrder?: number;
+}
+
+// =======================================================
+// Project Member Types
+// =======================================================
+
+/**
+ * @summary 프로젝트 멤버 응답 (dto.ProjectMemberResponse)
+ * [API: GET /api/projects/{projectId}/members]
+ */
+export interface ProjectMemberResponse {
+  memberId: string;
+  projectId: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  roleName: string;
+  joinedAt: string;
+}
+
+/**
+ * @summary 멤버 역할 변경 요청 (dto.UpdateProjectMemberRoleRequest)
+ * [API: PUT /api/projects/{projectId}/members/{memberId}/role]
+ */
+export interface UpdateProjectMemberRoleRequest {
+  roleName: 'OWNER' | 'ADMIN' | 'MEMBER';
+}
+
+// =======================================================
+// Project Join Request Types
+// =======================================================
+
+/**
+ * @summary 프로젝트 가입 요청 응답 (dto.ProjectJoinRequestResponse)
+ * [API: GET /api/projects/{projectId}/join-requests, POST /api/join-requests]
+ */
+export interface ProjectJoinRequestResponse {
+  requestId: string;
+  projectId: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  status: string;
+  requestedAt: string;
+  updatedAt: string;
+}
+
+/**
+ * @summary 프로젝트 가입 요청 생성 (dto.CreateProjectJoinRequestRequest)
+ * [API: POST /api/join-requests]
+ */
+export interface CreateProjectJoinRequestRequest {
+  projectId: string;
+}
+
+/**
+ * @summary 프로젝트 가입 요청 상태 변경 (dto.UpdateProjectJoinRequestRequest)
+ * [API: PUT /api/join-requests/{joinRequestId}]
+ */
+export interface UpdateProjectJoinRequestRequest {
+  status: 'APPROVED' | 'REJECTED';
+}
+
+// =======================================================
+// Comment Types
+// =======================================================
+
+/**
+ * @summary 댓글 응답 DTO (dto.CommentResponse)
+ * [API: GET /api/comments/board/{boardId}, POST /api/comments, PUT /api/comments/{commentId}]
  */
 export interface CommentResponse {
   commentId: string;
   boardId: string;
   userId: string;
-  userName: string;
-  userAvatar?: string;
   content: string;
   createdAt: string;
   updatedAt: string;
 }
 
 /**
- * @summary 댓글 생성 요청 (가정된 DTO)
+ * @summary 댓글 생성 요청 (dto.CreateCommentRequest)
+ * [API: POST /api/comments]
  */
 export interface CreateCommentRequest {
   boardId: string;
@@ -263,24 +343,51 @@ export interface CreateCommentRequest {
 }
 
 /**
- * @summary 댓글 수정 요청 (가정된 DTO)
+ * @summary 댓글 수정 요청 (dto.UpdateCommentRequest)
+ * [API: PUT /api/comments/{commentId}]
  */
 export interface UpdateCommentRequest {
   content: string;
 }
 
-// 💡 기존의 프론트엔드 컴포넌트에서 사용하던 타입은 BoardResponse로 대체하거나,
-//    필요에 따라 BoardResponse를 확장하여 사용합니다.
+// =======================================================
+// Participant Types
+// =======================================================
+
+/**
+ * @summary 참여자 응답 DTO (dto.ParticipantResponse)
+ * [API: GET /api/participants/board/{boardId}]
+ */
+export interface ParticipantResponse {
+  id: string;
+  boardId: string;
+  userId: string;
+  createdAt: string;
+}
+
+/**
+ * @summary 참여자 추가 요청 (dto.AddParticipantRequest)
+ * [API: POST /api/participants]
+ */
+export interface AddParticipantRequest {
+  boardId: string;
+  userId: string;
+}
+
+// =======================================================
+// Frontend Utility Types
+// =======================================================
+
 export type Priority = 'HIGH' | 'MEDIUM' | 'LOW' | '';
-// 💡 [통합된 View/Filter 상태 인터페이스]
+export type TLayout = 'table' | 'board' | undefined;
+export type TView = 'stage' | 'role' | 'importance' | undefined;
+
 export interface Column {
   stageId: string;
   title: string;
   color?: string;
   boards: BoardResponse[];
 }
-export type TLayout = 'table' | 'board' | undefined;
-export type TView = 'stage' | 'role' | 'importance' | undefined;
 
 export interface ViewState {
   currentView?: TView;
@@ -288,172 +395,13 @@ export interface ViewState {
   filterOption?: string;
   currentLayout?: TLayout;
   showCompleted?: boolean;
-  sortColumn?:
-    | 'title'
-    | 'stage'
-    | 'role'
-    | 'importance'
-    | 'importance'
-    | 'assignee'
-    | 'dueDate'
-    | null;
+  sortColumn?: 'title' | 'stage' | 'role' | 'importance' | 'assignee' | 'dueDate' | null;
   sortDirection?: 'asc' | 'desc';
 }
-// --- 필드/옵션 요청 DTO ---
 
-// 💡 [추가] 룩업 데이터 인터페이스
 export interface FieldOptionsLookup {
-  stages?: CustomStageResponse[];
-  roles?: CustomRoleResponse[];
-  importances?: CustomImportanceResponse[];
+  [fieldId: string]: FieldOption[] | undefined;
 }
-
-/**
- * @summary 필드 옵션 생성 요청 (dto.CreateOptionRequest)
- * [API: POST /api/field-options]
- */
-export interface CreateFieldOptionRequest {
-  fieldId: string;
-  label: string;
-  description?: string;
-  color?: string;
-}
-
-/**
- * @summary 필드 옵션 수정 요청 (dto.UpdateOptionRequest)
- * [API: PATCH /api/field-options/{optionId}]
- */
-export interface UpdateFieldOptionRequest {
-  label?: string;
-  description?: string;
-  color?: string;
-}
-
-// =======================================================
-// 프로젝트 초기화 데이터 DTO (Init Data)
-// =======================================================
-
-/**
- * @summary 필드 유형 정보 (dto.FieldTypeInfo)
- */
-export interface FieldTypeInfo {
-  type: string;
-  displayName: string;
-  description: string;
-  hasOptions: boolean;
-}
-
-/**
- * @summary 필드 및 옵션 정보 통합 (dto.FieldWithOptionsResponse)
- */
-export interface FieldWithOptionsResponse extends FieldResponse {
-  options: FieldOptionResponse[];
-}
-
-/**
- * @summary 프로젝트 초기화 응답 DTO (dto.ProjectInitSettingResponse)
- * [API: GET /api/projects/{projectId}/init-settings]
- */
-export interface ProjectInitSettingResponse {
-  project: ProjectResponse; // Project Basic Info
-  fields: FieldWithOptionsResponse[]; // 모든 필드 정의와 그 옵션
-  fieldTypes: FieldTypeInfo[]; // 사용 가능한 필드 유형 목록
-  defaultViewId?: string;
-}
-
-/**
- * @summary 새 커스텀 필드 생성 요청 (dto.CreateFieldRequest)
- * [API: POST /api/fields]
- */
-export interface CreateFieldRequest {
-  projectId: string;
-  name: string;
-  description?: string;
-  fieldType: // FieldType 정의
-  | 'text'
-    | 'number'
-    | 'single_select'
-    | 'multi_select'
-    | 'date'
-    | 'datetime'
-    | 'single_user'
-    | 'multi_user'
-    | 'checkbox'
-    | 'url';
-  isRequired?: boolean;
-  config?: Record<string, any>;
-}
-
-/**
- * @summary 필드 수정 요청 (dto.UpdateFieldRequest)
- * [API: PATCH /api/fields/{fieldId}]
- */
-export interface UpdateFieldRequest {
-  name?: string;
-  description?: string;
-  displayOrder?: number;
-  isRequired?: boolean;
-  config?: Record<string, any>;
-}
-
-// --- 보드 필드 값 요청 DTO ---
-
-/**
- * @summary 보드의 필드 값 설정 요청 (dto.SetFieldValueRequest)
- * [API: POST /api/board-field-values]
- */
-export interface SetFieldValueRequest {
-  boardId: string;
-  fieldId: string;
-  value: any; // Type depends on field type
-}
-
-/**
- * @summary 보드의 멀티 셀렉트 필드 값 설정 요청 (dto.SetMultiSelectValueRequest)
- * [API: POST /api/board-field-values/multi-select]
- */
-export interface SetMultiSelectValueRequest {
-  boardId: string;
-  fieldId: string;
-  values: Array<{ valueId: string; displayOrder: number }>;
-}
-
-// --- 뷰 요청 DTO ---
-
-/**
- * @summary 뷰 생성 요청 (dto.CreateViewRequest)
- * [API: POST /api/views]
- */
-export interface CreateViewRequest {
-  projectId: string;
-  name: string;
-  description?: string;
-  isDefault?: boolean;
-  isShared?: boolean;
-  filters?: Record<string, any>;
-  groupByFieldId?: string;
-  sortBy?: string;
-  sortDirection?: 'asc' | 'desc';
-}
-
-/**
- * @summary 뷰 수정 요청 (dto.UpdateViewRequest)
- * [API: PATCH /api/views/{viewId}]
- */
-export interface UpdateViewRequest {
-  name?: string;
-  description?: string;
-  isDefault?: boolean;
-  isShared?: boolean;
-  filters?: Record<string, any>;
-  groupByFieldId?: string;
-  sortBy?: string;
-  sortDirection?: 'asc' | 'desc';
-}
-
-// =======================================================
-// 프론트용 DTO
-// =======================================================
 
 export interface IEditCustomFields {
   name: string;
@@ -465,10 +413,6 @@ export interface IEditCustomFields {
     | 'date'
     | 'single_user'
     | 'multi_user';
-  options?: any[];
+  options?: FieldOption[];
   value?: string | number | null;
-  // options?: Array<{
-  //   label: string;
-  //   color: string;
-  // }>;
 }
