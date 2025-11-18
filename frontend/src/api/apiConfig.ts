@@ -1,9 +1,30 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-// 1. User/Workspace 서비스 (Java 백엔드) 기본 URL
-export const USER_REPO_API_URL = 'https://api.wealist.co.kr/api/users';
-// 2. Board/Project 서비스 (Go 백엔드) 기본 URL
-export const BOARD_SERVICE_API_URL = 'https://api.wealist.co.kr/api/boards/api';
+// 환경 변수 가져오기
+const INJECTED_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+// ============================================================================
+// 💡 [핵심 수정]: Context Path를 환경에 따라 조건부로 붙입니다.
+// ============================================================================
+
+const getApiBaseUrl = (path: string): string => {
+  // 1. 환경 변수 주입 확인
+  if (INJECTED_API_BASE_URL) {
+    // 쉘 스크립트에서 VITE_API_BASE_URL='http://localhost'가 주입된 경우
+    const isLocalDevelopment = INJECTED_API_BASE_URL.includes('localhost');
+
+    if (isLocalDevelopment)
+      return `${INJECTED_API_BASE_URL}${path === '/api/users' ? ':8080' : ':8000/api'}`;
+
+    return `${INJECTED_API_BASE_URL}${path}`;
+  }
+
+  // 환경 변수가 없을 경우 (Fallback, CI/CD 실패 대비)
+  return `https://api.wealist.co.kr${path}`;
+};
+
+export const USER_REPO_API_URL = getApiBaseUrl('/api/users');
+export const BOARD_SERVICE_API_URL = getApiBaseUrl('/api/boards');
 
 // ============================================================================
 // 인증 갱신 관련 변수
