@@ -11,6 +11,9 @@ on:
 
 # env section removed - values loaded from Parameter Store in steps
 
+permissions:
+  contents: read
+
 jobs:
   build-and-push:
     name: Build & Push to ECR
@@ -178,14 +181,6 @@ jobs:
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-
-      # ============================================
-      # 10. CD 워크플로우 트리거
-      # ============================================
-      - name: 🚀 Trigger CD Workflow
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          event-type: user-service-ci-complete
-          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next:** CD workflow will be triggered automatically via workflow_run" >> $GITHUB_STEP_SUMMARY
 

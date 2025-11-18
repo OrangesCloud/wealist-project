@@ -1,12 +1,7 @@
 name: CD - Dev User Service
 
 on:
-  # 1. CI 완료 후 자동 실행 (repository dispatch)
-  repository_dispatch:
-    types:
-      - user-service-ci-complete
-
-  # 2. CI 완료 후 자동 실행 (workflow_run - 기본 브랜치용)
+  # 1. CI 완료 후 자동 실행 (workflow_run)
   workflow_run:
     workflows: ["CI - Dev User Service"]
     types:
@@ -14,7 +9,7 @@ on:
     branches:
       - deploy-dev
 
-  # 3. 인프라 변경 시 직접 실행
+  # 2. 인프라 변경 시 직접 실행
   push:
     branches:
       - deploy-dev
@@ -38,8 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: development
     # workflow_run으로 트리거된 경우, CI가 성공했을 때만 실행
-    # repository_dispatch는 항상 실행 (CI 성공 시에만 발생하므로)
-    if: ${{ github.event_name == 'repository_dispatch' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     steps:
       # ============================================
       # 1. 코드 체크아웃
@@ -164,11 +158,13 @@ jobs:
           export PARAMETER_PREFIX=/wealist/dev
 
           load_param() {
-            aws ssm get-parameter --name "${PARAMETER_PREFIX}/$1" --query 'Parameter.Value' --output text --region "${AWS_REGION}"
+            local param_name="$1"
+            aws ssm get-parameter --name "${PARAMETER_PREFIX}/${param_name}" --query 'Parameter.Value' --output text --region "${AWS_REGION}"
           }
 
           load_secret() {
-            aws ssm get-parameter --name "${PARAMETER_PREFIX}/$1" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}"
+            local param_name="$1"
+            aws ssm get-parameter --name "${PARAMETER_PREFIX}/${param_name}" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}"
           }
           # ===============================================
           # 1. 시크릿 및 DB 환경 변수 로드 (기존 로직)
@@ -192,14 +188,14 @@ jobs:
           # ===============================================
           # 2. 🚨 OAuth/URL 환경 변수 추가 (새로운 로직)
           # ===============================================
-          # Spring Security Client Redirect URI (전체 경로)
-          export OAUTH2_CLIENT_REDIRECT_URI=$(load_param "url/api_base_domain")
+          # Spring Security Client Redirect Base URL (예: https://api.wealist.co.kr)
+          export OAUTH2_CLIENT_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base" || echo "")
           # OAuth Success Handler 최종 Redirect URL (예: https://wealist.co.kr/oauth/callback)
-          export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/front_redirect_domain")
+          export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url" || echo "")
           export SPRING_PROFILES_ACTIVE="aws" # AWS 프로파일 활성화
 
           echo "✅ Parameters loaded, Profiles set to aws"
-          echo "   - OAUTH2_CLIENT_REDIRECT_URI=${OAUTH2_CLIENT_REDIRECT_URI}"
+          echo "   - OAUTH2_CLIENT_REDIRECT_BASE=${OAUTH2_CLIENT_REDIRECT_BASE}"
           echo "   - OAUTH2_REDIRECT_URL_ENV=${OAUTH2_REDIRECT_URL_ENV}"
 
 
@@ -255,8 +251,8 @@ jobs:
             --timeout-seconds 300 \
             --parameters commands="[
               \"echo '=== Deployment Script Received ===' \",
-              \"echo 'Timestamp: \$(date)' \",
-              \"echo 'Instance ID: \$(ec2-metadata --instance-id 2>/dev/null || echo 'N/A')' \",
+              \"echo 'Timestamp: '\$(date) \",
+              \"echo 'Instance ID: '\$(ec2-metadata --instance-id 2>/dev/null || echo 'N/A') \",
               \"echo '' \",
               \"echo '${SCRIPT_BASE64}' | base64 -d > /tmp/deploy.sh\",
               \"chmod +x /tmp/deploy.sh\",
