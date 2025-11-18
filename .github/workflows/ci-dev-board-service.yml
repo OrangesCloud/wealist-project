@@ -242,18 +242,3 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Swagger Validation:** ✅ Passed" >> $GITHUB_STEP_SUMMARY
 
-      # ============================================
-      # 14. CD 워크플로우 트리거
-      # ============================================
-      - name: 🚀 Trigger CD Workflow
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'cd-dev-board-service.yml',
-              ref: 'deploy-dev'
-            });
-            console.log('✅ CD workflow triggered successfully');
