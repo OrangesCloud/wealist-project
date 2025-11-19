@@ -69,8 +69,19 @@ var (
 	clientsMu sync.RWMutex
 )
 
-// internal/handler/websocket.go
-
+// HandleWebSocket godoc
+// @Summary      WebSocket 실시간 연결
+// @Description  프로젝트의 실시간 이벤트를 구독하기 위한 WebSocket 연결을 설정합니다
+// @Description  연결 후 BOARD_CREATED, BOARD_UPDATED, BOARD_MOVED, BOARD_DELETED 이벤트를 실시간으로 수신합니다
+// @Description  인증은 쿼리 파라미터로 전달된 JWT 토큰을 통해 수행됩니다
+// @Tags         websocket
+// @Produce      json
+// @Param        projectId path string true "Project ID (UUID)"
+// @Param        token query string true "JWT Access Token"
+// @Success      101 {string} string "Switching Protocols - WebSocket 연결 성공"
+// @Failure      401 {object} response.ErrorResponse "인증 실패"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /ws/project/{projectId} [get]
 func (h *WSHandler) HandleWebSocket(c *gin.Context) {
 	projectID := c.Param("projectId")
 	log := getLogger(c)
