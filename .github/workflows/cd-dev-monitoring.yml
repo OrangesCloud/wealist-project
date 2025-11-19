@@ -153,7 +153,7 @@ jobs:
             echo "  ✅ PostgreSQL container found: ${POSTGRES_CONTAINER}"
             
             # Test PostgreSQL connection
-            if docker exec "${POSTGRES_CONTAINER}" pg_isready -U "${POSTGRES_SUPERUSER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then
+            if docker exec "${POSTGRES_CONTAINER}" pg_isready -U "${POSTGRES_SUPERUSER}" -d "postgres" >/dev/null 2>&1; then
               echo "  ✅ PostgreSQL is ready"
             else
               echo "  ⚠️  PostgreSQL container exists but not ready"
