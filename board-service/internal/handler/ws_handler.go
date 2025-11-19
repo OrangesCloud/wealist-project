@@ -109,7 +109,6 @@ func (h *WSHandler) HandleWebSocket(c *gin.Context) {
 
 	// 🔥 [중요] c.Abort()를 Upgrade 전에 호출하면 안 됨!
 	// c.Abort() ← 이거 삭제!
-
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Error("WebSocket Upgrade Failed", zap.Error(err), zap.String("projectId", projectID))
