@@ -48,8 +48,9 @@ func Setup(cfg Config) *gin.Engine {
 	fieldOptionConverter := converter.NewFieldOptionConverter(fieldOptionRepo)
 
 	// Initialize services with repository dependencies
-	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient, cfg.Logger)
-	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, fieldOptionConverter)
+	// TODO: Pass metrics instance from main.go in task 11
+	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient, nil, cfg.Logger)
+	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, fieldOptionConverter, nil)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
 	commentService := service.NewCommentService(commentRepo, boardRepo)
 	fieldOptionService := service.NewFieldOptionService(fieldOptionRepo)

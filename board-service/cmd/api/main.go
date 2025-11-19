@@ -127,10 +127,12 @@ func main() {
 	)
 
 	// Initialize User API client
+	// TODO: Pass metrics instance in task 11
 	userClient := client.NewUserClient(
 		cfg.UserAPI.BaseURL,
 		cfg.UserAPI.Timeout,
 		log.Logger,
+		nil,
 	)
 
 	log.Info("User API client initialized successfully",

@@ -221,7 +221,7 @@ func TestProjectService_CreateProject(t *testing.T) {
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, getTestLogger())
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, nil, getTestLogger())
 
 			// When
 			got, err := service.CreateProject(context.Background(), tt.req, userID, token)
@@ -390,7 +390,7 @@ func TestProjectService_GetProjectsByWorkspace(t *testing.T) {
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, getTestLogger())
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, nil, getTestLogger())
 
 			// When
 			got, err := service.GetProjectsByWorkspace(context.Background(), tt.workspaceID, userID, token)
@@ -546,7 +546,7 @@ func TestProjectService_GetDefaultProject(t *testing.T) {
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, getTestLogger())
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, nil, getTestLogger())
 
 			// When
 			got, err := service.GetDefaultProject(context.Background(), tt.workspaceID, userID, token)
@@ -665,7 +665,7 @@ func TestProjectService_GetProject(t *testing.T) {
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, getTestLogger())
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, nil, getTestLogger())
 
 			// When
 			got, err := service.GetProject(context.Background(), projectID, userID, token)
@@ -794,7 +794,7 @@ func TestProjectService_UpdateProject(t *testing.T) {
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
 
-			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, getTestLogger())
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, nil, getTestLogger())
 
 			// When
 			got, err := service.UpdateProject(context.Background(), projectID, userID, tt.req)
@@ -903,7 +903,7 @@ func TestProjectService_DeleteProject(t *testing.T) {
 			mockUserClient := &MockUserClient{}
 			tt.mockProject(mockProjectRepo)
 
-			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, getTestLogger())
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, nil, getTestLogger())
 
 			// When
 			err := service.DeleteProject(context.Background(), projectID, userID)
@@ -1015,7 +1015,7 @@ func TestProjectService_SearchProjects(t *testing.T) {
 			tt.mockProject(mockProjectRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, getTestLogger())
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, nil, getTestLogger())
 
 			// When
 			got, err := service.SearchProjects(context.Background(), workspaceID, userID, tt.query, tt.page, tt.limit, token)
@@ -1312,7 +1312,7 @@ func TestProjectService_GetProjectInitSettings(t *testing.T) {
 			tt.mockFieldOption(mockFieldOptionRepo)
 			tt.mockUser(mockUserClient)
 
-			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, getTestLogger())
+			service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, nil, getTestLogger())
 
 			// When
 			got, err := service.GetProjectInitSettings(context.Background(), projectID, userID, token)
@@ -1411,7 +1411,7 @@ func TestProjectService_GetProjectInitSettings_FieldOptionsCount(t *testing.T) {
 			}, nil
 		}
 
-		service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, getTestLogger())
+		service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockUserClient, nil, getTestLogger())
 
 		// When
 		got, err := service.GetProjectInitSettings(context.Background(), projectID, userID, token)
