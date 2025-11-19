@@ -19,14 +19,21 @@ const getWebSocketUrl = (projectId: string, token: string): string => {
     const isLocalDevelopment = INJECTED_API_BASE_URL.includes('localhost');
 
     if (isLocalDevelopment) {
+      // Local: Board Service 직접 연결
       return `ws://localhost:8000/api/ws/project/${projectId}?token=${encodeURIComponent(token)}`;
     }
 
+    // 운영: ALB를 통한 라우팅
     const protocol = INJECTED_API_BASE_URL.startsWith('https') ? 'wss:' : 'ws:';
     const host = INJECTED_API_BASE_URL.replace(/^https?:\/\//, '');
-    return `${protocol}//${host}/api/ws/project/${projectId}?token=${encodeURIComponent(token)}`;
+
+    // 🔥 /api/boards/api/ws/project/{projectId}
+    return `${protocol}//${host}/api/boards/api/ws/project/${projectId}?token=${encodeURIComponent(
+      token,
+    )}`;
   }
 
+  // Fallback (환경 변수 없을 때)
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
 
@@ -34,7 +41,9 @@ const getWebSocketUrl = (projectId: string, token: string): string => {
     return `ws://localhost:8000/api/ws/project/${projectId}?token=${encodeURIComponent(token)}`;
   }
 
-  return `wss://api.wealist.co.kr/api/ws/project/${projectId}?token=${encodeURIComponent(token)}`;
+  return `wss://api.wealist.co.kr/api/boards/api/ws/project/${projectId}?token=${encodeURIComponent(
+    token,
+  )}`;
 };
 
 export const connectWebSocket = (projectId: string, onMessage: (data: any) => void) => {
