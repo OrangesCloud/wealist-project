@@ -5,7 +5,6 @@ import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
 import OrangeCloud.UserRepo.service.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +25,7 @@ import java.util.UUID;
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
+
     private UUID extractUserId(Principal principal) {
         if (principal instanceof Authentication authentication) {
             return UUID.fromString(authentication.getName());
@@ -66,16 +66,16 @@ public class UserProfileController {
         log.info("Path Variable - workspaceId: {}", workspaceId);
         log.info("Remote Address: {}", request.getRemoteAddr());
         log.info("Authorization Header Present: {}", request.getHeader("Authorization") != null);
-        
+
         UUID userId = extractUserId(principal);
         log.info("Authenticated userId: {}", userId);
-        
+
         UserProfileResponse response = userProfileService.workSpaceIdGetProfile(workspaceId, userId);
-        
-        log.info("Workspace profile retrieved successfully: workspaceId={}, userId={}, profileId={}", 
+
+        log.info("Workspace profile retrieved successfully: workspaceId={}, userId={}, profileId={}",
                 workspaceId, userId, response.getProfileId());
         log.info("=== END REQUEST: Get Workspace Profile ===");
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -87,13 +87,11 @@ public class UserProfileController {
         return ResponseEntity.ok(response);
     }
 
-
     @PutMapping("/me")
     @Operation(summary = "내 프로필 정보 통합 업데이트", description = "인증된 사용자의 이름 또는 프로필 이미지 URL을 업데이트합니다.")
     public ResponseEntity<UserProfileResponse> updateMyProfile(
             Principal principal,
-            @Valid @RequestBody UpdateProfileRequest request
-    ) {
+            @Valid @RequestBody UpdateProfileRequest request) {
         UUID userId = extractUserId(principal);
         log.info("Received integrated profile update request for user: {}", userId);
 

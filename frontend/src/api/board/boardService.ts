@@ -1006,3 +1006,31 @@ export const removeParticipant = async (boardId: string, userId: string): Promis
     throw error;
   }
 };
+
+// ============================================================================
+// 💡 [신규] 보드 이동 API (WebSocket 실시간 동기화용)
+// ============================================================================
+
+/**
+ * 보드를 다른 컬럼으로 이동합니다 (실시간 반영).
+ * [API] PUT /api/boards/{boardId}/move
+ */
+export const moveBoard = async (
+  boardId: string,
+  data: {
+    projectId: string;
+    groupByFieldName: string;
+    newFieldValue?: string;
+  },
+): Promise<void> => {
+  if (USE_MOCK_DATA) {
+    return;
+  }
+
+  try {
+    await boardServiceClient.put(`/boards/${boardId}/move`, data);
+  } catch (error) {
+    console.error('moveBoard error:', error);
+    throw error;
+  }
+};

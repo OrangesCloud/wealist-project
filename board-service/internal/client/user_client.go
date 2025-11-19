@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,19 +14,23 @@ import (
 	"go.uber.org/zap"
 )
 
-// UserClient defines the interface for User API interactions
+// 💡 [추가] WebSocket 인증 응답 DTO
+type TokenValidationResponse struct {
+	UserID  string `json:"userId"`
+	Valid   bool   `json:"valid"`
+	Message string `json:"message"`
+}
+
+// UserClient defines the interface for ALL User API and Auth interactions
 type UserClient interface {
-	// ValidateWorkspaceMember validates if a user is a member of a workspace
+	// 기존 메서드 유지
 	ValidateWorkspaceMember(ctx context.Context, workspaceID, userID uuid.UUID, token string) (bool, error)
-
-	// GetUserProfile retrieves user profile information
 	GetUserProfile(ctx context.Context, userID uuid.UUID, token string) (*UserProfile, error)
-
-	// GetWorkspaceProfile retrieves workspace-specific user profile
 	GetWorkspaceProfile(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*WorkspaceProfile, error)
-
-	// GetWorkspace retrieves workspace information
 	GetWorkspace(ctx context.Context, workspaceID uuid.UUID, token string) (*Workspace, error)
+
+	// 💡 [추가] WebSocket 인증을 위한 메서드
+	ValidateToken(ctx context.Context, tokenStr string) (uuid.UUID, error)
 }
 
 // WorkspaceValidationResponse represents the response from workspace validation endpoint
@@ -85,9 +90,54 @@ func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger) Us
 	}
 }
 
+// 💡 [추가] ValidateToken 메서드 구현 (WebSocket 인증 로직)
+func (c *userClient) ValidateToken(ctx context.Context, tokenStr string) (uuid.UUID, error) {
+	// 쿼리 파라미터로 토큰 전달
+	url := fmt.Sprintf("%s/api/auth/validate-access-token?token=%s", c.baseURL, tokenStr)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		c.logger.Error("Failed to create validation request", zap.Error(err))
+		return uuid.Nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.logger.Error("User service API connection failed", zap.Error(err))
+		return uuid.Nil, fmt.Errorf("user service connection error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		c.logger.Warn("Token validation failed via User Service", zap.Int("status", resp.StatusCode))
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			return uuid.Nil, errors.New("token validation failed: unauthorized or forbidden")
+		}
+		return uuid.Nil, fmt.Errorf("user service returned unexpected status: %d", resp.StatusCode)
+	}
+
+	var validationResponse TokenValidationResponse
+	if err := json.NewDecoder(resp.Body).Decode(&validationResponse); err != nil {
+		c.logger.Error("Failed to decode validation response", zap.Error(err))
+		return uuid.Nil, fmt.Errorf("invalid response format from user service")
+	}
+
+	if !validationResponse.Valid {
+		return uuid.Nil, fmt.Errorf("token explicitly marked invalid: %s", validationResponse.Message)
+	}
+
+	userID, err := uuid.Parse(validationResponse.UserID)
+	if err != nil {
+		c.logger.Error("Invalid UUID format in validation response", zap.String("id", validationResponse.UserID))
+		return uuid.Nil, errors.New("invalid user ID format received")
+	}
+
+	return userID, nil
+}
+
 // buildURL constructs the full URL for User Service API calls
 // It intelligently handles base URLs that may or may not include context path
-// 
+//
 // Examples:
 //   - baseURL: http://user-service:8080/api/users, endpoint: /workspaces/123
 //     -> http://user-service:8080/api/users/api/workspaces/123
@@ -101,7 +151,7 @@ func (c *userClient) buildURL(endpoint string) string {
 
 	// Check if baseURL already contains context path (e.g., /api/users)
 	hasContextPath := strings.Contains(c.baseURL, "/api/users") || strings.Contains(c.baseURL, "/api/boards")
-	
+
 	var finalURL string
 	if hasContextPath {
 		// Base URL already has context path, add /api before endpoint

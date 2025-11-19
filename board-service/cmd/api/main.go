@@ -100,6 +100,7 @@ func main() {
 	}
 
 	db, err := database.New(dbConfig)
+
 	if err != nil {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -119,7 +120,13 @@ func main() {
 	}
 	log.Info("Database schema migration completed successfully")
 
+	if err := database.InitRedis(*cfg, log.Logger); err != nil {
+		log.Fatal("Failed to connect to Redis", zap.Error(err))
+	}
+	log.Info("Redis connection established")
+
 	// Log complete User API configuration for debugging
+
 	log.Info("User API Configuration",
 		zap.String("base_url", cfg.UserAPI.BaseURL),
 		zap.Duration("timeout", cfg.UserAPI.Timeout),
@@ -137,7 +144,7 @@ func main() {
 		zap.String("base_url", cfg.UserAPI.BaseURL),
 		zap.Duration("timeout", cfg.UserAPI.Timeout),
 	)
-	
+
 	// Log example endpoint URLs for verification
 	log.Info("User API endpoint examples (for debugging)",
 		zap.String("validate_member", cfg.UserAPI.BaseURL+"/api/workspaces/{workspaceId}/validate-member/{userId}"),
