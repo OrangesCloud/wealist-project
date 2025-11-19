@@ -35,11 +35,22 @@ jobs:
           source .env             
           set +a
 
-          EC2_ID=$(aws ssm get-parameter --name "$PREFIX/ec2_instance_id" --query "Parameter.Value" --output text)
-          COMPOSE_DIR=$(aws ssm get-parameter --name "$MONITOR/compose_dir" --query "Parameter.Value" --output text)  # 예: /home/ubuntu/monitoring
-          PARAMETER_PREFIX=$(aws ssm get-parameter --name "$PREFIX/parameter_prefix" --query "Parameter.Value" --output text)  # 예: /wealist/dev/secret
+          EC2_ID=$(aws ssm get-parameter \
+            --name "/wealist/dev/cd/ec2_instance_id" \
+            --query 'Parameter.Value' \
+            --output text)
 
-          echo "ec2_id=$EC2_ID" >> $GITHUB_OUTPUT
+          COMPOSE_DIR=$(aws ssm get-parameter \
+            --name "/wealist/dev/monitor/compose_file_path" \
+            --query 'Parameter.Value' \
+            --output text)
+
+          PARAMETER_PREFIX=$(aws ssm get-parameter \
+            --name "/wealist/dev/cd/parameter_prefix" \
+            --query 'Parameter.Value' \
+            --output text)
+
+          echo "ec2-instance-id=${EC2_ID}" >> $GITHUB_OUTPUT
           echo "compose_dir=$COMPOSE_DIR" >> $GITHUB_OUTPUT
           echo "param_prefix=$PARAMETER_PREFIX" >> $GITHUB_OUTPUT
 
