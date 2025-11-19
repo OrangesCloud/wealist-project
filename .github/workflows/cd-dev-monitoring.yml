@@ -38,88 +38,304 @@ jobs:
           echo "param_prefix=$PARAM_PREFIX" >> $GITHUB_OUTPUT
 
       - name: Deploy Monitoring Stack (SSM → .env + Health Check)
+
         run: |
-          # 파일 base64 인코딩
+
           COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.monitoring.yml)
+
           PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
 
-          # SSM 파라미터 목록 (필요한 거 다 넣으세요)
-          SSM_PARAMS=(
-            aws_account_id
-            prometheus_port
-            prometheus_healthcheck_path
-            grafana_port
-            grafana_admin_user
-            grafana_admin_password
-            redis_port
-            redis_password
-            postgres_superuser
-            postgres_superuser_password
-            postgres_exporter_port
-            redis_exporter_port
-            node_exporter_port
+
+
+          # EC2에서 실행할 전체 스크립트 정의
+
+          # YAML의 멀티라인 문자열과 스크립트의 복잡한 따옴표 처리를 위해 EOF를 사용
+
+          read -r -d '' REMOTE_SCRIPT <<'EOF'
+
+          echo "=== 모니터링 배포 스크립트 시작 ==="
+
+          set -e
+
+
+
+          # 기본 디렉토리로 이동
+
+          cd "${compose_dir}"
+
+
+
+          # 설정 파일 디렉토리 생성
+
+          mkdir -p config
+
+
+
+          # Base64로 인코딩된 파일 디코딩하여 저장
+
+          echo "파일 업로드 중..."
+
+          echo "${compose_b64}" | base64 -d > docker-compose-monitoring.yml
+
+          echo "${prom_cfg_b64}" | base64 -d > config/prometheus-ec2.yml
+
+          echo "파일 업로드 완료."
+
+
+
+          # SSM 파라미터 가져와서 .env 파일 생성 및 export
+
+          echo "SSM 파라미터로 .env 파일 생성 중..."
+
+          
+
+          # 파라미터 목록
+
+          PARAMS=(
+
+              "prometheus_port"
+
+              "grafana_port"
+
+              "grafana_admin_user"
+
+              "grafana_admin_password"
+
+              "redis_port"
+
+              "redis_password"
+
+              "postgres_superuser"
+
+              "postgres_superuser_password"
+
+              "postgres_exporter_port"
+
+              "redis_exporter_port"
+
+              "node_exporter_port"
+
           )
 
-         
 
-          # EC2에 한 번에 실행 (이제 진짜 완벽)
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ steps.cfg.outputs.ec2_id }}" \
-            --document-name "AWS-RunShellScript" \
-            --timeout-seconds 900 \
-            --comment "Monitoring Deploy ${{ github.sha }}" \
-            --parameters "commands=[
-              \"echo '=== 모니터링 배포 시작 ==='\",
-              \"cd ${{ steps.cfg.outputs.compose_dir }}\",
-              \"mkdir -p config\",
+
+          # .env 파일 초기화
+
+          > .env
+
+
+
+          # 각 파라미터를 순회하며 값 가져오기
+
+          for param_name in "${PARAMS[@]}"; do
+
+              # SSM에서 파라미터 값 가져오기
+
+              param_value=$(aws ssm get-parameter --name "${param_prefix}${param_name}" --with-decryption --query "Parameter.Value" --output text)
+
+              # .env 파일에 추가
+
+              echo "${param_name^^}=${param_value}" >> .env
+
               
-              \"echo '파일 업로드...'\",
-              \"echo '$COMPOSE_B64' | base64 -d > docker-compose-monitoring.yml\",
-              \"echo '$PROM_CFG_B64' | base64 -d > config/prometheus-ec2.yml\",
-              
-              \"echo '이미지 pull & 재시작'\",
-              \"docker compose pull\",
-              \"docker compose up -d --remove-orphans\",
-              
-              
-              \"# Prometheus 헬스체크\",
-              \"for i in {1..40}; do
-                if curl -f http://localhost:\${PROMETHEUS_PORT}/-/healthy > /dev/null 2>&1; then
-                  echo 'Prometheus Healthy!\'
+
+              # 현재 셸 세션에서도 사용할 수 있도록 export
+
+              export "${param_name^^}=${param_value}"
+
+          done
+
+          
+
+          echo ".env 파일 생성 완료:"
+
+          cat .env
+
+
+
+          # Docker Compose 실행
+
+          echo "Docker 이미지 pull 및 컨테이너 재시작..."
+
+          docker compose pull
+
+          docker compose up -d --remove-orphans
+
+          echo "컨테이너 시작 완료."
+
+
+
+          # Prometheus 헬스체크
+
+          echo "Prometheus 헬스체크 시작..."
+
+          for i in {1..40}; do
+
+              if curl -fs "http://localhost:${PROMETHEUS_PORT}/-/healthy"; then
+
+                  echo "Prometheus Healthy!"
+
                   break
-                fi
-                echo 'Prometheus 대기... (\${i}/40)'
-                sleep 6
-              done\",
-              
-              \"# Grafana 헬스체크\",
-              \"for i in {1..40}; do
-                if curl -f http://localhost:\${GRAFANA_PORT}/api/health > /dev/null 2>&1; then
-                  echo 'Grafana Healthy!\'
-                  break
-                fi
-                echo 'Grafana 대기... (\${i}/40)'
-                sleep 6
-              done\",
-              
-              \"echo '=== 최종 상태 ==='\",
-              \"docker compose ps\",
-              \"echo '모니터링 배포 및 헬스체크 완료!'\"
-            ]" --query "Command.CommandId" --output text)
 
-          echo "배포 명령 전송됨 (Command ID: $COMMAND_ID)"
-          aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "${{ steps.cfg.outputs.ec2_id }}"
+              fi
 
-          # 로그 출력 및 실패 처리
-          aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ steps.cfg.outputs.ec2_id }}" \
-            --query "{Output:StandardOutputContent, Error:StandardErrorContent}" --output text
+              echo "Prometheus 응답 대기 중... (${i}/40)"
 
-          STATUS=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ steps.cfg.outputs.ec2_id }}" --query "Status" --output text)
-          if [ "$STATUS" != "Success" ]; then
-            echo "배포 실패!"
-            exit 1
+              sleep 6
+
+          done
+
+          # 최종 체크
+
+          if ! curl -fs "http://localhost:${PROMETHEUS_PORT}/-/healthy"; then
+
+              echo "Prometheus 헬스체크 실패!"
+
+              exit 1
+
           fi
 
-          echo "모니터링 스택 배포 성공 + 헬스체크 통과!"
+
+
+          # Grafana 헬스체크
+
+          echo "Grafana 헬스체크 시작..."
+
+          for i in {1..40}; do
+
+              if curl -fs "http://localhost:${GRAFANA_PORT}/api/health"; then
+
+                  echo "Grafana Healthy!"
+
+                  break
+
+              fi
+
+              echo "Grafana 응답 대기 중... (${i}/40)"
+
+              sleep 6
+
+          done
+
+          # 최종 체크
+
+          if ! curl -fs "http://localhost:${GRAFANA_PORT}/api/health"; then
+
+              echo "Grafana 헬스체크 실패!"
+
+              exit 1
+
+          fi
+
+
+
+          echo "=== 최종 상태 ==="
+
+          docker compose ps
+
+          echo "모니터링 배포 및 헬스체크 완료!"
+
+          EOF
+
+
+
+          # SSM Run Command 실행
+
+          COMMAND_ID=$(aws ssm send-command \
+
+            --instance-ids "${{ steps.cfg.outputs.ec2_id }}" \
+
+            --document-name "AWS-RunShellScript" \
+
+            --timeout-seconds 900 \
+
+            --comment "Monitoring Deploy ${{ github.sha }}" \
+
+            --parameters "commands=[
+
+              # EC2 스크립트에서 사용할 변수들을 설정합니다.
+
+              # GHA 변수를 EC2 셸 변수로 안전하게 전달합니다.
+
+              \"export compose_dir='${{ steps.cfg.outputs.compose_dir }}'\",
+
+              \"export param_prefix='${{ steps.cfg.outputs.param_prefix }}'\",
+
+              \"export compose_b64='${COMPOSE_B64}'\",
+
+              \"export prom_cfg_b64='${PROM_CFG_B64}'\",
+
+              # EOF 블록으로 정의된 스크립트를 실행합니다.
+
+              \"bash -c '$REMOTE_SCRIPT'\"
+
+            ]" \
+
+            --query "Command.CommandId" \
+
+            --output text)
+
+          
+
+          echo "배포 명령 전송 완료 (Command ID: $COMMAND_ID)"
+
+
+
+          # SSM 명령 실행 대기
+
+          aws ssm wait command-executed \
+
+            --command-id "$COMMAND_ID" \
+
+            --instance-id "${{ steps.cfg.outputs.ec2_id }}"
+
+
+
+          # 실행 결과 및 로그 가져오기
+
+          OUTPUT=$(aws ssm get-command-invocation \
+
+            --command-id "$COMMAND_ID" \
+
+            --instance-id "${{ steps.cfg.outputs.ec2_id }}" \
+
+            --query "[StandardOutputContent, StandardErrorContent]" \
+
+            --output text)
+
+          
+
+          echo "====== EC2 스크립트 출력 ======"
+
+          echo "$OUTPUT"
+
+          echo "============================"
+
+
+
+          # 최종 상태 확인
+
+          STATUS=$(aws ssm get-command-invocation \
+
+            --command-id "$COMMAND_ID" \
+
+            --instance-id "${{ steps.cfg.outputs.ec2_id }}" \
+
+            --query "Status" \
+
+            --output text)
+
+
+
+          if [ "$STATUS" != "Success" ]; then
+
+            echo "스크립트 실행 실패! (상태: $STATUS)"
+
+            exit 1
+
+          fi
+
+
+
+          echo "모니터링 스택 배포 성공!"
+
