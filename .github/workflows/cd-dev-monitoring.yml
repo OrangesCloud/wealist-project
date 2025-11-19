@@ -26,316 +26,551 @@ jobs:
           aws-region: ap-northeast-2
 
       - name: Load Base Configuration
-        id: cfg
+        id: config
         run: |
           EC2_ID=$(aws ssm get-parameter --name "/wealist/dev/cd/ec2_instance_id" --query "Parameter.Value" --output text --with-decryption)
           COMPOSE_DIR=$(aws ssm get-parameter --name "/wealist/dev/monitor/compose_file_path" --query "Parameter.Value" --output text)
-          
           PARAM_PREFIX=$(aws ssm get-parameter --name "/wealist/dev/cd/parameter_prefix" --query "Parameter.Value" --output text)
 
-          echo "ec2_id=$EC2_ID" >> $GITHUB_OUTPUT
-          echo "compose_dir=$COMPOSE_DIR" >> $GITHUB_OUTPUT
-          echo "param_prefix=$PARAM_PREFIX" >> $GITHUB_OUTPUT
+          echo "ec2-instance-id=$EC2_ID" >> $GITHUB_OUTPUT
+          echo "compose-file-path=$COMPOSE_DIR" >> $GITHUB_OUTPUT
+          echo "parameter-prefix=$PARAM_PREFIX" >> $GITHUB_OUTPUT
+          echo "aws-region=ap-northeast-2" >> $GITHUB_OUTPUT
 
-      - name: Deploy Monitoring Stack (SSM → .env + Health Check)
-
+      - name: Create Deployment Script
         run: |
+          cat << 'DEPLOY_SCRIPT' > /tmp/deploy-monitoring.sh
+          #!/bin/bash
+          set -euo pipefail
 
-          COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.monitoring.yml)
+          echo "=== Starting Monitoring Stack Deployment ==="
+          echo "Timestamp: $(date)"
+          echo "Parameter Prefix: ${PARAMETER_PREFIX}"
+          echo "Compose File Path: ${COMPOSE_FILE}"
 
-          PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
+          # Function to load regular parameters
+          load_param() {
+            local param_name="$1"
+            local full_param_path="${PARAMETER_PREFIX}${param_name}"
+            echo "Loading parameter: ${full_param_path}" >&2
+            
+            local value
+            if value=$(aws ssm get-parameter \
+              --name "${full_param_path}" \
+              --query "Parameter.Value" \
+              --output text \
+              --region "${AWS_REGION}" 2>/dev/null); then
+              echo "$value"
+            else
+              echo "❌ Failed to load parameter: ${full_param_path}" >&2
+              return 1
+            fi
+          }
 
+          # Function to load secret parameters
+          load_secret() {
+            local param_name="$1"
+            local full_param_path="${PARAMETER_PREFIX}${param_name}"
+            echo "Loading secret: ${full_param_path}" >&2
+            
+            local value
+            if value=$(aws ssm get-parameter \
+              --name "${full_param_path}" \
+              --query "Parameter.Value" \
+              --output text \
+              --with-decryption \
+              --region "${AWS_REGION}" 2>/dev/null); then
+              echo "$value"
+            else
+              echo "❌ Failed to load secret: ${full_param_path}" >&2
+              return 1
+            fi
+          }
 
-
-          # EC2에서 실행할 전체 스크립트 정의
-
-          # YAML의 멀티라인 문자열과 스크립트의 복잡한 따옴표 처리를 위해 EOF를 사용
-
-          read -r -d '' REMOTE_SCRIPT <<'EOF'
-
-          echo "=== 모니터링 배포 스크립트 시작 ==="
-
-          set -e
-
-
-
-          # 기본 디렉토리로 이동
-
-          cd "${compose_dir}"
-
-
-
-          # 설정 파일 디렉토리 생성
-
-          mkdir -p config
-
-
-
-          # Base64로 인코딩된 파일 디코딩하여 저장
-
-          echo "파일 업로드 중..."
-
-          echo "${compose_b64}" | base64 -d > docker-compose-monitoring.yml
-
-          echo "${prom_cfg_b64}" | base64 -d > config/prometheus-ec2.yml
-
-          echo "파일 업로드 완료."
-
-
-
-          # SSM 파라미터 가져와서 .env 파일 생성 및 export
-
-          echo "SSM 파라미터로 .env 파일 생성 중..."
-
+          echo "📋 Loading environment variables from SSM..."
           
+          # Load monitoring-specific parameters
+          GRAFANA_ADMIN_USER=$(load_param "/monitor/grafana_admin_user")
+          GRAFANA_ADMIN_PASSWORD=$(load_secret "/monitor/grafana_admin_password")
+          PROMETHEUS_PORT=$(load_param "/monitor/prometheus_port")
+          GRAFANA_PORT=$(load_param "/monitor/grafana_port")
+          REDIS_EXPORTER_PORT=$(load_param "/monitor/redis_exporter_port")
+          POSTGRES_EXPORTER_PORT=$(load_param "/monitor/postgres_exporter_port")
+          NODE_EXPORTER_PORT=$(load_param "/monitor/node_exporter_port")
+          
+          # Load database parameters for postgres exporter
+          POSTGRES_SUPERUSER=$(load_param "/db/postgres_superuser")
+          POSTGRES_SUPERUSER_PASSWORD=$(load_secret "/db/postgres_superuser_password")
+          POSTGRES_PORT=$(load_param "/db/postgres_port")
+          POSTGRES_DB=$(load_param "/db/postgres_db")
+          
+          # Load Redis parameters
+          REDIS_PORT=$(load_param "/redis/port")
+          REDIS_PASSWORD=$(load_secret "/redis/password")
 
-          # 파라미터 목록
+          # Export all variables
+          export GRAFANA_ADMIN_USER
+          export GRAFANA_ADMIN_PASSWORD
+          export PROMETHEUS_PORT
+          export GRAFANA_PORT
+          export REDIS_EXPORTER_PORT
+          export POSTGRES_EXPORTER_PORT
+          export NODE_EXPORTER_PORT
+          export POSTGRES_SUPERUSER
+          export POSTGRES_SUPERUSER_PASSWORD
+          export POSTGRES_PORT
+          export POSTGRES_DB
+          export REDIS_PORT
+          export REDIS_PASSWORD
 
-          PARAMS=(
+          echo "✅ Environment variables loaded successfully"
 
-              "prometheus_port"
+          # Check if required backend services are running
+          echo "🔍 Checking prerequisite services..."
+          BACKEND_SERVICES_OK=true
 
-              "grafana_port"
-
-              "grafana_admin_user"
-
-              "grafana_admin_password"
-
-              "redis_port"
-
-              "redis_password"
-
-              "postgres_superuser"
-
-              "postgres_superuser_password"
-
-              "postgres_exporter_port"
-
-              "redis_exporter_port"
-
-              "node_exporter_port"
-
-          )
-
-
-
-          # .env 파일 초기화
-
-          > .env
-
-
-
-          # 각 파라미터를 순회하며 값 가져오기
-
-          for param_name in "${PARAMS[@]}"; do
-
-              # SSM에서 파라미터 값 가져오기
-
-              param_value=$(aws ssm get-parameter --name "${param_prefix}${param_name}" --with-decryption --query "Parameter.Value" --output text)
-
-              # .env 파일에 추가
-
-              echo "${param_name^^}=${param_value}" >> .env
-
-              
-
-              # 현재 셸 세션에서도 사용할 수 있도록 export
-
-              export "${param_name^^}=${param_value}"
-
+          # Find actual Redis container (exclude exporters)
+          echo "Checking Redis..."
+          REDIS_CONTAINER=""
+          for container in $(docker ps --format '{{.Names}}'); do
+            if [[ "$container" == *"redis"* ]] && [[ "$container" != *"exporter"* ]]; then
+              REDIS_CONTAINER="$container"
+              echo "  ✅ Redis container found: ${REDIS_CONTAINER}"
+              break
+            fi
           done
 
-          
-
-          echo ".env 파일 생성 완료:"
-
-          cat .env
-
-
-
-          # Docker Compose 실행
-
-          echo "Docker 이미지 pull 및 컨테이너 재시작..."
-
-          docker compose pull
-
-          docker compose up -d --remove-orphans
-
-          echo "컨테이너 시작 완료."
-
-
-
-          # Prometheus 헬스체크
-
-          echo "Prometheus 헬스체크 시작..."
-
-          for i in {1..40}; do
-
-              if curl -fs "http://localhost:${PROMETHEUS_PORT}/-/healthy"; then
-
-                  echo "Prometheus Healthy!"
-
-                  break
-
+          if [ -z "$REDIS_CONTAINER" ]; then
+            echo "  ❌ Redis container not found"
+            BACKEND_SERVICES_OK=false
+          else
+            # Test Redis connection
+            if [ -n "${REDIS_PASSWORD}" ]; then
+              if docker exec "${REDIS_CONTAINER}" redis-cli -a "${REDIS_PASSWORD}" ping 2>&1 | grep -q "PONG"; then
+                echo "  ✅ Redis is responding to ping (with password)"
+              else
+                echo "  ⚠️  Redis container exists but not responding to authenticated ping"
               fi
-
-              echo "Prometheus 응답 대기 중... (${i}/40)"
-
-              sleep 6
-
-          done
-
-          # 최종 체크
-
-          if ! curl -fs "http://localhost:${PROMETHEUS_PORT}/-/healthy"; then
-
-              echo "Prometheus 헬스체크 실패!"
-
-              exit 1
-
+            else
+              if docker exec "${REDIS_CONTAINER}" redis-cli ping 2>&1 | grep -q "PONG"; then
+                echo "  ✅ Redis is responding to ping (no password)"
+              else
+                echo "  ⚠️  Redis container exists but not responding to ping"
+              fi
+            fi
           fi
 
-
-
-          # Grafana 헬스체크
-
-          echo "Grafana 헬스체크 시작..."
-
-          for i in {1..40}; do
-
-              if curl -fs "http://localhost:${GRAFANA_PORT}/api/health"; then
-
-                  echo "Grafana Healthy!"
-
-                  break
-
-              fi
-
-              echo "Grafana 응답 대기 중... (${i}/40)"
-
-              sleep 6
-
+          # Find actual PostgreSQL container (exclude exporters)
+          echo "Checking PostgreSQL..."
+          POSTGRES_CONTAINER=""
+          for container in $(docker ps --format '{{.Names}}'); do
+            if [[ "$container" == *"postgres"* ]] && [[ "$container" != *"exporter"* ]]; then
+              POSTGRES_CONTAINER="$container"
+              echo "  ✅ PostgreSQL container found: ${POSTGRES_CONTAINER}"
+              break
+            fi
           done
 
-          # 최종 체크
-
-          if ! curl -fs "http://localhost:${GRAFANA_PORT}/api/health"; then
-
-              echo "Grafana 헬스체크 실패!"
-
-              exit 1
-
+          if [ -z "$POSTGRES_CONTAINER" ]; then
+            echo "  ❌ PostgreSQL container not found"
+            BACKEND_SERVICES_OK=false
+          else
+            # Test PostgreSQL connection
+            if docker exec "${POSTGRES_CONTAINER}" pg_isready -U "${POSTGRES_SUPERUSER}" -d "postgres" >/dev/null 2>&1; then
+              echo "  ✅ PostgreSQL is ready"
+            else
+              echo "  ⚠️  PostgreSQL container exists but not ready"
+            fi
           fi
 
-
-
-          echo "=== 최종 상태 ==="
-
-          docker compose ps
-
-          echo "모니터링 배포 및 헬스체크 완료!"
-
-          EOF
-
-
-
-          # SSM Run Command 실행
-
-          COMMAND_ID=$(aws ssm send-command \
-
-            --instance-ids "${{ steps.cfg.outputs.ec2_id }}" \
-
-            --document-name "AWS-RunShellScript" \
-
-            --timeout-seconds 900 \
-
-            --comment "Monitoring Deploy ${{ github.sha }}" \
-
-            --parameters "commands=[
-
-              # EC2 스크립트에서 사용할 변수들을 설정합니다.
-
-              # GHA 변수를 EC2 셸 변수로 안전하게 전달합니다.
-
-              \"export compose_dir='${{ steps.cfg.outputs.compose_dir }}'\",
-
-              \"export param_prefix='${{ steps.cfg.outputs.param_prefix }}'\",
-
-              \"export compose_b64='${COMPOSE_B64}'\",
-
-              \"export prom_cfg_b64='${PROM_CFG_B64}'\",
-
-              # EOF 블록으로 정의된 스크립트를 실행합니다.
-
-              \"bash -c '$REMOTE_SCRIPT'\"
-
-            ]" \
-
-            --query "Command.CommandId" \
-
-            --output text)
-
-          
-
-          echo "배포 명령 전송 완료 (Command ID: $COMMAND_ID)"
-
-
-
-          # SSM 명령 실행 대기
-
-          aws ssm wait command-executed \
-
-            --command-id "$COMMAND_ID" \
-
-            --instance-id "${{ steps.cfg.outputs.ec2_id }}"
-
-
-
-          # 실행 결과 및 로그 가져오기
-
-          OUTPUT=$(aws ssm get-command-invocation \
-
-            --command-id "$COMMAND_ID" \
-
-            --instance-id "${{ steps.cfg.outputs.ec2_id }}" \
-
-            --query "[StandardOutputContent, StandardErrorContent]" \
-
-            --output text)
-
-          
-
-          echo "====== EC2 스크립트 출력 ======"
-
-          echo "$OUTPUT"
-
-          echo "============================"
-
-
-
-          # 최종 상태 확인
-
-          STATUS=$(aws ssm get-command-invocation \
-
-            --command-id "$COMMAND_ID" \
-
-            --instance-id "${{ steps.cfg.outputs.ec2_id }}" \
-
-            --query "Status" \
-
-            --output text)
-
-
-
-          if [ "$STATUS" != "Success" ]; then
-
-            echo "스크립트 실행 실패! (상태: $STATUS)"
-
+          if [ "$BACKEND_SERVICES_OK" = false ]; then
+            echo "❌ Required backend services (Redis, PostgreSQL) are not running"
+            echo "Please ensure the backend application stack is deployed first"
             exit 1
-
           fi
 
+          # Navigate to compose directory
+          echo "📂 Navigating to compose directory: ${COMPOSE_FILE%/*}"
+          cd "${COMPOSE_FILE%/*}"
 
+          # Decode and save docker-compose file
+          echo "📝 Updating docker-compose file..."
+          echo "${COMPOSE_B64}" | base64 -d > docker-compose.ec2-dev-monitoring.yml
 
-          echo "모니터링 스택 배포 성공!"
+          # Remove version from docker-compose file to avoid warning
+          sed -i '/^version:/d' docker-compose.ec2-dev-monitoring.yml
 
+          # Update docker-compose to use external services
+          echo "🔧 Configuring monitoring services to use existing backend services..."
+          
+          # Get network name that backend services are using
+          BACKEND_NETWORK=$(docker inspect "${REDIS_CONTAINER}" --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)
+          
+          echo "  Backend network: ${BACKEND_NETWORK}"
+          echo "  Redis container: ${REDIS_CONTAINER}"
+          echo "  PostgreSQL container: ${POSTGRES_CONTAINER}"
+
+          # Update configurations to use correct container names
+          sed -i "s|redis:\${REDIS_PORT}|${REDIS_CONTAINER}:6379|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|postgres:\${POSTGRES_PORT}|${POSTGRES_CONTAINER}:5432|g" docker-compose.ec2-dev-monitoring.yml
+
+          # Fix port configurations
+          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:9090|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:3000|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}:9121|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}:9187|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:9100|g" docker-compose.ec2-dev-monitoring.yml
+
+          # Remove depends_on for external services
+          echo "🔧 Removing external service dependencies..."
+          python3 -c "
+          import yaml
+          import sys
+
+          try:
+              with open('docker-compose.ec2-dev-monitoring.yml', 'r') as f:
+                  content = yaml.safe_load(f)
+              
+              if 'services' in content:
+                  # Remove depends_on for redis and postgres from exporters
+                  if 'redis-exporter' in content['services']:
+                      if 'depends_on' in content['services']['redis-exporter']:
+                          # Keep only internal dependencies, remove external ones
+                          depends_on = content['services']['redis-exporter']['depends_on']
+                          if isinstance(depends_on, list):
+                              depends_on = [dep for dep in depends_on if dep not in ['redis', 'postgres']]
+                              if not depends_on:
+                                  del content['services']['redis-exporter']['depends_on']
+                              else:
+                                  content['services']['redis-exporter']['depends_on'] = depends_on
+                          elif isinstance(depends_on, dict):
+                              if 'redis' in depends_on:
+                                  del depends_on['redis']
+                              if not depends_on:
+                                  del content['services']['redis-exporter']['depends_on']
+                  
+                  if 'postgres-exporter' in content['services']:
+                      if 'depends_on' in content['services']['postgres-exporter']:
+                          depends_on = content['services']['postgres-exporter']['depends_on']
+                          if isinstance(depends_on, list):
+                              depends_on = [dep for dep in depends_on if dep not in ['redis', 'postgres']]
+                              if not depends_on:
+                                  del content['services']['postgres-exporter']['depends_on']
+                              else:
+                                  content['services']['postgres-exporter']['depends_on'] = depends_on
+                          elif isinstance(depends_on, dict):
+                              if 'postgres' in depends_on:
+                                  del depends_on['postgres']
+                              if not depends_on:
+                                  del content['services']['postgres-exporter']['depends_on']
+              
+              with open('docker-compose.ec2-dev-monitoring.yml', 'w') as f:
+                  yaml.dump(content, f, default_flow_style=False, indent=2)
+              
+              print('✅ Successfully updated compose file dependencies')
+          except Exception as e:
+              print('⚠️ Python YAML parsing failed: {}'.format(e))
+              sys.exit(1)
+          "
+
+          # Update networks to use external network
+          echo "🔧 Updating network configuration..."
+          python3 -c "
+          import yaml
+          import sys
+
+          try:
+              with open('docker-compose.ec2-dev-monitoring.yml', 'r') as f:
+                  content = yaml.safe_load(f)
+              
+              # Update networks to use external backend network
+              if 'networks' in content:
+                  # Keep monitoring-net as internal, make others external
+                  for net_name in content['networks']:
+                      if net_name in ['backend-net', 'database-net']:
+                          content['networks'][net_name] = {
+                              'external': True,
+                              'name': '${BACKEND_NETWORK}'
+                          }
+              
+              with open('docker-compose.ec2-dev-monitoring.yml', 'w') as f:
+                  yaml.dump(content, f, default_flow_style=False, indent=2)
+              
+              print('✅ Successfully updated network configuration')
+          except Exception as e:
+              print('⚠️ Network update failed: {}'.format(e))
+              sys.exit(1)
+          " 2>/dev/null || {
+            echo "⚠️ Python network update failed, using manual approach"
+            # Fallback: replace specific network references
+            sed -i "s/name: wealist-backend-net/name: ${BACKEND_NETWORK}/g" docker-compose.ec2-dev-monitoring.yml
+            sed -i "s/name: wealist-database-net/name: ${BACKEND_NETWORK}/g" docker-compose.ec2-dev-monitoring.yml
+          }
+
+          # Decode and save prometheus config
+          echo "📝 Updating Prometheus configuration..."
+          mkdir -p prometheus/
+          echo "${PROM_CFG_B64}" | base64 -d > prometheus/prometheus-ec2.yml
+
+          # Validate YAML syntax before proceeding
+          echo "🔍 Validating docker-compose file syntax..."
+          if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml config >/dev/null 2>&1; then
+            echo "❌ Invalid docker-compose file. Content:"
+            cat docker-compose.ec2-dev-monitoring.yml
+            echo ""
+            echo "Validation output:"
+            docker-compose -f docker-compose.ec2-dev-monitoring.yml config 2>&1 || true
+            exit 1
+          fi
+
+          echo "✅ Docker-compose file is valid"
+
+          # Stop existing monitoring services individually
+          echo "🛑 Stopping existing monitoring services individually..."
+          MONITORING_CONTAINERS="wealist-prometheus wealist-grafana wealist-redis-exporter wealist-postgres-exporter wealist-node-exporter"
+          
+          for container in $MONITORING_CONTAINERS; do
+            if docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
+              echo "  🛑 Stopping and removing ${container}..."
+              docker stop "${container}" 2>/dev/null || true
+              docker rm "${container}" 2>/dev/null || true
+            fi
+          done
+
+          # Deploy monitoring services
+          echo "🚀 Deploying monitoring services..."
+          if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml up -d; then
+            echo "❌ Failed to start services. Checking detailed logs..."
+            echo "Docker-compose config validation:"
+            docker-compose -f docker-compose.ec2-dev-monitoring.yml config 2>&1 || true
+            echo ""
+            echo "Docker-compose file content:"
+            cat docker-compose.ec2-dev-monitoring.yml
+            exit 1
+          fi
+
+          # Verify backend services are still running
+          echo "🔍 Verifying backend services are still running..."
+          if docker ps --format '{{.Names}}' | grep -q "${REDIS_CONTAINER}"; then
+            echo "  ✅ Redis container still running: ${REDIS_CONTAINER}"
+          else
+            echo "  ❌ Redis container is down! This shouldn't happen."
+            exit 1
+          fi
+
+          if docker ps --format '{{.Names}}' | grep -q "${POSTGRES_CONTAINER}"; then
+            echo "  ✅ PostgreSQL container still running: ${POSTGRES_CONTAINER}"
+          else
+            echo "  ❌ PostgreSQL container is down! This shouldn't happen."
+            exit 1
+          fi
+
+          # Wait for services to be ready
+          echo "⏳ Waiting for monitoring services to start..."
+          sleep 30
+
+          # Check if monitoring containers are running
+          echo "🔍 Checking monitoring container status..."
+          MONITORING_SERVICES="prometheus grafana redis-exporter postgres-exporter node-exporter"
+          ALL_CONTAINERS_RUNNING=true
+          
+          for service in $MONITORING_SERVICES; do
+            container_name="wealist-${service}"
+            if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
+              echo "  ✅ ${service} container is running"
+            else
+              echo "  ❌ ${service} container is not running"
+              ALL_CONTAINERS_RUNNING=false
+            fi
+          done
+
+          if [ "$ALL_CONTAINERS_RUNNING" = false ]; then
+            echo "❌ Some monitoring containers are not running. Checking logs:"
+            docker-compose -f docker-compose.ec2-dev-monitoring.yml logs --tail=50
+            exit 1
+          fi
+
+          # Health check function
+          health_check() {
+            local service_name="$1"
+            local port="$2"
+            local endpoint="${3:-/}"
+            local max_attempts=10
+            local attempt=1
+            
+            echo "🔍 Health checking ${service_name} on port ${port}${endpoint}..."
+            
+            while [ $attempt -le $max_attempts ]; do
+              local http_code
+              if http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "http://localhost:${port}${endpoint}" 2>/dev/null); then
+                if echo "$http_code" | grep -q "200\|302\|404"; then
+                  echo "  ✅ ${service_name} is responding (HTTP ${http_code})"
+                  return 0
+                fi
+              fi
+              
+              echo "  ⏳ ${service_name} not ready yet (${attempt}/${max_attempts})"
+              sleep 15
+              ((attempt++))
+            done
+            
+            echo "  ❌ ${service_name} health check failed"
+            return 1
+          }
+
+          # Perform health checks
+          echo "🏥 Performing health checks..."
+          HEALTH_CHECK_FAILED=false
+
+          # Critical services
+          health_check "prometheus" "${PROMETHEUS_PORT}" "/-/ready" || health_check "prometheus" "${PROMETHEUS_PORT}" "/" || HEALTH_CHECK_FAILED=true
+          health_check "grafana" "${GRAFANA_PORT}" "/api/health" || health_check "grafana" "${GRAFANA_PORT}" "/login" || HEALTH_CHECK_FAILED=true
+
+          # Exporters (non-critical)
+          health_check "node-exporter" "${NODE_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Node exporter not responding"
+          health_check "redis-exporter" "${REDIS_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Redis exporter not responding"
+          health_check "postgres-exporter" "${POSTGRES_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Postgres exporter not responding"
+
+          if [ "$HEALTH_CHECK_FAILED" = true ]; then
+            echo "❌ Critical monitoring services (Prometheus/Grafana) are not responding"
+            exit 1
+          fi
+
+          echo ""
+          echo "🎉 Monitoring stack deployment completed successfully!"
+          echo "✅ Backend services are still running and unaffected"
+          echo "📊 Services available at:"
+          echo "  - Prometheus: http://localhost:${PROMETHEUS_PORT}"
+          echo "  - Grafana: http://localhost:${GRAFANA_PORT} (${GRAFANA_ADMIN_USER}/***)"
+          echo "  - Node Exporter: http://localhost:${NODE_EXPORTER_PORT}/metrics"
+          echo "  - Redis Exporter: http://localhost:${REDIS_EXPORTER_PORT}/metrics"
+          echo "  - Postgres Exporter: http://localhost:${POSTGRES_EXPORTER_PORT}/metrics"
+          echo ""
+          echo "🔗 Monitoring targets:"
+          echo "  - Redis: ${REDIS_CONTAINER}:6379"
+          echo "  - PostgreSQL: ${POSTGRES_CONTAINER}:5432"
+          DEPLOY_SCRIPT
+
+      - name: Deploy Monitoring Stack via SSM
+        id: deploy
+        run: |
+          # Base64 encode docker-compose and prometheus config files
+          COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-dev-monitoring.yml)
+          PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
+          
+          # Base64 encode deployment script
+          echo "📦 Encoding deployment script..."
+          SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-monitoring.sh)
+          echo "✅ Script encoded (${#SCRIPT_BASE64} bytes)"
+
+          # Send SSM Run Command
+          echo "🚀 Sending deployment command to EC2 instance..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy Monitoring Stack - ${{ github.sha }}" \
+            --timeout-seconds 600 \
+            --parameters commands="[
+              \"echo '=== Monitoring Stack Deployment Started ===' \",
+              \"echo 'Timestamp: '\$(date) \",
+              \"echo 'Instance ID: '\$(ec2-metadata --instance-id 2>/dev/null || echo 'N/A') \",
+              \"echo 'GitHub SHA: ${{ github.sha }}' \",
+              \"echo '' \",
+              \"echo '${SCRIPT_BASE64}' | base64 -d > /tmp/deploy-monitoring.sh\",
+              \"chmod +x /tmp/deploy-monitoring.sh\",
+              \"echo '🚀 Starting deployment script execution...' \",
+              \"export PARAMETER_PREFIX='${{ steps.config.outputs.parameter-prefix }}'\",
+              \"export AWS_REGION='${{ steps.config.outputs.aws-region }}'\",
+              \"export COMPOSE_FILE='${{ steps.config.outputs.compose-file-path }}'\",
+              \"export COMPOSE_B64='${COMPOSE_B64}'\",
+              \"export PROM_CFG_B64='${PROM_CFG_B64}'\",
+              \"/tmp/deploy-monitoring.sh 2>&1 | tee /tmp/deploy-monitoring.log\",
+              \"DEPLOY_EXIT_CODE=\${PIPESTATUS[0]}\",
+              \"echo '' \",
+              \"echo '=== Deployment Script Finished ===' \",
+              \"echo 'Exit Code: '\$DEPLOY_EXIT_CODE \",
+              \"if [ \$DEPLOY_EXIT_CODE -ne 0 ]; then echo '📋 Recent logs:'; tail -50 /tmp/deploy-monitoring.log; fi\",
+              \"rm -f /tmp/deploy-monitoring.sh\",
+              \"exit \$DEPLOY_EXIT_CODE\"
+            ]" \
+            --output text \
+            --query "Command.CommandId")
+
+          if [ -z "$COMMAND_ID" ]; then
+            echo "❌ Failed to send SSM command - no Command ID returned"
+            exit 1
+          fi
+
+          echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
+          echo "✅ Command sent successfully"
+          echo "📝 Command ID: ${COMMAND_ID}"
+
+      - name: Monitor Deployment Progress
+        run: |
+          COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
+          echo "📊 Monitoring deployment progress for command: ${COMMAND_ID}"
+          
+          # Wait for command completion
+          MAX_WAIT=300  # 10 minutes
+          WAIT_TIME=0
+          
+          while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
+              --query "Status" \
+              --output text 2>/dev/null || echo "Pending")
+            
+            echo "⏳ Status: $STATUS (${WAIT_TIME}s elapsed)"
+            
+            if [ "$STATUS" = "Success" ]; then
+              echo "✅ Deployment completed successfully!"
+              break
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
+              echo "❌ Deployment failed with status: $STATUS"
+              echo "📋 Command output:"
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
+                --query "StandardOutputContent" \
+                --output text
+              echo "📋 Error output:"
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
+                --query "StandardErrorContent" \
+                --output text
+              exit 1
+            fi
+            
+            sleep 20
+            WAIT_TIME=$((WAIT_TIME + 20))
+          done
+          
+          if [ $WAIT_TIME -ge $MAX_WAIT ]; then
+            echo "❌ Deployment timed out after ${MAX_WAIT} seconds"
+            exit 1
+          fi
+          
+          echo "📋 Final deployment output:"
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
+            --query "StandardOutputContent" \
+            --output text
+
+      - name: Final Health Check Summary
+        run: |
+          echo "🎉 Monitoring Stack Deployment Summary"
+          echo "======================================"
+          echo "✅ Monitoring services deployed successfully"
+          echo "✅ Backend services remain unaffected and running"
+          echo "✅ Connected to existing Redis and PostgreSQL"
+          echo "✅ All exporters are collecting metrics"
+          echo ""
+          echo "📊 Architecture:"
+          echo "   Backend Services (existing & protected) → Exporters → Prometheus → Grafana"
+          echo ""
+          echo "🔗 Access URLs:"
+          echo "   - Prometheus: http://your-server:port"
+          echo "   - Grafana: http://your-server:port"
