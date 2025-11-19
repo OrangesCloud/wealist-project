@@ -6,8 +6,7 @@ on:
     workflows: ["CI - Dev User Service"]
     types:
       - completed
-    branches:
-      - deploy-dev
+    # branches 필터 제거 - job level에서 브랜치 체크
 
   # 2. 인프라 변경 시 직접 실행
   push:
@@ -32,14 +31,48 @@ jobs:
     name: Deploy to EC2 via SSM
     runs-on: ubuntu-latest
     environment: development
-    # workflow_run으로 트리거된 경우, CI가 성공했을 때만 실행
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    # workflow_run으로 트리거된 경우, CI가 성공했고 deploy-dev 브랜치일 때만 실행
+    if: |
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'workflow_run' && 
+       github.event.workflow_run.conclusion == 'success' && 
+       github.event.workflow_run.head_branch == 'deploy-dev')
+
     steps:
+      # ============================================
+      # 0. 워크플로우 트리거 정보 출력 (디버깅)
+      # ============================================
+      - name: 🔍 Debug Workflow Trigger
+        run: |
+          echo "=== Workflow Trigger Information ==="
+          echo "Event Name: ${{ github.event_name }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo ""
+            echo "=== Workflow Run Details ==="
+            echo "Triggering Workflow: ${{ github.event.workflow_run.name }}"
+            echo "Triggering Workflow ID: ${{ github.event.workflow_run.id }}"
+            echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+            echo "Head Branch: ${{ github.event.workflow_run.head_branch }}"
+            echo "Head SHA: ${{ github.event.workflow_run.head_sha }}"
+            echo "Event: ${{ github.event.workflow_run.event }}"
+          fi
+          
+          echo ""
+          echo "=== Job Condition Check ==="
+          echo "Should run: true (this job is running)"
       # ============================================
       # 1. 코드 체크아웃
       # ============================================
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
+        with:
+          # workflow_run 이벤트의 경우 트리거한 워크플로우의 SHA 사용
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       # ============================================
       # 2. AWS Credentials 설정

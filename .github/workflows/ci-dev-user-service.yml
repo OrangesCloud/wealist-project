@@ -181,6 +181,11 @@ jobs:
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** \`${{ github.workflow }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next:** CD workflow will be triggered automatically via workflow_run" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "- CD workflow should be triggered automatically via \`workflow_run\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Check [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) for CD workflow" >> $GITHUB_STEP_SUMMARY
+          echo "- If CD doesn't trigger, manually run it from [CD workflow page](${{ github.server_url }}/${{ github.repository }}/actions/workflows/cd-dev-user-service.yml)" >> $GITHUB_STEP_SUMMARY
 
