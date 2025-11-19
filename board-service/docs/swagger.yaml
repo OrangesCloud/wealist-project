@@ -1959,6 +1959,41 @@ paths:
       summary: Workspace의 기본 Project 조회
       tags:
       - projects
+  /ws/project/{projectId}:
+    get:
+      description: |-
+        프로젝트의 실시간 이벤트를 구독하기 위한 WebSocket 연결을 설정합니다
+        연결 후 BOARD_CREATED, BOARD_UPDATED, BOARD_MOVED, BOARD_DELETED 이벤트를 실시간으로 수신합니다
+        인증은 쿼리 파라미터로 전달된 JWT 토큰을 통해 수행됩니다
+      parameters:
+      - description: Project ID (UUID)
+        in: path
+        name: projectId
+        required: true
+        type: string
+      - description: JWT Access Token
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: Switching Protocols - WebSocket 연결 성공
+          schema:
+            type: string
+        "401":
+          description: 인증 실패
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+        "500":
+          description: 서버 에러
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+      summary: WebSocket 실시간 연결
+      tags:
+      - websocket
 schemes:
 - http
 - https
