@@ -281,9 +281,6 @@ jobs:
             exit 1
           fi
 
-          # Stop existing monitoring services first
-          echo "🛑 Stopping existing monitoring services..."
-          docker-compose -f docker-compose.monitoring.yml down --remove-orphans 2>/dev/null || true
 
           # Deploy monitoring services
           echo "🚀 Deploying monitoring services..."
