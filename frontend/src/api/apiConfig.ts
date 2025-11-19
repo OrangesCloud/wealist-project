@@ -24,7 +24,7 @@ const getApiBaseUrl = (path: string): string => {
 };
 
 export const USER_REPO_API_URL = getApiBaseUrl('/api/users');
-export const BOARD_SERVICE_API_URL = getApiBaseUrl('/api/boards/api');
+export const BOARD_SERVICE_API_URL = getApiBaseUrl('/api/boards');
 // export const BOARD_WS_URL = getApiBaseUrl('/api/ws/project');
 // ============================================================================
 // 인증 갱신 관련 변수
