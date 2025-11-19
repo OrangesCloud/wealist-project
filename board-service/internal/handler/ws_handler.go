@@ -79,8 +79,8 @@ var (
 // @Param        projectId path string true "Project ID (UUID)"
 // @Param        token query string true "JWT Access Token"
 // @Success      101 {string} string "Switching Protocols - WebSocket 연결 성공"
-// @Failure      401 {object} response.ErrorResponse "인증 실패"
-// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Failure      401 {object} project-board-api_internal_response.ErrorResponse "인증 실패"
+// @Failure      500 {object} project-board-api_internal_response.ErrorResponse "서버 에러"
 // @Router       /ws/project/{projectId} [get]
 func (h *WSHandler) HandleWebSocket(c *gin.Context) {
 	projectID := c.Param("projectId")
@@ -109,6 +109,7 @@ func (h *WSHandler) HandleWebSocket(c *gin.Context) {
 
 	// 🔥 [중요] c.Abort()를 Upgrade 전에 호출하면 안 됨!
 	// c.Abort() ← 이거 삭제!
+	
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Error("WebSocket Upgrade Failed", zap.Error(err), zap.String("projectId", projectID))
