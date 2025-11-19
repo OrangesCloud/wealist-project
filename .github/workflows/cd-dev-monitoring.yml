@@ -39,7 +39,7 @@ jobs:
       - name: Deploy Monitoring Stack (SSM → .env + Health Check)
         run: |
           # 파일 base64 인코딩
-          COMPOSE_B64=$(base64 -w 0 prometheus/docker-compose.yml)
+          COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.monitoring.yml)
           PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
 
           # SSM 파라미터 목록 (필요한 거 다 넣으세요)
