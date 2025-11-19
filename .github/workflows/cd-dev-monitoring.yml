@@ -195,10 +195,10 @@ jobs:
 
           # Decode and save docker-compose file
           echo "📝 Updating docker-compose file..."
-          echo "${COMPOSE_B64}" | base64 -d > docker-compose.monitoring.yml
+          echo "${COMPOSE_B64}" | base64 -d > docker-compose.ec2-dev-monitoring.yml
 
           # Remove version from docker-compose file to avoid warning
-          sed -i '/^version:/d' docker-compose.monitoring.yml
+          sed -i '/^version:/d' docker-compose.ec2-dev-monitoring.yml
 
           # Update docker-compose to use external services
           echo "🔧 Configuring monitoring services to use existing backend services..."
@@ -211,15 +211,15 @@ jobs:
           echo "  PostgreSQL container: ${POSTGRES_CONTAINER}"
 
           # Update configurations to use correct container names
-          sed -i "s|redis:\${REDIS_PORT}|${REDIS_CONTAINER}:6379|g" docker-compose.monitoring.yml
-          sed -i "s|postgres:\${POSTGRES_PORT}|${POSTGRES_CONTAINER}:5432|g" docker-compose.monitoring.yml
+          sed -i "s|redis:\${REDIS_PORT}|${REDIS_CONTAINER}:6379|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|postgres:\${POSTGRES_PORT}|${POSTGRES_CONTAINER}:5432|g" docker-compose.ec2-dev-monitoring.yml
 
           # Fix port configurations
-          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:9090|g" docker-compose.monitoring.yml
-          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:3000|g" docker-compose.monitoring.yml
-          sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}:9121|g" docker-compose.monitoring.yml
-          sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}:9187|g" docker-compose.monitoring.yml
-          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:9100|g" docker-compose.monitoring.yml
+          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:9090|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:3000|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}:9121|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}:9187|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:9100|g" docker-compose.ec2-dev-monitoring.yml
 
           # Remove depends_on for external services
           echo "🔧 Removing external service dependencies..."
@@ -228,7 +228,7 @@ jobs:
           import sys
 
           try:
-              with open('docker-compose.monitoring.yml', 'r') as f:
+              with open('docker-compose.ec2-dev-monitoring.yml', 'r') as f:
                   content = yaml.safe_load(f)
               
               if 'services' in content:
@@ -264,7 +264,7 @@ jobs:
                               if not depends_on:
                                   del content['services']['postgres-exporter']['depends_on']
               
-              with open('docker-compose.monitoring.yml', 'w') as f:
+              with open('docker-compose.ec2-dev-monitoring.yml', 'w') as f:
                   yaml.dump(content, f, default_flow_style=False, indent=2)
               
               print('✅ Successfully updated compose file dependencies')
@@ -280,7 +280,7 @@ jobs:
           import sys
 
           try:
-              with open('docker-compose.monitoring.yml', 'r') as f:
+              with open('docker-compose.ec2-dev-monitoring.yml', 'r') as f:
                   content = yaml.safe_load(f)
               
               # Update networks to use external backend network
@@ -293,7 +293,7 @@ jobs:
                               'name': '${BACKEND_NETWORK}'
                           }
               
-              with open('docker-compose.monitoring.yml', 'w') as f:
+              with open('docker-compose.ec2-dev-monitoring.yml', 'w') as f:
                   yaml.dump(content, f, default_flow_style=False, indent=2)
               
               print('✅ Successfully updated network configuration')
@@ -303,8 +303,8 @@ jobs:
           " 2>/dev/null || {
             echo "⚠️ Python network update failed, using manual approach"
             # Fallback: replace specific network references
-            sed -i "s/name: wealist-backend-net/name: ${BACKEND_NETWORK}/g" docker-compose.monitoring.yml
-            sed -i "s/name: wealist-database-net/name: ${BACKEND_NETWORK}/g" docker-compose.monitoring.yml
+            sed -i "s/name: wealist-backend-net/name: ${BACKEND_NETWORK}/g" docker-compose.ec2-dev-monitoring.yml
+            sed -i "s/name: wealist-database-net/name: ${BACKEND_NETWORK}/g" docker-compose.ec2-dev-monitoring.yml
           }
 
           # Decode and save prometheus config
@@ -314,12 +314,12 @@ jobs:
 
           # Validate YAML syntax before proceeding
           echo "🔍 Validating docker-compose file syntax..."
-          if ! docker-compose -f docker-compose.monitoring.yml config >/dev/null 2>&1; then
+          if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml config >/dev/null 2>&1; then
             echo "❌ Invalid docker-compose file. Content:"
-            cat docker-compose.monitoring.yml
+            cat docker-compose.ec2-dev-monitoring.yml
             echo ""
             echo "Validation output:"
-            docker-compose -f docker-compose.monitoring.yml config 2>&1 || true
+            docker-compose -f docker-compose.ec2-dev-monitoring.yml config 2>&1 || true
             exit 1
           fi
 
@@ -339,13 +339,13 @@ jobs:
 
           # Deploy monitoring services
           echo "🚀 Deploying monitoring services..."
-          if ! docker-compose -f docker-compose.monitoring.yml up -d; then
+          if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml up -d; then
             echo "❌ Failed to start services. Checking detailed logs..."
             echo "Docker-compose config validation:"
-            docker-compose -f docker-compose.monitoring.yml config 2>&1 || true
+            docker-compose -f docker-compose.ec2-dev-monitoring.yml config 2>&1 || true
             echo ""
             echo "Docker-compose file content:"
-            cat docker-compose.monitoring.yml
+            cat docker-compose.ec2-dev-monitoring.yml
             exit 1
           fi
 
@@ -386,7 +386,7 @@ jobs:
 
           if [ "$ALL_CONTAINERS_RUNNING" = false ]; then
             echo "❌ Some monitoring containers are not running. Checking logs:"
-            docker-compose -f docker-compose.monitoring.yml logs --tail=50
+            docker-compose -f docker-compose.ec2-dev-monitoring.yml logs --tail=50
             exit 1
           fi
 
@@ -455,7 +455,7 @@ jobs:
         id: deploy
         run: |
           # Base64 encode docker-compose and prometheus config files
-          COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.monitoring.yml)
+          COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-dev-monitoring.yml)
           PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
           
           # Base64 encode deployment script
