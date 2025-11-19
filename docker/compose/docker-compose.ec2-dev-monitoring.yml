@@ -32,6 +32,7 @@ services:
     user: "0:0"  # root로 실행 (설정 파일 읽기 위해)
 
     command:
+    
       - '--config.file=/etc/prometheus/prometheus-ec2.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
@@ -44,7 +45,7 @@ services:
     # - ../../prometheus/config -> 프로젝트 루트의 prometheus/config 디렉토리
     # - :ro 플래그는 read-only 마운트를 의미하여 컨테이너가 설정 파일을 수정할 수 없도록 합니다
     volumes:
-      - ../../prometheus/config:/etc/prometheus:ro
+      - /home/ubuntu/wealist/prometheus/config:/etc/prometheus:ro
       - prometheus-data:/prometheus
 
     ports:
