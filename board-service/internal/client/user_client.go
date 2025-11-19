@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"project-board-api/internal/metrics"
 )
 
 // UserClient defines the interface for User API interactions
@@ -71,10 +72,11 @@ type userClient struct {
 	httpClient *http.Client
 	timeout    time.Duration
 	logger     *zap.Logger
+	metrics    *metrics.Metrics
 }
 
 // NewUserClient creates a new User API client
-func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger) UserClient {
+func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger, m *metrics.Metrics) UserClient {
 	return &userClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
@@ -82,6 +84,7 @@ func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger) Us
 		},
 		timeout: timeout,
 		logger:  logger,
+		metrics: m,
 	}
 }
 
@@ -289,12 +292,23 @@ func (c *userClient) doRequest(ctx context.Context, method, url, token string, r
 
 	// Execute request
 	resp, err := c.httpClient.Do(req)
+	duration := time.Since(startTime)
+	
+	// Record metrics
+	statusCode := 0
+	if resp != nil {
+		statusCode = resp.StatusCode
+	}
+	if c.metrics != nil {
+		c.metrics.RecordExternalAPICall(url, method, statusCode, duration, err)
+	}
+	
 	if err != nil {
 		c.logger.Error("Failed to execute HTTP request",
 			zap.Error(err),
 			zap.String("method", method),
 			zap.String("url", url),
-			zap.Duration("processing_time", time.Since(startTime)),
+			zap.Duration("processing_time", duration),
 		)
 		return fmt.Errorf("failed to execute request: %w", err)
 	}
