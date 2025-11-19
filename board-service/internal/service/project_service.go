@@ -505,7 +505,18 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 		}
 	}
 
-	// Build project basic info with workspace details
+	// Fetch owner profile information
+	ownerProfile, err := s.userClient.GetWorkspaceProfile(ctx, project.WorkspaceID, project.OwnerID, token)
+	if err != nil {
+		// Log error but continue with graceful degradation
+		s.logger.Warn("Failed to fetch owner profile for project init settings",
+			zap.Error(err),
+			zap.String("project_id", projectID.String()),
+			zap.String("owner_id", project.OwnerID.String()),
+		)
+	}
+
+	// Build project basic info with workspace and owner details
 	projectInfo := dto.ProjectBasicInfo{
 		ProjectID:        project.ID,
 		WorkspaceID:      project.WorkspaceID,
@@ -517,6 +528,12 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 		IsPublic:         project.IsPublic,
 		CreatedAt:        project.CreatedAt,
 		UpdatedAt:        project.UpdatedAt,
+	}
+
+	// Add owner profile information if available
+	if ownerProfile != nil {
+		projectInfo.OwnerEmail = ownerProfile.Email
+		projectInfo.OwnerName = ownerProfile.NickName
 	}
 
 	// Fetch project-specific field options from database

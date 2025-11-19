@@ -192,7 +192,7 @@ func (c *userClient) GetUserProfile(ctx context.Context, userID uuid.UUID, token
 
 // GetWorkspaceProfile retrieves workspace-specific user profile
 func (c *userClient) GetWorkspaceProfile(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*WorkspaceProfile, error) {
-	url := c.buildURL(fmt.Sprintf("/profiles/workspace/%s", workspaceID.String()))
+	url := c.buildURL(fmt.Sprintf("/profiles/workspace/%s/user/%s", workspaceID.String(), userID.String()))
 
 	c.logger.Debug("Getting workspace profile",
 		zap.String("url", url),
