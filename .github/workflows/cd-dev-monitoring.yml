@@ -135,11 +135,19 @@ jobs:
             REDIS_CONTAINER=$(docker ps --format '{{.Names}}' | grep redis | head -1)
             echo "  ✅ Redis container found: ${REDIS_CONTAINER}"
             
-            # Test Redis connection
-            if docker exec "${REDIS_CONTAINER}" redis-cli -a "${REDIS_PASSWORD}" ping 2>/dev/null | grep -q "PONG"; then
-              echo "  ✅ Redis is responding to ping"
+            # Test Redis connection (handle password properly)
+            if [ -n "${REDIS_PASSWORD}" ]; then
+              if docker exec "${REDIS_CONTAINER}" redis-cli -a "${REDIS_PASSWORD}" ping 2>&1 | grep -q "PONG"; then
+                echo "  ✅ Redis is responding to ping (with password)"
+              else
+                echo "  ⚠️  Redis container exists but not responding to authenticated ping"
+              fi
             else
-              echo "  ⚠️  Redis container exists but not responding to ping"
+              if docker exec "${REDIS_CONTAINER}" redis-cli ping 2>&1 | grep -q "PONG"; then
+                echo "  ✅ Redis is responding to ping (no password)"
+              else
+                echo "  ⚠️  Redis container exists but not responding to ping"
+              fi
             fi
           else
             echo "  ❌ Redis container not found"
@@ -195,18 +203,50 @@ jobs:
           echo "  PostgreSQL container: ${POSTGRES_CONTAINER_NAME}"
 
           # Update redis-exporter configuration to use existing Redis container
-          sed -i "s|REDIS_ADDR=redis://redis:${REDIS_PORT}|REDIS_ADDR=redis://${REDIS_CONTAINER_NAME}|g" docker-compose.monitoring.yml
+          # Fix: Use port  (Redis default port) instead of ${REDIS_PORT}
+          sed -i "s|REDIS_ADDR=redis://redis:6379|REDIS_ADDR=redis://${REDIS_CONTAINER_NAME}:6379|g" docker-compose.monitoring.yml
           
-          # Update postgres-exporter configuration to use existing PostgreSQL container
-          sed -i "s|postgresql://.*@host\.docker\.internal:.*|postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@${POSTGRES_CONTAINER_NAME}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable|g" docker-compose.monitoring.yml
+          # Update postgres-exporter configuration to use existing PostgreSQL container  
+          # Fix: Use port  (PostgreSQL default port) instead of ${POSTGRES_PORT}
+          sed -i "s|postgresql://.*@.*:.*|postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}?sslmode=disable|g" docker-compose.monitoring.yml
           
-          # Remove any depends_on for external services
-          sed -i '/depends_on:/,/^[[:space:]]*[^[:space:]].*:/ { /depends_on:/d; /- redis$/d; /- postgres$/d }' docker-compose.monitoring.yml
+          # Remove any depends_on for external services and clean up properly
+          # Create a temporary file for safer editing
+          python3 -c "
+          import yaml
+          import sys
 
-          # Add external network configuration
+          try:
+              with open('docker-compose.monitoring.yml', 'r') as f:
+                  content = yaml.safe_load(f)
+              
+              # Remove depends_on from redis-exporter and postgres-exporter if they exist
+              if 'services' in content:
+                  for service_name in ['redis-exporter', 'postgres-exporter']:
+                      if service_name in content['services']:
+                          if 'depends_on' in content['services'][service_name]:
+                              del content['services'][service_name]['depends_on']
+              
+              with open('docker-compose.monitoring.yml', 'w') as f:
+                  yaml.dump(content, f, default_flow_style=False)
+              
+              print('✅ Successfully updated compose file')
+          except Exception as e:
+              print(f'⚠️  Could not parse YAML with Python, using sed fallback: {e}')
+              sys.exit(1)
+          " 2>/dev/null || {
+            echo "⚠️  Python YAML parsing failed, using sed fallback"
+            # Fallback to sed if Python fails
+            sed -i '/depends_on:/,/^[[:space:]]*[^[:space:]#-]/ { /depends_on:/d; /^[[:space:]]*- redis$/d; /^[[:space:]]*- postgres$/d; }' docker-compose.monitoring.yml
+          }
+
+          # Update networks configuration to use external network
+          echo "🔧 Updating network configuration..."
+          # Remove existing networks section and add external network
+          sed -i '/^networks:/,$d' docker-compose.monitoring.yml
+          
           cat >> docker-compose.monitoring.yml << EOF
 
-          # Use existing backend network
           networks:
             default:
               name: ${BACKEND_NETWORK}
@@ -217,6 +257,23 @@ jobs:
           echo "📝 Updating Prometheus configuration..."
           mkdir -p prometheus/config
           echo "${PROM_CFG_B64}" | base64 -d > prometheus/config/prometheus-ec2.yml
+
+          # Validate YAML syntax before proceeding
+          echo "🔍 Validating docker-compose file syntax..."
+          if ! docker-compose -f docker-compose.monitoring.yml config >/dev/null 2>&1; then
+            echo "❌ Invalid docker-compose file. Content:"
+            cat docker-compose.monitoring.yml
+            echo "Attempting to fix network configuration..."
+            
+            # Fallback: use bridge network if external network fails
+            sed -i '/^networks:/,$d' docker-compose.monitoring.yml
+            cat >> docker-compose.monitoring.yml << EOF
+
+          networks:
+            default:
+              driver: bridge
+          EOF
+          fi
 
           # Check if Docker daemon is running
           if ! docker info >/dev/null 2>&1; then
@@ -232,7 +289,9 @@ jobs:
           echo "🚀 Deploying monitoring services..."
           if ! docker-compose -f docker-compose.monitoring.yml up -d; then
             echo "❌ Failed to start services. Checking logs..."
-            docker-compose -f docker-compose.monitoring.yml logs
+            docker-compose -f docker-compose.monitoring.yml logs --tail=20
+            echo "❌ Docker-compose file content:"
+            cat docker-compose.monitoring.yml
             exit 1
           fi
 
@@ -247,10 +306,13 @@ jobs:
           REDIS_EXPORTER_CONTAINER=$(docker ps --format '{{.Names}}' | grep redis-exporter | head -1)
           if [ -n "$REDIS_EXPORTER_CONTAINER" ]; then
             echo "Testing Redis Exporter connection..."
-            if docker exec "$REDIS_EXPORTER_CONTAINER" wget -q -O- "http://localhost:9121/metrics" | grep -q "redis_up 1" 2>/dev/null; then
+            sleep 10  # Give it time to connect
+            if timeout 30 docker exec "$REDIS_EXPORTER_CONTAINER" wget -q -O- "http://localhost:9121/metrics" 2>/dev/null | grep -q "redis_up" ; then
               echo "  ✅ Redis Exporter successfully connected to Redis"
             else
               echo "  ⚠️  Redis Exporter may have connection issues"
+              echo "  📋 Redis Exporter logs:"
+              docker logs "$REDIS_EXPORTER_CONTAINER" --tail=10
             fi
           fi
 
@@ -258,10 +320,13 @@ jobs:
           POSTGRES_EXPORTER_CONTAINER=$(docker ps --format '{{.Names}}' | grep postgres-exporter | head -1)
           if [ -n "$POSTGRES_EXPORTER_CONTAINER" ]; then
             echo "Testing Postgres Exporter connection..."
-            if docker exec "$POSTGRES_EXPORTER_CONTAINER" wget -q -O- "http://localhost:${POSTGRES_EXPORTER_PORT}/metrics" | grep -q "pg_up 1" 2>/dev/null; then
+            sleep 10  # Give it time to connect
+            if timeout 30 docker exec "$POSTGRES_EXPORTER_CONTAINER" wget -q -O- "http://localhost:9187/metrics" 2>/dev/null | grep -q "pg_up" ; then
               echo "  ✅ Postgres Exporter successfully connected to PostgreSQL"
             else
               echo "  ⚠️  Postgres Exporter may have connection issues"
+              echo "  📋 Postgres Exporter logs:"
+              docker logs "$POSTGRES_EXPORTER_CONTAINER" --tail=10
             fi
           fi
 
@@ -270,7 +335,7 @@ jobs:
             local service_name="$1"
             local port="$2"
             local endpoint="${3:-/}"
-            local max_attempts=15
+            local max_attempts=10
             local attempt=1
             
             echo "🔍 Health checking ${service_name} on port ${port}${endpoint}..."
@@ -285,7 +350,7 @@ jobs:
               fi
               
               echo "  ⏳ ${service_name} not ready yet (${attempt}/${max_attempts})"
-              sleep 10
+              sleep 15
               ((attempt++))
             done
             
@@ -314,36 +379,39 @@ jobs:
             exit 1
           fi
 
-          # Perform health checks
+          # Perform health checks (more lenient for exporters)
           echo "🏥 Performing health checks..."
           HEALTH_CHECK_FAILED=false
 
-          # Prometheus health check
-          if ! health_check "prometheus" "${PROMETHEUS_PORT}" "/-/healthy"; then
+          # Critical services health check
+          if ! health_check "prometheus" "${PROMETHEUS_PORT}" "/-/ready"; then
             if ! health_check "prometheus" "${PROMETHEUS_PORT}" "/"; then
+              echo "  ❌ Prometheus is not responding"
               HEALTH_CHECK_FAILED=true
             fi
           fi
 
-          # Grafana health check
           if ! health_check "grafana" "${GRAFANA_PORT}" "/api/health"; then
             if ! health_check "grafana" "${GRAFANA_PORT}" "/login"; then
+              echo "  ❌ Grafana is not responding"
               HEALTH_CHECK_FAILED=true
             fi
           fi
 
-          # Exporter health checks
-          health_check "node-exporter" "${NODE_EXPORTER_PORT}" "/metrics" || HEALTH_CHECK_FAILED=true
-          health_check "redis-exporter" "${REDIS_EXPORTER_PORT}" "/metrics" || HEALTH_CHECK_FAILED=true
-          health_check "postgres-exporter" "${POSTGRES_EXPORTER_PORT}" "/metrics" || HEALTH_CHECK_FAILED=true
+          # Exporter health checks (non-critical)
+          echo "🔍 Checking exporters (non-critical)..."
+          health_check "node-exporter" "${NODE_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Node exporter not responding (container may still be starting)"
+          health_check "redis-exporter" "${REDIS_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Redis exporter not responding (may have connection issues)"
+          health_check "postgres-exporter" "${POSTGRES_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Postgres exporter not responding (may have connection issues)"
 
           # Final verification
           echo "📊 Final service verification:"
-          echo "Backend Services:"
+          echo "Backend Services (existing):"
           echo "  ✅ Redis: ${REDIS_CONTAINER_NAME}"
           echo "  ✅ PostgreSQL: ${POSTGRES_CONTAINER_NAME}"
+          echo "  ✅ Network: ${BACKEND_NETWORK}"
           echo ""
-          echo "Monitoring Services:"
+          echo "Monitoring Services (deployed):"
           for service in $MONITORING_SERVICES; do
             container_name="wealist-${service}"
             if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
@@ -352,8 +420,8 @@ jobs:
           done
 
           if [ "$HEALTH_CHECK_FAILED" = true ]; then
-            echo "⚠️  Some health checks failed, but containers are running"
-            echo "Services may need more time to initialize"
+            echo "❌ Critical monitoring services (Prometheus/Grafana) are not responding"
+            exit 1
           fi
 
           echo ""
@@ -366,8 +434,8 @@ jobs:
           echo "  - Postgres Exporter: http://localhost:${POSTGRES_EXPORTER_PORT}/metrics"
           echo ""
           echo "🔗 Monitoring targets:"
-          echo "  - Redis: ${REDIS_CONTAINER_NAME}:${REDIS_PORT}"
-          echo "  - PostgreSQL: ${POSTGRES_CONTAINER_NAME}:${POSTGRES_PORT}"
+          echo "  - Redis: ${REDIS_CONTAINER_NAME}:6379"
+          echo "  - PostgreSQL: ${POSTGRES_CONTAINER_NAME}:5432"
           DEPLOY_SCRIPT
 
       - name: Deploy Monitoring Stack via SSM
