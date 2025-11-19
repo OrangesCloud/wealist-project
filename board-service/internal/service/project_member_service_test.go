@@ -114,15 +114,20 @@ func TestProjectMemberService_RemoveMember(t *testing.T) {
 	projectID := uuid.New()
 	requesterID := uuid.New()
 	memberID := uuid.New()
+	sameUserID := uuid.New() // For testing self-removal
 
 	tests := []struct {
 		name        string
+		reqID       uuid.UUID
+		memID       uuid.UUID
 		mockProject func(*MockProjectRepository)
 		wantErr     bool
 		wantErrCode string
 	}{
 		{
-			name: "성공: ADMIN이 멤버 제거",
+			name:  "성공: ADMIN이 멤버 제거",
+			reqID: requesterID,
+			memID: memberID,
 			mockProject: func(m *MockProjectRepository) {
 				m.FindMemberByProjectAndUserFunc = func(ctx context.Context, pID, uID uuid.UUID) (*domain.ProjectMember, error) {
 					if uID == requesterID {
@@ -147,7 +152,9 @@ func TestProjectMemberService_RemoveMember(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "성공: OWNER가 멤버 제거",
+			name:  "성공: OWNER가 멤버 제거",
+			reqID: requesterID,
+			memID: memberID,
 			mockProject: func(m *MockProjectRepository) {
 				m.FindMemberByProjectAndUserFunc = func(ctx context.Context, pID, uID uuid.UUID) (*domain.ProjectMember, error) {
 					if uID == requesterID {
@@ -172,7 +179,9 @@ func TestProjectMemberService_RemoveMember(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "실패: OWNER 제거 시도",
+			name:  "실패: OWNER 제거 시도",
+			reqID: requesterID,
+			memID: memberID,
 			mockProject: func(m *MockProjectRepository) {
 				m.FindMemberByProjectAndUserFunc = func(ctx context.Context, pID, uID uuid.UUID) (*domain.ProjectMember, error) {
 					if uID == requesterID {
@@ -195,7 +204,9 @@ func TestProjectMemberService_RemoveMember(t *testing.T) {
 			wantErrCode: response.ErrCodeValidation,
 		},
 		{
-			name: "실패: 자기 자신 제거 시도",
+			name:  "실패: 자기 자신 제거 시도",
+			reqID: sameUserID,
+			memID: sameUserID,
 			mockProject: func(m *MockProjectRepository) {
 				m.FindMemberByProjectAndUserFunc = func(ctx context.Context, pID, uID uuid.UUID) (*domain.ProjectMember, error) {
 					return &domain.ProjectMember{
@@ -210,7 +221,9 @@ func TestProjectMemberService_RemoveMember(t *testing.T) {
 			wantErrCode: response.ErrCodeValidation,
 		},
 		{
-			name: "실패: MEMBER가 제거 시도",
+			name:  "실패: MEMBER가 제거 시도",
+			reqID: requesterID,
+			memID: memberID,
 			mockProject: func(m *MockProjectRepository) {
 				m.FindMemberByProjectAndUserFunc = func(ctx context.Context, pID, uID uuid.UUID) (*domain.ProjectMember, error) {
 					return &domain.ProjectMember{
@@ -236,7 +249,7 @@ func TestProjectMemberService_RemoveMember(t *testing.T) {
 			service := NewProjectMemberService(mockProjectRepo, mockUserClient)
 
 			// When
-			err := service.RemoveMember(context.Background(), projectID, requesterID, memberID)
+			err := service.RemoveMember(context.Background(), projectID, tt.reqID, tt.memID)
 
 			// Then
 			if tt.wantErr {

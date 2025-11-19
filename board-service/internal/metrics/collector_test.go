@@ -38,18 +38,28 @@ func (testBoard) TableName() string {
 
 // setupCollectorTestDB creates an in-memory SQLite database for testing
 func setupCollectorTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	// Use a file-based database instead of :memory: to avoid connection issues
+	// Each test gets a unique database file
+	dbPath := t.TempDir() + "/test.db"
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err, "Failed to open test database")
 
 	// Auto-migrate test models
 	err = db.AutoMigrate(&testProject{}, &testBoard{})
 	require.NoError(t, err, "Failed to migrate test models")
 
+	// Verify tables were created
+	var tableCount int64
+	err = db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('projects', 'boards')").Scan(&tableCount).Error
+	require.NoError(t, err, "Failed to verify tables")
+	require.Equal(t, int64(2), tableCount, "Both projects and boards tables should exist")
+
 	return db
 }
 
 // TestNewBusinessMetricsCollector tests collector creation
 func TestNewBusinessMetricsCollector(t *testing.T) {
+	t.Parallel()
 	db := setupCollectorTestDB(t)
 	m := getTestMetrics()
 	logger := zap.NewNop()
@@ -68,6 +78,7 @@ func TestNewBusinessMetricsCollector(t *testing.T) {
 // **Feature: board-service-prometheus-metrics, Property 12: 비즈니스 메트릭 노출**
 // **Validates: Requirements 7.1, 7.2**
 func TestBusinessMetricsCollector_Collect(t *testing.T) {
+	t.Parallel()
 	db := setupCollectorTestDB(t)
 	m := getTestMetrics()
 	logger := zap.NewNop()
@@ -113,6 +124,7 @@ func TestBusinessMetricsCollector_Collect(t *testing.T) {
 // **Feature: board-service-prometheus-metrics, Property 12: 비즈니스 메트릭 노출**
 // **Validates: Requirements 7.1, 7.2**
 func TestBusinessMetricsCollector_CollectEmpty(t *testing.T) {
+	t.Parallel()
 	db := setupCollectorTestDB(t)
 	m := getTestMetrics()
 	logger := zap.NewNop()
@@ -147,13 +159,13 @@ func TestBusinessMetricsCollector_StartStop(t *testing.T) {
 	// Create collector with shorter interval for testing
 	collector := NewBusinessMetricsCollector(db, m, logger)
 	collector.ticker.Stop()
-	collector.ticker = time.NewTicker(100 * time.Millisecond)
+	collector.ticker = time.NewTicker(20 * time.Millisecond)
 
 	// Start collector
 	collector.Start()
 
 	// Wait for at least one collection cycle
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
 
 	// Verify metrics were collected
 	projectsTotal := getGaugeValue(t, m.ProjectsTotal)
@@ -163,7 +175,7 @@ func TestBusinessMetricsCollector_StartStop(t *testing.T) {
 	collector.Stop()
 
 	// Wait to ensure goroutine exits
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 
 	// Test passes if no panic or deadlock occurs
 }
@@ -176,10 +188,16 @@ func TestBusinessMetricsCollector_PeriodicCollection(t *testing.T) {
 	m := getTestMetrics()
 	logger := zap.NewNop()
 
-	// Create collector with shorter interval for testing
+	// Ensure database tables are properly initialized
+	var tableCount int64
+	err := db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='projects'").Scan(&tableCount).Error
+	require.NoError(t, err, "Failed to check if projects table exists")
+	require.Equal(t, int64(1), tableCount, "Projects table should exist")
+
+	// Create collector with shorter interval for faster test execution
 	collector := NewBusinessMetricsCollector(db, m, logger)
 	collector.ticker.Stop()
-	collector.ticker = time.NewTicker(100 * time.Millisecond)
+	collector.ticker = time.NewTicker(20 * time.Millisecond)
 
 	// Start collector
 	collector.Start()
@@ -187,14 +205,21 @@ func TestBusinessMetricsCollector_PeriodicCollection(t *testing.T) {
 
 	// Insert initial data
 	project1 := testProject{ID: uuid.New().String(), Name: "Project 1"}
-	err := db.Create(&project1).Error
+	err = db.Create(&project1).Error
 	require.NoError(t, err)
 
-	// Wait for collection
-	time.Sleep(150 * time.Millisecond)
+	// Wait for at least 2 collection cycles (20ms * 2 = 40ms)
+	time.Sleep(50 * time.Millisecond)
 
-	// Verify initial count
-	projectsTotal := getGaugeValue(t, m.ProjectsTotal)
+	// Verify initial count with retry logic to handle timing variations
+	var projectsTotal float64
+	for i := 0; i < 3; i++ {
+		projectsTotal = getGaugeValue(t, m.ProjectsTotal)
+		if projectsTotal == 1.0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	assert.Equal(t, float64(1), projectsTotal, "ProjectsTotal should be 1")
 
 	// Insert more data
@@ -202,12 +227,19 @@ func TestBusinessMetricsCollector_PeriodicCollection(t *testing.T) {
 	err = db.Create(&project2).Error
 	require.NoError(t, err)
 
-	// Wait for next collection cycle
-	time.Sleep(150 * time.Millisecond)
+	// Wait for at least 2 more collection cycles
+	time.Sleep(50 * time.Millisecond)
 
-	// Verify updated count
-	projectsTotal = getGaugeValue(t, m.ProjectsTotal)
-	assert.Equal(t, float64(2), projectsTotal, "ProjectsTotal should be 2")
+	// Verify updated count with retry logic to handle timing variations
+	var finalCount float64
+	for i := 0; i < 3; i++ {
+		finalCount = getGaugeValue(t, m.ProjectsTotal)
+		if finalCount == 2.0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	assert.Equal(t, float64(2), finalCount, "ProjectsTotal should be 2")
 }
 
 // TestBusinessMetricsCollector_ImmediateCollection tests immediate collection on start
@@ -233,7 +265,7 @@ func TestBusinessMetricsCollector_ImmediateCollection(t *testing.T) {
 	defer collector.Stop()
 
 	// Wait a bit for immediate collection to complete
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 
 	// Verify metrics were collected immediately
 	projectsTotal := getGaugeValue(t, m.ProjectsTotal)
@@ -247,6 +279,7 @@ func TestBusinessMetricsCollector_ImmediateCollection(t *testing.T) {
 // **Feature: board-service-prometheus-metrics, Property 13: 비즈니스 이벤트 카운팅**
 // **Validates: Requirements 7.3, 7.4**
 func TestBusinessMetricsCollector_Integration(t *testing.T) {
+	t.Parallel()
 	db := setupCollectorTestDB(t)
 	m := getTestMetrics()
 	logger := zap.NewNop()
@@ -350,7 +383,7 @@ func TestBusinessMetricsCollector_ConcurrentAccess(t *testing.T) {
 	// Create collector with shorter interval to test concurrent collection
 	collector := NewBusinessMetricsCollector(db, m, logger)
 	collector.ticker.Stop()
-	collector.ticker = time.NewTicker(20 * time.Millisecond)
+	collector.ticker = time.NewTicker(10 * time.Millisecond)
 
 	// Start collector
 	collector.Start()
@@ -371,7 +404,7 @@ func TestBusinessMetricsCollector_ConcurrentAccess(t *testing.T) {
 	}
 
 	// Wait for periodic collection
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 
 	// Verify final counts
 	projectsTotal := getGaugeValue(t, m.ProjectsTotal)
