@@ -211,15 +211,15 @@ jobs:
           echo "  PostgreSQL container: ${POSTGRES_CONTAINER}"
 
           # Update configurations to use correct container names
-          sed -i "s|redis:\${REDIS_PORT}|${REDIS_CONTAINER}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|postgres:\${POSTGRES_PORT}|${POSTGRES_CONTAINER}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|redis:\${REDIS_PORT}|${REDIS_CONTAINER}:${REDIS_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|postgres:\${POSTGRES_PORT}|${POSTGRES_CONTAINER}:${POSTGRES_PORT}|g" docker-compose.ec2-dev-monitoring.yml
 
           # Fix port configurations
-          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:${PROMETHEUS_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:${GRAFANA_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}:${REDIS_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}:${POSTGRES_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
 
           # Remove depends_on for external services
           echo "🔧 Removing external service dependencies..."
