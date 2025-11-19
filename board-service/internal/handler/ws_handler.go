@@ -15,6 +15,16 @@ import (
 	"go.uber.org/zap"
 )
 
+// ============================================================================
+// 💡 [추가] WebSocket 타임아웃 설정
+// ============================================================================
+const (
+	writeWait      = 10 * time.Second
+	pongWait       = 60 * time.Second
+	pingPeriod     = (pongWait * 9) / 10  // 54초마다 ping
+	maxMessageSize = 512
+)
+
 func getLogger(c *gin.Context) *zap.Logger {
 	if logger, exists := c.Get("logger"); exists {
 		if log, ok := logger.(*zap.Logger); ok {
@@ -33,8 +43,9 @@ type WSEvent struct {
 }
 
 type Client struct {
-	conn *websocket.Conn
-	send chan []byte
+	conn      *websocket.Conn
+	send      chan []byte
+	projectID string  // 💡 [추가] 프로젝트 ID 저장
 }
 
 type WSHandler struct {
@@ -57,6 +68,8 @@ var (
 	clients   = make(map[string]map[*Client]bool)
 	clientsMu sync.RWMutex
 )
+
+// internal/handler/websocket.go
 
 func (h *WSHandler) HandleWebSocket(c *gin.Context) {
 	projectID := c.Param("projectId")
@@ -83,6 +96,9 @@ func (h *WSHandler) HandleWebSocket(c *gin.Context) {
 
 	log.Info("WebSocket auth successful", zap.String("projectId", projectID))
 
+	// 🔥 [중요] c.Abort()를 Upgrade 전에 호출하면 안 됨!
+	// c.Abort() ← 이거 삭제!
+
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Error("WebSocket Upgrade Failed", zap.Error(err), zap.String("projectId", projectID))
@@ -90,13 +106,14 @@ func (h *WSHandler) HandleWebSocket(c *gin.Context) {
 	}
 
 	log.Info("WebSocket upgrade successful", zap.String("projectId", projectID))
-
-	c.Abort()
 	defer conn.Close()
 
-	client := &Client{conn: conn, send: make(chan []byte, 256)}
+	client := &Client{
+		conn:      conn,
+		send:      make(chan []byte, 256),
+		projectID: projectID,
+	}
 
-	// 💡 [핵심 수정] 클라이언트 등록 전후 로그 추가
 	clientsMu.Lock()
 	if clients[projectID] == nil {
 		clients[projectID] = make(map[*Client]bool)
@@ -110,52 +127,130 @@ func (h *WSHandler) HandleWebSocket(c *gin.Context) {
 		zap.String("projectId", projectID),
 		zap.Int("totalClients", currentClientCount))
 
-	// 💡 [핵심 수정] writePump와 subscribeToRedis 고루틴 시작
-	go h.writePump(client, projectID, log)
+	go h.writePump(client, log)
+	go h.readPump(client, log)
 	go subscribeToRedis(projectID, client, log)
 
-	// 연결 유지 및 끊김 처리
-	for {
-		_, _, err := conn.ReadMessage()
-		if err != nil {
-			log.Info("WebSocket connection closed",
-				zap.String("projectId", projectID),
-				zap.Error(err))
+	// 🔥 [추가] 메인 고루틴 대기 (readPump가 끝날 때까지)
+	select {}
+}
+// ============================================================================
+// 💡 [신규] readPump: 클라이언트로부터 메시지 수신 + Pong 처리
+// ============================================================================
+func (h *WSHandler) readPump(client *Client, log *zap.Logger) {
+	defer func() {
+		log.Info("🔌 readPump: Client disconnected", zap.String("projectId", client.projectID))
+		
+		// 클라이언트 등록 해제
+		clientsMu.Lock()
+		delete(clients[client.projectID], client)
+		if len(clients[client.projectID]) == 0 {
+			delete(clients, client.projectID)
+		}
+		clientsMu.Unlock()
+		
+		close(client.send)
+		client.conn.Close()
+	}()
 
-			clientsMu.Lock()
-			delete(clients[projectID], client)
-			if len(clients[projectID]) == 0 {
-				delete(clients, projectID)
+	// 타임아웃 설정
+	client.conn.SetReadLimit(maxMessageSize)
+	client.conn.SetReadDeadline(time.Now().Add(pongWait))
+	
+	// 🔥 Pong 핸들러 등록
+	client.conn.SetPongHandler(func(string) error {
+		log.Info("🏓 Pong received from client", zap.String("projectId", client.projectID))
+		client.conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+
+	log.Info("readPump started", zap.String("projectId", client.projectID))
+
+	for {
+		messageType, message, err := client.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Error("❌ Unexpected WebSocket close", zap.Error(err), zap.String("projectId", client.projectID))
+			} else {
+				log.Info("⚠️ Normal WebSocket close", zap.String("projectId", client.projectID))
 			}
-			clientsMu.Unlock()
-			close(client.send)
 			break
 		}
-	}
 
-	log.Info("WebSocket handler exiting", zap.String("projectId", projectID))
-}
-
-// 💡 [수정] writePump에 로그 추가
-func (h *WSHandler) writePump(client *Client, projectID string, log *zap.Logger) {
-	defer client.conn.Close()
-
-	log.Info("writePump started", zap.String("projectId", projectID))
-
-	for message := range client.send {
-		if err := client.conn.WriteMessage(websocket.TextMessage, message); err != nil {
-			log.Error("WriteMessage failed", zap.Error(err), zap.String("projectId", projectID))
-			return
+		// 💡 [추가] Ping 메시지 처리 (클라이언트가 JSON으로 보낼 경우)
+		if messageType == websocket.TextMessage {
+			var msg map[string]interface{}
+			if err := json.Unmarshal(message, &msg); err == nil {
+				if msgType, ok := msg["type"].(string); ok && msgType == "ping" {
+					log.Info("🏓 Ping received (JSON), sending pong", zap.String("projectId", client.projectID))
+					// Pong 응답 전송
+					pongMsg, _ := json.Marshal(map[string]string{"type": "pong"})
+					select {
+					case client.send <- pongMsg:
+					default:
+						log.Warn("⚠️ Client send channel full", zap.String("projectId", client.projectID))
+					}
+					continue
+				}
+			}
 		}
-		log.Info("Message sent to client",
-			zap.String("projectId", projectID),
-			zap.String("message", string(message)))
+
+		log.Info("📨 Message received from client",
+			zap.String("projectId", client.projectID),
+			zap.Int("type", int(messageType)),
+			zap.Int("length", len(message)))
 	}
 
-	log.Info("writePump exiting", zap.String("projectId", projectID))
+	log.Info("readPump exiting", zap.String("projectId", client.projectID))
 }
 
-// 💡 [수정] subscribeToRedis에 로그 추가
+// ============================================================================
+// 💡 [수정] writePump: Ping 전송 + 메시지 전송
+// ============================================================================
+func (h *WSHandler) writePump(client *Client, log *zap.Logger) {
+	// 🔥 Ping 타이머 생성
+	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+		client.conn.Close()
+		log.Info("writePump exiting", zap.String("projectId", client.projectID))
+	}()
+
+	log.Info("writePump started", zap.String("projectId", client.projectID))
+
+	for {
+		select {
+		case message, ok := <-client.send:
+			client.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				// 채널이 닫힘
+				client.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			if err := client.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+				log.Error("❌ WriteMessage failed", zap.Error(err), zap.String("projectId", client.projectID))
+				return
+			}
+			log.Info("✅ Message sent to client",
+				zap.String("projectId", client.projectID),
+				zap.String("message", string(message)))
+
+		// 🔥 Ping 메시지 주기적 전송
+		case <-ticker.C:
+			client.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := client.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Error("❌ Ping failed", zap.Error(err), zap.String("projectId", client.projectID))
+				return
+			}
+			log.Info("🏓 Ping sent to client", zap.String("projectId", client.projectID))
+		}
+	}
+}
+
+// ============================================================================
+// subscribeToRedis: Redis Pub/Sub 구독
+// ============================================================================
 func subscribeToRedis(projectID string, client *Client, log *zap.Logger) {
 	redis := database.GetRedis()
 	pubsub := redis.Subscribe(context.Background(), "kanban:project:"+projectID)
@@ -167,18 +262,27 @@ func subscribeToRedis(projectID string, client *Client, log *zap.Logger) {
 		log.Info("Redis message received",
 			zap.String("projectId", projectID),
 			zap.String("payload", msg.Payload))
-		client.send <- []byte(msg.Payload)
+		
+		select {
+		case client.send <- []byte(msg.Payload):
+			log.Info("✅ Redis message sent to client", zap.String("projectId", projectID))
+		default:
+			log.Warn("⚠️ Client send channel full, message dropped", zap.String("projectId", projectID))
+		}
 	}
 
 	log.Info("Redis subscription ended", zap.String("projectId", projectID))
 }
+
+// ============================================================================
+// BroadcastEvent: 이벤트 브로드캐스트
+// ============================================================================
 func BroadcastEvent(projectID string, event WSEvent) {
 	payload, _ := json.Marshal(event)
 
 	clientsMu.RLock()
 	defer clientsMu.RUnlock()
 
-	// 💡 [추가] 디버깅 로그
 	fmt.Printf("🔊 [BROADCAST] ProjectID: %s, ClientCount: %d\n", projectID, len(clients[projectID]))
 	fmt.Printf("🔊 [BROADCAST] Event: %+v\n", event)
 
