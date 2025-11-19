@@ -31,23 +31,19 @@ jobs:
           EC2_ID=$(aws ssm get-parameter --name "/wealist/dev/cd/ec2_instance_id" --query "Parameter.Value" --output text --with-decryption)
           COMPOSE_DIR=$(aws ssm get-parameter --name "/wealist/dev/monitor/compose_file_path" --query "Parameter.Value" --output text)
           PARAM_PREFIX=$(aws ssm get-parameter --name "/wealist/dev/cd/parameter_prefix" --query "Parameter.Value" --output text)
-
           echo "ec2-instance-id=$EC2_ID" >> $GITHUB_OUTPUT
           echo "compose-file-path=$COMPOSE_DIR" >> $GITHUB_OUTPUT
           echo "parameter-prefix=$PARAM_PREFIX" >> $GITHUB_OUTPUT
           echo "aws-region=ap-northeast-2" >> $GITHUB_OUTPUT
-
       - name: Create Deployment Script
         run: |
           cat << 'DEPLOY_SCRIPT' > /tmp/deploy-monitoring.sh
           #!/bin/bash
           set -euo pipefail
-
           echo "=== Starting Monitoring Stack Deployment ==="
           echo "Timestamp: $(date)"
           echo "Parameter Prefix: ${PARAMETER_PREFIX}"
           echo "Compose File Path: ${COMPOSE_FILE}"
-
           # Function to load regular parameters
           load_param() {
             local param_name="$1"
@@ -66,7 +62,6 @@ jobs:
               return 1
             fi
           }
-
           # Function to load secret parameters
           load_secret() {
             local param_name="$1"
@@ -86,7 +81,6 @@ jobs:
               return 1
             fi
           }
-
           echo "📋 Loading environment variables from SSM..."
           
           # Load monitoring-specific parameters
@@ -107,7 +101,6 @@ jobs:
           # Load Redis parameters
           REDIS_PORT=$(load_param "/redis/port")
           REDIS_PASSWORD=$(load_secret "/redis/password")
-
           # Export all variables
           export GRAFANA_ADMIN_USER
           export GRAFANA_ADMIN_PASSWORD
@@ -122,13 +115,10 @@ jobs:
           export POSTGRES_DB
           export REDIS_PORT
           export REDIS_PASSWORD
-
           echo "✅ Environment variables loaded successfully"
-
           # Check if required backend services are running
           echo "🔍 Checking prerequisite services..."
           BACKEND_SERVICES_OK=true
-
           # Find actual Redis container (exclude exporters)
           echo "Checking Redis..."
           REDIS_CONTAINER=""
@@ -139,7 +129,6 @@ jobs:
               break
             fi
           done
-
           if [ -z "$REDIS_CONTAINER" ]; then
             echo "  ❌ Redis container not found"
             BACKEND_SERVICES_OK=false
@@ -159,7 +148,6 @@ jobs:
               fi
             fi
           fi
-
           # Find actual PostgreSQL container (exclude exporters)
           echo "Checking PostgreSQL..."
           POSTGRES_CONTAINER=""
@@ -170,7 +158,6 @@ jobs:
               break
             fi
           done
-
           if [ -z "$POSTGRES_CONTAINER" ]; then
             echo "  ❌ PostgreSQL container not found"
             BACKEND_SERVICES_OK=false
@@ -182,24 +169,19 @@ jobs:
               echo "  ⚠️  PostgreSQL container exists but not ready"
             fi
           fi
-
           if [ "$BACKEND_SERVICES_OK" = false ]; then
             echo "❌ Required backend services (Redis, PostgreSQL) are not running"
             echo "Please ensure the backend application stack is deployed first"
             exit 1
           fi
-
           # Navigate to compose directory
           echo "📂 Navigating to compose directory: ${COMPOSE_FILE%/*}"
           cd "${COMPOSE_FILE%/*}"
-
           # Decode and save docker-compose file
           echo "📝 Updating docker-compose file..."
           echo "${COMPOSE_B64}" | base64 -d > docker-compose.ec2-dev-monitoring.yml
-
           # Remove version from docker-compose file to avoid warning
           sed -i '/^version:/d' docker-compose.ec2-dev-monitoring.yml
-
           # Update docker-compose to use external services
           echo "🔧 Configuring monitoring services to use existing backend services..."
           
@@ -209,24 +191,20 @@ jobs:
           echo "  Backend network: ${BACKEND_NETWORK}"
           echo "  Redis container: ${REDIS_CONTAINER}"
           echo "  PostgreSQL container: ${POSTGRES_CONTAINER}"
-
           # Update configurations to use correct container names
           sed -i "s|redis:\${REDIS_PORT}|${REDIS_CONTAINER}:${REDIS_PORT}|g" docker-compose.ec2-dev-monitoring.yml
           sed -i "s|postgres:\${POSTGRES_PORT}|${POSTGRES_CONTAINER}:${POSTGRES_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-
           # Fix port configurations
-          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:${PROMETHEUS_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:${GRAFANA_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}:${REDIS_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}:${POSTGRES_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-
+          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
           # Remove depends_on for external services
           echo "🔧 Removing external service dependencies..."
           python3 -c "
           import yaml
           import sys
-
           try:
               with open('docker-compose.ec2-dev-monitoring.yml', 'r') as f:
                   content = yaml.safe_load(f)
@@ -272,13 +250,11 @@ jobs:
               print('⚠️ Python YAML parsing failed: {}'.format(e))
               sys.exit(1)
           "
-
           # Update networks to use external network
           echo "🔧 Updating network configuration..."
           python3 -c "
           import yaml
           import sys
-
           try:
               with open('docker-compose.ec2-dev-monitoring.yml', 'r') as f:
                   content = yaml.safe_load(f)
@@ -306,12 +282,10 @@ jobs:
             sed -i "s/name: wealist-backend-net/name: ${BACKEND_NETWORK}/g" docker-compose.ec2-dev-monitoring.yml
             sed -i "s/name: wealist-database-net/name: ${BACKEND_NETWORK}/g" docker-compose.ec2-dev-monitoring.yml
           }
-
           # Decode and save prometheus config
           echo "📝 Updating Prometheus configuration..."
           mkdir -p prometheus/
           echo "${PROM_CFG_B64}" | base64 -d > prometheus/prometheus-ec2.yml
-
           # Validate YAML syntax before proceeding
           echo "🔍 Validating docker-compose file syntax..."
           if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml config >/dev/null 2>&1; then
@@ -322,9 +296,7 @@ jobs:
             docker-compose -f docker-compose.ec2-dev-monitoring.yml config 2>&1 || true
             exit 1
           fi
-
           echo "✅ Docker-compose file is valid"
-
           # Stop existing monitoring services individually
           echo "🛑 Stopping existing monitoring services individually..."
           MONITORING_CONTAINERS="wealist-prometheus wealist-grafana wealist-redis-exporter wealist-postgres-exporter wealist-node-exporter"
@@ -336,7 +308,6 @@ jobs:
               docker rm "${container}" 2>/dev/null || true
             fi
           done
-
           # Deploy monitoring services
           echo "🚀 Deploying monitoring services..."
           if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml up -d; then
@@ -348,7 +319,6 @@ jobs:
             cat docker-compose.ec2-dev-monitoring.yml
             exit 1
           fi
-
           # Verify backend services are still running
           echo "🔍 Verifying backend services are still running..."
           if docker ps --format '{{.Names}}' | grep -q "${REDIS_CONTAINER}"; then
@@ -357,18 +327,15 @@ jobs:
             echo "  ❌ Redis container is down! This shouldn't happen."
             exit 1
           fi
-
           if docker ps --format '{{.Names}}' | grep -q "${POSTGRES_CONTAINER}"; then
             echo "  ✅ PostgreSQL container still running: ${POSTGRES_CONTAINER}"
           else
             echo "  ❌ PostgreSQL container is down! This shouldn't happen."
             exit 1
           fi
-
           # Wait for services to be ready
           echo "⏳ Waiting for monitoring services to start..."
           sleep 30
-
           # Check if monitoring containers are running
           echo "🔍 Checking monitoring container status..."
           MONITORING_SERVICES="prometheus grafana redis-exporter postgres-exporter node-exporter"
@@ -383,13 +350,11 @@ jobs:
               ALL_CONTAINERS_RUNNING=false
             fi
           done
-
           if [ "$ALL_CONTAINERS_RUNNING" = false ]; then
             echo "❌ Some monitoring containers are not running. Checking logs:"
             docker-compose -f docker-compose.ec2-dev-monitoring.yml logs --tail=50
             exit 1
           fi
-
           # Health check function
           health_check() {
             local service_name="$1"
@@ -417,25 +382,20 @@ jobs:
             echo "  ❌ ${service_name} health check failed"
             return 1
           }
-
           # Perform health checks
           echo "🏥 Performing health checks..."
           HEALTH_CHECK_FAILED=false
-
           # Critical services
           health_check "prometheus" "${PROMETHEUS_PORT}" "/-/ready" || health_check "prometheus" "${PROMETHEUS_PORT}" "/" || HEALTH_CHECK_FAILED=true
           health_check "grafana" "${GRAFANA_PORT}" "/api/health" || health_check "grafana" "${GRAFANA_PORT}" "/login" || HEALTH_CHECK_FAILED=true
-
           # Exporters (non-critical)
           health_check "node-exporter" "${NODE_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Node exporter not responding"
           health_check "redis-exporter" "${REDIS_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Redis exporter not responding"
           health_check "postgres-exporter" "${POSTGRES_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Postgres exporter not responding"
-
           if [ "$HEALTH_CHECK_FAILED" = true ]; then
             echo "❌ Critical monitoring services (Prometheus/Grafana) are not responding"
             exit 1
           fi
-
           echo ""
           echo "🎉 Monitoring stack deployment completed successfully!"
           echo "✅ Backend services are still running and unaffected"
@@ -447,10 +407,9 @@ jobs:
           echo "  - Postgres Exporter: http://localhost:${POSTGRES_EXPORTER_PORT}/metrics"
           echo ""
           echo "🔗 Monitoring targets:"
-          echo "  - Redis: ${REDIS_CONTAINER}:${REDIS_PORT}"
-          echo "  - PostgreSQL: ${POSTGRES_CONTAINER}:${POSTGRES_PORT}"
+          echo "  - Redis: ${REDIS_CONTAINER}"
+          echo "  - PostgreSQL: ${POSTGRES_CONTAINER}"
           DEPLOY_SCRIPT
-
       - name: Deploy Monitoring Stack via SSM
         id: deploy
         run: |
@@ -462,7 +421,6 @@ jobs:
           echo "📦 Encoding deployment script..."
           SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-monitoring.sh)
           echo "✅ Script encoded (${#SCRIPT_BASE64} bytes)"
-
           # Send SSM Run Command
           echo "🚀 Sending deployment command to EC2 instance..."
           COMMAND_ID=$(aws ssm send-command \
@@ -495,16 +453,13 @@ jobs:
             ]" \
             --output text \
             --query "Command.CommandId")
-
           if [ -z "$COMMAND_ID" ]; then
             echo "❌ Failed to send SSM command - no Command ID returned"
             exit 1
           fi
-
           echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
           echo "✅ Command sent successfully"
           echo "📝 Command ID: ${COMMAND_ID}"
-
       - name: Monitor Deployment Progress
         run: |
           COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
@@ -558,7 +513,6 @@ jobs:
             --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
             --query "StandardOutputContent" \
             --output text
-
       - name: Final Health Check Summary
         run: |
           echo "🎉 Monitoring Stack Deployment Summary"
