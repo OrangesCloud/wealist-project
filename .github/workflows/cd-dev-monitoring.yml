@@ -60,13 +60,7 @@ jobs:
             node_exporter_port
           )
 
-          # .env 내용 만들기
-          ENV_LINES=""
-          for param in "${SSM_PARAMS[@]}"; do
-            value=$(aws ssm get-parameter --name "${{ steps.cfg.outputs.param_prefix }}/$param" --with-decryption --query "Parameter.Value" --output text)
-            ENV_LINES="${ENV_LINES}${param^^}=$value\n"
-          done
-          ENV_B64=$(printf "$ENV_LINES" | base64 -w 0)
+         
 
           # EC2에 한 번에 실행 (이제 진짜 완벽)
           COMMAND_ID=$(aws ssm send-command \
@@ -80,19 +74,13 @@ jobs:
               \"mkdir -p config\",
               
               \"echo '파일 업로드...'\",
-              \"echo '$COMPOSE_B64' | base64 -d > docker-compose.yml\",
+              \"echo '$COMPOSE_B64' | base64 -d > docker-compose-monitoring.yml\",
               \"echo '$PROM_CFG_B64' | base64 -d > config/prometheus-ec2.yml\",
-              \"printf '$ENV_LINES' > .env\",
-              \"chmod 600 .env\",
               
               \"echo '이미지 pull & 재시작'\",
               \"docker compose pull\",
               \"docker compose up -d --remove-orphans\",
               
-              \"echo '=== .env 로드 후 헬스체크 ==='\",
-              \"set -a\",
-              \"[ -f .env ] && source .env\",
-              \"set +a\",
               
               \"# Prometheus 헬스체크\",
               \"for i in {1..40}; do
