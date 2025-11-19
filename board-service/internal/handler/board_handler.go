@@ -28,7 +28,22 @@ func NewBoardHandler(boardService service.BoardService) *BoardHandler {
 	}
 }
 
-// CreateBoard - Board 생성
+// CreateBoard godoc
+// @Summary      Board 생성
+// @Description  새로운 Board를 생성합니다
+// @Description  customFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)
+// @Description  유효한 필드 타입: stage, role, importance
+// @Description  예시 값: stage="in_progress", role="developer", importance="high"
+// @Description  잘못된 field value 제공 시 400 에러 반환
+// @Tags         boards
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.CreateBoardRequest true "Board 생성 요청"
+// @Success      201 {object} response.SuccessResponse{data=dto.BoardResponse} "Board 생성 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 요청 또는 유효하지 않은 field value"
+// @Failure      404 {object} response.ErrorResponse "Project를 찾을 수 없음"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /boards [post]
 func (h *BoardHandler) CreateBoard(c *gin.Context) {
 	var req dto.CreateBoardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -59,7 +74,19 @@ func (h *BoardHandler) CreateBoard(c *gin.Context) {
 	BroadcastEvent(req.ProjectID.String(), event)
 }
 
-// GetBoard - Board 상세 조회
+// GetBoard godoc
+// @Summary      Board 상세 조회
+// @Description  Board ID로 상세 정보를 조회합니다 (참여자, 댓글 포함)
+// @Description  응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
+// @Description  예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
+// @Tags         boards
+// @Produce      json
+// @Param        boardId path string true "Board ID (UUID)"
+// @Success      200 {object} response.SuccessResponse{data=dto.BoardDetailResponse} "Board 조회 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 Board ID"
+// @Failure      404 {object} response.ErrorResponse "Board를 찾을 수 없음"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /boards/{boardId} [get]
 func (h *BoardHandler) GetBoard(c *gin.Context) {
 	boardIDStr := c.Param("boardId")
 	boardID, err := uuid.Parse(boardIDStr)
@@ -77,7 +104,20 @@ func (h *BoardHandler) GetBoard(c *gin.Context) {
 	response.SendSuccess(c, http.StatusOK, board)
 }
 
-// GetBoardsByProject - Project의 Board 목록 조회
+// GetBoardsByProject godoc
+// @Summary      Project의 Board 목록 조회
+// @Description  특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON 형식)
+// @Description  응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
+// @Description  예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
+// @Tags         boards
+// @Produce      json
+// @Param        projectId    path      string  true   "Project ID (UUID)"
+// @Param        customFields query     string  false  "Custom Fields 필터 JSON 객체. 예시: {\"importance\":\"high\",\"stage\":\"in_progress\"}"
+// @Success      200 {object} response.SuccessResponse{data=[]dto.BoardResponse} "Board 목록 조회 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 Project ID 또는 필터 파라미터"
+// @Failure      404 {object} response.ErrorResponse "Project를 찾을 수 없음"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /boards/project/{projectId} [get]
 func (h *BoardHandler) GetBoardsByProject(c *gin.Context) {
 	projectIDStr := c.Param("projectId")
 	projectID, err := uuid.Parse(projectIDStr)
@@ -107,7 +147,20 @@ func (h *BoardHandler) GetBoardsByProject(c *gin.Context) {
 	response.SendSuccess(c, http.StatusOK, boards)
 }
 
-// GetBoardsByProjectQuery - Project의 Board 목록 조회 (쿼리 파라미터)
+// GetBoardsByProjectQuery godoc
+// @Summary      Project의 Board 목록 조회 (쿼리 파라미터 방식)
+// @Description  특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트
+// @Description  응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
+// @Description  예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
+// @Tags         boards
+// @Produce      json
+// @Param        projectId    query     string  true   "Project ID (UUID)"
+// @Param        customFields query     string  false  "Custom Fields 필터 JSON 객체. 예시: {\"importance\":\"high\",\"stage\":\"in_progress\"}"
+// @Success      200 {object} response.SuccessResponse{data=[]dto.BoardResponse} "Board 목록 조회 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 Project ID 또는 필터 파라미터"
+// @Failure      404 {object} response.ErrorResponse "Project를 찾을 수 없음"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /boards [get]
 func (h *BoardHandler) GetBoardsByProjectQuery(c *gin.Context) {
 	projectIDStr := c.Query("projectId")
 	if projectIDStr == "" {
@@ -142,7 +195,23 @@ func (h *BoardHandler) GetBoardsByProjectQuery(c *gin.Context) {
 	response.SendSuccess(c, http.StatusOK, boards)
 }
 
-// UpdateBoard - Board 수정
+// UpdateBoard godoc
+// @Summary      Board 수정
+// @Description  Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할)
+// @Description  customFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)
+// @Description  유효한 필드 타입: stage, role, importance
+// @Description  예시 값: stage="completed", role="designer", importance="medium"
+// @Description  잘못된 field value 제공 시 400 에러 반환
+// @Tags         boards
+// @Accept       json
+// @Produce      json
+// @Param        boardId path string true "Board ID (UUID)"
+// @Param        request body dto.UpdateBoardRequest true "Board 수정 요청"
+// @Success      200 {object} response.SuccessResponse{data=dto.BoardResponse} "Board 수정 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 요청 또는 유효하지 않은 field value"
+// @Failure      404 {object} response.ErrorResponse "Board를 찾을 수 없음"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /boards/{boardId} [put]
 func (h *BoardHandler) UpdateBoard(c *gin.Context) {
 	boardIDStr := c.Param("boardId")
 	boardID, err := uuid.Parse(boardIDStr)
@@ -170,12 +239,22 @@ func (h *BoardHandler) UpdateBoard(c *gin.Context) {
 	event := WSEvent{
 		Type:    "BOARD_UPDATED",
 		BoardID: boardID.String(),
-		Payload: board, // ✅ board 변수 사용
+		Payload: board,
 	}
 	BroadcastEvent(board.ProjectID.String(), event)
 }
 
-// DeleteBoard - Board 삭제
+// DeleteBoard godoc
+// @Summary      Board 삭제
+// @Description  Board를 소프트 삭제합니다
+// @Tags         boards
+// @Produce      json
+// @Param        boardId path string true "Board ID (UUID)"
+// @Success      200 {object} response.SuccessResponse "Board 삭제 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 Board ID"
+// @Failure      404 {object} response.ErrorResponse "Board를 찾을 수 없음"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /boards/{boardId} [delete]
 func (h *BoardHandler) DeleteBoard(c *gin.Context) {
 	boardIDStr := c.Param("boardId")
 	boardID, err := uuid.Parse(boardIDStr)
@@ -211,7 +290,20 @@ func (h *BoardHandler) DeleteBoard(c *gin.Context) {
 	BroadcastEvent(board.ProjectID.String(), event)
 }
 
-// MoveBoard - 카드 이동 (실시간 반영)
+// MoveBoard godoc
+// @Summary      Board 이동 (실시간 동기화)
+// @Description  Board를 다른 컬럼으로 이동합니다. WebSocket을 통해 실시간으로 다른 클라이언트에게 전파됩니다
+// @Description  groupByFieldName에 해당하는 필드의 값을 newFieldValue로 변경합니다
+// @Tags         boards
+// @Accept       json
+// @Produce      json
+// @Param        boardId path string true "Board ID (UUID)"
+// @Param        request body dto.MoveBoardRequest true "Board 이동 요청"
+// @Success      200 {object} response.SuccessResponse{data=dto.MoveBoardResponse} "Board 이동 성공"
+// @Failure      400 {object} response.ErrorResponse "잘못된 요청"
+// @Failure      404 {object} response.ErrorResponse "Board를 찾을 수 없음"
+// @Failure      500 {object} response.ErrorResponse "서버 에러"
+// @Router       /boards/{boardId}/move [put]
 func (h *BoardHandler) MoveBoard(c *gin.Context) {
 	boardIDStr := c.Param("boardId")
 	boardID, err := uuid.Parse(boardIDStr)
@@ -227,6 +319,21 @@ func (h *BoardHandler) MoveBoard(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
+
+	// 🔥 [수정] req.ProjectID를 UUID로 파싱
+	projectID, err := uuid.Parse(req.ProjectID)
+	if err != nil {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid project ID")
+		return
+	}
+
+	// 🔥 [수정] newFieldValue가 nil이면 에러
+	if req.NewFieldValue == nil {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "newFieldValue is required")
+		return
+	}
+
+	newFieldValue := *req.NewFieldValue // 🔥 포인터 역참조
 
 	// 1. 기존 보드 가져오기
 	board, err := h.boardService.GetBoard(ctx, boardID)
@@ -246,7 +353,7 @@ func (h *BoardHandler) MoveBoard(c *gin.Context) {
 	// 2. 필드 값 업데이트
 	updateReq := &dto.UpdateBoardRequest{
 		CustomFields: &map[string]interface{}{
-			req.GroupByFieldName: req.NewFieldValue,
+			req.GroupByFieldName: newFieldValue, // 🔥 수정
 		},
 	}
 	_, err = h.boardService.UpdateBoard(ctx, boardID, updateReq)
@@ -258,8 +365,8 @@ func (h *BoardHandler) MoveBoard(c *gin.Context) {
 	// 3. Redis 순서 업데이트
 	redisClient := database.GetRedis()
 	if redisClient != nil {
-		oldKey := fmt.Sprintf("kanban:project:%s:group:%s", req.ProjectID.String(), oldGroupValue)
-		newKey := fmt.Sprintf("kanban:project:%s:group:%s", req.ProjectID.String(), req.NewFieldValue)
+		oldKey := fmt.Sprintf("kanban:project:%s:group:%s", projectID.String(), oldGroupValue)
+		newKey := fmt.Sprintf("kanban:project:%s:group:%s", projectID.String(), newFieldValue)
 
 		redisClient.ZRem(context.Background(), oldKey, boardID.String())
 		redisClient.ZAdd(context.Background(), newKey, &redis.Z{
@@ -274,23 +381,23 @@ func (h *BoardHandler) MoveBoard(c *gin.Context) {
 		BoardID: boardID.String(),
 		Payload: map[string]string{
 			"from": oldGroupValue,
-			"to":   req.NewFieldValue,
+			"to":   newFieldValue, // 🔥 수정
 		},
 	}
 
 	log := getLogger(c)
 	log.Info("Broadcasting BOARD_MOVED event",
-		zap.String("projectId", req.ProjectID.String()),
+		zap.String("projectId", projectID.String()),
 		zap.String("boardId", boardID.String()),
 		zap.String("from", oldGroupValue),
-		zap.String("to", req.NewFieldValue))
+		zap.String("to", newFieldValue)) // 🔥 수정
 
-	BroadcastEvent(req.ProjectID.String(), event)
+	BroadcastEvent(projectID.String(), event)
 
 	// 응답
 	response.SendSuccess(c, http.StatusOK, dto.MoveBoardResponse{
 		BoardID:       boardID.String(),
-		NewFieldValue: req.NewFieldValue,
+		NewFieldValue: newFieldValue, // 🔥 수정
 		Message:       "Board moved successfully",
 	})
 }

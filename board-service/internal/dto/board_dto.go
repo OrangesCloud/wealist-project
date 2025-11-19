@@ -79,11 +79,12 @@ type BoardFilters struct {
 	CustomFields map[string]interface{} `json:"customFields,omitempty"`
 }
 
-// MoveBoardRequest represents request to move a board to another group
+
+// MoveBoardRequest represents the request to move a board
 type MoveBoardRequest struct {
-	ProjectID        uuid.UUID `json:"projectId" binding:"required"`
-	GroupByFieldName string    `json:"groupByFieldName" binding:"required"` // 예: "stage"
-	NewFieldValue    string    `json:"newFieldValue" binding:"required"`    // 예: "in_progress"
+	ProjectID        string  `json:"projectId" binding:"required" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
+	GroupByFieldName string  `json:"groupByFieldName" binding:"required" example:"stage"`
+	NewFieldValue    *string `json:"newFieldValue" example:"in_progress"`
 }
 
 // MoveBoardResponse represents response after moving a board

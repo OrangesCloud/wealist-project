@@ -283,6 +283,30 @@ definitions:
           $ref: '#/definitions/project-board-api_internal_dto.FieldOption'
         type: array
     type: object
+  project-board-api_internal_dto.MoveBoardRequest:
+    properties:
+      groupByFieldName:
+        example: stage
+        type: string
+      newFieldValue:
+        example: in_progress
+        type: string
+      projectId:
+        example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
+        type: string
+    required:
+    - groupByFieldName
+    - projectId
+    type: object
+  project-board-api_internal_dto.MoveBoardResponse:
+    properties:
+      boardId:
+        type: string
+      message:
+        type: string
+      newFieldValue:
+        type: string
+    type: object
   project-board-api_internal_dto.PaginatedBoardsResponse:
     properties:
       boards:
@@ -527,6 +551,7 @@ info:
   description: |-
     프로젝트 보드 관리 시스템 API 서버입니다.
     Board, Project, Comment, Participant 관리 기능을 제공합니다.
+    ALB path-based routing with /api/boards prefix
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -736,6 +761,52 @@ paths:
           schema:
             $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
       summary: Board 수정
+      tags:
+      - boards
+  /boards/{boardId}/move:
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Board를 다른 컬럼으로 이동합니다. WebSocket을 통해 실시간으로 다른 클라이언트에게 전파됩니다
+        groupByFieldName에 해당하는 필드의 값을 newFieldValue로 변경합니다
+      parameters:
+      - description: Board ID (UUID)
+        in: path
+        name: boardId
+        required: true
+        type: string
+      - description: Board 이동 요청
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/project-board-api_internal_dto.MoveBoardRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Board 이동 성공
+          schema:
+            allOf:
+            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/project-board-api_internal_dto.MoveBoardResponse'
+              type: object
+        "400":
+          description: 잘못된 요청
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+        "404":
+          description: Board를 찾을 수 없음
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+        "500":
+          description: 서버 에러
+          schema:
+            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+      summary: Board 이동 (실시간 동기화)
       tags:
       - boards
   /boards/project/{projectId}:
