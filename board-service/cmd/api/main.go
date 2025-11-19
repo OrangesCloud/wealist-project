@@ -10,12 +10,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"go.uber.org/zap"
 
 	"project-board-api/internal/client"
 	"project-board-api/internal/config"
 	"project-board-api/internal/database"
 	"project-board-api/internal/logger"
+	"project-board-api/internal/metrics"
 	"project-board-api/internal/router"
 
 	_ "project-board-api/docs" // Swagger docs
@@ -109,6 +112,27 @@ func main() {
 		zap.String("database", cfg.Database.DBName),
 	)
 
+	// Initialize metrics with logger
+	log.Info("Initializing Prometheus metrics")
+	m := metrics.NewWithLogger(log.Logger)
+	
+	// Register Go runtime metrics collector
+	prometheus.MustRegister(collectors.NewGoCollector())
+	log.Info("Go runtime metrics collector registered")
+	
+	// Register GORM callbacks for database metrics
+	database.RegisterMetricsCallbacks(db, m)
+	log.Info("GORM metrics callbacks registered")
+	
+	// Start database stats collector
+	database.StartDBStatsCollector(db, m)
+	log.Info("Database stats collector started")
+	
+	// Initialize and start business metrics collector
+	businessCollector := metrics.NewBusinessMetricsCollector(db, m, log.Logger)
+	businessCollector.Start()
+	log.Info("Business metrics collector started")
+
 	// Run GORM auto-migration with retry logic
 	log.Info("Running GORM auto-migration with retry logic")
 	if err := database.SafeAutoMigrateWithRetry(db, log.Logger, 3); err != nil {
@@ -127,12 +151,11 @@ func main() {
 	)
 
 	// Initialize User API client
-	// TODO: Pass metrics instance in task 11
 	userClient := client.NewUserClient(
 		cfg.UserAPI.BaseURL,
 		cfg.UserAPI.Timeout,
 		log.Logger,
-		nil,
+		m,
 	)
 
 	log.Info("User API client initialized successfully",
@@ -155,6 +178,7 @@ func main() {
 		JWTSecret:  cfg.JWT.Secret,
 		UserClient: userClient,
 		BasePath:   cfg.Server.BasePath,
+		Metrics:    m,
 	}
 
 	r := router.Setup(routerConfig)
@@ -203,6 +227,11 @@ func main() {
 	} else {
 		log.Info("Server shutdown completed, all in-flight requests completed")
 	}
+
+	// Stop business metrics collector
+	log.Info("Stopping business metrics collector")
+	businessCollector.Stop()
+	log.Info("Business metrics collector stopped")
 
 	// Close database connection
 	log.Info("Closing database connection")

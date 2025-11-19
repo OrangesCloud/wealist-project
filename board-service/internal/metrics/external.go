@@ -13,16 +13,18 @@ var (
 
 // RecordExternalAPICall records external API call metrics
 func (m *Metrics) RecordExternalAPICall(endpoint, method string, statusCode int, duration time.Duration, err error) {
-	endpoint = normalizeEndpoint(endpoint)
-	status := strconv.Itoa(statusCode)
+	m.safeExecute("RecordExternalAPICall", func() {
+		endpoint = normalizeEndpoint(endpoint)
+		status := strconv.Itoa(statusCode)
 
-	m.ExternalAPIRequestsTotal.WithLabelValues(endpoint, method, status).Inc()
-	m.ExternalAPIRequestDuration.WithLabelValues(endpoint, status).Observe(duration.Seconds())
+		m.ExternalAPIRequestsTotal.WithLabelValues(endpoint, method, status).Inc()
+		m.ExternalAPIRequestDuration.WithLabelValues(endpoint, status).Observe(duration.Seconds())
 
-	if err != nil {
-		errorType := getErrorType(err)
-		m.ExternalAPIErrors.WithLabelValues(endpoint, errorType).Inc()
-	}
+		if err != nil {
+			errorType := getErrorType(err)
+			m.ExternalAPIErrors.WithLabelValues(endpoint, errorType).Inc()
+		}
+	})
 }
 
 // normalizeEndpoint converts actual IDs to templates

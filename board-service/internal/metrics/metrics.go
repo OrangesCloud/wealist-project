@@ -3,6 +3,7 @@ package metrics
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/zap"
 )
 
 const (
@@ -35,13 +36,33 @@ type Metrics struct {
 	BoardsTotal         prometheus.Gauge
 	ProjectCreatedTotal prometheus.Counter
 	BoardCreatedTotal   prometheus.Counter
+
+	// Logger for error reporting
+	logger *zap.Logger
 }
 
-// New creates and registers all metrics
+// New creates and registers all metrics with the default registry
 func New() *Metrics {
+	return NewWithRegistry(prometheus.DefaultRegisterer, nil)
+}
+
+// NewWithLogger creates and registers all metrics with the default registry and a logger
+func NewWithLogger(logger *zap.Logger) *Metrics {
+	return NewWithRegistry(prometheus.DefaultRegisterer, logger)
+}
+
+// NewWithRegistry creates and registers all metrics with a custom registry
+func NewWithRegistry(registerer prometheus.Registerer, logger *zap.Logger) *Metrics {
+	factory := promauto.With(registerer)
+	
+	// Use a no-op logger if none provided
+	if logger == nil {
+		logger, _ = zap.NewProduction()
+	}
+	
 	return &Metrics{
 		// HTTP metrics
-		HTTPRequestsTotal: promauto.NewCounterVec(
+		HTTPRequestsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "http_requests_total",
@@ -49,7 +70,7 @@ func New() *Metrics {
 			},
 			[]string{"method", "endpoint", "status"},
 		),
-		HTTPRequestDuration: promauto.NewHistogramVec(
+		HTTPRequestDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "http_request_duration_seconds",
@@ -60,42 +81,42 @@ func New() *Metrics {
 		),
 
 		// Database connection pool metrics
-		DBConnectionsOpen: promauto.NewGauge(
+		DBConnectionsOpen: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "db_connections_open",
 				Help:      "Current number of open database connections",
 			},
 		),
-		DBConnectionsInUse: promauto.NewGauge(
+		DBConnectionsInUse: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "db_connections_in_use",
 				Help:      "Current number of in-use database connections",
 			},
 		),
-		DBConnectionsIdle: promauto.NewGauge(
+		DBConnectionsIdle: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "db_connections_idle",
 				Help:      "Current number of idle database connections",
 			},
 		),
-		DBConnectionsMax: promauto.NewGauge(
+		DBConnectionsMax: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "db_connections_max",
 				Help:      "Maximum number of open database connections configured",
 			},
 		),
-		DBConnectionWaitTotal: promauto.NewCounter(
+		DBConnectionWaitTotal: factory.NewCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "db_connection_wait_total",
 				Help:      "Total number of times waited for a database connection",
 			},
 		),
-		DBConnectionWaitDuration: promauto.NewCounter(
+		DBConnectionWaitDuration: factory.NewCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "db_connection_wait_duration_seconds_total",
@@ -104,7 +125,7 @@ func New() *Metrics {
 		),
 
 		// Database query metrics
-		DBQueryDuration: promauto.NewHistogramVec(
+		DBQueryDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "db_query_duration_seconds",
@@ -113,7 +134,7 @@ func New() *Metrics {
 			},
 			[]string{"operation", "table"},
 		),
-		DBQueryErrors: promauto.NewCounterVec(
+		DBQueryErrors: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "db_query_errors_total",
@@ -123,7 +144,7 @@ func New() *Metrics {
 		),
 
 		// External API metrics
-		ExternalAPIRequestDuration: promauto.NewHistogramVec(
+		ExternalAPIRequestDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: namespace,
 				Name:      "external_api_request_duration_seconds",
@@ -132,7 +153,7 @@ func New() *Metrics {
 			},
 			[]string{"endpoint", "status"},
 		),
-		ExternalAPIRequestsTotal: promauto.NewCounterVec(
+		ExternalAPIRequestsTotal: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "external_api_requests_total",
@@ -140,7 +161,7 @@ func New() *Metrics {
 			},
 			[]string{"endpoint", "method", "status"},
 		),
-		ExternalAPIErrors: promauto.NewCounterVec(
+		ExternalAPIErrors: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "external_api_errors_total",
@@ -150,33 +171,50 @@ func New() *Metrics {
 		),
 
 		// Business metrics
-		ProjectsTotal: promauto.NewGauge(
+		ProjectsTotal: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "projects_total",
 				Help:      "Total number of active projects",
 			},
 		),
-		BoardsTotal: promauto.NewGauge(
+		BoardsTotal: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "boards_total",
 				Help:      "Total number of boards",
 			},
 		),
-		ProjectCreatedTotal: promauto.NewCounter(
+		ProjectCreatedTotal: factory.NewCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "project_created_total",
 				Help:      "Total number of project creation events",
 			},
 		),
-		BoardCreatedTotal: promauto.NewCounter(
+		BoardCreatedTotal: factory.NewCounter(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Name:      "board_created_total",
 				Help:      "Total number of board creation events",
 			},
 		),
+		
+		logger: logger,
 	}
+}
+
+// safeExecute wraps metric operations with panic recovery
+func (m *Metrics) safeExecute(operation string, fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			if m.logger != nil {
+				m.logger.Error("Panic in metrics operation",
+					zap.String("operation", operation),
+					zap.Any("panic", r),
+				)
+			}
+		}
+	}()
+	fn()
 }

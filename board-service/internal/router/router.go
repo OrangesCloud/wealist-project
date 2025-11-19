@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
@@ -10,6 +11,7 @@ import (
 	"project-board-api/internal/client"
 	"project-board-api/internal/converter"
 	"project-board-api/internal/handler"
+	"project-board-api/internal/metrics"
 	"project-board-api/internal/middleware"
 	"project-board-api/internal/repository"
 	"project-board-api/internal/service"
@@ -22,6 +24,7 @@ type Config struct {
 	JWTSecret  string
 	UserClient client.UserClient
 	BasePath   string
+	Metrics    *metrics.Metrics
 }
 
 // Setup initializes the router with all dependencies and routes
@@ -36,6 +39,12 @@ func Setup(cfg Config) *gin.Engine {
 		middleware.Logger(cfg.Logger),   // 3. Request logging
 		middleware.CORS(),               // 4. CORS configuration
 	)
+	
+	// Add metrics middleware if metrics is configured
+	if cfg.Metrics != nil {
+		router.Use(middleware.Metrics(cfg.Metrics))
+		cfg.Logger.Info("Metrics middleware enabled")
+	}
 
 	// Initialize repositories
 	projectRepo := repository.NewProjectRepository(cfg.DB)
@@ -48,9 +57,8 @@ func Setup(cfg Config) *gin.Engine {
 	fieldOptionConverter := converter.NewFieldOptionConverter(fieldOptionRepo)
 
 	// Initialize services with repository dependencies
-	// TODO: Pass metrics instance from main.go in task 11
-	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient, nil, cfg.Logger)
-	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, fieldOptionConverter, nil)
+	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient, cfg.Metrics, cfg.Logger)
+	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, fieldOptionConverter, cfg.Metrics)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
 	commentService := service.NewCommentService(commentRepo, boardRepo)
 	fieldOptionService := service.NewFieldOptionService(fieldOptionRepo)
@@ -81,6 +89,20 @@ func Setup(cfg Config) *gin.Engine {
 
 	// Swagger documentation endpoint
 	baseGroup.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Metrics endpoint (no authentication required)
+	// Add metrics endpoint at root level for compatibility
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	
+	// Also add metrics endpoint under base path if configured
+	if cfg.BasePath != "" {
+		baseGroup.GET("/metrics", gin.WrapH(promhttp.Handler()))
+		cfg.Logger.Info("Metrics endpoint configured at both root and base path", 
+			zap.String("root_path", "/metrics"),
+			zap.String("base_path", cfg.BasePath+"/metrics"))
+	} else {
+		cfg.Logger.Info("Metrics endpoint configured at root path", zap.String("path", "/metrics"))
+	}
 
 	// Setup API routes
 	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)

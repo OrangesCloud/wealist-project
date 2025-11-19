@@ -54,6 +54,14 @@ func (c *BusinessMetricsCollector) Stop() {
 
 // collect gathers business metrics
 func (c *BusinessMetricsCollector) collect() {
+	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Error("Panic in business metrics collection",
+				zap.Any("panic", r),
+			)
+		}
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

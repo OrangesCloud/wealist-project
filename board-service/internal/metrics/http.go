@@ -6,9 +6,11 @@ import (
 
 // RecordHTTPRequest records HTTP request metrics
 func (m *Metrics) RecordHTTPRequest(method, endpoint string, statusCode int, duration time.Duration) {
-	status := categorizeStatus(statusCode)
-	m.HTTPRequestsTotal.WithLabelValues(method, endpoint, status).Inc()
-	m.HTTPRequestDuration.WithLabelValues(method, endpoint).Observe(duration.Seconds())
+	m.safeExecute("RecordHTTPRequest", func() {
+		status := categorizeStatus(statusCode)
+		m.HTTPRequestsTotal.WithLabelValues(method, endpoint, status).Inc()
+		m.HTTPRequestDuration.WithLabelValues(method, endpoint).Observe(duration.Seconds())
+	})
 }
 
 // categorizeStatus converts status code to category (2xx, 3xx, 4xx, 5xx)
