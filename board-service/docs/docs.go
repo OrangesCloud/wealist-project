@@ -393,6 +393,77 @@ const docTemplate = `{
                 }
             }
         },
+        "/boards/{boardId}/move": {
+            "put": {
+                "description": "Board를 다른 컬럼으로 이동합니다. WebSocket을 통해 실시간으로 다른 클라이언트에게 전파됩니다\ngroupByFieldName에 해당하는 필드의 값을 newFieldValue로 변경합니다",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "boards"
+                ],
+                "summary": "Board 이동 (실시간 동기화)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Board ID (UUID)",
+                        "name": "boardId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Board 이동 요청",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/project-board-api_internal_dto.MoveBoardRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Board 이동 성공",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/project-board-api_internal_dto.MoveBoardResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "잘못된 요청",
+                        "schema": {
+                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Board를 찾을 수 없음",
+                        "schema": {
+                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/comments": {
             "get": {
                 "description": "특정 Board의 모든 Comment를 조회합니다. 프론트엔드 호환용 엔드포인트",
@@ -2566,6 +2637,41 @@ const docTemplate = `{
                 }
             }
         },
+        "project-board-api_internal_dto.MoveBoardRequest": {
+            "type": "object",
+            "required": [
+                "groupByFieldName",
+                "projectId"
+            ],
+            "properties": {
+                "groupByFieldName": {
+                    "type": "string",
+                    "example": "stage"
+                },
+                "newFieldValue": {
+                    "type": "string",
+                    "example": "in_progress"
+                },
+                "projectId": {
+                    "type": "string",
+                    "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
+                }
+            }
+        },
+        "project-board-api_internal_dto.MoveBoardResponse": {
+            "type": "object",
+            "properties": {
+                "boardId": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "newFieldValue": {
+                    "type": "string"
+                }
+            }
+        },
         "project-board-api_internal_dto.PaginatedBoardsResponse": {
             "type": "object",
             "properties": {
@@ -2933,7 +3039,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api",
 	Schemes:          []string{"http", "https"},
 	Title:            "Project Board Management API",
-	Description:      "프로젝트 보드 관리 시스템 API 서버입니다.\nBoard, Project, Comment, Participant 관리 기능을 제공합니다.",
+	Description:      "프로젝트 보드 관리 시스템 API 서버입니다.\nBoard, Project, Comment, Participant 관리 기능을 제공합니다.\nALB path-based routing with /api/boards prefix",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
