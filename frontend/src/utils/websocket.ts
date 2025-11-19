@@ -34,7 +34,7 @@ const getWebSocketUrl = (projectId: string, token: string): string => {
   }
 
   // Fallback (환경 변수 없을 때)
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  // const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
 
   if (host.includes('localhost') || host.includes('127.0.0.1')) {
