@@ -65,7 +65,8 @@ func (m *mockUserClient) GetWorkspace(ctx context.Context, workspaceID uuid.UUID
 func TestMetricsEndpoint_RootPath(t *testing.T) {
 	// Use default registry for this test to match production behavior
 	registry := prometheus.NewRegistry()
-	m := metrics.NewWithRegistry(registry)
+	logger := zap.NewNop()
+	m := metrics.NewWithRegistry(registry, logger)
 	
 	cfg := setupTestRouter("", m)
 	router := Setup(*cfg)
@@ -97,7 +98,8 @@ func TestMetricsEndpoint_RootPath(t *testing.T) {
 // TestMetricsEndpoint_NoAuthentication tests that /metrics does not require authentication
 func TestMetricsEndpoint_NoAuthentication(t *testing.T) {
 	registry := prometheus.NewRegistry()
-	m := metrics.NewWithRegistry(registry)
+	logger := zap.NewNop()
+	m := metrics.NewWithRegistry(registry, logger)
 	
 	cfg := setupTestRouter("", m)
 	router := Setup(*cfg)
@@ -115,7 +117,8 @@ func TestMetricsEndpoint_NoAuthentication(t *testing.T) {
 // TestMetricsEndpoint_WithBasePath tests /metrics endpoint with base path configured
 func TestMetricsEndpoint_WithBasePath(t *testing.T) {
 	registry := prometheus.NewRegistry()
-	m := metrics.NewWithRegistry(registry)
+	logger := zap.NewNop()
+	m := metrics.NewWithRegistry(registry, logger)
 	
 	basePath := "/api/boards"
 	cfg := setupTestRouter(basePath, m)
@@ -146,7 +149,8 @@ func TestMetricsEndpoint_WithBasePath(t *testing.T) {
 func TestMetricsEndpoint_ContainsAllMetrics(t *testing.T) {
 	// Create a new registry and gather metrics from it
 	registry := prometheus.NewRegistry()
-	_ = metrics.NewWithRegistry(registry)
+	logger := zap.NewNop()
+	_ = metrics.NewWithRegistry(registry, logger)
 	
 	// Gather metrics directly from the custom registry
 	metricFamilies, err := registry.Gather()
@@ -191,7 +195,8 @@ func TestMetricsEndpoint_ContainsAllMetrics(t *testing.T) {
 // TestMetricsEndpoint_PrometheusFormat tests Prometheus format validation
 func TestMetricsEndpoint_PrometheusFormat(t *testing.T) {
 	registry := prometheus.NewRegistry()
-	m := metrics.NewWithRegistry(registry)
+	logger := zap.NewNop()
+	m := metrics.NewWithRegistry(registry, logger)
 	
 	cfg := setupTestRouter("", m)
 	router := Setup(*cfg)
