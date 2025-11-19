@@ -60,8 +60,7 @@ spring:
             #redirect-uri: https://api.wealist.co.kr/api/users/login/oauth2/code/google
             #
             # 💡 [로컬/배포 분리 적용됨] Client Redirect Base URL
-            redirect-uri: ${OAUTH2_CLIENT_REDIRECT_BASE:http://localhost:8080}/login/oauth2/code/google
-
+            redirect-uri: ${OAUTH2_CLIENT_REDIRECT_URI:http://localhost:8080/login/oauth2/code/google}
             authorization-grant-type: authorization_code
             client-name: Google
         provider:

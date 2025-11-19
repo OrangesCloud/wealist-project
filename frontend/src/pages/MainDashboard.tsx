@@ -133,10 +133,19 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     try {
       const fetchedProjects = await getProjects(currentWorkspaceId);
       setProjects(fetchedProjects);
+      // 💡 [수정] 현재 선택된 프로젝트가 없거나 (초기 로드),
+      //    목록에 프로젝트가 있고, 현재 선택된 프로젝트가 목록에 없는 경우 (생성 후)
+      //    가장 첫 번째 프로젝트(최신 프로젝트)를 선택하도록 변경합니다.
+      const shouldSelectNewProject =
+        !selectedProject ||
+        (fetchedProjects.length > 0 &&
+          !fetchedProjects.some((p) => p.projectId === selectedProject.projectId));
 
-      if (fetchedProjects.length > 0 && !selectedProject) {
+      if (fetchedProjects.length > 0 && shouldSelectNewProject) {
+        // API가 최신순으로 정렬해서 반환한다고 가정하고 첫 번째 요소를 선택합니다.
         setSelectedProject(fetchedProjects[0]);
       }
+      // 💡 [참고] 만약 선택된 프로젝트가 목록에 여전히 있다면, 변경하지 않습니다 (예: 수정 시).
     } catch (err: any) {
       const error = err as Error;
       setError(`프로젝트 목록 로드 실패: ${error.message}`);
@@ -144,6 +153,17 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
       setIsLoadingProjects(false);
     }
   }, [currentWorkspaceId, selectedProject]);
+  // 💡 [추가] 프로젝트 생성 후 호출될 핸들러
+  const handleProjectCreated = useCallback((newProject: ProjectResponse) => {
+    // 1. 프로젝트 목록에 새로 생성된 프로젝트 추가 (가장 앞에 추가)
+    setProjects((prev) => [newProject, ...prev]);
+
+    // 2. 새로 생성된 프로젝트를 즉시 선택 상태로 설정
+    setSelectedProject(newProject);
+
+    // 3. (선택 사항) UI 상태 업데이트 (필요하다면 InitSettings도 다시 로드됨)
+    //    selectedProject가 변경되면 useEffect가 InitSettings를 트리거합니다.
+  }, []);
 
   // 2. 워크스페이스 회원 조회 함수
   const fetchWorkspaceMembers = useCallback(async () => {
@@ -273,7 +293,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
         <ProjectModal
           workspaceId={currentWorkspaceId}
           onClose={() => toggleUiState('showCreateProject', false)}
-          onProjectSaved={fetchProjects}
+          onProjectSaved={fetchProjects} // ✅ onProjectSaved 시, fetchProjects가 호출되어 최신 프로젝트가 선택됩니다.
+          onProjectCreated={handleProjectCreated}
         />
       )}
 

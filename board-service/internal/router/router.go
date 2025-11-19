@@ -48,7 +48,7 @@ func Setup(cfg Config) *gin.Engine {
 	fieldOptionConverter := converter.NewFieldOptionConverter(fieldOptionRepo)
 
 	// Initialize services with repository dependencies
-	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient)
+	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient, cfg.Logger)
 	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, fieldOptionConverter)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
 	commentService := service.NewCommentService(commentRepo, boardRepo)

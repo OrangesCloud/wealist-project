@@ -9,10 +9,8 @@ on:
       - ".github/workflows/ci-dev-board-service.yml"
   workflow_dispatch:
 
-env:
-  AWS_REGION: ap-northeast-2
-  ECR_REPOSITORY: wealist-dev-board-service
-  AWS_ACCOUNT_ID: "290008131187"  # Wealist Dev AWS Account
+permissions:
+  contents: read
 
 jobs:
   build-and-push:
@@ -32,7 +30,66 @@ jobs:
         uses: actions/checkout@v4
 
       # ============================================
-      # 2. Go 환경 설정
+      # 2. AWS Credentials 설정 (Parameter Store 접근용)
+      # ============================================
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2  # Bootstrap region for Parameter Store access
+
+      # ============================================
+      # 3. Parameter Store에서 설정 로드
+      # ============================================
+      - name: 📥 Load Configuration from Parameter Store
+        id: config
+        run: |
+          echo "📥 Loading CI configuration from Parameter Store..."
+          
+          # Load parameters
+          AWS_REGION=$(aws ssm get-parameter \
+            --name "/wealist/dev/ci/aws_region" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          ECR_REPOSITORY=$(aws ssm get-parameter \
+            --name "/wealist/dev/ci/ecr_repository_board" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          AWS_ACCOUNT_ID=$(aws ssm get-parameter \
+            --name "/wealist/dev/ci/aws_account_id" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          # Validate parameters
+          if [ -z "$AWS_REGION" ] || [ -z "$ECR_REPOSITORY" ] || [ -z "$AWS_ACCOUNT_ID" ]; then
+            echo "❌ Failed to load required parameters from Parameter Store"
+            echo "   Please ensure the following parameters exist:"
+            echo "   - /wealist/dev/ci/aws_region"
+            echo "   - /wealist/dev/ci/ecr_repository_board"
+            echo "   - /wealist/dev/ci/aws_account_id"
+            exit 1
+          fi
+          
+          # Export to GITHUB_ENV for subsequent steps
+          echo "AWS_REGION=${AWS_REGION}" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=${ECR_REPOSITORY}" >> $GITHUB_ENV
+          echo "AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}" >> $GITHUB_ENV
+          
+          # Also export to outputs
+          echo "aws-region=${AWS_REGION}" >> $GITHUB_OUTPUT
+          echo "ecr-repository=${ECR_REPOSITORY}" >> $GITHUB_OUTPUT
+          echo "aws-account-id=${AWS_ACCOUNT_ID}" >> $GITHUB_OUTPUT
+          
+          echo "✅ Configuration loaded successfully"
+          echo "   AWS Region: ${AWS_REGION}"
+          echo "   ECR Repository: ${ECR_REPOSITORY}"
+          echo "   AWS Account ID: ${AWS_ACCOUNT_ID}"
+
+      # ============================================
+      # 4. Go 환경 설정
       # ============================================
       - name: 🔧 Setup Go Environment
         uses: actions/setup-go@v5
@@ -42,7 +99,7 @@ jobs:
           cache-dependency-path: board-service/go.sum
 
       # ============================================
-      # 3. Go Module 다운로드
+      # 5. Go Module 다운로드
       # ============================================
       - name: 📦 Download Go Dependencies
         run: |
@@ -51,7 +108,7 @@ jobs:
           go mod download
 
       # ============================================
-      # 4. Swagger 도구 설치
+      # 6. Swagger 도구 설치
       # ============================================
       - name: 📚 Install Swagger Tools
         run: |
@@ -59,7 +116,7 @@ jobs:
           echo "✅ Swagger tools installed"
 
       # ============================================
-      # 5. Swagger 문서 생성
+      # 7. Swagger 문서 생성
       # ============================================
       - name: 📝 Generate Swagger Documentation
         run: |
@@ -68,7 +125,7 @@ jobs:
           echo "✅ Swagger documentation generated"
 
       # ============================================
-      # 6. Swagger 문서 검증
+      # 8. Swagger 문서 검증
       # ============================================
       - name: ✅ Validate Swagger Documentation
         run: |
@@ -106,7 +163,7 @@ jobs:
           echo "✅ All Swagger validations passed"
 
       # ============================================
-      # 7. Go 테스트 실행 (현재 테스트 이슈로 스킵)
+      # 9. Go 테스트 실행 (현재 테스트 이슈로 스킵)
       # ============================================
       - name: 🧪 Run Go Tests
         continue-on-error: true  # 테스트 실패해도 계속 진행
@@ -115,7 +172,7 @@ jobs:
           go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build"
 
       # ============================================
-      # 8. Go 빌드 검증 (Docker 빌드 전 사전 검증)
+      # 10. Go 빌드 검증 (Docker 빌드 전 사전 검증)
       # ============================================
       - name: 🔨 Verify Go Build
         run: |
@@ -124,17 +181,7 @@ jobs:
           echo "✅ Go binary build successful"
 
       # ============================================
-      # 9. AWS Credentials 설정
-      # ============================================
-      - name: 🔐 Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      # ============================================
-      # 10. 이미지 태그 생성
+      # 11. 이미지 태그 생성
       # ============================================
       - name: 🏷️ Generate Image Tags
         id: image-info
@@ -153,7 +200,7 @@ jobs:
           echo "🐳 Full Image: ${FULL_IMAGE}"
 
       # ============================================
-      # 11. Amazon ECR 로그인 & 이미지 빌드 & 푸시
+      # 12. Amazon ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
       - name: 🐳 Login to ECR, Build and Push Docker Image
         env:
@@ -185,7 +232,7 @@ jobs:
           echo "  - ${LATEST_IMAGE}"
 
       # ============================================
-      # 12. 빌드 결과 요약
+      # 13. 빌드 결과 요약
       # ============================================
       - name: 📋 Build Summary
         run: |
@@ -197,3 +244,6 @@ jobs:
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Swagger Validation:** ✅ Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next:** CD workflow will be triggered automatically via workflow_run" >> $GITHUB_STEP_SUMMARY
+

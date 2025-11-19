@@ -11,10 +11,10 @@ const BASE_DOMAIN = import.meta.env.VITE_API_BASE_URL || 'https://api.wealist.co
 const OAUTH_BASE =
   BASE_DOMAIN === 'http://localhost' || BASE_DOMAIN.includes('127.0.0.1')
     ? `${BASE_DOMAIN}:8080`
-    : BASE_DOMAIN;
+    : BASE_DOMAIN + '/api/users';
 
 // ⚠️ 백엔드 OAuth2 인증 시작 엔드포인트
-const GOOGLE_AUTH_URL = `${OAUTH_BASE}/api/users/oauth2/authorization/google`;
+const GOOGLE_AUTH_URL = `${OAUTH_BASE}/oauth2/authorization/google`;
 const AuthPage: React.FC = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();

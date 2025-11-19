@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"project-board-api/internal/client"
@@ -31,14 +32,16 @@ type projectServiceImpl struct {
 	projectRepo       repository.ProjectRepository
 	fieldOptionRepo   repository.FieldOptionRepository
 	userClient        client.UserClient
+	logger            *zap.Logger
 }
 
 // NewProjectService creates a new instance of ProjectService
-func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, userClient client.UserClient) ProjectService {
+func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, userClient client.UserClient, logger *zap.Logger) ProjectService {
 	return &projectServiceImpl{
 		projectRepo:     projectRepo,
 		fieldOptionRepo: fieldOptionRepo,
 		userClient:      userClient,
+		logger:          logger,
 	}
 }
 
@@ -223,8 +226,53 @@ func (s *projectServiceImpl) GetProject(ctx context.Context, projectID, userID u
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to check membership", err.Error())
 	}
+
+	// If not a project member, check workspace membership
+	// TODO: 향후 프로젝트별 권한 관리 기능 구현 시 수정 필요
 	if !isMember {
-		return nil, response.NewForbiddenError("You are not a member of this project", "")
+		s.logger.Debug("User is not a project member, checking workspace membership",
+			zap.String("project_id", projectID.String()),
+			zap.String("workspace_id", project.WorkspaceID.String()),
+			zap.String("user_id", userID.String()),
+		)
+
+		isWorkspaceMember, err := s.userClient.ValidateWorkspaceMember(ctx, project.WorkspaceID, userID, token)
+		if err != nil {
+			s.logger.Error("Failed to validate workspace membership",
+				zap.Error(err),
+				zap.String("project_id", projectID.String()),
+				zap.String("workspace_id", project.WorkspaceID.String()),
+				zap.String("user_id", userID.String()),
+			)
+			return nil, response.NewForbiddenError("You are not a member of this project or workspace", "")
+		}
+
+		if !isWorkspaceMember {
+			s.logger.Warn("Access denied: user is neither project member nor workspace member",
+				zap.String("project_id", projectID.String()),
+				zap.String("workspace_id", project.WorkspaceID.String()),
+				zap.String("user_id", userID.String()),
+			)
+			return nil, response.NewForbiddenError("You are not a member of this project or workspace", "")
+		}
+
+		// Workspace member access granted - log for future audit and permission management
+		// Note: This allows workspace members to access all projects in their workspace
+		// until project-level permission management is implemented
+		s.logger.Info("Access granted via workspace membership",
+			zap.String("access_type", "workspace_member"),
+			zap.String("project_id", projectID.String()),
+			zap.String("workspace_id", project.WorkspaceID.String()),
+			zap.String("user_id", userID.String()),
+			zap.String("project_name", project.Name),
+			zap.String("note", "Project-level permissions not yet implemented"),
+		)
+	} else {
+		s.logger.Debug("Access granted via project membership",
+			zap.String("access_type", "project_member"),
+			zap.String("project_id", projectID.String()),
+			zap.String("user_id", userID.String()),
+		)
 	}
 
 	// Convert to response DTO with owner profile information
@@ -390,8 +438,53 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to check membership", err.Error())
 	}
+
+	// If not a project member, check workspace membership
+	// TODO: 향후 프로젝트별 권한 관리 기능 구현 시 수정 필요
 	if !isMember {
-		return nil, response.NewForbiddenError("You are not a member of this project", "")
+		s.logger.Debug("User is not a project member, checking workspace membership for init settings",
+			zap.String("project_id", projectID.String()),
+			zap.String("workspace_id", project.WorkspaceID.String()),
+			zap.String("user_id", userID.String()),
+		)
+
+		isWorkspaceMember, err := s.userClient.ValidateWorkspaceMember(ctx, project.WorkspaceID, userID, token)
+		if err != nil {
+			s.logger.Error("Failed to validate workspace membership for init settings",
+				zap.Error(err),
+				zap.String("project_id", projectID.String()),
+				zap.String("workspace_id", project.WorkspaceID.String()),
+				zap.String("user_id", userID.String()),
+			)
+			return nil, response.NewForbiddenError("You are not a member of this project or workspace", "")
+		}
+
+		if !isWorkspaceMember {
+			s.logger.Warn("Access denied to init settings: user is neither project member nor workspace member",
+				zap.String("project_id", projectID.String()),
+				zap.String("workspace_id", project.WorkspaceID.String()),
+				zap.String("user_id", userID.String()),
+			)
+			return nil, response.NewForbiddenError("You are not a member of this project or workspace", "")
+		}
+
+		// Workspace member access granted - log for future audit and permission management
+		// Note: This allows workspace members to access all projects in their workspace
+		// until project-level permission management is implemented
+		s.logger.Info("Access granted to init settings via workspace membership",
+			zap.String("access_type", "workspace_member"),
+			zap.String("project_id", projectID.String()),
+			zap.String("workspace_id", project.WorkspaceID.String()),
+			zap.String("user_id", userID.String()),
+			zap.String("project_name", project.Name),
+			zap.String("note", "Project-level permissions not yet implemented"),
+		)
+	} else {
+		s.logger.Debug("Access granted to init settings via project membership",
+			zap.String("access_type", "project_member"),
+			zap.String("project_id", projectID.String()),
+			zap.String("user_id", userID.String()),
+		)
 	}
 
 	// Fetch workspace information
