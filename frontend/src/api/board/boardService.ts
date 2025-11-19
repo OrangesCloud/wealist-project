@@ -1028,7 +1028,7 @@ export const moveBoard = async (
   }
 
   try {
-    await boardServiceClient.put(`/boards/${boardId}/move`, data);
+    await boardServiceClient.put(`/${boardId}/move`, data);
   } catch (error) {
     console.error('moveBoard error:', error);
     throw error;
