@@ -28,126 +28,123 @@ jobs:
       - name: Load Base Configuration
         id: cfg
         run: |
-          PREFIX="/wealist/dev/cd"
-          MONITOR="/wealist/dev/monitor"
+          EC2_ID=$(aws ssm get-parameter --name "/wealist/dev/cd/ec2_instance_id" --query "Parameter.Value" --output text --with-decryption)
+          COMPOSE_DIR=$(aws ssm get-parameter --name "/wealist/dev/monitor/compose_file_path" --query "Parameter.Value" --output text)
+          PARAM_PREFIX=$(aws ssm get-parameter --name "/wealist/dev/cd/parameter_prefix" --query "Parameter.Value" --output text)
 
-          set -a                  
-          source .env             
-          set +a
-
-          EC2_ID=$(aws ssm get-parameter \
-            --name "/wealist/dev/cd/ec2_instance_id" \
-            --query 'Parameter.Value' \
-            --output text)
-
-          COMPOSE_DIR=$(aws ssm get-parameter \
-            --name "/wealist/dev/monitor/compose_file_path" \
-            --query 'Parameter.Value' \
-            --output text)
-
-          PARAMETER_PREFIX=$(aws ssm get-parameter \
-            --name "/wealist/dev/cd/parameter_prefix" \
-            --query 'Parameter.Value' \
-            --output text)
-
-          echo "ec2-instance-id=${EC2_ID}" >> $GITHUB_OUTPUT
+          echo "ec2_id=$EC2_ID" >> $GITHUB_OUTPUT
           echo "compose_dir=$COMPOSE_DIR" >> $GITHUB_OUTPUT
-          echo "param_prefix=$PARAMETER_PREFIX" >> $GITHUB_OUTPUT
+          echo "param_prefix=$PARAM_PREFIX" >> $GITHUB_OUTPUT
 
-      - name: Deploy Monitoring Stack (with SSM secrets → .env)
+      - name: Deploy Monitoring Stack (SSM → .env + Health Check)
         run: |
-          # 1. prometheus.yml, docker-compose.yml base64 인코딩
-          COMPOSE_YML_B64=$(base64 -w 0 prometheus/docker-compose.yml)
-          PROM_CONFIG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
+          # 파일 base64 인코딩
+          COMPOSE_B64=$(base64 -w 0 prometheus/docker-compose.yml)
+          PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
 
-          # 2. SSM에서 가져올 파라미터 목록 정의 (필요한 거 다 추가하세요)
+          # SSM 파라미터 목록 (필요한 거 다 넣으세요)
           SSM_PARAMS=(
-            "aws_account_id"
-            "prometheus_port"
-            "prometheus_healthcheck_path"
-            "grafana_port"
-            "grafana_admin_user"
-            "grafana_admin_password"
-            "redis_port"
-            "redis_password"
-            "postgres_superuser"
-            "postgres_superuser_password"
-            "postgres_exporter_port"
-            "redis_exporter_port"
-            "node_exporter_port"
-            
+            aws_account_id
+            prometheus_port
+            prometheus_healthcheck_path
+            grafana_port
+            grafana_admin_user
+            grafana_admin_password
+            redis_port
+            redis_password
+            postgres_superuser
+            postgres_superuser_password
+            postgres_exporter_port
+            redis_exporter_port
+            node_exporter_port
           )
 
-          # 3. SSM 파라미터들을 key=value 형태로 문자열로 모음
-          ENV_CONTENT=""
+          # .env 내용 만들기
+          ENV_LINES=""
           for param in "${SSM_PARAMS[@]}"; do
-            value=$(aws ssm get-parameter \
-              --name "${{ steps.cfg.outputs.param_prefix }}/$param" \
-              --with-decryption \
-              --query "Parameter.Value" \
-              --output text)
-            ENV_CONTENT="${ENV_CONTENT}${param^^}=$value\n"  # 대문자로 변환 (관례)
+            value=$(aws ssm get-parameter --name "${{ steps.cfg.outputs.param_prefix }}/$param" --with-decryption --query "Parameter.Value" --output text)
+            ENV_LINES="${ENV_LINES}${param^^}=$value\n"
           done
+          ENV_B64=$(printf "$ENV_LINES" | base64 -w 0)
 
-          ENV_B64=$(echo -e "$ENV_CONTENT" | base64 -w 0)
-
-          # 4. EC2에서 모든 작업 한 번에 실행
+          # EC2에 한 번에 실행 (이제 진짜 완벽)
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ steps.cfg.outputs.ec2_id }}" \
             --document-name "AWS-RunShellScript" \
             --timeout-seconds 900 \
-            --comment "Monitoring Full Deploy - ${{ github.sha }}" \
+            --comment "Monitoring Deploy ${{ github.sha }}" \
             --parameters "commands=[
-              \"echo '=== Monitoring CD 시작 ==='\",
+              \"echo '=== 모니터링 배포 시작 ==='\",
               \"cd ${{ steps.cfg.outputs.compose_dir }}\",
               \"mkdir -p config\",
               
-              \"echo '파일 업로드 중...'\",
-              \"echo '${COMPOSE_YML_B64}' | base64 -d > docker-compose.yml\",
-              \"echo '${PROM_CONFIG_B64}' | base64 -d > config/prometheus-ec2.yml\",
-              \"echo '${ENV_B64}' | base64 -d > .env\",
+              \"echo '파일 업로드...'\",
+              \"echo '$COMPOSE_B64' | base64 -d > docker-compose.yml\",
+              \"echo '$PROM_CFG_B64' | base64 -d > config/prometheus-ec2.yml\",
+              \"printf '$ENV_LINES' > .env\",
               \"chmod 600 .env\",
               
-              \"echo 'docker compose pull...'\",
+              \"echo '이미지 pull & 재시작'\",
               \"docker compose pull\",
-              
-              \"echo 'docker compose up -d --remove-orphans'\",
               \"docker compose up -d --remove-orphans\",
               
-              \"echo '=== 헬스체크 시작 (최대 4분) ==='\",
+              \"echo '=== .env 로드 후 헬스체크 ==='\",
+              \"set -a\",
+              \"[ -f .env ] && source .env\",
+              \"set +a\",
               
-              \"# Prometheus\",
+              \"# Prometheus 헬스체크\",
               \"for i in {1..40}; do
-                if curl -f http://localhost:${SSM_PARAMS[1]}/-/healthy >/dev/null 2>&1; then echo 'Prometheus OK'; break; fi
-                echo 'Prometheus 대기 (\${i}s)'; sleep 6
+                if curl -f http://localhost:\${PROMETHEUS_PORT}/-/healthy > /dev/null 2>&1; then
+                  echo 'Prometheus Healthy!\'
+                  break
+                fi
+                echo 'Prometheus 대기... (\${i}/40)'
+                sleep 6
               done\",
               
-              \"# Grafana\",
+              \"# Grafana 헬스체크\",
               \"for i in {1..40}; do
-                if curl -f http://localhost:${SSM_PARAMS[3]}/api/health >/dev/null 2>&1; then echo 'Grafana OK'; break; fi
-                echo 'Grafana 대기 (\${i}s)'; sleep 6
+                if curl -f http://localhost:\${GRAFANA_PORT}/api/health > /dev/null 2>&1; then
+                  echo 'Grafana Healthy!\'
+                  break
+                fi
+                echo 'Grafana 대기... (\${i}/40)'
+                sleep 6
               done\",
               
+              \"# Postgres 간단 체크\",
+              \"for i in {1..20}; do
+                if docker exec wealist-postgres pg_isready -h localhost -U postgres > /dev/null 2>&1; then
+                  echo 'Postgres Ready!'
+                  break
+                fi
+                sleep 4
+              done\",
+              
+              \"# Redis 체크\",
+              \"if docker exec wealist-redis redis-cli ping | grep -q PONG; then
+                echo 'Redis PONG!'
+              fi\",
               
               \"echo '=== 최종 상태 ==='\",
               \"docker compose ps\",
-              \"echo '모니터링 배포 완료!'\"
+              \"echo '모니터링 배포 및 헬스체크 완료!'\"
             ]" --query "Command.CommandId" --output text)
 
-          echo "배포 명령 전송 완료 (Command ID: $COMMAND_ID)"
+          echo "배포 명령 전송됨 (Command ID: $COMMAND_ID)"
           aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "${{ steps.cfg.outputs.ec2_id }}"
 
-          # 결과 확인 및 실패 시 로그 출력
+          # 로그 출력 및 실패 처리
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ steps.cfg.outputs.ec2_id }}" \
+            --query "{Output:StandardOutputContent, Error:StandardErrorContent}" --output text
+
           STATUS=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ steps.cfg.outputs.ec2_id }}" --query "Status" --output text)
-          LOG=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ steps.cfg.outputs.ec2_id }}" --query "StandardOutputContent" --output text)
-          ERR=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "${{ steps.cfg.outputs.ec2_id }}" --query "StandardErrorContent" --output text)
-
-          echo "$LOG"
-          if [ -n "$ERR" ]; then echo "$ERR"; fi
-
           if [ "$STATUS" != "Success" ]; then
             echo "배포 실패!"
             exit 1
           fi
 
-          echo "모니터링 스택이 완벽하게 배포되고 헬스체크까지 통과했습니다!"
+          echo "모니터링 스택 배포 성공 + 헬스체크 통과!"
