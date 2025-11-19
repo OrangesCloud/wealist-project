@@ -211,15 +211,15 @@ jobs:
           echo "  PostgreSQL container: ${POSTGRES_CONTAINER}"
 
           # Update configurations to use correct container names
-          sed -i "s|redis:\${REDIS_PORT}|${REDIS_CONTAINER}:6379|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|postgres:\${POSTGRES_PORT}|${POSTGRES_CONTAINER}:5432|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|redis:\${REDIS_PORT}|${REDIS_CONTAINER}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|postgres:\${POSTGRES_PORT}|${POSTGRES_CONTAINER}|g" docker-compose.ec2-dev-monitoring.yml
 
           # Fix port configurations
-          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:9090|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:3000|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}:9121|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}:9187|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:9100|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
 
           # Remove depends_on for external services
           echo "🔧 Removing external service dependencies..."
@@ -447,8 +447,8 @@ jobs:
           echo "  - Postgres Exporter: http://localhost:${POSTGRES_EXPORTER_PORT}/metrics"
           echo ""
           echo "🔗 Monitoring targets:"
-          echo "  - Redis: ${REDIS_CONTAINER}:6379"
-          echo "  - PostgreSQL: ${POSTGRES_CONTAINER}:5432"
+          echo "  - Redis: ${REDIS_CONTAINER}"
+          echo "  - PostgreSQL: ${POSTGRES_CONTAINER}"
           DEPLOY_SCRIPT
 
       - name: Deploy Monitoring Stack via SSM
