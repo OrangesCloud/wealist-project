@@ -88,6 +88,15 @@ func Setup(cfg Config) *gin.Engine {
 	// Setup API routes
 	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)
 
+	// 🔥 [추가] MoveBoard 별도 등록 (프론트엔드 경로와 매칭)
+	// 프론트엔드: PUT /api/boards/api/:boardId/move
+	// 백엔드: PUT /api/boards/:boardId/move
+	moveGroup := baseGroup.Group("")
+	moveGroup.Use(middleware.Auth(cfg.JWTSecret))
+	{
+		moveGroup.PUT("/:boardId/move", boardHandler.MoveBoard)
+	}
+
 	// 🔥 [중요] WebSocket은 baseGroup을 사용하되 인증 미들웨어 없이 직접 등록
 	// basePath가 /api/boards일 때: /api/boards/api/ws/project/:projectId
 	wsGroup := baseGroup.Group("/api")
@@ -187,8 +196,8 @@ func setupRoutes(
 			boards.GET("/project/:projectId", boardHandler.GetBoardsByProject)
 			boards.PUT("/:boardId", boardHandler.UpdateBoard)
 			boards.DELETE("/:boardId", boardHandler.DeleteBoard)
-			// 실시간 이동 API
-			boards.PUT("/:boardId/move", boardHandler.MoveBoard)
+			// 💡 [제거] boards.PUT("/:boardId/move", boardHandler.MoveBoard)
+			// MoveBoard는 Setup 함수에서 별도로 등록됨
 		}
 
 		// Participant routes
