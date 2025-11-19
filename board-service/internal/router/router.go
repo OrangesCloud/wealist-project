@@ -88,13 +88,13 @@ func Setup(cfg Config) *gin.Engine {
 	// Setup API routes
 	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)
 
-	// 🔥 [추가] MoveBoard 별도 등록 (프론트엔드 경로와 매칭)
+	// 🔥 [수정] MoveBoard를 /api 그룹 안에 등록
 	// 프론트엔드: PUT /api/boards/api/:boardId/move
-	// 백엔드: PUT /api/boards/:boardId/move
-	moveGroup := baseGroup.Group("")
-	moveGroup.Use(middleware.Auth(cfg.JWTSecret))
+	// 백엔드: PUT /api/boards/api/:boardId/move
+	apiGroup := baseGroup.Group("/api")
+	apiGroup.Use(middleware.Auth(cfg.JWTSecret))
 	{
-		moveGroup.PUT("/:boardId/move", boardHandler.MoveBoard)
+		apiGroup.PUT("/:boardId/move", boardHandler.MoveBoard)
 	}
 
 	// 🔥 [중요] WebSocket은 baseGroup을 사용하되 인증 미들웨어 없이 직접 등록
