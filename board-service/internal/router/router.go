@@ -17,10 +17,9 @@ import (
 )
 
 type Config struct {
-	DB        *gorm.DB
-	Logger    *zap.Logger
-	JWTSecret string
-	// 💡 [수정] 통합된 UserClient 인터페이스를 사용합니다.
+	DB                 *gorm.DB
+	Logger             *zap.Logger
+	JWTSecret          string
 	UserClient         client.UserClient
 	BasePath           string
 	UserServiceBaseURL string
@@ -49,9 +48,6 @@ func Setup(cfg Config) *gin.Engine {
 	// Initialize converters
 	fieldOptionConverter := converter.NewFieldOptionConverter(fieldOptionRepo)
 
-	// 💡 [핵심 추가] User Service Base URL을 사용하여 AuthClient 초기화
-	// cfg.UserClient가 UserClient 역할을 하고 AuthClient 인터페이스를 구현하는 것으로 가정합니다.
-
 	// Initialize services with repository dependencies
 	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient, cfg.Logger)
 	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, fieldOptionConverter)
@@ -70,7 +66,7 @@ func Setup(cfg Config) *gin.Engine {
 	projectMemberHandler := handler.NewProjectMemberHandler(projectMemberService)
 	projectJoinRequestHandler := handler.NewProjectJoinRequestHandler(projectJoinRequestService)
 
-	// 💡 [추가] WebSocket Handler 초기화 (AuthClient 주입)
+	// 💡 WebSocket Handler 초기화
 	wsHandler := handler.NewWSHandler(cfg.Logger, cfg.UserClient)
 
 	// Create base path group if configured
@@ -90,7 +86,12 @@ func Setup(cfg Config) *gin.Engine {
 	baseGroup.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Setup API routes
-	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler, wsHandler)
+	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)
+
+	// 🔥 [중요] WebSocket은 baseGroup을 사용하되 인증 미들웨어 없이 직접 등록
+	// basePath가 /api/boards일 때: /api/boards/api/ws/project/:projectId
+	wsGroup := baseGroup.Group("/api")
+	wsGroup.GET("/ws/project/:projectId", wsHandler.HandleWebSocket)
 
 	return router
 }
@@ -136,8 +137,6 @@ func setupRoutes(
 	fieldOptionHandler *handler.FieldOptionHandler,
 	projectMemberHandler *handler.ProjectMemberHandler,
 	projectJoinRequestHandler *handler.ProjectJoinRequestHandler,
-	// 💡 [추가] WSHandler 인스턴스를 받도록 함수 정의 수정
-	wsHandler *handler.WSHandler,
 ) {
 	// API group with authentication
 	api := baseGroup.Group("/api")
@@ -220,13 +219,5 @@ func setupRoutes(
 			fieldOptions.PATCH("/:optionId", fieldOptionHandler.UpdateFieldOption)
 			fieldOptions.DELETE("/:optionId", fieldOptionHandler.DeleteFieldOption)
 		}
-
-	} // 👈 HTTP API 그룹 종료
-
-	// WebSocket 엔드포인트 그룹 (인증 미들웨어 영향 받지 않음)
-	wsGroup := baseGroup.Group("/api")
-	{
-		// 💡 [핵심] WebSocket 실시간 엔드포인트는 핸들러 내부에서 토큰 검증
-		wsGroup.GET("/ws/project/:projectId", wsHandler.HandleWebSocket)
 	}
 }
