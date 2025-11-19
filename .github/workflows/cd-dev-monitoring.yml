@@ -309,8 +309,8 @@ jobs:
 
           # Decode and save prometheus config
           echo "📝 Updating Prometheus configuration..."
-          mkdir -p prometheus/config
-          echo "${PROM_CFG_B64}" | base64 -d > prometheus/config/prometheus-ec2.yml
+          mkdir -p prometheus/
+          echo "${PROM_CFG_B64}" | base64 -d > prometheus/prometheus-ec2.yml
 
           # Validate YAML syntax before proceeding
           echo "🔍 Validating docker-compose file syntax..."
