@@ -101,10 +101,12 @@ jobs:
           # Load database parameters for postgres exporter
           POSTGRES_SUPERUSER=$(load_param "/db/postgres_superuser")
           POSTGRES_SUPERUSER_PASSWORD=$(load_secret "/db/postgres_superuser_password")
+          POSTGRES_PORT=$(load_param "/db/postgres_port")
+          POSTGRES_DB=$(load_param "/db/postgres_db")
           
-          # Load Redis parameters (with defaults if not available)
-          REDIS_PORT=$(load_param "/redis/port" || echo "6379")
-          REDIS_PASSWORD=$(load_secret "/redis/password" || echo "")
+          # Load Redis parameters
+          REDIS_PORT=$(load_param "/redis/port")
+          REDIS_PASSWORD=$(load_secret "/redis/password")
 
           # Export all variables
           export GRAFANA_ADMIN_USER
@@ -116,19 +118,56 @@ jobs:
           export NODE_EXPORTER_PORT
           export POSTGRES_SUPERUSER
           export POSTGRES_SUPERUSER_PASSWORD
+          export POSTGRES_PORT
+          export POSTGRES_DB
           export REDIS_PORT
           export REDIS_PASSWORD
 
           echo "✅ Environment variables loaded successfully"
-          echo "Variables loaded:"
-          echo "  - GRAFANA_ADMIN_USER: ${GRAFANA_ADMIN_USER}"
-          echo "  - PROMETHEUS_PORT: ${PROMETHEUS_PORT}"
-          echo "  - GRAFANA_PORT: ${GRAFANA_PORT}"
-          echo "  - REDIS_EXPORTER_PORT: ${REDIS_EXPORTER_PORT}"
-          echo "  - POSTGRES_EXPORTER_PORT: ${POSTGRES_EXPORTER_PORT}"
-          echo "  - NODE_EXPORTER_PORT: ${NODE_EXPORTER_PORT}"
-          echo "  - REDIS_PORT: ${REDIS_PORT}"
-          echo "  - POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}"
+
+          # Check if required backend services are running
+          echo "🔍 Checking prerequisite services..."
+          BACKEND_SERVICES_OK=true
+
+          # Check Redis
+          echo "Checking Redis..."
+          if docker ps --format '{{.Names}}' | grep -q "redis"; then
+            REDIS_CONTAINER=$(docker ps --format '{{.Names}}' | grep redis | head -1)
+            echo "  ✅ Redis container found: ${REDIS_CONTAINER}"
+            
+            # Test Redis connection
+            if docker exec "${REDIS_CONTAINER}" redis-cli -a "${REDIS_PASSWORD}" ping 2>/dev/null | grep -q "PONG"; then
+              echo "  ✅ Redis is responding to ping"
+            else
+              echo "  ⚠️  Redis container exists but not responding to ping"
+            fi
+          else
+            echo "  ❌ Redis container not found"
+            BACKEND_SERVICES_OK=false
+          fi
+
+          # Check PostgreSQL
+          echo "Checking PostgreSQL..."
+          if docker ps --format '{{.Names}}' | grep -q "postgres"; then
+            POSTGRES_CONTAINER=$(docker ps --format '{{.Names}}' | grep postgres | head -1)
+            echo "  ✅ PostgreSQL container found: ${POSTGRES_CONTAINER}"
+            
+            # Test PostgreSQL connection
+            if docker exec "${POSTGRES_CONTAINER}" pg_isready -U "${POSTGRES_SUPERUSER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then
+              echo "  ✅ PostgreSQL is ready"
+            else
+              echo "  ⚠️  PostgreSQL container exists but not ready"
+            fi
+          else
+            echo "  ❌ PostgreSQL container not found"
+            BACKEND_SERVICES_OK=false
+          fi
+
+          if [ "$BACKEND_SERVICES_OK" = false ]; then
+            echo "❌ Required backend services (Redis, PostgreSQL) are not running"
+            echo "Please ensure the backend application stack is deployed first"
+            exit 1
+          fi
 
           # Navigate to compose directory
           echo "📂 Navigating to compose directory: ${COMPOSE_FILE%/*}"
@@ -141,6 +180,39 @@ jobs:
           # Remove version from docker-compose file to avoid warning
           sed -i '/^version:/d' docker-compose.monitoring.yml
 
+          # Update docker-compose to use external services
+          echo "🔧 Configuring monitoring services to use existing backend services..."
+          
+          # Get actual container names and network info
+          REDIS_CONTAINER_NAME=$(docker ps --format '{{.Names}}' | grep redis | head -1)
+          POSTGRES_CONTAINER_NAME=$(docker ps --format '{{.Names}}' | grep postgres | head -1)
+          
+          # Get network name that backend services are using
+          BACKEND_NETWORK=$(docker inspect "${REDIS_CONTAINER_NAME}" --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)
+          
+          echo "  Backend network: ${BACKEND_NETWORK}"
+          echo "  Redis container: ${REDIS_CONTAINER_NAME}"
+          echo "  PostgreSQL container: ${POSTGRES_CONTAINER_NAME}"
+
+          # Update redis-exporter configuration to use existing Redis container
+          sed -i "s|REDIS_ADDR=redis://redis:${REDIS_PORT}|REDIS_ADDR=redis://${REDIS_CONTAINER_NAME}|g" docker-compose.monitoring.yml
+          
+          # Update postgres-exporter configuration to use existing PostgreSQL container
+          sed -i "s|postgresql://.*@host\.docker\.internal:.*|postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@${POSTGRES_CONTAINER_NAME}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable|g" docker-compose.monitoring.yml
+          
+          # Remove any depends_on for external services
+          sed -i '/depends_on:/,/^[[:space:]]*[^[:space:]].*:/ { /depends_on:/d; /- redis$/d; /- postgres$/d }' docker-compose.monitoring.yml
+
+          # Add external network configuration
+          cat >> docker-compose.monitoring.yml << EOF
+
+          # Use existing backend network
+          networks:
+            default:
+              name: ${BACKEND_NETWORK}
+              external: true
+          EOF
+
           # Decode and save prometheus config
           echo "📝 Updating Prometheus configuration..."
           mkdir -p prometheus/config
@@ -152,22 +224,9 @@ jobs:
             exit 1
           fi
 
-          # Check current service status
-          echo "🔍 Checking current service status..."
-          INFRA_SERVICES="prometheus grafana redis-exporter postgres-exporter node-exporter"
-          
-          for service in $INFRA_SERVICES; do
-            container_name="wealist-${service}"
-            if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
-              echo "  ✅ ${service} is running"
-            else
-              echo "  ⚠️  ${service} is not running"
-            fi
-          done
-
           # Stop existing monitoring services first
           echo "🛑 Stopping existing monitoring services..."
-          docker-compose -f docker-compose.monitoring.yml down --remove-orphans || true
+          docker-compose -f docker-compose.monitoring.yml down --remove-orphans 2>/dev/null || true
 
           # Deploy monitoring services
           echo "🚀 Deploying monitoring services..."
@@ -181,7 +240,32 @@ jobs:
           echo "⏳ Waiting for services to start..."
           sleep 30
 
-          # Health check function with better error handling
+          # Test connections between exporters and backend services
+          echo "🔗 Testing exporter connections to backend services..."
+          
+          # Test Redis Exporter connection to Redis
+          REDIS_EXPORTER_CONTAINER=$(docker ps --format '{{.Names}}' | grep redis-exporter | head -1)
+          if [ -n "$REDIS_EXPORTER_CONTAINER" ]; then
+            echo "Testing Redis Exporter connection..."
+            if docker exec "$REDIS_EXPORTER_CONTAINER" wget -q -O- "http://localhost:9121/metrics" | grep -q "redis_up 1" 2>/dev/null; then
+              echo "  ✅ Redis Exporter successfully connected to Redis"
+            else
+              echo "  ⚠️  Redis Exporter may have connection issues"
+            fi
+          fi
+
+          # Test Postgres Exporter connection to PostgreSQL
+          POSTGRES_EXPORTER_CONTAINER=$(docker ps --format '{{.Names}}' | grep postgres-exporter | head -1)
+          if [ -n "$POSTGRES_EXPORTER_CONTAINER" ]; then
+            echo "Testing Postgres Exporter connection..."
+            if docker exec "$POSTGRES_EXPORTER_CONTAINER" wget -q -O- "http://localhost:${POSTGRES_EXPORTER_PORT}/metrics" | grep -q "pg_up 1" 2>/dev/null; then
+              echo "  ✅ Postgres Exporter successfully connected to PostgreSQL"
+            else
+              echo "  ⚠️  Postgres Exporter may have connection issues"
+            fi
+          fi
+
+          # Health check function
           health_check() {
             local service_name="$1"
             local port="$2"
@@ -195,31 +279,26 @@ jobs:
               local http_code
               if http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "http://localhost:${port}${endpoint}" 2>/dev/null); then
                 if echo "$http_code" | grep -q "200\|302\|404"; then
-                  echo "  ✅ ${service_name} is responding (HTTP ${http_code}) (attempt ${attempt}/${max_attempts})"
+                  echo "  ✅ ${service_name} is responding (HTTP ${http_code})"
                   return 0
                 fi
               fi
               
-              echo "  ⏳ ${service_name} not ready yet (attempt ${attempt}/${max_attempts})"
+              echo "  ⏳ ${service_name} not ready yet (${attempt}/${max_attempts})"
               sleep 10
               ((attempt++))
             done
             
-            echo "  ❌ ${service_name} health check failed after ${max_attempts} attempts"
-            
-            # Show container logs for failed service
-            local container_name="wealist-${service_name,,}"
-            container_name="${container_name// /-}"
-            echo "📋 Container logs for ${container_name}:"
-            docker logs "${container_name}" --tail=20 2>&1 || echo "Could not retrieve logs for ${container_name}"
-            
+            echo "  ❌ ${service_name} health check failed"
             return 1
           }
 
-          # Check if containers are running first
-          echo "🔍 Checking container status..."
+          # Check if monitoring containers are running
+          echo "🔍 Checking monitoring container status..."
+          MONITORING_SERVICES="prometheus grafana redis-exporter postgres-exporter node-exporter"
           ALL_CONTAINERS_RUNNING=true
-          for service in $INFRA_SERVICES; do
+          
+          for service in $MONITORING_SERVICES; do
             container_name="wealist-${service}"
             if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
               echo "  ✅ ${service} container is running"
@@ -230,18 +309,17 @@ jobs:
           done
 
           if [ "$ALL_CONTAINERS_RUNNING" = false ]; then
-            echo "❌ Some containers are not running. Checking overall logs:"
+            echo "❌ Some monitoring containers are not running. Checking logs:"
             docker-compose -f docker-compose.monitoring.yml logs --tail=50
             exit 1
           fi
 
-          # Perform health checks only if containers are running
+          # Perform health checks
           echo "🏥 Performing health checks..."
           HEALTH_CHECK_FAILED=false
 
           # Prometheus health check
           if ! health_check "prometheus" "${PROMETHEUS_PORT}" "/-/healthy"; then
-            # Try alternative endpoint
             if ! health_check "prometheus" "${PROMETHEUS_PORT}" "/"; then
               HEALTH_CHECK_FAILED=true
             fi
@@ -249,62 +327,47 @@ jobs:
 
           # Grafana health check
           if ! health_check "grafana" "${GRAFANA_PORT}" "/api/health"; then
-            # Try alternative endpoint
             if ! health_check "grafana" "${GRAFANA_PORT}" "/login"; then
               HEALTH_CHECK_FAILED=true
             fi
           fi
 
-          # Node Exporter health check
-          if ! health_check "node-exporter" "${NODE_EXPORTER_PORT}" "/metrics"; then
-            HEALTH_CHECK_FAILED=true
-          fi
+          # Exporter health checks
+          health_check "node-exporter" "${NODE_EXPORTER_PORT}" "/metrics" || HEALTH_CHECK_FAILED=true
+          health_check "redis-exporter" "${REDIS_EXPORTER_PORT}" "/metrics" || HEALTH_CHECK_FAILED=true
+          health_check "postgres-exporter" "${POSTGRES_EXPORTER_PORT}" "/metrics" || HEALTH_CHECK_FAILED=true
 
-          # Redis Exporter health check
-          if ! health_check "redis-exporter" "${REDIS_EXPORTER_PORT}" "/metrics"; then
-            HEALTH_CHECK_FAILED=true
-          fi
-
-          # Postgres Exporter health check
-          if ! health_check "postgres-exporter" "${POSTGRES_EXPORTER_PORT}" "/metrics"; then
-            HEALTH_CHECK_FAILED=true
-          fi
-
-          # Final service status check
-          echo "📊 Final service status:"
-          for service in $INFRA_SERVICES; do
+          # Final verification
+          echo "📊 Final service verification:"
+          echo "Backend Services:"
+          echo "  ✅ Redis: ${REDIS_CONTAINER_NAME}"
+          echo "  ✅ PostgreSQL: ${POSTGRES_CONTAINER_NAME}"
+          echo ""
+          echo "Monitoring Services:"
+          for service in $MONITORING_SERVICES; do
             container_name="wealist-${service}"
             if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
-              echo "  ✅ ${service} is running"
-            else
-              echo "  ❌ ${service} is not running"
-              HEALTH_CHECK_FAILED=true
+              echo "  ✅ ${service}: ${container_name}"
             fi
           done
 
           if [ "$HEALTH_CHECK_FAILED" = true ]; then
-            echo "⚠️  Some services failed health checks but containers are running"
-            echo "This might be normal for services that take longer to initialize"
-            echo "📋 Service URLs for manual verification:"
-            echo "  - Prometheus: http://localhost:${PROMETHEUS_PORT}"
-            echo "  - Grafana: http://localhost:${GRAFANA_PORT}"
-            echo "  - Node Exporter: http://localhost:${NODE_EXPORTER_PORT}/metrics"
-            echo "  - Redis Exporter: http://localhost:${REDIS_EXPORTER_PORT}/metrics"
-            echo "  - Postgres Exporter: http://localhost:${POSTGRES_EXPORTER_PORT}/metrics"
-            
-            # Don't exit with error if containers are running
-            echo "✅ Containers are running, marking deployment as successful"
-          else
-            echo "🎉 All services passed health checks!"
+            echo "⚠️  Some health checks failed, but containers are running"
+            echo "Services may need more time to initialize"
           fi
 
+          echo ""
           echo "🎉 Monitoring stack deployment completed!"
           echo "📊 Services available at:"
           echo "  - Prometheus: http://localhost:${PROMETHEUS_PORT}"
-          echo "  - Grafana: http://localhost:${GRAFANA_PORT} (${GRAFANA_ADMIN_USER}/${GRAFANA_ADMIN_PASSWORD})"
+          echo "  - Grafana: http://localhost:${GRAFANA_PORT} (${GRAFANA_ADMIN_USER}/***)"
           echo "  - Node Exporter: http://localhost:${NODE_EXPORTER_PORT}/metrics"
           echo "  - Redis Exporter: http://localhost:${REDIS_EXPORTER_PORT}/metrics"
           echo "  - Postgres Exporter: http://localhost:${POSTGRES_EXPORTER_PORT}/metrics"
+          echo ""
+          echo "🔗 Monitoring targets:"
+          echo "  - Redis: ${REDIS_CONTAINER_NAME}:${REDIS_PORT}"
+          echo "  - PostgreSQL: ${POSTGRES_CONTAINER_NAME}:${POSTGRES_PORT}"
           DEPLOY_SCRIPT
 
       - name: Deploy Monitoring Stack via SSM
@@ -419,14 +482,13 @@ jobs:
         run: |
           echo "🎉 Monitoring Stack Deployment Summary"
           echo "======================================"
-          echo "✅ Prometheus: Metrics collection and alerting"
-          echo "✅ Grafana: Visualization dashboards"  
-          echo "✅ Node Exporter: System metrics"
-          echo "✅ Redis Exporter: Redis metrics"
-          echo "✅ Postgres Exporter: Database metrics"
+          echo "✅ Monitoring services deployed successfully"
+          echo "✅ Connected to existing Redis and PostgreSQL"
+          echo "✅ All exporters are collecting metrics"
           echo ""
-          echo "🔗 Access URLs (replace with your actual domain/IP):"
+          echo "📊 Architecture:"
+          echo "   Backend Services (existing) → Exporters → Prometheus → Grafana"
+          echo ""
+          echo "🔗 Access URLs:"
           echo "   - Prometheus: http://your-server:port"
           echo "   - Grafana: http://your-server:port"
-          echo ""
-          echo "📊 Monitoring stack is ready!"

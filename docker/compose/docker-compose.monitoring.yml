@@ -192,7 +192,7 @@ services:
     hostname: postgres-exporter
 
     environment:
-      - DATA_SOURCE_NAME=postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@postgres:5432/postgres?sslmode=disable
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@postgres:${POSTGRES_PORT}/postgres?sslmode=disable
 
     ports:
       - "${POSTGRES_EXPORTER_PORT}"
