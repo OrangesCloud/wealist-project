@@ -60,8 +60,7 @@ COMMAND=${1:-up}
 case $COMMAND in
     up)
         echo -e "${BLUE}🚀 개발 환경을 백그라운드로 시작합니다...${NC}"
-        # export된 환경 변수(VITE_API_BASE_URL)가 --env-file의 변수를 덮어씁니다.
-        docker compose $ENV_FILE_OPTION $COMPOSE_FILES up -d
+        docker compose $ENV_FILE_OPTION $COMPOSE_FILES up -d --build
         echo -e "${GREEN}✅ 개발 환경이 시작되었습니다.${NC}"
         echo -e "${BLUE}📊 서비스 접속 정보:${NC}"
         echo "   - Frontend:    http://localhost:3000"

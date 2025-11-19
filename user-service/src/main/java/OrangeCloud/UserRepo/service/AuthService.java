@@ -27,8 +27,7 @@ public class AuthService {
     private final UserProfileRepository userProfileRepository;
     private final JwtTokenProvider tokenProvider;
     private final RedisTemplate<String, Object> redisTemplate;
-    private final WorkspaceService workspaceService;
-
+    // private final WorkspaceService workspaceService;
 
     // ============================================================================
     // 로그아웃
@@ -68,8 +67,7 @@ public class AuthService {
         if (isTokenBlacklisted(refreshToken)) {
             log.warn("Refresh token is blacklisted");
             throw new OrangeCloud.UserRepo.exception.CustomJwtException(
-                    OrangeCloud.UserRepo.exception.ErrorCode.TOKEN_BLACKLISTED
-            );
+                    OrangeCloud.UserRepo.exception.ErrorCode.TOKEN_BLACKLISTED);
         }
 
         UUID userId = tokenProvider.getUserIdFromToken(refreshToken);
@@ -104,8 +102,35 @@ public class AuthService {
                 newRefreshToken,
                 user.getUserId(),
                 profile.getNickName(),
-                user.getEmail()
-        );
+                user.getEmail());
+    }
+
+    // ============================================================================
+    // 토큰 유효성 검증 (외부 서비스용)
+    // ============================================================================
+
+    /**
+     * Access Token의 유효성을 검증하고 사용자 ID를 반환합니다.
+     */
+    public UUID validateTokenAndGetUserId(String token) {
+        log.debug("Validating token for external service use.");
+
+        // 1. 토큰 유효성 검사 (서명, 만료 시간 확인)
+        // 토큰이 유효하지 않으면 이 시점에서 CustomJwtException이 throw됩니다.
+        tokenProvider.validateToken(token);
+
+        // 2. 토큰이 블랙리스트에 있는지 확인 (로그아웃된 토큰인지 확인)
+        if (isTokenBlacklisted(token)) {
+            log.warn("Attempted to use a blacklisted token.");
+            throw new OrangeCloud.UserRepo.exception.CustomJwtException(
+                    OrangeCloud.UserRepo.exception.ErrorCode.TOKEN_BLACKLISTED);
+        }
+
+        // 3. 토큰에서 User ID 추출
+        UUID userId = tokenProvider.getUserIdFromToken(token);
+        log.info("Token validated successfully, user ID: {}", userId);
+
+        return userId;
     }
 
     // ============================================================================

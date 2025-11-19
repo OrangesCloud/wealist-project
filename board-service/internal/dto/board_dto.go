@@ -78,3 +78,17 @@ type BoardDetailResponse struct {
 type BoardFilters struct {
 	CustomFields map[string]interface{} `json:"customFields,omitempty"`
 }
+
+// MoveBoardRequest represents request to move a board to another group
+type MoveBoardRequest struct {
+	ProjectID        uuid.UUID `json:"projectId" binding:"required"`
+	GroupByFieldName string    `json:"groupByFieldName" binding:"required"` // 예: "stage"
+	NewFieldValue    string    `json:"newFieldValue" binding:"required"`    // 예: "in_progress"
+}
+
+// MoveBoardResponse represents response after moving a board
+type MoveBoardResponse struct {
+	BoardID       string `json:"boardId"`
+	NewFieldValue string `json:"newFieldValue"`
+	Message       string `json:"message"`
+}

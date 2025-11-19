@@ -1,15 +1,16 @@
 // src/components/layout/ProjectContent.tsx
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Plus, ArrowUp, ArrowDown } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { getDefaultColorByIndex } from '../../constants/colors';
 import { AssigneeAvatarStack } from '../common/AvartarStack';
 import { ProjectResponse, BoardResponse, Column, ViewState, FieldOption } from '../../types/board';
-import { getBoardsByProject, updateBoard } from '../../api/board/boardService';
+import { getBoardsByProject, moveBoard } from '../../api/board/boardService';
 import { BoardDetailModal } from '../modals/board/BoardDetailModal';
 import { FilterBar } from '../modals/board/FilterBar';
+import { connectWebSocket, disconnectWebSocket, WS_BOARD_MTH } from '../../utils/websocket';
 
 interface ProjectContentProps {
   // Data
@@ -31,7 +32,6 @@ interface ProjectContentProps {
   showCreateBoard: boolean;
   setShowCreateBoard: (show: boolean) => void;
 }
-
 export const ProjectContent: React.FC<ProjectContentProps> = ({
   selectedProject,
   workspaceId,
@@ -168,10 +168,44 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
   }, [selectedProject, stageOptions]);
 
   useEffect(() => {
+    // selectedProject가 변경되었을 때, stageOptions가 로드되면 fetchBoards를 호출
     if (selectedProject && stageOptions && stageOptions.length > 0) {
       fetchBoards();
     }
+    // 💡 stageOptions에 대한 의존성을 명확히 합니다.
   }, [fetchBoards, selectedProject, stageOptions]);
+
+  // WebSocket!!
+  const wsConnectedRef = React.useRef(false);
+  const fetchBoardsRef = useRef(fetchBoards);
+
+  useEffect(() => {
+    fetchBoardsRef.current = fetchBoards;
+  }, [fetchBoards]);
+
+  // 💡 [수정] WebSocket 연결 useEffect
+  useEffect(() => {
+    if (selectedProject?.projectId && !wsConnectedRef.current) {
+      wsConnectedRef.current = true;
+      console.log('🔌 [WS] 연결 시도:', selectedProject.projectId);
+
+      connectWebSocket(selectedProject.projectId, (event) => {
+        console.log('🔊 [WS EVENT] 수신:', event);
+        if (WS_BOARD_MTH?.includes(event.type)) {
+          // 💡 ref를 통해 최신 fetchBoards 호출
+          fetchBoardsRef.current();
+        }
+      });
+    }
+
+    return () => {
+      console.log('🔌 [WS] 연결 해제');
+      disconnectWebSocket();
+      wsConnectedRef.current = false;
+    };
+  }, [selectedProject?.projectId]); // ✅ fetchBoards 제거!
+
+  //
 
   // 5. 드래그 앤 드롭 및 정렬 로직 (useCallback 유지)
   const handleDragStart = (board: BoardResponse, columnId: string): void => {
@@ -258,7 +292,6 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     );
 
     let filteredBoardsByCompletion = boardsToProcess;
-    console.log(showCompleted);
     if (!showCompleted) {
       const completedStageIds = stageOptions
         ?.filter((s) => s.optionLabel === '완료')
@@ -516,44 +549,15 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       // 🔥 UNASSIGNED로 이동하는 경우 해당 필드를 undefined로 설정
       const newFieldValue = targetColumnId === 'UNASSIGNED' ? undefined : targetColumnId;
 
-      console.log('🔍 [DRAG] viewState.currentView:', viewState.currentView);
-      console.log('🔍 [DRAG] fieldKeyName:', fieldKeyName);
-      console.log('🔍 [DRAG] draggedBoard.customFields:', draggedBoard.customFields);
-      console.log('🔍 [DRAG] targetColumnId:', targetColumnId);
-      console.log('🔍 [DRAG] newFieldValue:', newFieldValue);
-
-      // 1. 로컬 상태 업데이트를 위한 새 보드 생성
-      // const updatedBoard: BoardResponse = {
-      //   ...draggedBoard,
-      //   customFields: {
-      //     ...draggedBoard.customFields,
-      //     [fieldKeyName]: newFieldValue,
-      //   },
-      // };
-
-      // 🔥 수정: columns 대신 currentViewColumns 기반으로 업데이트
-      // const newColumns = currentViewColumns.map((col) => {
-      //   if (col.stageId === draggedFromColumn) {
-      //     return { ...col, boards: col.boards.filter((t) => t.boardId !== draggedBoard.boardId) };
-      //   }
-      //   if (col.stageId === targetColumnId) {
-      //     return { ...col, boards: [...col.boards, updatedBoard] };
-      //   }
-      //   return col;
-      // });
-
-      // 2. 낙관적 UI 업데이트
-      // 🔥 주의: stage 뷰가 아닐 때는 columns를 직접 업데이트하면 안됨
-      // fetchBoards를 호출하여 전체 데이터를 새로고침해야 함
-
       // 3. 🔥 API 호출 - 실제 DB 업데이트
       try {
-        await updateBoard(draggedBoard.boardId, {
-          customFields: {
-            ...draggedBoard.customFields,
-            [fieldKeyName]: newFieldValue,
-          },
+        // 💡 [핵심 수정] moveBoard API 사용
+        await moveBoard(draggedBoard.boardId, {
+          projectId: selectedProject.projectId,
+          groupByFieldName: fieldKeyName,
+          newFieldValue: newFieldValue,
         });
+
         console.log(
           `✅ [API SUCCESS] 보드 이동 완료: ${draggedBoard.title} → ${targetColumn.title} (${fieldKeyName}: ${newFieldValue})`,
         );
