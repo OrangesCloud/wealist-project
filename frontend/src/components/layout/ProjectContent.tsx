@@ -183,27 +183,32 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     fetchBoardsRef.current = fetchBoards;
   }, [fetchBoards]);
 
-  // 💡 [수정] WebSocket 연결 useEffect
+  // 💡 [수정] useEffect 수정
   useEffect(() => {
-    if (selectedProject?.projectId && !wsConnectedRef.current) {
+    if (!selectedProject?.projectId) return;
+
+    // 🔥 컴포넌트 마운트 시 1번만 연결
+    if (!wsConnectedRef.current) {
       wsConnectedRef.current = true;
-      console.log('🔌 [WS] 연결 시도:', selectedProject.projectId);
+      console.log('🔌 [WS] 연결 시작:', selectedProject.projectId);
 
       connectWebSocket(selectedProject.projectId, (event) => {
         console.log('🔊 [WS EVENT] 수신:', event);
         if (WS_BOARD_MTH?.includes(event.type)) {
-          // 💡 ref를 통해 최신 fetchBoards 호출
           fetchBoardsRef.current();
         }
       });
     }
 
+    // 🔥 클린업: 컴포넌트 언마운트 시에만 연결 해제
     return () => {
-      console.log('🔌 [WS] 연결 해제');
-      disconnectWebSocket();
-      wsConnectedRef.current = false;
+      if (wsConnectedRef.current) {
+        console.log('🔌 [WS] 컴포넌트 언마운트 - 연결 해제');
+        disconnectWebSocket();
+        wsConnectedRef.current = false;
+      }
     };
-  }, [selectedProject?.projectId]); // ✅ fetchBoards 제거!
+  }, [selectedProject?.projectId]);
 
   //
 
