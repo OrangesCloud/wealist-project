@@ -32,7 +32,7 @@ services:
     user: "0:0"  # root로 실행 (설정 파일 읽기 위해)
 
     command:
-      - '--config.file=/home/ubuntu/wealist/prometheus/prometheus-ec2.yml'
+      - '--config.file=/etc/prometheus/prometheus-ec2.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
