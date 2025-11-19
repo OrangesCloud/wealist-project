@@ -11,7 +11,7 @@ import (
 
 // TestMetricsInitialization tests that all metrics are properly initialized
 func TestMetricsInitialization(t *testing.T) {
-	m := New()
+	m := getTestMetrics()
 
 	// Test that all metrics are non-nil
 	if m.HTTPRequestsTotal == nil {

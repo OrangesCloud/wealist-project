@@ -90,7 +90,7 @@ func TestShouldSkipEndpoint(t *testing.T) {
 }
 
 func TestRecordHTTPRequest(t *testing.T) {
-	m := New()
+	m := getTestMetrics()
 
 	// Test recording a request
 	method := "GET"
