@@ -30,6 +30,7 @@ jobs:
         run: |
           EC2_ID=$(aws ssm get-parameter --name "/wealist/dev/cd/ec2_instance_id" --query "Parameter.Value" --output text --with-decryption)
           COMPOSE_DIR=$(aws ssm get-parameter --name "/wealist/dev/monitor/compose_file_path" --query "Parameter.Value" --output text)
+          
           PARAM_PREFIX=$(aws ssm get-parameter --name "/wealist/dev/cd/parameter_prefix" --query "Parameter.Value" --output text)
 
           echo "ec2_id=$EC2_ID" >> $GITHUB_OUTPUT
@@ -112,20 +113,6 @@ jobs:
                 echo 'Grafana 대기... (\${i}/40)'
                 sleep 6
               done\",
-              
-              \"# Postgres 간단 체크\",
-              \"for i in {1..20}; do
-                if docker exec wealist-postgres pg_isready -h localhost -U postgres > /dev/null 2>&1; then
-                  echo 'Postgres Ready!'
-                  break
-                fi
-                sleep 4
-              done\",
-              
-              \"# Redis 체크\",
-              \"if docker exec wealist-redis redis-cli ping | grep -q PONG; then
-                echo 'Redis PONG!'
-              fi\",
               
               \"echo '=== 최종 상태 ==='\",
               \"docker compose ps\",
