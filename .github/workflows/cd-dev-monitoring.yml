@@ -207,6 +207,8 @@ jobs:
           echo "📝 Updating Prometheus configuration..."
           PROMETHEUS_CONFIG_DIR="$(pwd)/prometheus/config"
           mkdir -p "${PROMETHEUS_CONFIG_DIR}"
+          ## 테스트팅
+          echo $(pwd)/prometheus/config
 
           # Decode template
           echo "${PROM_CFG_B64}" | base64 -d > "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
