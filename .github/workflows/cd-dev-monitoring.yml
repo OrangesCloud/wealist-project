@@ -98,7 +98,8 @@ jobs:
           POSTGRES_SUPERUSER_PASSWORD=$(load_secret "/db/postgres_superuser_password")
           POSTGRES_PORT=$(load_param "/db/postgres_port")
           POSTGRES_DB=$(load_param "/db/postgres_db")
-          
+          USER_SERVICE_PORT=$(load_param "/user_port")
+          BOARD_SERVICE_PORT=$(load_param "/board_port")
           
           
           # Load Redis parameters
@@ -301,13 +302,13 @@ jobs:
           mkdir -p prometheus/
           # 🔧 sed 치환 — 변수 값이 비어 있어도 무조건 치환되도록 동작함
           sed -i \
-              -e "s/{{USER_SERVICE_PORT}}/${USER_SERVICE_PORT}/g" \
-              -e "s/{{BOARD_SERVICE_PORT}}/${BOARD_SERVICE_PORT}/g" \
+              -e "s/{{USER_SERVICE_PORT}}/$(USER_SERVICE_PORT)/g" \
+              -e "s/{{BOARD_SERVICE_PORT}}/$(BOARD_SERVICE_PORT)/g" \
               -e "s/{{REDIS_EXPORTER_PORT}}/${REDIS_EXPORTER_PORT}/g" \
               -e "s/{{POSTGRES_EXPORTER_PORT}}/${POSTGRES_EXPORTER_PORT}/g" \
               -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
               -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
-              "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+              "$(PROMETHEUS_CONFIG_DIR)/prometheus-ec2.yml"
 
           # 템플릿 잔존 여부 확인
           if grep -q "{{" "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"; then
