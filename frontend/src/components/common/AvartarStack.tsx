@@ -24,28 +24,27 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({ members, onChatClick }
 
   // 🔥 온라인 사용자 목록 로드
   useEffect(() => {
-    const loadOnlineUsers = async () => {
-      setIsLoadingOnline(true);
-      try {
-        console.log('🔵 [AvatarStack] 온라인 사용자 로딩 시작...');
-        const users = await getOnlineUsers();
-        console.log('✅ [AvatarStack] 온라인 사용자 목록:', users);
-        setOnlineUsers(new Set(users));
-      } catch (error) {
-        console.error('❌ [AvatarStack] Failed to load online users:', error);
-        setOnlineUsers(new Set()); // 에러 시 빈 Set
-      } finally {
-        setIsLoadingOnline(false);
-      }
-    };
+    // const loadOnlineUsers = async () => {
+    //   setIsLoadingOnline(true);
+    //   try {
+    //     console.log('🔵 [AvatarStack] 온라인 사용자 로딩 시작...');
+    //     const users = await getOnlineUsers();
+    //     console.log('✅ [AvatarStack] 온라인 사용자 목록:', users);
+    //     setOnlineUsers(new Set(users));
+    //   } catch (error) {
+    //     console.error('❌ [AvatarStack] Failed to load online users:', error);
+    //     setOnlineUsers(new Set()); // 에러 시 빈 Set
+    //   } finally {
+    //     setIsLoadingOnline(false);
+    //   }
+    // };
 
     // 드롭다운 열릴 때만 로드
     if (showDropdown) {
-      loadOnlineUsers();
-
+      // loadOnlineUsers();
       // 10초마다 갱신 (드롭다운 열려있을 때만)
-      const interval = setInterval(loadOnlineUsers, 10000);
-      return () => clearInterval(interval);
+      // const interval = setInterval(loadOnlineUsers, 10000);
+      // return () => clearInterval(interval);
     }
   }, [showDropdown]);
 
