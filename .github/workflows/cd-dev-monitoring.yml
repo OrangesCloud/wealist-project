@@ -208,7 +208,7 @@ jobs:
           echo "🔧 Removing external service dependencies..."
           # Decode and save prometheus config
           echo "📝 Updating Prometheus configuration..."
-          여기확인
+          
         
           mkdir -p "${PROMETHEUS_CONFIG_DIR}"
           ## 테스트팅
