@@ -317,10 +317,10 @@ jobs:
           echo "🔧 Processing Prometheus template variables..."
           sed -i -e "s/{{USER_SERVICE_PORT}}/8080/g" \
                 -e "s/{{BOARD_SERVICE_PORT}}/8000/g" \
-                -e "s/{{REDIS_EXPORTER_PORT}}/${REDIS_EXPORTER_PORT}/g" \
-                -e "s/{{POSTGRES_EXPORTER_PORT}}/${POSTGRES_EXPORTER_PORT}/g" \
-                -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
-                -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
+                -e "s/${REDIS_EXPORTER_PORT}/${REDIS_EXPORTER_PORT}/g" \
+                -e "s/${POSTGRES_EXPORTER_PORT}/${POSTGRES_EXPORTER_PORT}/g" \
+                -e "s/${NODE_EXPORTER_PORT}/${NODE_EXPORTER_PORT}/g" \
+                -e "s/${PROMETHEUS_PORT}/${PROMETHEUS_PORT}/g" \
                 "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
           # 템플릿 변수가 제대로 치환되었는지 확인
           if grep -q "{{" "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"; then
