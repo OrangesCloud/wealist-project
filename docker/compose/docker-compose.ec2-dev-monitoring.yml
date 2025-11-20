@@ -44,7 +44,7 @@ services:
     # - ../../prometheus/config -> 프로젝트 루트의 prometheus/config 디렉토리
     # - :ro 플래그는 read-only 마운트를 의미하여 컨테이너가 설정 파일을 수정할 수 없도록 합니다
     volumes:
-      - /home/ubuntu/wealist/prometheus/config:/etc/prometheus:ro
+      - ${PROMETHEUS_CONFIG_DIR}:/etc/prometheus:ro
       - prometheus-data:/prometheus
 
     ports:

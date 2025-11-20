@@ -91,12 +91,16 @@ jobs:
           REDIS_EXPORTER_PORT=$(load_param "/monitor/redis_exporter_port")
           POSTGRES_EXPORTER_PORT=$(load_param "/monitor/postgres_exporter_port")
           NODE_EXPORTER_PORT=$(load_param "/monitor/node_exporter_port")
-          
+          PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config")
+
           # Load database parameters for postgres exporter
           POSTGRES_SUPERUSER=$(load_param "/db/postgres_superuser")
           POSTGRES_SUPERUSER_PASSWORD=$(load_secret "/db/postgres_superuser_password")
           POSTGRES_PORT=$(load_param "/db/postgres_port")
           POSTGRES_DB=$(load_param "/db/postgres_db")
+          USER_SERVICE_PORT=$(load_param "/user_port")
+          BOARD_SERVICE_PORT=$(load_param "/board_port")
+          
           
           # Load Redis parameters
           REDIS_PORT=$(load_param "/redis/port")
@@ -200,8 +204,16 @@ jobs:
           sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}:9121|g" docker-compose.ec2-dev-monitoring.yml
           sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}:9187|g" docker-compose.ec2-dev-monitoring.yml
           sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:9100|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${PROMETHEUS_CONFIG_DIR}|${PROMETHEUS_CONFIG_DIR}|g" docker-compose.ec2-dev-monitoring.yml
           # Remove depends_on for external services
           echo "🔧 Removing external service dependencies..."
+         
+          mkdir -p "${PROMETHEUS_CONFIG_DIR}"
+          ## 테스트팅
+          echo ${PROMETHEUS_CONFIG_DIR}
+
+          
+
           python3 -c "
           import yaml
           import sys
@@ -284,9 +296,34 @@ jobs:
           }
           # Decode and save prometheus config
           echo "📝 Updating Prometheus configuration..."
-          mkdir -p prometheus/
-          echo "${PROM_CFG_B64}" | base64 -d > etc/prometheus/prometheus-ec2.yml
-          # Validate YAML syntax before proceeding
+          mkdir -p ${PROMETHEUS_CONFIG_DIR}
+          echo "${PROM_CFG_B64}" | base64 -d > ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml
+
+          echo "🔧 Processing Prometheus template variables..."
+
+          # 🔧 sed 치환 — 변수 값이 비어 있어도 무조건 치환되도록 동작함
+          sed -i \
+              -e "s/{{USER_SERVICE_PORT}}/${USER_SERVICE_PORT}/g" \
+              -e "s/{{BOARD_SERVICE_PORT}}/${BOARD_SERVICE_PORT}/g" \
+              -e "s/{{REDIS_EXPORTER_PORT}}/${REDIS_EXPORTER_PORT}/g" \
+              -e "s/{{POSTGRES_EXPORTER_PORT}}/${POSTGRES_EXPORTER_PORT}/g" \
+              -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
+              -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
+              "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+
+          # 템플릿 잔존 여부 확인
+          if grep -q "{{" "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"; then
+              echo "❌ Template variables still found in Prometheus config:"
+              grep "{{" "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+              exit 1
+          else
+              echo "✅ Prometheus template variables processed successfully"
+          fi
+
+          # 📋 설정 파일 미리보기 (선택사항)
+          echo "📋 Prometheus config preview:"
+          head -20 "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+
           echo "🔍 Validating docker-compose file syntax..."
           if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml config >/dev/null 2>&1; then
             echo "❌ Invalid docker-compose file. Content:"
