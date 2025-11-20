@@ -98,6 +98,7 @@ jobs:
           POSTGRES_PORT=$(load_param "/db/postgres_port")
           POSTGRES_DB=$(load_param "/db/postgres_db")
           
+          
           # Load Redis parameters
           REDIS_PORT=$(load_param "/redis/port")
           REDIS_PASSWORD=$(load_secret "/redis/password")
@@ -202,6 +203,25 @@ jobs:
           sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:9100|g" docker-compose.ec2-dev-monitoring.yml
           # Remove depends_on for external services
           echo "🔧 Removing external service dependencies..."
+          # Decode and save prometheus config
+          echo "📝 Updating Prometheus configuration..."
+          PROMETHEUS_CONFIG_DIR="$(pwd)/prometheus/config"
+          mkdir -p "${PROMETHEUS_CONFIG_DIR}"
+
+          # Decode template
+          echo "${PROM_CFG_B64}" | base64 -d > "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+
+          # Replace variables with actual values 값 나중에 넣어야됨
+          sed -e "s/{{USER_SERVICE_PORT}}/8080/g" \
+              -e "s/{{BOARD_SERVICE_PORT}}/8000/g" \
+              -e "s/{{REDIS_EXPORTER_PORT}}/${REDIS_EXPORTER_PORT}/g" \
+              -e "s/{{POSTGRES_EXPORTER_PORT}}/${POSTGRES_EXPORTER_PORT}/g" \
+              -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
+              -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
+              "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml" > "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+
+          echo "✅ Prometheus configuration processed with environment variables"
+          echo "📋 Config file: ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
           python3 -c "
           import yaml
           import sys
