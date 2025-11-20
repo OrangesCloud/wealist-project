@@ -214,27 +214,7 @@ jobs:
           ## 테스트팅
           echo $(PROMETHEUS_CONFIG_DIR)
 
-          # Decode template
-          echo "${PROM_CFG_B64}" | base64 -d > "${PROMETHEUS_CONFIG_DIR}/prometheus-template.yml"
-
-          # Replace variables with actual values using temporary file
-          sed -e "s/{{USER_SERVICE_PORT}}/8080/g" \
-            -e "s/{{BOARD_SERVICE_PORT}}/8000/g" \
-            -e "s/{{REDIS_EXPORTER_PORT}}/${REDIS_EXPORTER_PORT}/g" \
-            -e "s/{{POSTGRES_EXPORTER_PORT}}/${POSTGRES_EXPORTER_PORT}/g" \
-            -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
-            -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
-            "${PROMETHEUS_CONFIG_DIR}/prometheus-template.yml" \
-            > "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
-
-          # Clean up temporary file
-          rm "${PROMETHEUS_CONFIG_DIR}/prometheus-template.yml"
-
-          echo "✅ Prometheus configuration processed with environment variables"
-          echo "📋 Config file: ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
           
-          echo "===== Prometheus Final Config ====="
-          cat "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
 
           python3 -c "
           import yaml
@@ -319,18 +299,17 @@ jobs:
           # Decode and save prometheus config
           echo "📝 Updating Prometheus configuration..."
           mkdir -p prometheus/
-          echo "${PROM_CFG_B64}" | base64 -d > ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml
-          # Validate YAML syntax before proceeding
-          # 🔧 템플릿 변수를 실제 값으로 치환
-          echo "🔧 Processing Prometheus template variables..."
-          sed -i -e "s/{{USER_SERVICE_PORT}}/8080/g" \
-                -e "s/{{BOARD_SERVICE_PORT}}/8000/g" \
-                -e "s/${REDIS_EXPORTER_PORT}/${REDIS_EXPORTER_PORT}/g" \
-                -e "s/${POSTGRES_EXPORTER_PORT}/${POSTGRES_EXPORTER_PORT}/g" \
-                -e "s/${NODE_EXPORTER_PORT}/${NODE_EXPORTER_PORT}/g" \
-                -e "s/${PROMETHEUS_PORT}/${PROMETHEUS_PORT}/g" \
-                "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
-          # 템플릿 변수가 제대로 치환되었는지 확인
+          # 🔧 sed 치환 — 변수 값이 비어 있어도 무조건 치환되도록 동작함
+          sed -i \
+              -e "s/{{USER_SERVICE_PORT}}/${USER_SERVICE_PORT}/g" \
+              -e "s/{{BOARD_SERVICE_PORT}}/${BOARD_SERVICE_PORT}/g" \
+              -e "s/{{REDIS_EXPORTER_PORT}}/${REDIS_EXPORTER_PORT}/g" \
+              -e "s/{{POSTGRES_EXPORTER_PORT}}/${POSTGRES_EXPORTER_PORT}/g" \
+              -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
+              -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
+              "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+
+          # 템플릿 잔존 여부 확인
           if grep -q "{{" "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"; then
               echo "❌ Template variables still found in Prometheus config:"
               grep "{{" "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
