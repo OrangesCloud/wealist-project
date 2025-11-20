@@ -68,7 +68,7 @@ definitions:
         example: 550e8400-e29b-41d4-a716-446655440002
         type: string
     type: object
-  handler.AddParticipantsRequest:
+  internal_handler.AddParticipantsRequest:
     properties:
       userIds:
         items:
@@ -78,7 +78,7 @@ definitions:
     required:
     - userIds
     type: object
-  handler.CreateChatRequest:
+  internal_handler.CreateChatRequest:
     properties:
       chatName:
         type: string
@@ -100,7 +100,7 @@ definitions:
     - chatType
     - workspaceId
     type: object
-  handler.MarkAsReadRequest:
+  internal_handler.MarkAsReadRequest:
     properties:
       messageIds:
         items:
@@ -110,7 +110,7 @@ definitions:
     required:
     - messageIds
     type: object
-  handler.SendMessageRequest:
+  internal_handler.SendMessageRequest:
     properties:
       content:
         type: string
@@ -154,7 +154,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.CreateChatRequest'
+          $ref: '#/definitions/internal_handler.CreateChatRequest'
       produces:
       - application/json
       responses:
@@ -274,7 +274,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.AddParticipantsRequest'
+          $ref: '#/definitions/internal_handler.AddParticipantsRequest'
       produces:
       - application/json
       responses:
@@ -483,7 +483,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.SendMessageRequest'
+          $ref: '#/definitions/internal_handler.SendMessageRequest'
       produces:
       - application/json
       responses:
@@ -654,7 +654,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.MarkAsReadRequest'
+          $ref: '#/definitions/internal_handler.MarkAsReadRequest'
       produces:
       - application/json
       responses:
@@ -687,6 +687,48 @@ paths:
       summary: 메시지 읽음 처리
       tags:
       - message
+  /presence/online:
+    get:
+      description: 현재 온라인인 사용자 목록을 가져옵니다
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              items:
+                type: string
+              type: array
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 온라인 사용자 목록
+      tags:
+      - presence
+  /presence/status/{userId}:
+    get:
+      description: 특정 사용자가 온라인인지 확인합니다
+      parameters:
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 사용자 온라인 여부 확인
+      tags:
+      - presence
   /ws/chat/{chatId}:
     get:
       description: 채팅방 WebSocket에 연결합니다

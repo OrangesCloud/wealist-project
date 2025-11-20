@@ -27,31 +27,32 @@ func SetupRouter(
 	router.Use(middleware.Recovery(logger))
 	router.Use(middleware.CORS(corsOrigins))
 
-	// Health Check (인증 불필요)
+	// Health Check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "healthy", "service": "chat-service"})
 	})
 
-	// Swagger UI (인증 불필요)
+	// Swagger UI
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	// Auth Middleware 생성
+	// Auth Middleware
 	authMiddleware := middleware.NewAuthMiddleware(userClient, logger)
 
-	// Presence Handler 추가
+	// 🔥 Presence Handler (router 내부에서 생성)
 	presenceHandler := handler.NewPresenceHandler(wsHandler)
-	// API Routes (인증 필요)
-	api := router.Group("/api")
+
+	// API Routes
+	api := router.Group("/api/chats")
 	api.Use(authMiddleware.RequireAuth())
 	{
 		// Chat Routes
-		api.POST("/chats", chatHandler.CreateChat)
-		api.GET("/chats/my", chatHandler.GetMyChats)
-		api.GET("/chats/workspace/:workspaceId", chatHandler.GetWorkspaceChats)
-		api.GET("/chats/:chatId", chatHandler.GetChat)
-		api.DELETE("/chats/:chatId", chatHandler.DeleteChat)
-		api.POST("/chats/:chatId/participants", chatHandler.AddParticipants)
-		api.DELETE("/chats/:chatId/participants/:userId", chatHandler.RemoveParticipant)
+		api.POST("", chatHandler.CreateChat)
+		api.GET("/my", chatHandler.GetMyChats)
+		api.GET("/workspace/:workspaceId", chatHandler.GetWorkspaceChats)
+		api.GET("/:chatId", chatHandler.GetChat)
+		api.DELETE("/:chatId", chatHandler.DeleteChat)
+		api.POST("/:chatId/participants", chatHandler.AddParticipants)
+		api.DELETE("/:chatId/participants/:userId", chatHandler.RemoveParticipant)
 
 		// Message Routes
 		api.GET("/messages/:chatId", messageHandler.GetMessages)
@@ -61,8 +62,9 @@ func SetupRouter(
 		api.GET("/messages/:chatId/unread", messageHandler.GetUnreadCount)
 		api.PUT("/messages/:chatId/last-read", messageHandler.UpdateLastRead)
 
-		// WebSocket (토큰은 쿼리 파라미터로 전달)
+		// WebSocket
 		api.GET("/ws/:chatId", wsHandler.HandleWebSocket)
+
 		// 🔥 Presence Routes
 		api.GET("/presence/online", presenceHandler.GetOnlineUsers)
 		api.GET("/presence/status/:userId", presenceHandler.CheckUserStatus)

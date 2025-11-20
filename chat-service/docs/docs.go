@@ -49,7 +49,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.CreateChatRequest"
+                            "$ref": "#/definitions/internal_handler.CreateChatRequest"
                         }
                     }
                 ],
@@ -328,7 +328,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.AddParticipantsRequest"
+                            "$ref": "#/definitions/internal_handler.AddParticipantsRequest"
                         }
                     }
                 ],
@@ -468,7 +468,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.MarkAsReadRequest"
+                            "$ref": "#/definitions/internal_handler.MarkAsReadRequest"
                         }
                     }
                 ],
@@ -629,7 +629,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.SendMessageRequest"
+                            "$ref": "#/definitions/internal_handler.SendMessageRequest"
                         }
                     }
                 ],
@@ -871,6 +871,74 @@ const docTemplate = `{
                 }
             }
         },
+        "/presence/online": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "현재 온라인인 사용자 목록을 가져옵니다",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "presence"
+                ],
+                "summary": "온라인 사용자 목록",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/presence/status/{userId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "특정 사용자가 온라인인지 확인합니다",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "presence"
+                ],
+                "summary": "사용자 온라인 여부 확인",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/ws/chat/{chatId}": {
             "get": {
                 "description": "채팅방 WebSocket에 연결합니다",
@@ -1007,7 +1075,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.AddParticipantsRequest": {
+        "internal_handler.AddParticipantsRequest": {
             "type": "object",
             "required": [
                 "userIds"
@@ -1022,7 +1090,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.CreateChatRequest": {
+        "internal_handler.CreateChatRequest": {
             "type": "object",
             "required": [
                 "chatType",
@@ -1054,7 +1122,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.MarkAsReadRequest": {
+        "internal_handler.MarkAsReadRequest": {
             "type": "object",
             "required": [
                 "messageIds"
@@ -1069,7 +1137,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.SendMessageRequest": {
+        "internal_handler.SendMessageRequest": {
             "type": "object",
             "required": [
                 "content"
