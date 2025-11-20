@@ -220,10 +220,10 @@ jobs:
           # Replace variables with actual values 값 나중에 넣어야됨
           sed -i -e "s/{{USER_SERVICE_PORT}}/8080/g" \
                 -e "s/{{BOARD_SERVICE_PORT}}/8000/g" \
-                -e "s/{{REDIS_EXPORTER_PORT}}/${REDIS_EXPORTER_PORT}/g" \
-                -e "s/{{POSTGRES_EXPORTER_PORT}}/${POSTGRES_EXPORTER_PORT}/g" \
-                -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
-                -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
+                -e "s/${REDIS_EXPORTER_PORT}/${REDIS_EXPORTER_PORT}/g" \
+                -e "s/${POSTGRES_EXPORTER_PORT}/${POSTGRES_EXPORTER_PORT}/g" \
+                -e "s/${NODE_EXPORTER_PORT}/${NODE_EXPORTER_PORT}/g" \
+                -e "s/${PROMETHEUS_PORT}/${PROMETHEUS_PORT}/g" \
                 "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml" > "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
 
           echo "✅ Prometheus configuration processed with environment variables"
