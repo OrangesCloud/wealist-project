@@ -313,6 +313,15 @@ jobs:
           mkdir -p prometheus/
           echo "${PROM_CFG_B64}" | base64 -d > ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml
           # Validate YAML syntax before proceeding
+          # 🔧 템플릿 변수를 실제 값으로 치환
+          echo "🔧 Processing Prometheus template variables..."
+          sed -i -e "s/{{USER_SERVICE_PORT}}/8080/g" \
+                -e "s/{{BOARD_SERVICE_PORT}}/8000/g" \
+                -e "s/{{REDIS_EXPORTER_PORT}}/${REDIS_EXPORTER_PORT}/g" \
+                -e "s/{{POSTGRES_EXPORTER_PORT}}/${POSTGRES_EXPORTER_PORT}/g" \
+                -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
+                -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
+                "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
           echo "🔍 Validating docker-compose file syntax..."
           if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml config >/dev/null 2>&1; then
             echo "❌ Invalid docker-compose file. Content:"
