@@ -91,12 +91,14 @@ jobs:
           REDIS_EXPORTER_PORT=$(load_param "/monitor/redis_exporter_port")
           POSTGRES_EXPORTER_PORT=$(load_param "/monitor/postgres_exporter_port")
           NODE_EXPORTER_PORT=$(load_param "/monitor/node_exporter_port")
-          
+          PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config")
+
           # Load database parameters for postgres exporter
           POSTGRES_SUPERUSER=$(load_param "/db/postgres_superuser")
           POSTGRES_SUPERUSER_PASSWORD=$(load_secret "/db/postgres_superuser_password")
           POSTGRES_PORT=$(load_param "/db/postgres_port")
           POSTGRES_DB=$(load_param "/db/postgres_db")
+          
           
           
           # Load Redis parameters
@@ -201,14 +203,16 @@ jobs:
           sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}:9121|g" docker-compose.ec2-dev-monitoring.yml
           sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}:9187|g" docker-compose.ec2-dev-monitoring.yml
           sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:9100|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${PROMETHEUS_CONFIG_DIR}|${PROMETHEUS_CONFIG_DIR}|g" docker-compose.ec2-dev-monitoring.yml
           # Remove depends_on for external services
           echo "🔧 Removing external service dependencies..."
           # Decode and save prometheus config
           echo "📝 Updating Prometheus configuration..."
-          PROMETHEUS_CONFIG_DIR="$(pwd)/prometheus/config"
+          여기확인
+        
           mkdir -p "${PROMETHEUS_CONFIG_DIR}"
           ## 테스트팅
-          echo $(pwd)/prometheus/config
+          echo $(PROMETHEUS_CONFIG_DIR)
 
           # Decode template
           echo "${PROM_CFG_B64}" | base64 -d > "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
