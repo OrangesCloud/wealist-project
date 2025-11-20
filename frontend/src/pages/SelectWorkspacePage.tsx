@@ -9,7 +9,7 @@ import {
   createJoinRequest,
   getPublicWorkspaces,
   inviteUser,
-} from '../api/user/userService';
+} from '../api/userService';
 import { Search, Plus, X, AlertCircle, Settings, LogOut } from 'lucide-react';
 import {
   CreateWorkspaceRequest,

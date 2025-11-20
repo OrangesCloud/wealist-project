@@ -10,7 +10,7 @@
 import React, { useState, useRef, ChangeEvent, useEffect } from 'react';
 import { X, Camera } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { updateMyProfile, getAllMyProfiles, getMyWorkspaces } from '../../../api/user/userService';
+import { updateMyProfile, getAllMyProfiles, getMyWorkspaces } from '../../../api/userService';
 import {
   UserProfileResponse,
   // WorkspaceResponse,

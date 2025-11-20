@@ -36,7 +36,7 @@ Board Service API와 User Service API를 활용하여 칸반 보드 시스템을
 #### 1. Project API
 - `GET /api/projects?workspace_id={id}` - 프로젝트 목록 조회
 - `POST /api/projects` - 프로젝트 생성
-- **구현 위치**: `frontend/src/api/board/boardService.ts`
+- **구현 위치**: `frontend/src/api/boardService.ts`
 - **사용 컴포넌트**: `Dashboard.tsx`, `CreateProjectModal.tsx`
 
 **주의사항**:
@@ -49,7 +49,7 @@ Board Service API와 User Service API를 활용하여 칸반 보드 시스템을
 - `GET /api/boards/{id}` - 보드 상세 조회
 - `PUT /api/boards/{id}` - 보드 수정
 - `DELETE /api/boards/{id}` - 보드 삭제
-- **구현 위치**: `frontend/src/api/board/boardService.ts`
+- **구현 위치**: `frontend/src/api/boardService.ts`
 - **사용 컴포넌트**: `Dashboard.tsx`, `CreateBoardModal.tsx`, `BoardDetailModal.tsx`
 
 #### 3. Custom Fields API
@@ -60,7 +60,7 @@ Board Service API와 User Service API를 활용하여 칸반 보드 시스템을
 - `PUT /api/custom-fields/stages/{id}` - Stage 수정
 - `DELETE /api/custom-fields/stages/{id}` - Stage 삭제
 - *(Role, Importance도 동일한 CRUD 패턴)*
-- **구현 위치**: `frontend/src/api/board/boardService.ts`
+- **구현 위치**: `frontend/src/api/boardService.ts`
 - **사용 컴포넌트**: `CustomFieldManageModal.tsx`, `Dashboard.tsx`
 
 #### 4. Comment API
@@ -68,13 +68,13 @@ Board Service API와 User Service API를 활용하여 칸반 보드 시스템을
 - `POST /api/comments` - 댓글 작성
 - `PUT /api/comments/{id}` - 댓글 수정
 - `DELETE /api/comments/{id}` - 댓글 삭제
-- **구현 위치**: `frontend/src/api/board/boardService.ts`
+- **구현 위치**: `frontend/src/api/boardService.ts`
 - **사용 컴포넌트**: `BoardDetailModal.tsx`
 
 #### 5. User Order API
 - `PUT /api/projects/{id}/orders/stage-columns` - Stage 컬럼 순서 저장
 - `PUT /api/projects/{id}/orders/stage-boards/{stageId}` - Stage 내 보드 순서 저장
-- **구현 위치**: `frontend/src/api/board/boardService.ts`
+- **구현 위치**: `frontend/src/api/boardService.ts`
 - **사용 컴포넌트**: `Dashboard.tsx` (드래그 앤 드롭)
 
 ### 🔄 부분 구현

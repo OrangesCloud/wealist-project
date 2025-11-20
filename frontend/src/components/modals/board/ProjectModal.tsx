@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 // 💡 [수정] 정적 Import로 변경하고, 토큰 인수가 제거된 함수를 사용합니다.
-import { createProject, updateProject } from '../../../api/board/boardService';
+import { createProject, updateProject } from '../../../api/boardService';
 // 💡 [수정] types/board.ts에서 ProjectResponse를 가져옵니다.
 import { ProjectResponse } from '../../../types/board';
 

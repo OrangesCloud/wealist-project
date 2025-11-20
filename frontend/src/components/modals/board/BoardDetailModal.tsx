@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, AlertCircle, Tag, CheckSquare, MessageSquare, Send, Edit2, Trash2 } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { BoardResponse, FieldOption } from '../../../types/board';
-import { getBoard, deleteBoard } from '../../../api/board/boardService';
-import { getWorkspaceMembers } from '../../../api/user/userService';
+import { getBoard, deleteBoard } from '../../../api/boardService';
+import { getWorkspaceMembers } from '../../../api/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
 
 interface BoardDetailModalProps {

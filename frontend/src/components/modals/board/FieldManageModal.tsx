@@ -5,7 +5,7 @@ import { X, Plus, Trash2, Tag, CheckSquare, AlertCircle, Menu } from 'lucide-rea
 import { useTheme } from '../../../contexts/ThemeContext';
 
 import { FieldOptionResponse } from '../../../types/board';
-import { getFieldOptions, deleteFieldOption } from '../../../api/board/boardService';
+import { getFieldOptions, deleteFieldOption } from '../../../api/boardService';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
 
 interface CustomFieldManagerModalProps {

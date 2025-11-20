@@ -18,7 +18,7 @@ import {
   updateMemberRole,
   removeMember,
   inviteUser,
-} from '../../../../../api/user/userService';
+} from '../../../../../api/userService';
 
 interface WorkspaceMembersTabProps {
   workspaceId: string;

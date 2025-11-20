@@ -13,8 +13,8 @@ import { ProjectContent } from '../components/layout/ProjectContent';
 import UserProfileModal from '../components/modals/user/UserProfileModal';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
-import { getProjects, getProjectInitSettings } from '../api/board/boardService';
-import { getWorkspaceMembers } from '../api/user/userService';
+import { getProjects, getProjectInitSettings } from '../api/boardService';
+import { getWorkspaceMembers } from '../api/userService';
 
 import {
   ProjectResponse,
@@ -235,6 +235,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     <MainLayout
       onLogout={onLogout}
       workspaceId={currentWorkspaceId}
+      projectId={selectedProject?.projectId} // 🔥 추가
       onProfileModalOpen={() => toggleUiState('showUserProfile', true)}
     >
       {/* 1. 헤더 영역 */}

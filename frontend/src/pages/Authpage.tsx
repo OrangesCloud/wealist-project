@@ -15,6 +15,7 @@ const OAUTH_BASE =
 
 // ⚠️ 백엔드 OAuth2 인증 시작 엔드포인트
 const GOOGLE_AUTH_URL = `${OAUTH_BASE}/oauth2/authorization/google`;
+console.log(GOOGLE_AUTH_URL);
 const AuthPage: React.FC = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ const AuthPage: React.FC = () => {
 
   // Google 로그인 핸들러: 리다이렉션만 수행
   const handleGoogleLogin = () => {
+    console.log(OAUTH_BASE);
     setError(null);
     setIsLoading(true);
 

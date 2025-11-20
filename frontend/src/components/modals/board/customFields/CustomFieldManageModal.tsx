@@ -10,7 +10,7 @@ import {
   CreateFieldOptionRequest,
 } from '../../../../types/board';
 import { MODERN_CUSTOM_FIELD_COLORS } from './constants/colors';
-import { createFieldOption } from '../../../../api/board/boardService';
+import { createFieldOption } from '../../../../api/boardService';
 
 interface LocalFieldOption {
   label: string;
