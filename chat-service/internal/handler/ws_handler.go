@@ -32,6 +32,7 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+
 type WSMessage struct {
 	Type        string                 `json:"type"`
 	ChatID      string                 `json:"chatId,omitempty"`
@@ -54,13 +55,18 @@ type Client struct {
 	hub       *Hub
 }
 
+
 type Hub struct {
-	clients    map[uuid.UUID]map[*Client]bool
-	clientsMu  sync.RWMutex
-	register   chan *Client
-	unregister chan *Client
-	broadcast  chan []byte
-	logger     *zap.Logger
+	clients        map[uuid.UUID]map[*Client]bool
+	clientsMu      sync.RWMutex
+	register       chan *Client
+	unregister     chan *Client
+	broadcast      chan []byte
+	logger         *zap.Logger
+	
+	// 🔥 온라인 상태 추가
+	onlineUsers    map[uuid.UUID]bool // userID -> isOnline
+	onlineUsersMu  sync.RWMutex
 }
 
 type WSHandler struct {
@@ -78,11 +84,12 @@ func NewWSHandler(
 	chatService service.ChatService,
 ) *WSHandler {
 	hub := &Hub{
-		clients:    make(map[uuid.UUID]map[*Client]bool),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		broadcast:  make(chan []byte, 256),
-		logger:     logger,
+		clients:      make(map[uuid.UUID]map[*Client]bool),
+		register:     make(chan *Client),
+		unregister:   make(chan *Client),
+		broadcast:    make(chan []byte, 256),
+		logger:       logger,
+		onlineUsers:  make(map[uuid.UUID]bool), // 🔥 초기화
 	}
 
 	go hub.run()
@@ -106,9 +113,18 @@ func (h *Hub) run() {
 			}
 			h.clients[client.chatID][client] = true
 			h.clientsMu.Unlock()
+			
+			// 🔥 온라인 상태 업데이트
+			h.onlineUsersMu.Lock()
+			h.onlineUsers[client.userID] = true
+			h.onlineUsersMu.Unlock()
+			
 			h.logger.Info("Client registered",
 				zap.String("chatId", client.chatID.String()),
 				zap.String("userId", client.userID.String()))
+			
+			// 🔥 온라인 알림 브로드캐스트
+			h.broadcastUserStatus(client.userID, true)
 
 		case client := <-h.unregister:
 			h.clientsMu.Lock()
@@ -122,11 +138,85 @@ func (h *Hub) run() {
 				}
 			}
 			h.clientsMu.Unlock()
+			
+			// 🔥 온라인 상태 확인 (다른 채팅방에도 연결되어 있는지 확인)
+			isStillOnline := false
+			h.clientsMu.RLock()
+			for _, chatClients := range h.clients {
+				for c := range chatClients {
+					if c.userID == client.userID {
+						isStillOnline = true
+						break
+					}
+				}
+				if isStillOnline {
+					break
+				}
+			}
+			h.clientsMu.RUnlock()
+			
+			if !isStillOnline {
+				h.onlineUsersMu.Lock()
+				delete(h.onlineUsers, client.userID)
+				h.onlineUsersMu.Unlock()
+				
+				// 🔥 오프라인 알림 브로드캐스트
+				h.broadcastUserStatus(client.userID, false)
+			}
+			
 			h.logger.Info("Client unregistered",
 				zap.String("chatId", client.chatID.String()),
 				zap.String("userId", client.userID.String()))
 		}
 	}
+}
+
+// 🔥 사용자 온라인 상태 브로드캐스트
+func (h *Hub) broadcastUserStatus(userID uuid.UUID, isOnline bool) {
+	status := "OFFLINE"
+	if isOnline {
+		status = "ONLINE"
+	}
+	
+	payload, _ := json.Marshal(WSMessage{
+		Type:   "USER_STATUS",
+		UserID: userID.String(),
+		Payload: map[string]interface{}{
+			"status": status,
+		},
+	})
+	
+	// 모든 채팅방에 브로드캐스트
+	h.clientsMu.RLock()
+	defer h.clientsMu.RUnlock()
+	
+	for _, chatClients := range h.clients {
+		for client := range chatClients {
+			select {
+			case client.send <- payload:
+			default:
+			}
+		}
+	}
+}
+
+// 🔥 온라인 사용자 목록 가져오기 (API용)
+func (h *Hub) GetOnlineUsers() []string {
+	h.onlineUsersMu.RLock()
+	defer h.onlineUsersMu.RUnlock()
+	
+	users := make([]string, 0, len(h.onlineUsers))
+	for userID := range h.onlineUsers {
+		users = append(users, userID.String())
+	}
+	return users
+}
+
+// 🔥 특정 사용자 온라인 여부 확인 (API용)
+func (h *Hub) IsUserOnline(userID uuid.UUID) bool {
+	h.onlineUsersMu.RLock()
+	defer h.onlineUsersMu.RUnlock()
+	return h.onlineUsers[userID]
 }
 
 func (h *Hub) broadcastToChat(chatID uuid.UUID, message []byte) {

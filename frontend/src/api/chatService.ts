@@ -5,6 +5,60 @@ import { AxiosResponse } from 'axios';
 import type { Chat, Message, CreateChatRequest, SendMessageRequest } from '../types/chat';
 
 /**
+ * 🔥 DM 채팅방 생성 또는 기존 채팅방 가져오기
+ * @param targetUserId 대화 상대방 userId
+ * @param workspaceId 워크스페이스 ID
+ * @returns chatId
+ */
+export const createOrGetDMChat = async (
+  targetUserId: string,
+  workspaceId: string,
+): Promise<string> => {
+  try {
+    console.log('🔍 DM 채팅방 찾기/생성:', { targetUserId, workspaceId });
+
+    // 1. 내 채팅방 목록 가져오기
+    const myChats = await getMyChats();
+    console.log('📋 내 채팅방 목록:', myChats.length, '개');
+
+    // 2. 이미 존재하는 DM 채팅방 찾기
+    // TODO: 백엔드에서 participants 정보를 제공해야 정확한 매칭 가능
+    // 현재는 chatType이 DM인 것 중에서 찾음
+    const existingDM = myChats.find((chat) => {
+      if (chat.chatType !== 'DM') return false;
+
+      // participants가 있으면 확인
+      if (chat.participants) {
+        const participantUserIds = chat.participants.map((p) => p.userId);
+        return participantUserIds.includes(targetUserId);
+      }
+
+      // participants가 없으면 일단 넘어감 (새로 생성)
+      return false;
+    });
+
+    if (existingDM) {
+      console.log('✅ 기존 DM 채팅방 사용:', existingDM.chatId);
+      return existingDM.chatId;
+    }
+
+    // 3. 없으면 새로 생성
+    console.log('🆕 새 DM 채팅방 생성 중...');
+    const newChat = await createChat({
+      workspaceId,
+      chatType: 'DM',
+      participantIds: [targetUserId],
+    });
+
+    console.log('✅ 새 채팅방 생성 완료:', newChat.chatId);
+    return newChat.chatId;
+  } catch (error) {
+    console.error('❌ Failed to create or get DM chat:', error);
+    throw error;
+  }
+};
+
+/**
  * 채팅방 생성
  * [API] POST /api/chats
  */

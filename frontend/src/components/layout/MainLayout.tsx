@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { UserProfileResponse } from '../../types/user';
+import { UserProfileResponse, WorkspaceMemberResponse } from '../../types/user';
 import { getMyProfile } from '../../api/userService';
+import { createOrGetDMChat } from '../../api/chatService';
 import { Sidebar } from './Sidebar';
 import { UserMenu } from './UserMenu';
-import { ChatManager } from '../chat/ChatManager';
+import { ChatPanel } from '../chat/chatPanel';
+import { ChatListPanel } from '../chat/ChatListPanel';
 
 interface MainLayoutProps {
   onLogout: () => void;
@@ -14,6 +16,7 @@ interface MainLayoutProps {
   projectId?: string;
   children: React.ReactNode;
   onProfileModalOpen: () => void;
+  onStartChat?: (member: WorkspaceMemberResponse) => void;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
@@ -30,6 +33,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [isLoadingChat, setIsLoadingChat] = useState(false);
 
   const sidebarWidth = 'w-16 sm:w-20';
 
@@ -47,6 +52,27 @@ const MainLayout: React.FC<MainLayoutProps> = ({
     };
     fetchUserProfile();
   }, []);
+
+  // 🔥 채팅 시작 핸들러
+  const handleStartChat = async (member: WorkspaceMemberResponse) => {
+    setIsLoadingChat(true);
+    try {
+      console.log('🔵 채팅 시작:', member.userName);
+
+      // 1. DM 채팅방 생성 또는 기존 채팅방 가져오기
+      const chatId = await createOrGetDMChat(member.userId, workspaceId);
+      console.log('✅ 채팅방 ID:', chatId);
+
+      // 2. ChatPanel 열기
+      setActiveChatId(chatId);
+      setIsChatOpen(true);
+    } catch (error) {
+      console.error('❌ Failed to start chat:', error);
+      alert('채팅방을 열 수 없습니다.');
+    } finally {
+      setIsLoadingChat(false);
+    }
+  };
 
   // 외부 클릭 감지 (UserMenu)
   useEffect(() => {
@@ -90,8 +116,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         workspaceId={workspaceId}
         userProfile={userProfile}
         isChatActive={isChatOpen}
-        onChatToggle={() => setIsChatOpen(!isChatOpen)}
+        onChatToggle={() => {
+          setIsChatOpen(!isChatOpen);
+          if (isChatOpen) {
+            setActiveChatId(null); // 채팅 닫을 때 활성 채팅 초기화
+          }
+        }}
         onUserMenuToggle={() => setShowUserMenu(!showUserMenu)}
+        onStartChat={handleStartChat}
       />
 
       {/* 메인 콘텐츠 */}
@@ -99,7 +131,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         className="flex-grow flex flex-col relative z-10"
         style={{
           marginLeft: sidebarWidth,
-          marginRight: isChatOpen ? '20rem' : '0',
+          marginRight: isChatOpen && activeChatId ? '20rem' : '0',
           transition: 'margin-right 0.3s ease',
           minHeight: '100vh',
         }}
@@ -107,13 +139,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         {children}
       </main>
 
-      {/* 채팅 관리자 */}
-      <ChatManager
-        workspaceId={workspaceId}
-        projectId={projectId}
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-      />
+      {/* 🔥 ChatPanel 또는 ChatList */}
+      {isChatOpen && (
+        <>
+          {activeChatId ? (
+            // 특정 채팅방 열림
+            <ChatPanel
+              chatId={activeChatId}
+              onClose={() => {
+                setActiveChatId(null);
+                setIsChatOpen(false);
+              }}
+              onBack={() => setActiveChatId(null)} // 뒤로가기 → 채팅 리스트로
+            />
+          ) : (
+            // 채팅 리스트
+            <ChatListPanel
+              workspaceId={workspaceId}
+              onChatSelect={(chatId) => setActiveChatId(chatId)}
+              onClose={() => setIsChatOpen(false)}
+            />
+          )}
+        </>
+      )}
 
       {/* 유저 메뉴 */}
       {showUserMenu && (
@@ -124,6 +172,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             onLogout={onLogout}
             onClose={() => setShowUserMenu(false)}
           />
+        </div>
+      )}
+
+      {/* 🔥 채팅 로딩 오버레이 */}
+      {isLoadingChat && (
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 shadow-xl">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto" />
+            <p className="mt-3 text-sm text-gray-600">채팅방을 여는 중...</p>
+          </div>
         </div>
       )}
     </div>

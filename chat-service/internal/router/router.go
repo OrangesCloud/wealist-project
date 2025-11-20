@@ -38,6 +38,8 @@ func SetupRouter(
 	// Auth Middleware 생성
 	authMiddleware := middleware.NewAuthMiddleware(userClient, logger)
 
+	// Presence Handler 추가
+	presenceHandler := handler.NewPresenceHandler(wsHandler)
 	// API Routes (인증 필요)
 	api := router.Group("/api")
 	api.Use(authMiddleware.RequireAuth())
@@ -61,6 +63,9 @@ func SetupRouter(
 
 		// WebSocket (토큰은 쿼리 파라미터로 전달)
 		api.GET("/ws/:chatId", wsHandler.HandleWebSocket)
+		// 🔥 Presence Routes
+		api.GET("/presence/online", presenceHandler.GetOnlineUsers)
+		api.GET("/presence/status/:userId", presenceHandler.CheckUserStatus)
 	}
 
 	return router

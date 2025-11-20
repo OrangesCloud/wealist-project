@@ -12,6 +12,7 @@ interface ProjectHeaderProps {
   projects: ProjectResponse[];
   selectedProject: ProjectResponse | null;
   workspaceMembers: WorkspaceMemberResponse[];
+  onStartChat?: (member: WorkspaceMemberResponse) => void; // 🔥 추가
 
   // State Handlers
   setSelectedProject: (project: ProjectResponse | null) => void;
@@ -38,6 +39,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
   showProjectSelector,
   setShowProjectSelector,
   canAccessSettings,
+  onStartChat, // 🔥 추가
 }) => {
   const { theme } = useTheme();
   const projectSelectorRef = useRef<HTMLDivElement>(null);
@@ -155,15 +157,14 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
           </div>
         )}
       </div>
+      {/* Right: Avatar Stack with Chat */}
       {selectedProject && (
-        <button
-          className={`flex items-center gap-2 p-1 rounded-lg transition ${
-            canAccessSettings ? 'hover:bg-blue-100' : 'hover:bg-gray-100'
-          }`}
-          title="조직원"
-        >
-          <AvatarStack members={workspaceMembers} />
-        </button>
+        <div className="flex items-center gap-2">
+          <AvatarStack
+            members={workspaceMembers}
+            onChatClick={onStartChat} // 🔥 채팅 콜백 연결
+          />
+        </div>
       )}
     </header>
   );

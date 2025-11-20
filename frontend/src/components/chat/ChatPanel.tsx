@@ -4,13 +4,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChatWebSocket } from '../../hooks/useChatWebsocket';
 import { getMessages } from '../../api/chatService';
 import type { Message } from '../../types/chat';
+import { ChevronLeft } from 'lucide-react';
 
 interface ChatPanelProps {
   chatId: string;
   onClose: () => void;
+  onBack?: () => void; // 🔥 추가
 }
 
-export const ChatPanel: React.FC<ChatPanelProps> = ({ chatId, onClose }) => {
+export const ChatPanel: React.FC<ChatPanelProps> = ({ chatId, onClose, onBack }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -79,6 +81,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chatId, onClose }) => {
       {/* 헤더 */}
       <div className="p-4 border-b">
         <div className="flex items-center justify-between">
+          {/* 🔥 뒤로가기 버튼 추가 */}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-1 hover:bg-gray-100 rounded transition"
+              title="채팅 목록으로"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
           <h3 className="font-bold">채팅</h3>
           <button onClick={onClose}>✕</button>
         </div>

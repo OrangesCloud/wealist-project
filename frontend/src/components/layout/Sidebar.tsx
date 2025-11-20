@@ -4,7 +4,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, MessageSquare, Bell, File } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
-import type { UserProfileResponse } from '../../types/user';
+import type { UserProfileResponse, WorkspaceMemberResponse } from '../../types/user';
 
 interface SidebarProps {
   workspaceId: string;
@@ -12,6 +12,7 @@ interface SidebarProps {
   isChatActive: boolean;
   onChatToggle: () => void;
   onUserMenuToggle: () => void;
+  onStartChat?: (member: WorkspaceMemberResponse) => Promise<void>; 
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -20,6 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isChatActive,
   onChatToggle,
   onUserMenuToggle,
+  onStartChat,
 }) => {
   const navigate = useNavigate();
   const { theme } = useTheme();
