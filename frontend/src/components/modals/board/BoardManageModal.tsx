@@ -129,6 +129,11 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
       return;
     }
 
+    if (!selectedImportanceId) {
+      setError('중요도를 선택해주세요.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -408,7 +413,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                 <div className="relative importance-dropdown-container">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <AlertCircle className="w-4 h-4 inline mr-1" />
-                    중요도
+                    중요도 <span className="text-red-500">*</span>
                   </label>
                   <button
                     type="button"
