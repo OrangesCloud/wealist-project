@@ -57,6 +57,7 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/auth/signup").permitAll()
                                                 .requestMatchers("/api/auth/login").permitAll()
                                                 .requestMatchers("/api/auth/refresh").permitAll()
+                                                .requestMatchers("/api/auth/validate").permitAll() // 🔥 이 라인을 추가해야 합니다.
                                                 // OAuth2 로그인 경로 허용
                                                 .requestMatchers("/login/oauth2/**").permitAll()
                                                 .requestMatchers("/oauth2/**").permitAll()
