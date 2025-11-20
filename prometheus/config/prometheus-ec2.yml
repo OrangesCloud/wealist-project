@@ -5,15 +5,15 @@ scrape_configs:
 
   # User-Service (Spring Boot)
   - job_name: 'wealist-user'
-    metrics_path: '/actuator/prometheus'
+    metrics_path: 'api/users/actuator/prometheus'
     static_configs:
-      - targets: ['user-service:8080']
+      - targets: ['localhost:8080']
     scrape_interval: 10s
 
   # Board-Service (Go)
   - job_name: 'wealist-board'
     static_configs:
-      - targets: ['board-service:8000']
+      - targets: ['localhost:8000']
     metrics_path: /metrics
     scrape_interval: 5s
 

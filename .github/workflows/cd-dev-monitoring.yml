@@ -407,8 +407,6 @@ jobs:
           echo "  - Postgres Exporter: http://localhost:${POSTGRES_EXPORTER_PORT}/metrics"
           echo ""
           echo "🔗 Monitoring targets:"
-          echo "  - Redis: ${REDIS_CONTAINER}:6379"
-          echo "  - PostgreSQL: ${POSTGRES_CONTAINER}:5432"
           DEPLOY_SCRIPT
       - name: Deploy Monitoring Stack via SSM
         id: deploy
