@@ -103,19 +103,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       // 데이터 처리 로직
       const stageMap = new Map<string, { stage: FieldOption; boards: BoardResponse[] }>();
 
-      // 🔥 미분류 컬럼 추가 - fieldType 제거
-      const UNASSIGNED_ID = 'UNASSIGNED';
-      stageMap.set(UNASSIGNED_ID, {
-        stage: {
-          optionId: UNASSIGNED_ID,
-          optionValue: UNASSIGNED_ID,
-          optionLabel: '미분류',
-        } as FieldOption,
-        boards: [],
-      });
-
       stages.forEach((stage: FieldOption) => {
-        // 여기 걸러야하나?
         stageMap.set(stage.optionValue, { stage, boards: [] });
       });
 
@@ -125,35 +113,18 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         if (stageId && stageMap.has(stageId)) {
           stageMap.get(stageId)!.boards.push(board);
         } else {
-          // 🔥 stage가 없거나 유효하지 않으면 미분류로
-          stageMap.get(UNASSIGNED_ID)!.boards.push(board);
-          console.warn(
-            `⚠️ 보드 "${board.title}"가 미분류로 이동되었습니다. (Stage ID: ${stageId})`,
-          );
+          console.warn(`⚠️ 보드 "${board.title}"에 유효하지 않은 Stage ID가 있습니다: ${stageId}`);
         }
       });
 
-      // 🔥 미분류를 제외한 나머지만 정렬
-      const sortedStages = Array.from(stageMap.values())
-        .filter(({ stage }) => stage.optionValue !== UNASSIGNED_ID)
-        .sort((a, b) => (a.stage as any).displayOrder - (b.stage as any).displayOrder);
-
-      // 🔥 미분류를 맨 앞에 추가
-      const unassignedColumn = stageMap.get(UNASSIGNED_ID);
-      const newColumns: Column[] = [
-        {
-          stageId: UNASSIGNED_ID,
-          title: '미분류',
-          color: '#B3B3B3',
-          boards: unassignedColumn?.boards || [],
-        },
-        ...sortedStages.map(({ stage, boards }) => ({
+      const newColumns: Column[] = Array.from(stageMap.values())
+        .sort((a, b) => (a.stage as any).displayOrder - (b.stage as any).displayOrder)
+        .map(({ stage, boards }) => ({
           stageId: stage.optionValue,
           title: stage.optionLabel,
           color: (stage as any).color,
           boards: boards,
-        })),
-      ];
+        }));
 
       console.log('📌 최종 newColumns:', newColumns);
       setColumns(newColumns);
@@ -285,11 +256,15 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         const roleId = board.customFields?.role;
         const importanceId = board.customFields?.importance;
         const stageId = board.customFields?.stage;
+
+        // 🔥 [핵심 수정] stageOption을 먼저 찾아서 optionValue 사용
+        const stageOption = getStageOption(stageId);
+
         return {
           ...board,
-          stageName: getStageOption(stageId)?.optionLabel || column.title,
-          stageColor: (getStageOption(stageId) as any)?.color || column.color,
-          stageId: stageId,
+          stageName: stageOption?.optionLabel || column.title,
+          stageColor: (stageOption as any)?.color || column.color,
+          stageId: stageOption?.optionValue || stageId, // 🔥 optionValue 사용
           roleOption: getRoleOption(roleId),
           importanceOption: getImportanceOption(importanceId),
         };
@@ -387,33 +362,13 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
           options = fieldOptionsLookup?.importances || [];
         }
 
-        const UNASSIGNED_ID = 'UNASSIGNED';
-        const emptyColumns: Column[] = [
-          {
-            stageId: UNASSIGNED_ID,
-            title: '미분류',
-            color: '#B3B3B3',
-            boards: [],
-          },
-          ...options.map((option) => ({
-            stageId: option.optionValue,
-            title: option.optionLabel,
-            color: (option as any).color, // 타입 캐스팅 필요
-            boards: [],
-          })),
-        ];
-        // 💡 미분류를 제외한 나머지 컬럼만 정렬 (stage의 경우 fetchBoards에서 이미 정렬됨)
-        if (groupByField !== 'stage') {
-          emptyColumns.sort((a, b) => {
-            if (a.stageId === UNASSIGNED_ID) return -1;
-            if (b.stageId === UNASSIGNED_ID) return 1;
-            const orderA =
-              (options.find((o) => o.optionValue === a.stageId) as any)?.displayOrder || 0;
-            const orderB =
-              (options.find((o) => o.optionValue === b.stageId) as any)?.displayOrder || 0;
-            return orderA - orderB;
-          });
-        }
+        const emptyColumns: Column[] = options.map((option) => ({
+          stageId: option.optionValue,
+          title: option.optionLabel,
+          color: (option as any).color,
+          boards: [],
+        }));
+
         return emptyColumns;
       }
       return [];
@@ -426,15 +381,6 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     if (groupByField === 'stage') {
       const stageMap = new Map<string, Column>();
       const stages = fieldOptionsLookup?.stages || [];
-      const UNASSIGNED_ID = 'UNASSIGNED';
-
-      // 1. 컬럼 기본 구조 생성 (fetchBoards의 로직 재사용)
-      stageMap.set(UNASSIGNED_ID, {
-        stageId: UNASSIGNED_ID,
-        title: '미분류',
-        color: '#B3B3B3',
-        boards: [],
-      } as Column);
 
       stages.forEach((stage: FieldOption) => {
         stageMap.set(stage.optionValue, {
@@ -445,28 +391,23 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         } as Column);
       });
 
-      // 2. 필터링된 보드(filteredBoards = allProcessedBoards)를 그룹화
       filteredBoards.forEach((board) => {
-        const stageId = board.stageId || UNASSIGNED_ID;
-        const targetColumn = stageMap.get(stageId === UNASSIGNED_ID ? UNASSIGNED_ID : stageId);
+        const stageId = board.stageId;
+        const targetColumn = stageMap.get(stageId);
 
         if (targetColumn) {
           targetColumn.boards.push(board as any);
         } else {
-          // stageId가 유효하지 않은 경우 미분류에 추가
-          stageMap.get(UNASSIGNED_ID)!.boards.push(board as any);
+          console.warn(`⚠️ 보드 "${board.title}"에 유효하지 않은 Stage ID: ${stageId}`);
         }
       });
 
-      // 3. 순서 정렬
       const result = Array.from(stageMap.values()).sort((a, b) => {
-        if (a.stageId === UNASSIGNED_ID) return -1;
-        if (b.stageId === UNASSIGNED_ID) return 1;
-
         const orderA = (stages.find((o) => o.optionValue === a.stageId) as any)?.displayOrder || 0;
         const orderB = (stages.find((o) => o.optionValue === b.stageId) as any)?.displayOrder || 0;
         return orderA - orderB;
       });
+
       if (!viewState.showCompleted && viewState?.currentView === 'stage')
         return result.filter((ele) => ele.stageId !== 'approved');
       return result;
@@ -487,13 +428,6 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     }
 
     const groupedMap = new Map<string, Column>();
-    const UNASSIGNED_ID = 'UNASSIGNED';
-    groupedMap.set(UNASSIGNED_ID, {
-      stageId: UNASSIGNED_ID,
-      title: '미분류',
-      color: '#B3B3B3',
-      boards: [],
-    });
 
     baseOptions?.forEach((option) => {
       const id = option.optionValue;
@@ -505,21 +439,19 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       });
     });
 
-    // 💡 [수정] allProcessedBoards 대신 filteredBoards 사용
+    // 💡 모든 보드는 stage, role, importance를 갖고 있으므로 반드시 매칭됨
     filteredBoards?.forEach((board) => {
       const optionValue = (board as any)[lookupField]?.optionValue;
 
       if (optionValue && groupedMap.has(optionValue)) {
         groupedMap.get(optionValue)!.boards.push(board as any);
       } else {
-        groupedMap.get(UNASSIGNED_ID)!.boards.push(board as any);
+        // 💡 이 경우는 발생하지 않아야 함 (모든 보드가 필수 필드를 가짐)
+        console.error(`❌ [심각] 보드 "${board.title}"에 ${lookupField} 값이 없습니다:`, board);
       }
     });
 
     const result = Array.from(groupedMap.values()).sort((a, b) => {
-      if (a.stageId === UNASSIGNED_ID) return -1;
-      if (b.stageId === UNASSIGNED_ID) return 1;
-
       const orderA =
         (baseOptions.find((o) => o.optionValue === a.stageId) as any)?.displayOrder || 0;
       const orderB =
@@ -551,20 +483,28 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
       // 🔥 현재 뷰 타입에 따라 업데이트할 필드 결정
       const fieldKeyName = viewState.currentView as 'stage' | 'role' | 'importance';
 
-      // 🔥 UNASSIGNED로 이동하는 경우 해당 필드를 undefined로 설정
-      const newFieldValue = targetColumnId === 'UNASSIGNED' ? undefined : targetColumnId;
+      // 🔥 [핵심 수정] 기존 customFields를 유지하면서 해당 필드만 업데이트
+      const currentCustomFields = draggedBoard.customFields || {};
+      const updatedCustomFields = {
+        ...currentCustomFields,
+        [fieldKeyName]: targetColumnId,
+      };
+
+      console.log('🔍 [DROP DEBUG] 기존 customFields:', currentCustomFields);
+      console.log('🔍 [DROP DEBUG] 업데이트할 필드:', fieldKeyName, '→', targetColumnId);
+      console.log('🔍 [DROP DEBUG] 최종 customFields:', updatedCustomFields);
 
       // 3. 🔥 API 호출 - 실제 DB 업데이트
       try {
-        // 💡 [핵심 수정] moveBoard API 사용
+        // 💡 [핵심 수정] moveBoard API에 전체 customFields 전송
         await moveBoard(draggedBoard.boardId, {
           projectId: selectedProject.projectId,
           groupByFieldName: fieldKeyName,
-          newFieldValue: newFieldValue,
+          newFieldValue: targetColumnId,
         });
 
         console.log(
-          `✅ [API SUCCESS] 보드 이동 완료: ${draggedBoard.title} → ${targetColumn.title} (${fieldKeyName}: ${newFieldValue})`,
+          `✅ [API SUCCESS] 보드 이동 완료: ${draggedBoard.title} → ${targetColumn.title} (${fieldKeyName}: ${targetColumnId})`,
         );
 
         // 🔥 API 성공 후 데이터 새로고침
@@ -576,7 +516,14 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         handleDragEnd();
       }
     },
-    [draggedBoard, draggedFromColumn, currentViewColumns, viewState.currentView, fetchBoards],
+    [
+      draggedBoard,
+      draggedFromColumn,
+      currentViewColumns,
+      viewState.currentView,
+      fetchBoards,
+      selectedProject.projectId,
+    ],
   );
 
   // 로딩 상태 처리
@@ -718,22 +665,18 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
           {currentViewColumns?.map((column, idx) => {
             const columnBoards = column.boards;
             const fieldKeyName = viewState.currentView as 'stage' | 'role' | 'importance';
-            const initialData: any = {};
-
-            // 🔥 UNASSIGNED 컬럼에서 보드 추가 시 해당 필드를 설정하지 않음
-            if (column.stageId !== 'UNASSIGNED') {
-              initialData[fieldKeyName] = column.stageId;
-            }
+            const initialData: any = {
+              stage: fieldOptionsLookup.stages?.[0]?.optionValue,
+              role: fieldOptionsLookup.roles?.[0]?.optionValue,
+              importance: fieldOptionsLookup.importances?.[0]?.optionValue,
+              [fieldKeyName]: column.stageId,
+            };
 
             return (
               <div
                 key={column?.stageId}
-                draggable={column.stageId !== 'UNASSIGNED'} // 🔥 미분류 컬럼은 드래그 불가
-                onDragStart={() => {
-                  if (column.stageId !== 'UNASSIGNED') {
-                    handleColumnDragStart(column);
-                  }
-                }}
+                draggable
+                onDragStart={() => handleColumnDragStart(column)}
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => {
                   handleDragOver(e);
@@ -752,9 +695,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                   console.log('🔍 [DROP] column.stageId:', column.stageId);
                   draggedColumn ? handleColumnDrop(column) : handleDrop(column.stageId);
                 }}
-                className={`w-full lg:w-80 lg:flex-shrink-0 relative transition-all ${
-                  column.stageId !== 'UNASSIGNED' ? 'cursor-move' : ''
-                } ${
+                className={`w-full lg:w-80 lg:flex-shrink-0 relative transition-all cursor-move ${
                   draggedColumn?.stageId === column.stageId
                     ? 'opacity-50 scale-95 shadow-2xl rotate-2'
                     : 'opacity-100'
@@ -857,18 +798,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                     <button
                       className={`relative w-full py-3 sm:py-4 ${theme.effects.cardBorderWidth} border-dashed ${theme.colors.border} ${theme.colors.card} hover:bg-gray-100 transition flex items-center justify-center gap-2 ${theme.font.size.xs} ${theme.effects.borderRadius}`}
                       onClick={() => {
-                        const defaultInitialData: any = {
-                          stage: fieldOptionsLookup.stages?.[0]?.optionValue,
-                          role: fieldOptionsLookup.roles?.[0]?.optionValue,
-                          importance: fieldOptionsLookup.importances?.[0]?.optionValue,
-                        };
-
-                        // 🔥 UNASSIGNED가 아닐 때만 해당 필드 설정
-                        if (column.stageId !== 'UNASSIGNED') {
-                          defaultInitialData[fieldKeyName] = column.stageId;
-                        }
-
-                        onEditBoard(defaultInitialData);
+                        onEditBoard(initialData);
                         setShowCreateBoard(true);
                       }}
                       onDragOver={(e) => {

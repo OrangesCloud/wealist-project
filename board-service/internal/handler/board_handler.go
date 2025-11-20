@@ -350,11 +350,20 @@ func (h *BoardHandler) MoveBoard(c *gin.Context) {
 		}
 	}
 
+	// 🔥 [핵심 수정] 기존 customFields를 유지하면서 해당 필드만 업데이트
+	existingCustomFields := make(map[string]interface{})
+	if board.CustomFields != nil {
+		// 기존 필드들을 모두 복사
+		for k, v := range board.CustomFields {
+			existingCustomFields[k] = v
+		}
+	}
+	// 변경할 필드만 업데이트
+	existingCustomFields[req.GroupByFieldName] = newFieldValue
+
 	// 2. 필드 값 업데이트
 	updateReq := &dto.UpdateBoardRequest{
-		CustomFields: &map[string]interface{}{
-			req.GroupByFieldName: newFieldValue, // 🔥 수정
-		},
+		CustomFields: &existingCustomFields,
 	}
 	_, err = h.boardService.UpdateBoard(ctx, boardID, updateReq)
 	if err != nil {
@@ -381,7 +390,7 @@ func (h *BoardHandler) MoveBoard(c *gin.Context) {
 		BoardID: boardID.String(),
 		Payload: map[string]string{
 			"from": oldGroupValue,
-			"to":   newFieldValue, // 🔥 수정
+			"to":   newFieldValue,
 		},
 	}
 
@@ -390,14 +399,14 @@ func (h *BoardHandler) MoveBoard(c *gin.Context) {
 		zap.String("projectId", projectID.String()),
 		zap.String("boardId", boardID.String()),
 		zap.String("from", oldGroupValue),
-		zap.String("to", newFieldValue)) // 🔥 수정
+		zap.String("to", newFieldValue))
 
 	BroadcastEvent(projectID.String(), event)
 
 	// 응답
 	response.SendSuccess(c, http.StatusOK, dto.MoveBoardResponse{
 		BoardID:       boardID.String(),
-		NewFieldValue: newFieldValue, // 🔥 수정
+		NewFieldValue: newFieldValue,
 		Message:       "Board moved successfully",
 	})
 }
