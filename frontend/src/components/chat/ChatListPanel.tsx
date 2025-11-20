@@ -72,7 +72,7 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
   };
 
   return (
-    <div className="fixed top-0 right-0 h-full w-80 bg-white shadow-2xl flex flex-col z-40">
+    <div className="h-full w-full bg-white flex flex-col">
       {/* 헤더 */}
       <div className="p-4 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white">
         <div className="flex items-center justify-between mb-3">

@@ -1,15 +1,15 @@
 // src/components/chat/ChatPanel.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, X } from 'lucide-react';
 import { useChatWebSocket } from '../../hooks/useChatWebsocket';
 import { getMessages } from '../../api/chatService';
 import type { Message } from '../../types/chat';
-import { ChevronLeft } from 'lucide-react';
 
 interface ChatPanelProps {
   chatId: string;
   onClose: () => void;
-  onBack?: () => void; // 🔥 추가
+  onBack?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ chatId, onClose, onBack }) => {
@@ -18,7 +18,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chatId, onClose, onBack })
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 🔥 WebSocket 연결
+  // WebSocket 연결
   const { sendMessage, sendTyping, isConnected } = useChatWebSocket({
     chatId,
     onMessage: (event) => {
@@ -29,7 +29,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chatId, onClose, onBack })
       }
 
       if (event.type === 'USER_TYPING') {
-        // 타이핑 인디케이터 표시
         console.log('⌨️ User typing:', event.userId);
       }
     },
@@ -71,32 +70,32 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chatId, onClose, onBack })
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputMessage(e.target.value);
     sendTyping(true);
-
-    // 1초 후 타이핑 중지
     setTimeout(() => sendTyping(false), 1000);
   };
 
   return (
-    <div className="fixed top-0 right-0 h-full w-80 bg-white shadow-2xl flex flex-col z-40">
+    // 🔥 fixed와 right-0 제거! 부모(MainLayout)가 위치 제어
+    <div className="h-full w-full bg-white flex flex-col">
       {/* 헤더 */}
-      <div className="p-4 border-b">
+      <div className="p-4 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white">
         <div className="flex items-center justify-between">
-          {/* 🔥 뒤로가기 버튼 추가 */}
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="p-1 hover:bg-gray-100 rounded transition"
-              title="채팅 목록으로"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          )}
-          <h3 className="font-bold">채팅</h3>
-          <button onClick={onClose}>✕</button>
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="p-1 hover:bg-white/20 rounded transition"
+                title="채팅 목록으로"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <h3 className="font-bold">채팅</h3>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-white/20 rounded transition">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <div className="text-xs text-gray-500 mt-1">
-          {isConnected ? '🟢 연결됨' : '🔴 연결 끊김'}
-        </div>
+        <div className="text-xs mt-1 opacity-80">{isConnected ? '🟢 연결됨' : '🔴 연결 끊김'}</div>
       </div>
 
       {/* 메시지 영역 */}
@@ -132,7 +131,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chatId, onClose, onBack })
       </div>
 
       {/* 입력 영역 */}
-      <div className="p-4 border-t">
+      <div className="p-4 border-t bg-gray-50">
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -145,7 +144,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chatId, onClose, onBack })
           <button
             onClick={handleSendMessage}
             disabled={!inputMessage.trim()}
-            className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300"
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 transition"
           >
             전송
           </button>

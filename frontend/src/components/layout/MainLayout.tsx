@@ -37,6 +37,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   const [isLoadingChat, setIsLoadingChat] = useState(false);
 
   const sidebarWidth = 'w-16 sm:w-20';
+  const chatPanelWidth = '20rem'; // 320px
 
   // 프로필 로드
   useEffect(() => {
@@ -119,49 +120,50 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         onChatToggle={() => {
           setIsChatOpen(!isChatOpen);
           if (isChatOpen) {
-            setActiveChatId(null); // 채팅 닫을 때 활성 채팅 초기화
+            setActiveChatId(null);
           }
         }}
         onUserMenuToggle={() => setShowUserMenu(!showUserMenu)}
         onStartChat={handleStartChat}
       />
 
-      {/* 메인 콘텐츠 */}
-      <main
-        className="flex-grow flex flex-col relative z-10"
-        style={{
-          marginLeft: sidebarWidth,
-          marginRight: isChatOpen && activeChatId ? '20rem' : '0',
-          transition: 'margin-right 0.3s ease',
-          minHeight: '100vh',
-        }}
-      >
-        {children}
-      </main>
-
-      {/* 🔥 ChatPanel 또는 ChatList */}
+      {/* 🔥 ChatPanel 또는 ChatList (왼쪽에 고정) */}
       {isChatOpen && (
-        <>
+        <div
+          className="fixed top-0 h-full bg-white shadow-2xl z-30 transition-all duration-300 left-16 sm:left-20"
+          style={{
+            width: chatPanelWidth,
+          }}
+        >
           {activeChatId ? (
-            // 특정 채팅방 열림
             <ChatPanel
               chatId={activeChatId}
               onClose={() => {
                 setActiveChatId(null);
                 setIsChatOpen(false);
               }}
-              onBack={() => setActiveChatId(null)} // 뒤로가기 → 채팅 리스트로
+              onBack={() => setActiveChatId(null)}
             />
           ) : (
-            // 채팅 리스트
             <ChatListPanel
               workspaceId={workspaceId}
               onChatSelect={(chatId) => setActiveChatId(chatId)}
               onClose={() => setIsChatOpen(false)}
             />
           )}
-        </>
+        </div>
       )}
+
+      {/* 메인 콘텐츠 */}
+      <main
+        className="flex-grow flex flex-col relative z-10 transition-all duration-300"
+        style={{
+          marginLeft: isChatOpen ? `calc(${sidebarWidth} + ${chatPanelWidth})` : sidebarWidth,
+          minHeight: '100vh',
+        }}
+      >
+        {children}
+      </main>
 
       {/* 유저 메뉴 */}
       {showUserMenu && (

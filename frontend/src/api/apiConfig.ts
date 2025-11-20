@@ -17,7 +17,7 @@ const getApiBaseUrl = (path: string): string => {
       // 🔥 로컬 개발: 각 서비스별 포트 직접 지정
       if (path === '/api/users') return `${INJECTED_API_BASE_URL}:8080`;
       if (path === '/api/boards/api') return `${INJECTED_API_BASE_URL}:8000/api`;
-      if (path === '/api/chats') return `${INJECTED_API_BASE_URL}:8001/api`; // 🔥 추가
+      if (path === '/api/chats') return `${INJECTED_API_BASE_URL}:8001${path}`; // 🔥 추가
     }
 
     return `${INJECTED_API_BASE_URL}${path}`;

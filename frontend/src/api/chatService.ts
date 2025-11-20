@@ -22,8 +22,6 @@ export const createOrGetDMChat = async (
     console.log('📋 내 채팅방 목록:', myChats.length, '개');
 
     // 2. 이미 존재하는 DM 채팅방 찾기
-    // TODO: 백엔드에서 participants 정보를 제공해야 정확한 매칭 가능
-    // 현재는 chatType이 DM인 것 중에서 찾음
     const existingDM = myChats.find((chat) => {
       if (chat.chatType !== 'DM') return false;
 
@@ -33,7 +31,6 @@ export const createOrGetDMChat = async (
         return participantUserIds.includes(targetUserId);
       }
 
-      // participants가 없으면 일단 넘어감 (새로 생성)
       return false;
     });
 
@@ -194,4 +191,59 @@ export const getUnreadCount = async (chatId: string): Promise<number> => {
  */
 export const updateLastRead = async (chatId: string): Promise<void> => {
   await chatServiceClient.put(`/messages/${chatId}/last-read`);
+};
+
+// ============================================================================
+// 🔥 Presence API (온라인 상태)
+// ============================================================================
+
+/**
+ * 온라인 사용자 목록 조회
+ * [API] GET /api/chats/presence/online
+ */
+export const getOnlineUsers = async (): Promise<string[]> => {
+  const response: AxiosResponse<{ onlineUsers: string[]; count: number }> =
+    await chatServiceClient.get('/presence/online');
+  return response.data.onlineUsers;
+};
+
+/**
+ * 특정 사용자 온라인 여부 확인
+ * [API] GET /api/chats/presence/status/{userId}
+ * @param userId 확인할 사용자 ID
+ * @returns true: 온라인, false: 오프라인
+ */
+export const checkUserStatus = async (userId: string): Promise<boolean> => {
+  const response: AxiosResponse<{ userId: string; isOnline: boolean }> =
+    await chatServiceClient.get(`/presence/status/${userId}`);
+  return response.data.isOnline;
+};
+
+/**
+ * 여러 사용자의 온라인 상태 일괄 확인
+ * @param userIds 확인할 사용자 ID 배열
+ * @returns Map<userId, isOnline>
+ */
+export const checkMultipleUserStatus = async (userIds: string[]): Promise<Map<string, boolean>> => {
+  try {
+    // 온라인 사용자 목록 가져오기
+    const onlineUsers = await getOnlineUsers();
+    const onlineSet = new Set(onlineUsers);
+
+    // Map으로 변환
+    const statusMap = new Map<string, boolean>();
+    userIds.forEach((userId) => {
+      statusMap.set(userId, onlineSet.has(userId));
+    });
+
+    return statusMap;
+  } catch (error) {
+    console.error('Failed to check multiple user status:', error);
+    // 에러 시 모두 오프라인으로 처리
+    const statusMap = new Map<string, boolean>();
+    userIds.forEach((userId) => {
+      statusMap.set(userId, false);
+    });
+    return statusMap;
+  }
 };

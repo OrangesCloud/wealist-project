@@ -49,7 +49,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.CreateChatRequest"
+                            "$ref": "#/definitions/handler.CreateChatRequest"
                         }
                     }
                 ],
@@ -328,7 +328,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.AddParticipantsRequest"
+                            "$ref": "#/definitions/handler.AddParticipantsRequest"
                         }
                     }
                 ],
@@ -468,7 +468,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.MarkAsReadRequest"
+                            "$ref": "#/definitions/handler.MarkAsReadRequest"
                         }
                     }
                 ],
@@ -629,7 +629,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.SendMessageRequest"
+                            "$ref": "#/definitions/handler.SendMessageRequest"
                         }
                     }
                 ],
@@ -1075,7 +1075,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handler.AddParticipantsRequest": {
+        "handler.AddParticipantsRequest": {
             "type": "object",
             "required": [
                 "userIds"
@@ -1090,7 +1090,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handler.CreateChatRequest": {
+        "handler.CreateChatRequest": {
             "type": "object",
             "required": [
                 "chatType",
@@ -1122,7 +1122,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handler.MarkAsReadRequest": {
+        "handler.MarkAsReadRequest": {
             "type": "object",
             "required": [
                 "messageIds"
@@ -1137,7 +1137,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handler.SendMessageRequest": {
+        "handler.SendMessageRequest": {
             "type": "object",
             "required": [
                 "content"

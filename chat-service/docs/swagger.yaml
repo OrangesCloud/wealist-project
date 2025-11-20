@@ -68,7 +68,7 @@ definitions:
         example: 550e8400-e29b-41d4-a716-446655440002
         type: string
     type: object
-  internal_handler.AddParticipantsRequest:
+  handler.AddParticipantsRequest:
     properties:
       userIds:
         items:
@@ -78,7 +78,7 @@ definitions:
     required:
     - userIds
     type: object
-  internal_handler.CreateChatRequest:
+  handler.CreateChatRequest:
     properties:
       chatName:
         type: string
@@ -100,7 +100,7 @@ definitions:
     - chatType
     - workspaceId
     type: object
-  internal_handler.MarkAsReadRequest:
+  handler.MarkAsReadRequest:
     properties:
       messageIds:
         items:
@@ -110,7 +110,7 @@ definitions:
     required:
     - messageIds
     type: object
-  internal_handler.SendMessageRequest:
+  handler.SendMessageRequest:
     properties:
       content:
         type: string
@@ -154,7 +154,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.CreateChatRequest'
+          $ref: '#/definitions/handler.CreateChatRequest'
       produces:
       - application/json
       responses:
@@ -274,7 +274,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.AddParticipantsRequest'
+          $ref: '#/definitions/handler.AddParticipantsRequest'
       produces:
       - application/json
       responses:
@@ -483,7 +483,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.SendMessageRequest'
+          $ref: '#/definitions/handler.SendMessageRequest'
       produces:
       - application/json
       responses:
@@ -654,7 +654,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.MarkAsReadRequest'
+          $ref: '#/definitions/handler.MarkAsReadRequest'
       produces:
       - application/json
       responses:

@@ -43,7 +43,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.CreateChatRequest"
+                            "$ref": "#/definitions/handler.CreateChatRequest"
                         }
                     }
                 ],
@@ -322,7 +322,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.AddParticipantsRequest"
+                            "$ref": "#/definitions/handler.AddParticipantsRequest"
                         }
                     }
                 ],
@@ -462,7 +462,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.MarkAsReadRequest"
+                            "$ref": "#/definitions/handler.MarkAsReadRequest"
                         }
                     }
                 ],
@@ -623,7 +623,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.SendMessageRequest"
+                            "$ref": "#/definitions/handler.SendMessageRequest"
                         }
                     }
                 ],
@@ -1069,7 +1069,7 @@
                 }
             }
         },
-        "internal_handler.AddParticipantsRequest": {
+        "handler.AddParticipantsRequest": {
             "type": "object",
             "required": [
                 "userIds"
@@ -1084,7 +1084,7 @@
                 }
             }
         },
-        "internal_handler.CreateChatRequest": {
+        "handler.CreateChatRequest": {
             "type": "object",
             "required": [
                 "chatType",
@@ -1116,7 +1116,7 @@
                 }
             }
         },
-        "internal_handler.MarkAsReadRequest": {
+        "handler.MarkAsReadRequest": {
             "type": "object",
             "required": [
                 "messageIds"
@@ -1131,7 +1131,7 @@
                 }
             }
         },
-        "internal_handler.SendMessageRequest": {
+        "handler.SendMessageRequest": {
             "type": "object",
             "required": [
                 "content"

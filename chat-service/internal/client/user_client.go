@@ -1,6 +1,9 @@
+// chat-service/internal/client/user_client.go
+
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -41,13 +44,23 @@ func NewUserClient(baseURL string, timeout time.Duration) UserClient {
 	}
 }
 
+// 🔥 POST 방식으로 변경
 func (c *userClient) ValidateToken(ctx context.Context, token string) (*TokenValidationResponse, error) {
-	url := fmt.Sprintf("%s/auth/validate-access-token?token=%s", c.baseURL, token)
+	url := fmt.Sprintf("%s/auth/validate", c.baseURL)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	// Request body 생성
+	body := map[string]string{"token": token}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

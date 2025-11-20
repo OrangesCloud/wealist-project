@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -90,16 +91,26 @@ func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger) Us
 	}
 }
 
-// 💡 [추가] ValidateToken 메서드 구현 (WebSocket 인증 로직)
+// ValidateToken 메서드만 수정
 func (c *userClient) ValidateToken(ctx context.Context, tokenStr string) (uuid.UUID, error) {
-	// 쿼리 파라미터로 토큰 전달
-	url := fmt.Sprintf("%s/api/auth/validate-access-token?token=%s", c.baseURL, tokenStr)
+	// 🔥 POST 방식으로 변경
+	url := fmt.Sprintf("%s/api/auth/validate", c.baseURL)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	// Request body 생성
+	reqBody := map[string]string{"token": tokenStr}
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		c.logger.Error("Failed to marshal request body", zap.Error(err))
+		return uuid.Nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBody))
 	if err != nil {
 		c.logger.Error("Failed to create validation request", zap.Error(err))
 		return uuid.Nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -134,7 +145,6 @@ func (c *userClient) ValidateToken(ctx context.Context, tokenStr string) (uuid.U
 
 	return userID, nil
 }
-
 // buildURL constructs the full URL for User Service API calls
 // It intelligently handles base URLs that may or may not include context path
 //
