@@ -9,12 +9,62 @@ import {
   Edit2,
   Trash2,
   Paperclip,
+  User,
+  Users,
+  Download,
 } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { BoardResponse, FieldOption } from '../../../types/board';
-import { getBoard, deleteBoard, addCommentToBoardWithFile } from '../../../api/board/boardService';
+// BoardDetailResponse 타입을 사용하며, CommentResponse, ParticipantResponse도 가져옵니다.
+import {
+  BoardDetailResponse,
+  FieldOption,
+  CommentResponse,
+  ParticipantResponse,
+} from '../../../types/board';
+import {
+  getBoard,
+  deleteBoard,
+  // createCommentWithFile
+} from '../../../api/board/boardService'; // API 함수명은 createCommentWithFile로 가정
 import { getWorkspaceMembers } from '../../../api/user/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
+import { AvatarStack } from '../../common/AvartarStack';
+import { formatDate } from '../../../utils/date';
+// 💡 AvatarStack 컴포넌트 import (경로는 실제 구조에 맞게 조정 필요)
+
+// 💡 1. 정적 데이터를 담을 인터페이스 정의 (BoardDetailResponse 기반)
+interface BoardState {
+  projectId: string;
+  title: string;
+  content: string;
+  selectedStageId: string;
+  selectedRoleId: string;
+  selectedImportanceId: string;
+  selectedAssigneeId: string;
+  dueDate: string;
+  createdAt: string;
+  updatedAt: string;
+  participants: ParticipantResponse[]; // 💡 [추가] 보드 자체 파일 정보 필드
+  fileUrl?: string;
+  fileName?: string;
+}
+
+// 💡 2. 초기 상태 정의 (null/undefined 대신 초기값으로 설정)
+const initialBoardState: BoardState = {
+  projectId: '',
+  title: '',
+  content: '',
+  selectedStageId: '',
+  selectedRoleId: '',
+  selectedImportanceId: '',
+  selectedAssigneeId: '',
+  dueDate: '',
+  createdAt: '',
+  updatedAt: '',
+  participants: [],
+  fileUrl: undefined,
+  fileName: undefined,
+};
 
 interface BoardDetailModalProps {
   boardId: string;
@@ -33,7 +83,6 @@ interface BoardDetailModalProps {
     importance?: string;
     dueDate?: string;
   }) => void;
-  // 💡 [추가] 필드 옵션 데이터
   fieldOptionsLookup: {
     stages?: FieldOption[];
     roles?: FieldOption[];
@@ -51,63 +100,51 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
 }) => {
   const { theme } = useTheme();
 
-  // Form state
-  const [projectId, setProjectId] = useState<string>('');
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [selectedStageId, setSelectedStageId] = useState('');
-  const [selectedRoleId, setSelectedRoleId] = useState<string>('');
-  const [selectedImportanceId, setSelectedImportanceId] = useState<string>('');
-  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('');
-  const [dueDate, setDueDate] = useState<string>('');
+  // 💡 3. 정적 보드 데이터를 하나의 객체로 묶음
+  const [boardData, setBoardData] = useState<BoardState>(initialBoardState);
 
-  // 💡 Props에서 받은 실제 데이터 사용
-  const stages = fieldOptionsLookup?.stages || [];
-  const roles = fieldOptionsLookup?.roles || [];
-  const importances = fieldOptionsLookup?.importances || [];
-
-  const [_workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
+  // 💡 워크스페이스 멤버 목록 (참여자/할당자 정보 매핑용)
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingBoard, setIsLoadingBoard] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Comment state
-  const [comments, setComments] = useState<any[]>([]);
+  // Comment state (동적 상태 유지)
+  const [comments, setComments] = useState<CommentResponse[]>([]); // 💡 CommentResponse 타입 사용
   const [newComment, setNewComment] = useState('');
-  //
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null); // 💡 파일 입력을 위한 Ref 추가
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 보드 데이터 조회
   useEffect(() => {
     const fetchBoard = async () => {
       setIsLoadingBoard(true);
       try {
-        const boardData: BoardResponse = await getBoard(boardId);
+        const data: BoardDetailResponse = await getBoard(boardId); // 💡 BoardDetailResponse 사용
 
-        setProjectId(boardData.projectId || '');
-        setTitle(boardData.title || '');
-        setContent(boardData.content || '');
+        const customFields = data.customFields || {};
 
-        const customFields = boardData.customFields || {};
+        // 💡 4. boardData 상태에 모든 정적 데이터 한 번에 설정
+        setBoardData({
+          projectId: data.projectId || '',
+          title: data.title || '',
+          content: data.content || '',
+          selectedStageId: customFields.stage || '',
+          selectedRoleId: customFields.role || '',
+          selectedImportanceId: customFields.importance || '',
+          selectedAssigneeId: data.assigneeId || '',
+          dueDate: data.dueDate || '',
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          participants: data.participants || [],
+        });
 
-        const stageIdFromCustomField = customFields.stage || '';
-        setSelectedStageId(stageIdFromCustomField);
+        // 💡 동적 데이터 (댓글) 설정
+        setComments(data.comments || []);
 
-        const roleIdFromCustomField = customFields.role || '';
-        setSelectedRoleId(roleIdFromCustomField);
-
-        const importanceIdFromCustomField = customFields.importance || '';
-        setSelectedImportanceId(importanceIdFromCustomField);
-
-        const assigneeId: string = boardData.assigneeId || '';
-        setSelectedAssigneeId(assigneeId);
-
-        setDueDate(boardData.dueDate || '');
-
-        console.log('✅ 보드 데이터 로드 성공:', boardData);
+        console.log('✅ 보드 데이터 로드 성공:', data);
       } catch (err) {
         console.error('❌ 보드 데이터 로드 실패:', err);
         setError('보드 정보를 불러오는데 실패했습니다.');
@@ -119,7 +156,10 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
     fetchBoard();
   }, [boardId]);
 
-  // 워크스페이스 멤버 조회
+  // 💡 [수정 필요] Props에서 받은 fieldOptionsLookup에서 필요한 배열들을 구조 분해하여 정의합니다.
+  const { stages = [], roles = [], importances = [] } = fieldOptionsLookup;
+
+  // 워크스페이스 멤버 조회 (이전과 동일)
   useEffect(() => {
     const fetchMembers = async () => {
       try {
@@ -152,51 +192,64 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
       setIsLoading(false);
     }
   };
-  // 💡 파일 선택 핸들러
+  // 💡 [추가] 파일 다운로드 핸들러
+  const handleFileDownload = (fileUrl: string, fileName: string) => {
+    if (!fileUrl) return;
+
+    // 브라우저의 다운로드 기능을 이용
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.setAttribute('download', fileName); // 다운로드될 파일명 지정
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 파일 선택 핸들러 (이전과 동일)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-
-      // 💡 (선택 사항) 크기 제한 체크 (20MB로 가정)
       const MAX_SIZE = 20 * 1024 * 1024;
       if (file.size > MAX_SIZE) {
         alert('파일 크기는 20MB를 초과할 수 없습니다.');
         setSelectedFile(null);
-        e.target.value = ''; // 파일 input 초기화
+        e.target.value = '';
         return;
       }
-
       setSelectedFile(file);
       console.log('🖼️ 파일 선택:', file.name);
     }
   };
 
   const handleAddComment = async () => {
-    if (!newComment.trim() && !selectedFile) return; // 내용이나 파일 둘 중 하나는 있어야 함
+    if (!newComment.trim() && !selectedFile) return;
     if (isLoading) return;
 
     setIsLoading(true);
 
     try {
       const formData = new FormData();
+      formData.append('boardId', boardId); // 백엔드에서 boardId 필요할 경우
       formData.append('content', newComment.trim());
 
       if (selectedFile) {
-        // 'file'은 백엔드에서 파일을 받을 때 사용하는 필드 이름과 일치해야 합니다.
         formData.append('file', selectedFile);
       }
 
-      // 💡 FormData를 이용한 API 호출
-      const addedComment = await addCommentToBoardWithFile(boardId, formData);
+      // 💡 API 호출
+      // const addedComment = await createCommentWithFile(formData);
 
-      setComments((prevComments) => [addedComment, ...prevComments]);
+      // 댓글 목록에 새 댓글 추가 (최신순 또는 서버의 정렬 기준에 따라)
+      // setComments((prevComments) => [...prevComments, addedComment]);
       setNewComment('');
-      setSelectedFile(null); // 파일 상태 초기화
+      setSelectedFile(null);
       if (fileInputRef.current) {
-        fileInputRef.current.value = ''; // 파일 input 초기화
+        fileInputRef.current.value = '';
       }
     } catch (err: any) {
-      // ... (오류 처리 로직)
+      const errorMsg = err.response?.data?.error?.message || err.message;
+      console.error('❌ 댓글 등록 실패:', errorMsg);
+      // alert(`댓글 등록에 실패했습니다: ${errorMsg}`); // 간단한 알림 추가 가능
     } finally {
       setIsLoading(false);
     }
@@ -227,10 +280,15 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
       </div>
     );
   }
+  // 💡 이제 stages, roles, importances 변수가 정의되었으므로 오류가 해결됩니다.
+  const currentStage = getFieldOption(stages, boardData.selectedStageId);
+  const currentRole = getFieldOption(roles, boardData.selectedRoleId);
+  const currentImportance = getFieldOption(importances, boardData.selectedImportanceId);
 
-  const currentStage = getFieldOption(stages, selectedStageId);
-  const currentRole = getFieldOption(roles, selectedRoleId);
-  const currentImportance = getFieldOption(importances, selectedImportanceId);
+  const assigneeMember = workspaceMembers.find((m) => m.userId === boardData.selectedAssigneeId);
+  const participantMembers = workspaceMembers.filter((m) =>
+    boardData.participants.some((p) => p.userId === m.userId),
+  );
 
   return (
     <div
@@ -242,9 +300,12 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between mb-4 pb-4 border-b border-gray-200">
+        <div className="flex items-start justify-between mb-4 pb-4">
           <div className="flex-1 pr-4">
-            <h2 className="text-xl font-bold text-gray-800 mb-2">{title || '제목 없음'}</h2>
+            {/* 💡 boardData 사용 */}
+            <h2 className="text-xl font-bold text-gray-800 mb-2">
+              {boardData.title || '제목 없음'}
+            </h2>
           </div>
           <div className="flex gap-2">
             <button
@@ -266,98 +327,175 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
         {/* Content */}
         <div className="space-y-4 mb-6">
           {/* Description */}
-          <div>
+          <div className="relative">
+            {/* Dates (생성일, 수정일) - 우상단에 absolute로 배치 */}
+            <div className="absolute top-0 right-0 text-right space-y-1 text-xs text-gray-500 pt-0">
+              <p>
+                <span className="font-medium text-gray-700">생성일:</span>{' '}
+                {formatDate(boardData.createdAt)}
+              </p>
+              <p>
+                <span className="font-medium text-gray-700">수정일:</span>{' '}
+                {formatDate(boardData.updatedAt)}
+              </p>
+            </div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">설명</label>
+            {/* 💡 boardData 사용 */}
             <p className="text-sm text-gray-600 whitespace-pre-wrap">
-              {content || '설명이 없습니다.'}
+              {boardData.content || '설명이 없습니다.'}
             </p>
+            {/* 💡 [추가] 보드 파일 다운로드 UI (파일 유무에 관계없이 표시) */}
+            <div className="mt-4 p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-sm">
+              <span className="text-gray-700 truncate flex items-center gap-1">
+                <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                {boardData.fileUrl ? (
+                  <span className="text-gray-700">{boardData.fileName || '첨부된 보드 파일'}</span>
+                ) : (
+                  <span className="text-gray-500">첨부 파일 없음</span> // 💡 파일 없을 때 메시지
+                )}
+              </span>
+
+              {boardData.fileUrl ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (boardData?.fileUrl)
+                      handleFileDownload(boardData.fileUrl, boardData.fileName || 'board_file');
+                  }}
+                  className="flex items-center gap-1 text-blue-600 hover:text-blue-700 transition font-medium ml-2 flex-shrink-0"
+                >
+                  <Download className="w-4 h-4" />
+                  <span className="text-xs">다운로드</span>
+                </button>
+              ) : (
+                <span className="text-gray-400 text-xs flex-shrink-0">첨부 가능</span>
+              )}
+            </div>
           </div>
 
-          {/* Stage and Role - 2 columns */}
+          <hr className="mt-4 border-gray-100" />
+          {/* Assignee and Participants - 2 columns */}
+          {/* Stage, Role, Importance (2컬럼 레이아웃으로 재구성) */}
           <div className="grid grid-cols-2 gap-4">
             {/* Stage */}
-            <div>
+            <div className="col-span-1">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <CheckSquare className="w-4 h-4 inline mr-1" />
+                <CheckSquare className="w-4 h-4 inline mr-1 text-blue-500" />
                 진행 단계
               </label>
               {currentStage ? (
                 <div className="flex items-center gap-2">
                   <span
-                    className="w-3 h-3 rounded-full"
+                    className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{
                       backgroundColor: (currentStage as any).color || '#6B7280',
                     }}
                   />
-                  <span className="text-sm">{currentStage.optionLabel}</span>
+                  <span className="text-sm truncate">{currentStage.optionLabel}</span>
                 </div>
               ) : (
-                <span className="text-sm text-gray-500">알 수 없음</span>
+                <span className="text-sm text-gray-500">미정</span>
               )}
             </div>
 
             {/* Role */}
-            <div>
+            <div className="col-span-1">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <Tag className="w-4 h-4 inline mr-1" />
+                <Tag className="w-4 h-4 inline mr-1 text-purple-500" />
                 역할
               </label>
               {currentRole ? (
                 <div className="flex items-center gap-2">
                   <span
-                    className="w-3 h-3 rounded-full"
+                    className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{
                       backgroundColor: (currentRole as any).color || '#6B7280',
                     }}
                   />
-                  <span className="text-sm">{currentRole.optionLabel}</span>
+                  <span className="text-sm truncate">{currentRole.optionLabel}</span>
                 </div>
               ) : (
-                <span className="text-sm text-gray-500">알 수 없음</span>
+                <span className="text-sm text-gray-500">미정</span>
+              )}
+            </div>
+
+            {/* Importance (별도 행에 배치) */}
+            <div className="col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <AlertCircle className="w-4 h-4 inline mr-1 text-red-500" />
+                중요도
+              </label>
+              {currentImportance ? (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{
+                      backgroundColor: (currentImportance as any).color || '#6B7280',
+                    }}
+                  />
+                  <span className="text-sm truncate">{currentImportance.optionLabel}</span>
+                </div>
+              ) : (
+                <span className="text-sm text-gray-500">없음</span>
               )}
             </div>
           </div>
+          {/* Assignee and Participants - 2 columns */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Assignee (작업 할당자) */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <User className="w-4 h-4 inline mr-1 text-green-500" />
+                작업 할당자 (1명)
+              </label>
+              {assigneeMember ? (
+                <div className="flex items-center gap-2">
+                  <AvatarStack members={[assigneeMember]} />
+                  <span className="text-sm">{assigneeMember.userName}</span>
+                </div>
+              ) : (
+                <span className="text-sm text-gray-500">할당되지 않음</span>
+              )}
+            </div>
 
-          {/* Importance */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              <AlertCircle className="w-4 h-4 inline mr-1" />
-              중요도
-            </label>
-            {currentImportance ? (
-              <div className="flex items-center gap-2">
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{
-                    backgroundColor: (currentImportance as any).color || '#6B7280',
-                  }}
-                />
-                <span className="text-sm">{currentImportance.optionLabel}</span>
-              </div>
-            ) : (
-              <span className="text-sm text-gray-500">없음</span>
-            )}
+            {/* Participants (작업자) */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <Users className="w-4 h-4 inline mr-1 text-orange-500" />
+                작업자 ({participantMembers.length}명)
+              </label>
+              {participantMembers.length > 0 ? (
+                <AvatarStack members={participantMembers} />
+              ) : (
+                <span className="text-sm text-gray-500">없음</span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Comments Section */}
+        {/* Comments Section (이전과 동일) */}
         <div className="pt-4 border-t border-gray-200">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-gray-700" />
             <h3 className="text-base font-bold text-gray-800">댓글 ({comments.length}개)</h3>
           </div>
 
           <div className="space-y-3 mb-4 max-h-40 overflow-y-auto">
             {comments.map((comment) => (
-              <div key={comment.id} className="p-3 bg-gray-100 border border-gray-200 rounded-lg">
+              <div
+                key={comment.commentId}
+                className="p-3 bg-gray-100 border border-gray-200 rounded-lg"
+              >
                 <div className="flex items-start gap-2">
                   <div className="w-6 h-6 bg-blue-500 flex items-center justify-center text-white text-xs font-bold rounded-full flex-shrink-0">
-                    {comment.author[0]}
+                    {comment.userId?.[0] || '?'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold">{comment.author}</span>
-                      <span className="text-[10px] text-gray-500">{comment.timestamp}</span>
+                      <span className="text-xs font-bold">사용자 ID: {comment.userId}</span>
+                      <span className="text-[10px] text-gray-500">
+                        {formatDate(comment.createdAt)}
+                      </span>
                     </div>
                     <p className="text-sm break-words text-gray-700">{comment.content}</p>
                   </div>
@@ -371,7 +509,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
             type="file"
             ref={fileInputRef}
             onChange={handleFileChange}
-            accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" // 💡 허용 파일 타입 설정
+            accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             style={{ display: 'none' }}
           />
 
@@ -411,8 +549,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                 className="bg-gray-200 text-gray-700 px-3 py-2 hover:bg-gray-300 transition flex items-center justify-center gap-1 rounded-lg disabled:bg-gray-400"
                 disabled={isLoading}
               >
-                <Paperclip className="w-4 h-4" />{' '}
-                {/* Paperclip 아이콘도 lucide-react에서 import 필요 */}
+                <Paperclip className="w-4 h-4" />
               </button>
 
               {/* 등록 버튼 */}
@@ -431,17 +568,26 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
         {/* Actions */}
         <div className="flex gap-3 mt-6 pt-4 border-t border-gray-300">
           <button
+            onClick={handleDelete}
+            className="flex-1 px-4 py-2 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            disabled={isLoading}
+          >
+            <Trash2 className="w-4 h-4" />
+            보드 삭제
+          </button>
+          <button
             onClick={() => {
+              // 💡 onEdit에 boardData의 속성 사용
               onEdit({
                 boardId,
-                projectId,
-                title: title || '',
-                content: content || '',
-                stage: selectedStageId,
-                role: selectedRoleId,
-                importance: selectedImportanceId,
-                assigneeId: selectedAssigneeId,
-                dueDate: dueDate,
+                projectId: boardData.projectId,
+                title: boardData.title || '',
+                content: boardData.content || '',
+                stage: boardData.selectedStageId,
+                role: boardData.selectedRoleId,
+                importance: boardData.selectedImportanceId,
+                assigneeId: boardData.selectedAssigneeId,
+                dueDate: boardData.dueDate,
               });
             }}
             className="flex-1 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
@@ -449,14 +595,6 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
           >
             <Edit2 className="w-4 h-4" />
             보드 수정
-          </button>
-          <button
-            onClick={handleDelete}
-            className="flex-1 px-4 py-2 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
-            disabled={isLoading}
-          >
-            <Trash2 className="w-4 h-4" />
-            보드 삭제
           </button>
         </div>
       </div>

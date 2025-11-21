@@ -39,6 +39,8 @@ export interface BoardResponse {
   customFields: Record<string, any>;
   createdAt: string;
   updatedAt: string;
+  fileUrl?: string; // 💡 [추가] 보드 파일 URL 설정
+  fileName?: string; // 💡 [추가] 보드 파일 이름 설정
 }
 
 /**
@@ -61,6 +63,9 @@ export interface CreateBoardRequest {
   assigneeId?: string;
   dueDate?: string;
   customFields?: Record<string, any>;
+  participants?: string[];
+  fileUrl?: string; // 💡 [추가] 보드 파일 URL 설정
+  fileName?: string; // 💡 [추가] 보드 파일 이름 설정
 }
 
 /**
@@ -73,6 +78,9 @@ export interface UpdateBoardRequest {
   assigneeId?: string;
   dueDate?: string;
   customFields?: Record<string, any>;
+  participants?: string[];
+  fileUrl?: string; // 💡 [추가] 보드 파일 URL 설정
+  fileName?: string; // 💡 [추가] 보드 파일 이름 설정
 }
 
 /**
