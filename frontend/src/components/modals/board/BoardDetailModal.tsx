@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { X, AlertCircle, Tag, CheckSquare, MessageSquare, Send, Edit2, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  X,
+  AlertCircle,
+  Tag,
+  CheckSquare,
+  MessageSquare,
+  Send,
+  Edit2,
+  Trash2,
+  Paperclip,
+} from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { BoardResponse, FieldOption } from '../../../types/board';
-import { getBoard, deleteBoard } from '../../../api/board/boardService';
+import { getBoard, deleteBoard, addCommentToBoardWithFile } from '../../../api/board/boardService';
 import { getWorkspaceMembers } from '../../../api/user/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
 
@@ -66,6 +76,9 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   // Comment state
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
+  //
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // 💡 파일 입력을 위한 Ref 추가
 
   // 보드 데이터 조회
   useEffect(() => {
@@ -139,19 +152,53 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
       setIsLoading(false);
     }
   };
+  // 💡 파일 선택 핸들러
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
 
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      setComments([
-        ...comments,
-        {
-          id: comments.length + 1,
-          author: '사용자',
-          content: newComment,
-          timestamp: '방금 전',
-        },
-      ]);
+      // 💡 (선택 사항) 크기 제한 체크 (20MB로 가정)
+      const MAX_SIZE = 20 * 1024 * 1024;
+      if (file.size > MAX_SIZE) {
+        alert('파일 크기는 20MB를 초과할 수 없습니다.');
+        setSelectedFile(null);
+        e.target.value = ''; // 파일 input 초기화
+        return;
+      }
+
+      setSelectedFile(file);
+      console.log('🖼️ 파일 선택:', file.name);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() && !selectedFile) return; // 내용이나 파일 둘 중 하나는 있어야 함
+    if (isLoading) return;
+
+    setIsLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('content', newComment.trim());
+
+      if (selectedFile) {
+        // 'file'은 백엔드에서 파일을 받을 때 사용하는 필드 이름과 일치해야 합니다.
+        formData.append('file', selectedFile);
+      }
+
+      // 💡 FormData를 이용한 API 호출
+      const addedComment = await addCommentToBoardWithFile(boardId, formData);
+
+      setComments((prevComments) => [addedComment, ...prevComments]);
       setNewComment('');
+      setSelectedFile(null); // 파일 상태 초기화
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''; // 파일 input 초기화
+      }
+    } catch (err: any) {
+      // ... (오류 처리 로직)
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -319,24 +366,65 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
             ))}
           </div>
 
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
-              placeholder="댓글을 입력하세요..."
-              className="flex-1 px-3 py-2 border border-gray-300 text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoading}
-            />
-            <button
-              onClick={handleAddComment}
-              disabled={isLoading || !newComment.trim()}
-              className="bg-blue-500 text-white px-4 py-2 hover:bg-blue-600 transition flex items-center justify-center gap-1 rounded-lg disabled:bg-gray-400"
-            >
-              <Send className="w-4 h-4" />
-              <span className="text-xs">등록</span>
-            </button>
+          {/* 파일 input (숨김) */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" // 💡 허용 파일 타입 설정
+            style={{ display: 'none' }}
+          />
+
+          <div className="flex flex-col gap-2">
+            {/* 파일 미리보기 및 제거 버튼 */}
+            {selectedFile && (
+              <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                <span className="text-blue-700 truncate">{selectedFile.name}</span>
+                <button
+                  onClick={() => {
+                    setSelectedFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className="ml-2 text-blue-500 hover:text-blue-700"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              {/* 댓글 입력 필드 */}
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
+                placeholder="댓글을 입력하세요..."
+                className="flex-1 px-3 py-2 border border-gray-300 text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isLoading}
+              />
+
+              {/* 파일 선택 버튼 */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+                className="bg-gray-200 text-gray-700 px-3 py-2 hover:bg-gray-300 transition flex items-center justify-center gap-1 rounded-lg disabled:bg-gray-400"
+                disabled={isLoading}
+              >
+                <Paperclip className="w-4 h-4" />{' '}
+                {/* Paperclip 아이콘도 lucide-react에서 import 필요 */}
+              </button>
+
+              {/* 등록 버튼 */}
+              <button
+                onClick={handleAddComment}
+                disabled={isLoading || (!newComment.trim() && !selectedFile)}
+                className="bg-blue-500 text-white px-4 py-2 hover:bg-blue-600 transition flex items-center justify-center gap-1 rounded-lg disabled:bg-gray-400"
+              >
+                <Send className="w-4 h-4" />
+                <span className="text-xs">등록</span>
+              </button>
+            </div>
           </div>
         </div>
 
