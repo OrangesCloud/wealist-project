@@ -211,7 +211,6 @@ jobs:
               "OAUTH2_CLIENT_REDIRECT_BASE"
               "OAUTH2_REDIRECT_URL_ENV"
               "OAUTH2_CLIENT_REDIRECT_URI"
-              "GRAFANA_ADMIN_PASSWORD"
             )
             
             # 환경변수 unset
@@ -378,9 +377,7 @@ jobs:
           
           export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH2_CLIENT_REDIRECT_BASE}/api/users/login/oauth2/code/google"
 
-          # Grafana
-          export GRAFANA_ADMIN_USER=$(load_param "monitor/grafana_admin_user")
-          export GRAFANA_ADMIN_PASSWORD=$(load_secret "monitor/grafana_admin_password")
+
 
           # Service URLs
           export USER_SERVICE_URL=$(load_param "service/user_service_url")
@@ -428,8 +425,6 @@ jobs:
           echo "   - OAUTH2_CLIENT_REDIRECT_BASE: ${OAUTH2_CLIENT_REDIRECT_BASE}"
           echo "   - OAUTH2_REDIRECT_URL_ENV: ${OAUTH2_REDIRECT_URL_ENV}"
           echo "   - OAUTH2_CLIENT_REDIRECT_URI: ${OAUTH2_CLIENT_REDIRECT_URI}"
-          echo "   - GRAFANA_ADMIN_USER: ${GRAFANA_ADMIN_USER}"
-          echo "   - GRAFANA_ADMIN_PASSWORD: [REDACTED]"
           echo "   - USER_SERVICE_URL: ${USER_SERVICE_URL}"
           echo ""
 
@@ -493,8 +488,8 @@ jobs:
             exit 1
           fi
 
-          # 인프라 서비스 목록 정의 (데이터베이스, 캐시, 모니터링)
-          INFRA_SERVICES="postgres redis prometheus grafana redis-exporter postgres-exporter node-exporter"
+          # 인프라 서비스 목록 정의 (데이터베이스, 캐시만)
+          INFRA_SERVICES="postgres redis"
           
           # 각 서비스 실행 여부 확인
           echo "  🔍 Checking service status..."
@@ -576,26 +571,7 @@ jobs:
               exit 1
             fi
             
-            # 모니터링 서비스 헬스체크 (선택적 - 실패해도 배포 계속)
-            echo "  🏥 Checking monitoring services health..."
-            
-            # Prometheus 헬스체크
-            sleep 5  # Prometheus 시작 대기
-            if docker exec wealist-prometheus wget -q --spider http://localhost:9090/-/healthy 2>/dev/null; then
-              echo "  ✅ Prometheus is healthy"
-            else
-              echo "  ⚠️  Prometheus health check failed (non-critical)" >&2
-            fi
-            
-            # Grafana 헬스체크
-            sleep 5  # Grafana 시작 대기
-            if docker exec wealist-grafana wget -q --spider http://localhost:3000/api/health 2>/dev/null; then
-              echo "  ✅ Grafana is healthy"
-            else
-              echo "  ⚠️  Grafana health check failed (non-critical)" >&2
-            fi
-            
-            echo "  ✅ All critical infrastructure services are healthy and ready"
+            echo "  ✅ All infrastructure services are healthy and ready"
           else
             echo "  ✅ All infrastructure services already running"
             

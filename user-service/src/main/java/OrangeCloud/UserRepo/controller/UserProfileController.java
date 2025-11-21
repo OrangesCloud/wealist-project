@@ -5,6 +5,7 @@ import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
 import OrangeCloud.UserRepo.service.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -76,6 +77,28 @@ public class UserProfileController {
                 workspaceId, userId, response.getProfileId());
         log.info("=== END REQUEST: Get Workspace Profile ===");
 
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/workspace/{workspaceId}/user/{userId}")
+    @Operation(
+        summary = "특정 사용자의 워크스페이스 프로필 조회", 
+        description = "워크스페이스 내 특정 사용자의 프로필을 조회합니다. 요청자는 해당 워크스페이스의 멤버여야 합니다."
+    )
+    public ResponseEntity<UserProfileResponse> getWorkspaceProfileByUserId(
+            @Parameter(description = "워크스페이스 ID") @PathVariable UUID workspaceId,
+            @Parameter(description = "조회할 사용자 ID") @PathVariable UUID userId,
+            Principal principal) {
+        UUID requestingUserId = extractUserId(principal);
+        log.info("Fetching workspace profile: workspaceId={}, targetUserId={}, requestingUserId={}", 
+                workspaceId, userId, requestingUserId);
+        
+        UserProfileResponse response = userProfileService.getWorkspaceProfileByUserId(
+                workspaceId, userId, requestingUserId);
+        
+        log.info("Workspace profile retrieved successfully: workspaceId={}, userId={}, profileId={}", 
+                workspaceId, userId, response.getProfileId());
+        
         return ResponseEntity.ok(response);
     }
 

@@ -167,8 +167,10 @@ services:
         [
           "CMD",
           "wget",
-          "-q",
-          "--spider",
+          "--no-verbose",
+          "--tries=1",
+          "-O",
+          "/dev/null",
           "http://localhost:8000/api/boards/health",
         ]
       interval: 30s
