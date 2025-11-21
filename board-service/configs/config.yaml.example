@@ -76,3 +76,13 @@ user_api:
   
   # HTTP request timeout for User API calls (e.g., 5s, 10s, 1m)
   timeout: 5s
+  
+# Redis Configuration (실시간 Kanban을 위해 필수!)
+  redis:
+    # Redis 호스트 (docker-compose면 redis, EC2면 localhost 또는 ElastiCache 엔드포인트)
+    host: "redis"
+    port: "6379"
+    password: "${REDIS_PASSWORD}"  # docker-compose.ec2-dev.yml에 있음
+    db: 0
+    tls: false                    # 로컬/테스트용은 false, 나중에 ElastiCache면 true
+    # url: "redis://:password@host:port/0"  # 또는 이 방식으로 한 줄로 줄 수도 있음

@@ -68,6 +68,8 @@ export const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({
         getPendingMembers(workspaceId),
       ]);
 
+      console.log('✅ Pending Members:', pendingData); // 💡 디버깅용 로그 추가
+
       setMembers(membersData);
       setPendingMembers(pendingData);
     } catch (err: any) {
@@ -152,9 +154,14 @@ export const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({
     setError(null);
     try {
       await approveMember(workspaceId, userId);
+
+      // 💡 데이터 다시 불러오기 (순차 실행)
       await fetchWorkspaceData();
+
+      // 💡 상위 컴포넌트에 알림
       onDataRefreshed();
-      console.log('회원 승인이 완료되었습니다.');
+
+      console.log('✅ 회원 승인이 완료되었습니다.');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
       setError(`회원 승인에 실패했습니다: ${errorMsg}`);
@@ -168,9 +175,14 @@ export const WorkspaceMembersTab: React.FC<WorkspaceMembersTabProps> = ({
     setError(null);
     try {
       await rejectMember(workspaceId, userId);
+
+      // 💡 데이터 다시 불러오기 (순차 실행)
       await fetchWorkspaceData();
+
+      // 💡 상위 컴포넌트에 알림
       onDataRefreshed();
-      console.log('회원 요청을 거절했습니다.');
+
+      console.log('✅ 회원 요청을 거절했습니다.');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
       setError(`회원 거절에 실패했습니다: ${errorMsg}`);

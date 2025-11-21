@@ -17,14 +17,14 @@ import (
 	"project-board-api/internal/service"
 )
 
-// Config holds router configuration
 type Config struct {
-	DB         *gorm.DB
-	Logger     *zap.Logger
-	JWTSecret  string
-	UserClient client.UserClient
-	BasePath   string
-	Metrics    *metrics.Metrics
+	DB                 *gorm.DB
+	Logger             *zap.Logger
+	JWTSecret          string
+	UserClient         client.UserClient
+	BasePath           string
+	UserServiceBaseURL string
+	Metrics            *metrics.Metrics
 }
 
 // Setup initializes the router with all dependencies and routes
@@ -74,6 +74,9 @@ func Setup(cfg Config) *gin.Engine {
 	projectMemberHandler := handler.NewProjectMemberHandler(projectMemberService)
 	projectJoinRequestHandler := handler.NewProjectJoinRequestHandler(projectJoinRequestService)
 
+	// 💡 WebSocket Handler 초기화
+	wsHandler := handler.NewWSHandler(cfg.Logger, cfg.UserClient)
+
 	// Create base path group if configured
 	var baseGroup *gin.RouterGroup
 	if cfg.BasePath != "" {
@@ -106,6 +109,20 @@ func Setup(cfg Config) *gin.Engine {
 
 	// Setup API routes
 	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)
+
+	// 🔥 [수정] MoveBoard를 /api 그룹 안에 등록
+	// 프론트엔드: PUT /api/boards/api/:boardId/move
+	// 백엔드: PUT /api/boards/api/:boardId/move
+	apiGroup := baseGroup.Group("/api")
+	apiGroup.Use(middleware.Auth(cfg.JWTSecret))
+	{
+		apiGroup.PUT("/:boardId/move", boardHandler.MoveBoard)
+	}
+
+	// 🔥 [중요] WebSocket은 baseGroup을 사용하되 인증 미들웨어 없이 직접 등록
+	// basePath가 /api/boards일 때: /api/boards/api/ws/project/:projectId
+	wsGroup := baseGroup.Group("/api")
+	wsGroup.GET("/ws/project/:projectId", wsHandler.HandleWebSocket)
 
 	return router
 }
@@ -161,24 +178,24 @@ func setupRoutes(
 		{
 			// Frontend compatibility route (query parameter style)
 			projects.GET("", projectHandler.GetProjectsByWorkspaceQuery)
-			
+
 			// Existing routes
 			projects.POST("", projectHandler.CreateProject)
 			projects.GET("/workspace/:workspaceId", projectHandler.GetProjectsByWorkspace)
 			projects.GET("/workspace/:workspaceId/default", projectHandler.GetDefaultProject)
-			
+
 			// New project management extension routes
 			projects.GET("/search", projectHandler.SearchProjects)
 			projects.GET("/:projectId", projectHandler.GetProject)
 			projects.PUT("/:projectId", projectHandler.UpdateProject)
 			projects.DELETE("/:projectId", projectHandler.DeleteProject)
 			projects.GET("/:projectId/init-settings", projectHandler.GetProjectInitSettings)
-			
+
 			// Project member routes
 			projects.GET("/:projectId/members", projectMemberHandler.GetMembers)
 			projects.DELETE("/:projectId/members/:memberId", projectMemberHandler.RemoveMember)
 			projects.PUT("/:projectId/members/:memberId/role", projectMemberHandler.UpdateMemberRole)
-			
+
 			// Project join request routes
 			projects.GET("/:projectId/join-requests", projectJoinRequestHandler.GetJoinRequests)
 		}
@@ -195,12 +212,14 @@ func setupRoutes(
 		{
 			// Frontend compatibility route (query parameter style)
 			boards.GET("", boardHandler.GetBoardsByProjectQuery)
-			
+
 			boards.POST("", boardHandler.CreateBoard)
 			boards.GET("/:boardId", boardHandler.GetBoard)
 			boards.GET("/project/:projectId", boardHandler.GetBoardsByProject)
 			boards.PUT("/:boardId", boardHandler.UpdateBoard)
 			boards.DELETE("/:boardId", boardHandler.DeleteBoard)
+			// 💡 [제거] boards.PUT("/:boardId/move", boardHandler.MoveBoard)
+			// MoveBoard는 Setup 함수에서 별도로 등록됨
 		}
 
 		// Participant routes
@@ -216,7 +235,7 @@ func setupRoutes(
 		{
 			// Frontend compatibility route (query parameter style)
 			comments.GET("", commentHandler.GetCommentsByQuery)
-			
+
 			comments.POST("", commentHandler.CreateComment)
 			comments.GET("/board/:boardId", commentHandler.GetComments)
 			comments.PUT("/:commentId", commentHandler.UpdateComment)

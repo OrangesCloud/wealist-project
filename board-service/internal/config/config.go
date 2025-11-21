@@ -18,6 +18,7 @@ type Config struct {
 	JWT      JWTConfig      `yaml:"jwt"`
 	UserAPI  UserAPIConfig  `yaml:"user_api"`
 	CORS     CORSConfig     `yaml:"cors"`
+	Redis    RedisConfig    `mapstructure:"redis" yaml:"redis"` // ← Redis 추가
 }
 
 // ServerConfig holds server configuration
@@ -63,6 +64,13 @@ type UserAPIConfig struct {
 // CORSConfig holds CORS configuration
 type CORSConfig struct {
 	AllowedOrigins string `yaml:"allowed_origins"`
+}
+
+type RedisConfig struct {
+	Password string `mapstructure:"password" yaml:"password"`
+	DB       int    `mapstructure:"db" yaml:"db"`
+	TLS      bool   `mapstructure:"tls" yaml:"tls"`
+	URL      string `mapstructure:"url" yaml:"url"` // redis:// 형식 지원
 }
 
 // Load loads configuration from file and environment variables
@@ -140,7 +148,7 @@ func (c *Config) overrideFromEnv() {
 	if port := os.Getenv("SERVER_PORT"); port != "" {
 		c.Server.Port = port
 	}
-	
+
 	// ENV alias for SERVER_MODE (original format takes precedence)
 	// Maps: dev→debug, prod→release
 	if env := os.Getenv("ENV"); env != "" {
@@ -157,7 +165,7 @@ func (c *Config) overrideFromEnv() {
 	if mode := os.Getenv("SERVER_MODE"); mode != "" && os.Getenv("ENV") == "" {
 		c.Server.Mode = mode
 	}
-	
+
 	// Base path for ALB routing
 	if basePath := os.Getenv("SERVER_BASE_PATH"); basePath != "" {
 		c.Server.BasePath = basePath
@@ -179,7 +187,7 @@ func (c *Config) overrideFromEnv() {
 			c.Database.DBName = dbname
 		}
 	}
-	
+
 	// Individual DB_* variables can override DATABASE_URL if provided
 	if host := os.Getenv("DB_HOST"); host != "" {
 		c.Database.Host = host
@@ -236,6 +244,13 @@ func (c *Config) overrideFromEnv() {
 	if origins := os.Getenv("CORS_ALLOWED_ORIGINS"); origins != "" && os.Getenv("CORS_ORIGINS") == "" {
 		c.CORS.AllowedOrigins = origins
 	}
+	// Redis 환경변수 오버라이드 (이게 핵심!)
+	if redisPassword := os.Getenv("REDIS_PASSWORD"); redisPassword != "" {
+		c.Redis.Password = redisPassword
+	}
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		c.Redis.URL = redisURL
+	}
 }
 
 // validate validates the configuration
@@ -264,49 +279,49 @@ func (c *Config) validate() error {
 	if c.UserAPI.Timeout == 0 {
 		return fmt.Errorf("user api timeout is required")
 	}
-	
+
 	// Validate and normalize User API Base URL
 	if err := c.validateUserAPIBaseURL(); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
 // validateUserAPIBaseURL validates and normalizes the User API base URL
 func (c *Config) validateUserAPIBaseURL() error {
 	baseURL := c.UserAPI.BaseURL
-	
+
 	// Check for trailing slash and remove it
 	if strings.HasSuffix(baseURL, "/") {
 		fmt.Fprintf(os.Stderr, "Warning: User API base URL has trailing slash, removing it: %s\n", baseURL)
 		c.UserAPI.BaseURL = strings.TrimSuffix(baseURL, "/")
 		baseURL = c.UserAPI.BaseURL
 	}
-	
+
 	// Parse URL to validate format
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return fmt.Errorf("invalid user api base url format '%s': %w", baseURL, err)
 	}
-	
+
 	// Validate scheme
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
 		return fmt.Errorf("user api base url must use http or https scheme, got: %s", parsedURL.Scheme)
 	}
-	
+
 	// Validate host is present
 	if parsedURL.Host == "" {
 		return fmt.Errorf("user api base url missing host: %s", baseURL)
 	}
-	
+
 	// Log configuration details for debugging
 	fmt.Fprintf(os.Stderr, "User API Configuration validated:\n")
 	fmt.Fprintf(os.Stderr, "  - Base URL: %s\n", c.UserAPI.BaseURL)
 	fmt.Fprintf(os.Stderr, "  - Scheme: %s\n", parsedURL.Scheme)
 	fmt.Fprintf(os.Stderr, "  - Host: %s\n", parsedURL.Host)
 	fmt.Fprintf(os.Stderr, "  - Timeout: %s\n", c.UserAPI.Timeout)
-	
+
 	// Check environment variable sources
 	if userServiceURL := os.Getenv("USER_SERVICE_URL"); userServiceURL != "" {
 		fmt.Fprintf(os.Stderr, "  - Source: USER_SERVICE_URL environment variable\n")
@@ -315,7 +330,7 @@ func (c *Config) validateUserAPIBaseURL() error {
 	} else {
 		fmt.Fprintf(os.Stderr, "  - Source: config.yaml file\n")
 	}
-	
+
 	return nil
 }
 
@@ -356,7 +371,7 @@ func parseDatabaseURL(databaseURL string) (host, port, user, password, dbname st
 	if u.Host == "" {
 		return "", "", "", "", "", fmt.Errorf("DATABASE_URL missing host\nExpected format: postgresql://user:password@host:port/dbname?sslmode=disable")
 	}
-	
+
 	// Split host and port
 	hostPort := u.Host
 	if strings.Contains(hostPort, ":") {
