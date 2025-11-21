@@ -51,7 +51,7 @@
         "textMode": "value_and_name"
       },
       "targets": [
-        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "up{job=\"board-service\"}", "refId": "A"}
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "max(up{job=\"wealist-board\"})", "refId": "A"}
       ],
       "title": "서비스 상태",
       "type": "stat"
@@ -77,7 +77,7 @@
         "textMode": "value_and_name"
       },
       "targets": [
-        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "time() - process_start_time_seconds", "refId": "A"}
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "time() - process_start_time_seconds{job=\"wealist-board\"}", "refId": "A"}
       ],
       "title": "업타임 (Uptime)",
       "type": "stat"
@@ -360,13 +360,13 @@
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 27},
       "id": 10,
       "options": {
-        "legend": {"calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
-        "tooltip": {"mode": "multi", "sort": "none"}
+        "legend": {"calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last *", "sortDesc": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
       },
       "targets": [
-        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_memstats_alloc_bytes / 1024 / 1024", "legendFormat": "Allocated", "refId": "A"},
-        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_memstats_heap_inuse_bytes / 1024 / 1024", "legendFormat": "Heap In Use", "refId": "B"},
-        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_memstats_sys_bytes / 1024 / 1024", "legendFormat": "System", "refId": "C"}
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_memstats_alloc_bytes{job=\"wealist-board\"} / 1024 / 1024", "legendFormat": "Allocated - {{instance}}", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_memstats_heap_inuse_bytes{job=\"wealist-board\"} / 1024 / 1024", "legendFormat": "Heap In Use - {{instance}}", "refId": "B"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_memstats_sys_bytes{job=\"wealist-board\"} / 1024 / 1024", "legendFormat": "System - {{instance}}", "refId": "C"}
       ],
       "title": "메모리 사용량 (MB) - 임계값: 2GB",
       "type": "timeseries"
@@ -695,13 +695,13 @@
       "gridPos": {"h": 9, "w": 12, "x": 12, "y": 53},
       "id": 18,
       "options": {
-        "legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "legend": {"calcs": ["sum", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Total", "sortDesc": true},
         "tooltip": {"mode": "multi", "sort": "desc"}
       },
       "targets": [
-        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(board_service_external_api_errors_total[5m])", "legendFormat": "{{endpoint}} - {{error_type}}", "refId": "A"}
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (endpoint, error_type) (rate(board_service_external_api_errors_total[5m]))", "legendFormat": "{{endpoint}} - [{{error_type}}]", "refId": "A"}
       ],
-      "title": "User Service 에러율",
+      "title": "User Service 에러율 (엔드포인트 & 에러타입별)",
       "type": "timeseries"
     },
     {
