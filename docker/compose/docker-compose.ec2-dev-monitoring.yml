@@ -147,7 +147,7 @@ services:
     hostname: redis-exporter
 
     environment:
-      - REDIS_ADDR=redis://wealist-redis:${REDIS_PORT}
+      - REDIS_ADDR=redis:${REDIS_PORT}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_EXPORTER_DEBUG=false
 
