@@ -61,6 +61,7 @@ export interface CreateBoardRequest {
   title: string;
   content?: string;
   assigneeId?: string;
+  startDate?: string;
   dueDate?: string;
   customFields?: Record<string, any>;
   participants?: string[];
@@ -76,6 +77,7 @@ export interface UpdateBoardRequest {
   title?: string;
   content?: string;
   assigneeId?: string;
+  startDate?: string;
   dueDate?: string;
   customFields?: Record<string, any>;
   participants?: string[];
@@ -127,6 +129,7 @@ export interface ProjectResponse {
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
+  dueDate?: string;
 }
 
 /**
@@ -153,6 +156,7 @@ export interface CreateProjectRequest {
   workspaceId: string;
   name: string;
   description?: string;
+  dueDate?: string;
 }
 
 /**
@@ -162,6 +166,7 @@ export interface CreateProjectRequest {
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;
+  dueDate?: string;
 }
 
 /**
