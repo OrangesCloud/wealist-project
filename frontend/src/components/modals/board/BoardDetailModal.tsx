@@ -28,8 +28,8 @@ import {
   getBoard,
   deleteBoard,
   // createCommentWithFile
-} from '../../../api/board/boardService';
-import { getWorkspaceMembers } from '../../../api/user/userService';
+} from '../../../api/boardService';
+import { getWorkspaceMembers } from '../../../api/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
 import { AvatarStack } from '../../common/AvartarStack';
 import { formatDate } from '../../../utils/date';
