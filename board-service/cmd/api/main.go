@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"go.uber.org/zap"
 
 	"project-board-api/internal/client"
@@ -116,10 +114,6 @@ func main() {
 	// Initialize metrics with logger
 	log.Info("Initializing Prometheus metrics")
 	m := metrics.NewWithLogger(log.Logger)
-	
-	// Register Go runtime metrics collector
-	prometheus.MustRegister(collectors.NewGoCollector())
-	log.Info("Go runtime metrics collector registered")
 	
 	// Register GORM callbacks for database metrics
 	database.RegisterMetricsCallbacks(db, m)
