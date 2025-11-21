@@ -129,6 +129,7 @@ export interface ProjectResponse {
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
+  startDate?: string;
   dueDate?: string;
 }
 
@@ -156,6 +157,7 @@ export interface CreateProjectRequest {
   workspaceId: string;
   name: string;
   description?: string;
+  startDate?: string;
   dueDate?: string;
 }
 
@@ -166,6 +168,7 @@ export interface CreateProjectRequest {
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;
+  startDate?: string;
   dueDate?: string;
 }
 
