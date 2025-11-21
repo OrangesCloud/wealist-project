@@ -58,32 +58,156 @@ func TestNormalizeEndpoint(t *testing.T) {
 
 func TestGetErrorType(t *testing.T) {
 	tests := []struct {
-		name     string
-		err      error
-		expected string
+		name       string
+		statusCode int
+		err        error
+		expected   string
 	}{
 		{
-			name:     "Nil error",
-			err:      nil,
-			expected: "none",
+			name:       "No error and success status",
+			statusCode: 200,
+			err:        nil,
+			expected:   "unknown",
 		},
 		{
-			name:     "Generic error",
-			err:      errors.New("some error"),
-			expected: "unknown",
+			name:       "Bad request",
+			statusCode: 400,
+			err:        nil,
+			expected:   "bad_request",
 		},
 		{
-			name:     "Network error",
-			err:      errors.New("connection refused"),
-			expected: "unknown",
+			name:       "Unauthorized",
+			statusCode: 401,
+			err:        nil,
+			expected:   "unauthorized",
+		},
+		{
+			name:       "Forbidden",
+			statusCode: 403,
+			err:        nil,
+			expected:   "forbidden",
+		},
+		{
+			name:       "Not found",
+			statusCode: 404,
+			err:        nil,
+			expected:   "not_found",
+		},
+		{
+			name:       "Request timeout",
+			statusCode: 408,
+			err:        nil,
+			expected:   "request_timeout",
+		},
+		{
+			name:       "Too many requests",
+			statusCode: 429,
+			err:        nil,
+			expected:   "too_many_requests",
+		},
+		{
+			name:       "Generic client error",
+			statusCode: 418,
+			err:        nil,
+			expected:   "client_error",
+		},
+		{
+			name:       "Internal server error",
+			statusCode: 500,
+			err:        nil,
+			expected:   "internal_server_error",
+		},
+		{
+			name:       "Bad gateway",
+			statusCode: 502,
+			err:        nil,
+			expected:   "bad_gateway",
+		},
+		{
+			name:       "Service unavailable",
+			statusCode: 503,
+			err:        nil,
+			expected:   "service_unavailable",
+		},
+		{
+			name:       "Gateway timeout",
+			statusCode: 504,
+			err:        nil,
+			expected:   "gateway_timeout",
+		},
+		{
+			name:       "Generic server error",
+			statusCode: 507,
+			err:        nil,
+			expected:   "server_error",
+		},
+		{
+			name:       "Connection refused",
+			statusCode: 0,
+			err:        errors.New("connection refused"),
+			expected:   "connection_refused",
+		},
+		{
+			name:       "DNS error",
+			statusCode: 0,
+			err:        errors.New("no such host"),
+			expected:   "dns_error",
+		},
+		{
+			name:       "Timeout error",
+			statusCode: 0,
+			err:        errors.New("timeout exceeded"),
+			expected:   "timeout",
+		},
+		{
+			name:       "Deadline exceeded",
+			statusCode: 0,
+			err:        errors.New("context deadline exceeded"),
+			expected:   "timeout",
+		},
+		{
+			name:       "Connection reset",
+			statusCode: 0,
+			err:        errors.New("connection reset by peer"),
+			expected:   "connection_reset",
+		},
+		{
+			name:       "EOF error",
+			statusCode: 0,
+			err:        errors.New("unexpected EOF"),
+			expected:   "connection_reset",
+		},
+		{
+			name:       "TLS error",
+			statusCode: 0,
+			err:        errors.New("TLS handshake failed"),
+			expected:   "tls_error",
+		},
+		{
+			name:       "Certificate error",
+			statusCode: 0,
+			err:        errors.New("certificate verification failed"),
+			expected:   "tls_error",
+		},
+		{
+			name:       "Generic network error",
+			statusCode: 0,
+			err:        errors.New("some network error"),
+			expected:   "network_error",
+		},
+		{
+			name:       "Unknown error",
+			statusCode: 0,
+			err:        nil,
+			expected:   "unknown",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getErrorType(tt.err)
+			result := getErrorType(tt.statusCode, tt.err)
 			if result != tt.expected {
-				t.Errorf("getErrorType(%v) = %q, want %q", tt.err, result, tt.expected)
+				t.Errorf("getErrorType(%d, %v) = %q, want %q", tt.statusCode, tt.err, result, tt.expected)
 			}
 		})
 	}
