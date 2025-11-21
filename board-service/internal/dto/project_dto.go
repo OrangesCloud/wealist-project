@@ -96,8 +96,6 @@ type ProjectBasicInfo struct {
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
 	OwnerID        uuid.UUID `json:"ownerId"`
-	OwnerEmail     string    `json:"ownerEmail,omitempty"`
-	OwnerName      string    `json:"ownerName,omitempty"`
 	IsPublic       bool      `json:"isPublic"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`

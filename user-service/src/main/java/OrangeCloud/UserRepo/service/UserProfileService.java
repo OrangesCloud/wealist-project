@@ -2,14 +2,9 @@ package OrangeCloud.UserRepo.service;
 
 import OrangeCloud.UserRepo.dto.userprofile.CreateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
-import OrangeCloud.UserRepo.entity.User;
 import OrangeCloud.UserRepo.entity.UserProfile;
 import OrangeCloud.UserRepo.repository.UserProfileRepository;
-import OrangeCloud.UserRepo.repository.UserRepository;
-import OrangeCloud.UserRepo.repository.WorkspaceMemberRepository;
 import OrangeCloud.UserRepo.exception.UserNotFoundException; // ✅ UserNotFoundException을 사용
-import OrangeCloud.UserRepo.exception.CustomException;
-import OrangeCloud.UserRepo.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -20,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -30,8 +24,6 @@ import java.util.stream.Collectors;
 public class UserProfileService {
 
     private final UserProfileRepository userProfileRepository;
-    private final UserRepository userRepository;
-    private final WorkspaceMemberRepository workspaceMemberRepository;
     private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     @Transactional
@@ -79,67 +71,6 @@ public class UserProfileService {
 
         // 💡 수정: DTO를 반환하도록 로직을 유지
         return UserProfileResponse.from(profile);
-    }
-
-    /**
-     * 특정 사용자의 워크스페이스 프로필을 조회합니다.
-     * 요청자는 해당 워크스페이스의 멤버여야 합니다.
-     * 워크스페이스 전용 프로필이 없는 경우 사용자의 기본 프로필 정보를 반환합니다.
-     * 
-     * @param workspaceId 워크스페이스 ID
-     * @param targetUserId 조회할 사용자 ID
-     * @param requestingUserId 요청하는 사용자 ID
-     * @return 사용자 프로필 응답 DTO (워크스페이스 프로필 또는 기본 프로필)
-     * @throws CustomException 요청자가 워크스페이스 멤버가 아닌 경우 (403 Forbidden)
-     * @throws UserNotFoundException 대상 사용자가 시스템에 존재하지 않는 경우 (404 Not Found)
-     */
-    @Transactional(readOnly = true)
-    public UserProfileResponse getWorkspaceProfileByUserId(
-            UUID workspaceId, 
-            UUID targetUserId, 
-            UUID requestingUserId) {
-        
-        log.info("Fetching workspace profile: workspaceId={}, targetUserId={}, requestingUserId={}", 
-                workspaceId, targetUserId, requestingUserId);
-        
-        // 1. 요청자가 워크스페이스 멤버인지 검증
-        boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, requestingUserId);
-        if (!isMember) {
-            log.warn("Access denied: User {} is not a member of workspace {}", requestingUserId, workspaceId);
-            throw new CustomException(ErrorCode.HANDLE_ACCESS_DENIED, 
-                    "You must be a member of this workspace to view member profiles");
-        }
-        
-        // 2. 워크스페이스 전용 프로필 조회 시도
-        Optional<UserProfile> workspaceProfile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, targetUserId);
-        
-        if (workspaceProfile.isPresent()) {
-            // 워크스페이스 프로필이 존재하는 경우 - 반환
-            log.info("Workspace profile found: profileId={}, workspaceId={}, userId={}", 
-                    workspaceProfile.get().getProfileId(), workspaceId, targetUserId);
-            return UserProfileResponse.from(workspaceProfile.get());
-        }
-        
-        // 3. 워크스페이스 프로필이 없는 경우 - 기본 프로필로 fallback
-        log.info("Workspace profile not found, falling back to default profile: workspaceId={}, userId={}", 
-                workspaceId, targetUserId);
-        
-        User user = userRepository.findById(targetUserId)
-                .orElseThrow(() -> {
-                    log.warn("User not found: userId={}", targetUserId);
-                    return new UserNotFoundException("User not found in the system");
-                });
-        
-        // 4. 기본 프로필로 UserProfileResponse 생성
-        log.info("Returning default profile for user: userId={}, email={}", targetUserId, user.getEmail());
-        return UserProfileResponse.builder()
-                .profileId(null)  // 워크스페이스 전용 프로필 ID 없음
-                .workspaceId(workspaceId)
-                .userId(user.getUserId())
-                .nickName(null)  // 커스텀 닉네임 없음
-                .email(user.getEmail())
-                .profileImageUrl(null)  // 커스텀 프로필 이미지 없음
-                .build();
     }
 
     // 해당 사용자id에 따른 모든 프로필 가져오기

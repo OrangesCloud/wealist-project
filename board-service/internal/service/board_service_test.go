@@ -340,7 +340,7 @@ func TestBoardService_CreateBoard(t *testing.T) {
 			tt.mockProject(mockProjectRepo)
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter, nil)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			got, err := service.CreateBoard(tt.ctx, tt.req)
@@ -438,7 +438,7 @@ func TestBoardService_CreateBoard_CustomFields(t *testing.T) {
 			
 			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockConverter := &MockFieldOptionConverter{}
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter, nil)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 			
 			req := &dto.CreateBoardRequest{
 				ProjectID:    projectID,
@@ -551,7 +551,7 @@ func TestBoardService_GetBoard(t *testing.T) {
 			mockConverter := &MockFieldOptionConverter{}
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter, nil)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			got, err := service.GetBoard(context.Background(), tt.boardID)
@@ -675,7 +675,7 @@ func TestBoardService_UpdateBoard(t *testing.T) {
 			mockConverter := &MockFieldOptionConverter{}
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter, nil)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			got, err := service.UpdateBoard(context.Background(), tt.boardID, tt.req)
@@ -776,7 +776,7 @@ func TestBoardService_UpdateBoard_CustomFields(t *testing.T) {
 			mockProjectRepo := &MockProjectRepository{}
 			mockFieldOptionRepo := &MockFieldOptionRepository{}
 			mockConverter := &MockFieldOptionConverter{}
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter, nil)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 			
 			req := &dto.UpdateBoardRequest{
 				CustomFields: &tt.updateFields,
@@ -980,7 +980,7 @@ func TestBoardService_GetBoardsByProject_CustomFieldsFilter(t *testing.T) {
 			tt.mockProject(mockProjectRepo)
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter, nil)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			got, err := service.GetBoardsByProject(context.Background(), projectID, tt.filters)
@@ -1062,7 +1062,7 @@ func TestBoardService_DeleteBoard(t *testing.T) {
 			mockConverter := &MockFieldOptionConverter{}
 			tt.mockBoard(mockBoardRepo)
 			
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter, nil)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter)
 
 			// When
 			err := service.DeleteBoard(context.Background(), tt.boardID)

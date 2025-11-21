@@ -11,7 +11,6 @@ import (
 	"project-board-api/internal/client"
 	"project-board-api/internal/domain"
 	"project-board-api/internal/dto"
-	"project-board-api/internal/metrics"
 	"project-board-api/internal/repository"
 	"project-board-api/internal/response"
 )
@@ -33,17 +32,15 @@ type projectServiceImpl struct {
 	projectRepo       repository.ProjectRepository
 	fieldOptionRepo   repository.FieldOptionRepository
 	userClient        client.UserClient
-	metrics           *metrics.Metrics
 	logger            *zap.Logger
 }
 
 // NewProjectService creates a new instance of ProjectService
-func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, userClient client.UserClient, m *metrics.Metrics, logger *zap.Logger) ProjectService {
+func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, userClient client.UserClient, logger *zap.Logger) ProjectService {
 	return &projectServiceImpl{
 		projectRepo:     projectRepo,
 		fieldOptionRepo: fieldOptionRepo,
 		userClient:      userClient,
-		metrics:         m,
 		logger:          logger,
 	}
 }
@@ -91,11 +88,6 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 		// Rollback project creation if field options fail
 		s.projectRepo.Delete(ctx, project.ID)
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to create default field options", err.Error())
-	}
-
-	// Increment project creation metric
-	if s.metrics != nil {
-		s.metrics.IncrementProjectCreated()
 	}
 
 	// Convert to response DTO
@@ -505,18 +497,7 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 		}
 	}
 
-	// Fetch owner profile information
-	ownerProfile, err := s.userClient.GetWorkspaceProfile(ctx, project.WorkspaceID, project.OwnerID, token)
-	if err != nil {
-		// Log error but continue with graceful degradation
-		s.logger.Warn("Failed to fetch owner profile for project init settings",
-			zap.Error(err),
-			zap.String("project_id", projectID.String()),
-			zap.String("owner_id", project.OwnerID.String()),
-		)
-	}
-
-	// Build project basic info with workspace and owner details
+	// Build project basic info with workspace details
 	projectInfo := dto.ProjectBasicInfo{
 		ProjectID:        project.ID,
 		WorkspaceID:      project.WorkspaceID,
@@ -528,12 +509,6 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 		IsPublic:         project.IsPublic,
 		CreatedAt:        project.CreatedAt,
 		UpdatedAt:        project.UpdatedAt,
-	}
-
-	// Add owner profile information if available
-	if ownerProfile != nil {
-		projectInfo.OwnerEmail = ownerProfile.Email
-		projectInfo.OwnerName = ownerProfile.NickName
 	}
 
 	// Fetch project-specific field options from database

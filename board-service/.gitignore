@@ -21,8 +21,6 @@ vendor/
 /bin/
 /dist/
 main
-api
-board-api
 
 # IDE
 .vscode/

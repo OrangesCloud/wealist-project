@@ -16,7 +16,6 @@ import (
 	"project-board-api/internal/config"
 	"project-board-api/internal/database"
 	"project-board-api/internal/logger"
-	"project-board-api/internal/metrics"
 	"project-board-api/internal/router"
 
 	_ "project-board-api/docs" // Swagger docs
@@ -111,23 +110,6 @@ func main() {
 		zap.String("database", cfg.Database.DBName),
 	)
 
-	// Initialize metrics with logger
-	log.Info("Initializing Prometheus metrics")
-	m := metrics.NewWithLogger(log.Logger)
-	
-	// Register GORM callbacks for database metrics
-	database.RegisterMetricsCallbacks(db, m)
-	log.Info("GORM metrics callbacks registered")
-	
-	// Start database stats collector
-	database.StartDBStatsCollector(db, m)
-	log.Info("Database stats collector started")
-	
-	// Initialize and start business metrics collector
-	businessCollector := metrics.NewBusinessMetricsCollector(db, m, log.Logger)
-	businessCollector.Start()
-	log.Info("Business metrics collector started")
-
 	// Run GORM auto-migration with retry logic
 	log.Info("Running GORM auto-migration with retry logic")
 	if err := database.SafeAutoMigrateWithRetry(db, log.Logger, 3); err != nil {
@@ -156,7 +138,6 @@ func main() {
 		cfg.UserAPI.BaseURL,
 		cfg.UserAPI.Timeout,
 		log.Logger,
-		m,
 	)
 
 	log.Info("User API client initialized successfully",
@@ -179,7 +160,6 @@ func main() {
 		JWTSecret:  cfg.JWT.Secret,
 		UserClient: userClient,
 		BasePath:   cfg.Server.BasePath,
-		Metrics:    m,
 	}
 
 	r := router.Setup(routerConfig)
@@ -228,11 +208,6 @@ func main() {
 	} else {
 		log.Info("Server shutdown completed, all in-flight requests completed")
 	}
-
-	// Stop business metrics collector
-	log.Info("Stopping business metrics collector")
-	businessCollector.Stop()
-	log.Info("Business metrics collector stopped")
 
 	// Close database connection
 	log.Info("Closing database connection")

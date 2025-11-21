@@ -11,7 +11,6 @@ import (
 
 	"project-board-api/internal/domain"
 	"project-board-api/internal/dto"
-	"project-board-api/internal/metrics"
 	"project-board-api/internal/repository"
 	"project-board-api/internal/response"
 )
@@ -31,7 +30,6 @@ type boardServiceImpl struct {
 	projectRepo         repository.ProjectRepository
 	fieldOptionRepo     repository.FieldOptionRepository
 	fieldOptionConverter FieldOptionConverter
-	metrics             *metrics.Metrics
 }
 
 // FieldOptionConverter handles conversion between field option values and IDs
@@ -47,14 +45,12 @@ func NewBoardService(
 	projectRepo repository.ProjectRepository,
 	fieldOptionRepo repository.FieldOptionRepository,
 	fieldOptionConverter FieldOptionConverter,
-	m *metrics.Metrics,
 ) BoardService {
 	return &boardServiceImpl{
 		boardRepo:            boardRepo,
 		projectRepo:          projectRepo,
 		fieldOptionRepo:      fieldOptionRepo,
 		fieldOptionConverter: fieldOptionConverter,
-		metrics:              m,
 	}
 }
 
@@ -105,11 +101,6 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 	// Save to repository
 	if err := s.boardRepo.Create(ctx, board); err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to create board", err.Error())
-	}
-
-	// Increment board creation metric
-	if s.metrics != nil {
-		s.metrics.IncrementBoardCreated()
 	}
 
 	// Convert to response DTO

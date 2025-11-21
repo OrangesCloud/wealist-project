@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"project-board-api/internal/metrics"
 )
 
 // 💡 [추가] WebSocket 인증 응답 DTO
@@ -78,11 +77,10 @@ type userClient struct {
 	httpClient *http.Client
 	timeout    time.Duration
 	logger     *zap.Logger
-	metrics    *metrics.Metrics
 }
 
 // NewUserClient creates a new User API client
-func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger, m *metrics.Metrics) UserClient {
+func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger) UserClient {
 	return &userClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
@@ -90,7 +88,6 @@ func NewUserClient(baseURL string, timeout time.Duration, logger *zap.Logger, m 
 		},
 		timeout: timeout,
 		logger:  logger,
-		metrics: m,
 	}
 }
 
@@ -252,7 +249,7 @@ func (c *userClient) GetUserProfile(ctx context.Context, userID uuid.UUID, token
 
 // GetWorkspaceProfile retrieves workspace-specific user profile
 func (c *userClient) GetWorkspaceProfile(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*WorkspaceProfile, error) {
-	url := c.buildURL(fmt.Sprintf("/profiles/workspace/%s/user/%s", workspaceID.String(), userID.String()))
+	url := c.buildURL(fmt.Sprintf("/profiles/workspace/%s", workspaceID.String()))
 
 	c.logger.Debug("Getting workspace profile",
 		zap.String("url", url),
@@ -352,23 +349,12 @@ func (c *userClient) doRequest(ctx context.Context, method, url, token string, r
 
 	// Execute request
 	resp, err := c.httpClient.Do(req)
-	duration := time.Since(startTime)
-	
-	// Record metrics
-	statusCode := 0
-	if resp != nil {
-		statusCode = resp.StatusCode
-	}
-	if c.metrics != nil {
-		c.metrics.RecordExternalAPICall(url, method, statusCode, duration, err)
-	}
-	
 	if err != nil {
 		c.logger.Error("Failed to execute HTTP request",
 			zap.Error(err),
 			zap.String("method", method),
 			zap.String("url", url),
-			zap.Duration("processing_time", duration),
+			zap.Duration("processing_time", time.Since(startTime)),
 		)
 		return fmt.Errorf("failed to execute request: %w", err)
 	}
