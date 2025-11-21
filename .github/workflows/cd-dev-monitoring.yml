@@ -211,6 +211,8 @@ jobs:
           mkdir -p "${PROMETHEUS_CONFIG_DIR}"
           ## 테스트팅
           echo ${PROMETHEUS_CONFIG_DIR}
+          echo ${REDIS_PASSWORD}
+          echo ${REDIS_PORT}
 
           
 
