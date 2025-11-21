@@ -1,4 +1,4 @@
-import { boardServiceClient } from '../apiConfig';
+import { boardServiceClient } from './apiConfig';
 import { AxiosResponse } from 'axios';
 
 import {
@@ -26,7 +26,7 @@ import {
   FieldOptionResponse,
   CreateFieldOptionRequest,
   UpdateFieldOptionRequest,
-} from '../../types/board';
+} from '../types/board';
 
 /**
  * ========================================

@@ -22,8 +22,8 @@ import {
   IEditCustomFields,
   UpdateBoardRequest,
 } from '../../../types/board';
-import { createBoard, updateBoard } from '../../../api/board/boardService';
-import { getWorkspaceMembers } from '../../../api/user/userService';
+import { createBoard, updateBoard } from '../../../api/boardService';
+import { getWorkspaceMembers } from '../../../api/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
 import { AvatarStack } from '../../common/AvartarStack';
 import Portal from '../../common/Portal';

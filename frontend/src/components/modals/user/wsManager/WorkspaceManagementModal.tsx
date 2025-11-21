@@ -12,7 +12,7 @@ import { WorkspaceSettingsTab } from './tabs/WorkspaceSettingsTab'; // 💡 분�
 import { WorkspaceMembersTab } from './tabs/WorkspaceMembersTab'; // 💡 분리된 컴포넌트
 
 // 💡 API 함수 Import
-import { getWorkspaceSettings, updateWorkspaceSettings } from '../../../../api/user/userService';
+import { getWorkspaceSettings, updateWorkspaceSettings } from '../../../../api/userService';
 
 import { WorkspaceSettingsResponse, UpdateWorkspaceSettingsRequest } from '../../../../types/user';
 

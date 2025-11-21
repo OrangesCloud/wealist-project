@@ -7,10 +7,10 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import { getDefaultColorByIndex } from '../../constants/colors';
 import { AssigneeAvatarStack } from '../common/AvartarStack';
 import { ProjectResponse, BoardResponse, Column, ViewState, FieldOption } from '../../types/board';
-import { getBoardsByProject, moveBoard } from '../../api/board/boardService';
+import { getBoardsByProject, moveBoard } from '../../api/boardService';
 import { BoardDetailModal } from '../modals/board/BoardDetailModal';
 import { FilterBar } from '../modals/board/FilterBar';
-import { connectWebSocket, disconnectWebSocket, WS_BOARD_MTH } from '../../utils/websocket';
+import { connectWebSocket, disconnectWebSocket, WS_BOARD_MTH } from '../../utils/boardWebsocket';
 
 interface ProjectContentProps {
   // Data

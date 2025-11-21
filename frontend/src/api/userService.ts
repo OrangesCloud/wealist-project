@@ -1,4 +1,4 @@
-// src/api/user/userService.ts
+// src/api/userService.ts
 
 import {
   CreateWorkspaceRequest,
@@ -13,8 +13,8 @@ import {
   InviteUserRequest,
   UserWorkspaceResponse,
   // UpdateWorkspaceRequest DTO가 명시되지 않아 임시로 구조를 정의함
-} from '../../types/user';
-import { userRepoClient } from '../apiConfig';
+} from '../types/user';
+import { userRepoClient } from './apiConfig';
 import { AxiosResponse } from 'axios';
 
 // ========================================

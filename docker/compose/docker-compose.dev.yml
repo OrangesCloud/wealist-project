@@ -69,6 +69,61 @@ services:
       - backend-net
       - database-net
 
+  chat-service:
+    build:
+      context: ../../chat-service
+      dockerfile: docker/Dockerfile
+    container_name: wealist-chat-service
+    hostname: chat-service
+
+    environment:
+      - ENV=dev
+      - SERVER_PORT=8001
+      - SERVER_BASE_PATH=/api/chats
+      - LOG_LEVEL=debug
+      - DATABASE_URL=postgresql://${CHAT_DB_USER}:${CHAT_DB_PASSWORD}@postgres:5432/${CHAT_DB_NAME}?sslmode=disable
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - SECRET_KEY=${JWT_SECRET}
+      - USER_SERVICE_URL=http://user-service:8080/api/users
+      - CORS_ORIGINS=${CORS_ORIGINS}
+
+    ports:
+      - "${CHAT_HOST_PORT:-8001}:8001"
+
+    networks:
+      - frontend-net
+      - backend-net
+      - database-net
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--spider",
+          "http://localhost:8001/api/chats/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    restart: unless-stopped
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
   # NGINX - API Gateway for Local Development
   nginx:
     image: nginx:alpine
@@ -88,13 +143,14 @@ services:
     depends_on:
       - user-service
       - board-service
+      - chat-service
 
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
       interval: 10s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
     restart: unless-stopped
 

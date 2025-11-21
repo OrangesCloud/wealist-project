@@ -1,3 +1,5 @@
+// user-service/src/main/java/OrangeCloud/UserRepo/controller/AuthController.java
+
 package OrangeCloud.UserRepo.controller;
 
 import OrangeCloud.UserRepo.dto.*;
@@ -17,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -36,7 +39,6 @@ public class AuthController {
 
     /**
      * 로그아웃
-     * POST /api/auth/logout
      */
     @PostMapping("/logout")
     @Operation(summary = "로그아웃", description = "현재 세션을 종료하고 토큰을 무효화합니다.")
@@ -50,7 +52,6 @@ public class AuthController {
 
     /**
      * 토큰 갱신
-     * POST /api/auth/refresh
      */
     @PostMapping("/refresh")
     @Operation(summary = "토큰 갱신", description = "Refresh Token을 사용하여 Access Token을 갱신합니다.")
@@ -63,7 +64,6 @@ public class AuthController {
 
     /**
      * 현재 인증된 사용자 정보 조회
-     * GET /api/auth/me
      */
     @GetMapping("/me")
     @Operation(summary = "내 정보 조회", description = "현재 인증된 사용자의 정보를 조회합니다.")
@@ -76,20 +76,32 @@ public class AuthController {
     }
 
     /**
-     * 외부 서비스용 Access Token 유효성 검증
-     * GET /api/auth/validate-access-token?token={token_string}
-     * Board Service (Go)가 WS 연결 전 호출하여 사용자 ID를 확인하는 용도.
+     * 🔥 외부 서비스용 Access Token 유효성 검증 (통일된 POST 방식)
+     * POST /api/auth/validate
+     * Request Body: {"token": "..."}
      */
-    @GetMapping("/validate-access-token")
-    @Operation(summary = "Access Token 유효성 검증", description = "다른 서비스에서 JWT 유효성을 검사하고 사용자 ID를 반환합니다. (쿼리 파라미터)")
-    public ResponseEntity<TokenValidationResponse> validateAccessToken(@RequestParam("token") String token) {
-        logger.debug("Received token validation request.");
+    @PostMapping("/validate")
+    @Operation(summary = "토큰 검증", description = "다른 서비스에서 JWT 검증 (POST Body 방식)")
+    public ResponseEntity<TokenValidationResponse> validateToken(@RequestBody Map<String, String> request) {
+        logger.debug("Received token validation request (POST).");
+        
+        String token = request.get("token");
+        if (token == null || token.isEmpty()) {
+            logger.warn("Token is missing in request body.");
+            return ResponseEntity.ok(new TokenValidationResponse(null, false, "Token is required"));
+        }
 
-        // 💡 [핵심] AuthService의 유효성 검증 로직 호출
-        UUID userId = authService.validateTokenAndGetUserId(token);
-
-        logger.info("Token validation successful for user ID: {}", userId);
-        return ResponseEntity.ok(new TokenValidationResponse(userId.toString(), true, "Token is valid"));
+        try {
+            UUID userId = authService.validateTokenAndGetUserId(token);
+            logger.info("Token validation successful for user ID: {}", userId);
+            return ResponseEntity.ok(new TokenValidationResponse(userId.toString(), true, "Token is valid"));
+        } catch (InvalidTokenException e) {
+            logger.warn("Token validation failed: {}", e.getMessage());
+            return ResponseEntity.ok(new TokenValidationResponse(null, false, e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Unexpected error during token validation", e);
+            return ResponseEntity.ok(new TokenValidationResponse(null, false, "Internal server error"));
+        }
     }
 
     /**

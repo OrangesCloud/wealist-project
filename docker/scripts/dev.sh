@@ -66,10 +66,12 @@ case $COMMAND in
         echo "   - Frontend:    http://localhost:3000"
         echo "   - User API:    http://localhost:8080"
         echo "   - Board API:   http://localhost:8000"
+        echo "   - Chat API:   http://localhost:8001"
         echo "   - PostgreSQL:  localhost:5432"
         echo "   - Redis:       localhost:6379"
         echo "   - User API swagger:    http://localhost:8080/swagger-ui/index.html"
         echo "   - Board API swagger:   http://localhost:8000/swagger/index.html"
+        echo "   - Chat API swagger:   http://localhost:8001/swagger/index.html"
         echo -e ""
         echo -e "${BLUE}💡 로그 확인: ./docker/scripts/dev.sh logs${NC}"
         ;;
