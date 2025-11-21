@@ -20,8 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
-
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -83,7 +81,6 @@ public class WorkspaceService {
 
         return convertToWorkspaceResponse(savedWorkspace, creator, creatorProfile);
     }
-
 
     /**
      * Workspace 정보 수정 (OWNER만)
@@ -243,7 +240,7 @@ public class WorkspaceService {
      * 사용자의 모든 Workspace 조회 (멤버,owner 가능)
      * 워크스페이스 , 설명, 가입 상태, 역할
      */
-    //사용자가 갖고있는 모든 워크스페이스, 신청
+    // 사용자가 갖고있는 모든 워크스페이스, 신청
     @Transactional(readOnly = true)
     public List<UserWorkspaceResponse> getUserWorkspaces(UUID userId) {
         log.debug("Fetching workspaces for user: userId={}", userId);
@@ -255,8 +252,7 @@ public class WorkspaceService {
         List<WorkspaceJoinRequest> approvedOrPendingRequests = workspaceJoinRequestRepository
                 .findByUserIdAndStatusIn(userId, List.of(
                         WorkspaceJoinRequest.JoinRequestStatus.APPROVED,
-                        WorkspaceJoinRequest.JoinRequestStatus.PENDING
-                ));
+                        WorkspaceJoinRequest.JoinRequestStatus.PENDING));
 
         // 3️⃣ 워크스페이스 ID 합치기
         Set<UUID> workspaceIds = new HashSet<>();
@@ -308,9 +304,6 @@ public class WorkspaceService {
                 .collect(Collectors.toList());
     }
 
-
-
-
     /**
      * 이름에 해당하는 모든 public Workspace 조회
      * 이름 없으면 다 가져옴
@@ -347,7 +340,7 @@ public class WorkspaceService {
      * owner인 모든 워크스페이스 조회
      *
      */
-    //사용자 owner 등급 모든 워크스페이스 query 없으면 모든 워크스페이스 가져옴 private도
+    // 사용자 owner 등급 모든 워크스페이스 query 없으면 모든 워크스페이스 가져옴 private도
     @Transactional(readOnly = true)
     public List<WorkspaceResponse> getWorkspacesByOwner(UUID ownerId, String query) {
         log.debug("Fetching workspaces created by ownerId={} with query={}", ownerId, query);
@@ -368,15 +361,14 @@ public class WorkspaceService {
         // 3️⃣ 변환
         return workspaces.stream()
                 .map(workspace -> {
-                    UserProfile ownerProfile = userProfileRepository.findByWorkspaceIdAndUserId(workspace.getWorkspaceId(), ownerId)
+                    UserProfile ownerProfile = userProfileRepository
+                            .findByWorkspaceIdAndUserId(workspace.getWorkspaceId(), ownerId)
                             .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
 
                     return convertToWorkspaceResponse(workspace, ownerUser, ownerProfile);
                 })
                 .collect(Collectors.toList());
     }
-
-
 
     /**
      * 기본 Workspace 설정
@@ -425,13 +417,13 @@ public class WorkspaceService {
 
         targetUserOpt = userRepository.findByEmail(query);
 
-
         User targetUser = targetUserOpt
                 .orElseThrow(() -> new UserNotFoundException("해당 " + (isEmail ? "이메일" : "이름") + "의 사용자를 찾을 수 없습니다."));
 
         // ✅ 이미 멤버인지 확인
         if (workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, targetUser.getUserId())) {
-            log.warn("User is already a member of workspace: workspaceId={}, userId={}", workspaceId, targetUser.getUserId());
+            log.warn("User is already a member of workspace: workspaceId={}, userId={}", workspaceId,
+                    targetUser.getUserId());
             throw new IllegalArgumentException("해당 사용자는 이미 워크스페이스 멤버입니다.");
         }
 
@@ -449,8 +441,6 @@ public class WorkspaceService {
 
         return convertToWorkspaceMemberResponse(savedMember);
     }
-
-
 
     /**
      * 특정 워크스페이스의 모든 멤버 목록을 조회합니다 (UserProfile 포함).
@@ -485,7 +475,7 @@ public class WorkspaceService {
      * 멤버 역할 변경 (OWNER만)
      */
     public WorkspaceMemberResponse updateMemberRole(UUID workspaceId, UUID memberId, UpdateMemberRoleRequest request,
-                                                    UUID requesterId) {
+            UUID requesterId) {
         log.info("Updating member role: workspaceId={}, memberId={}, newRole={}, requester={}",
                 workspaceId, memberId, request.getRoleName(), requesterId);
 
@@ -563,8 +553,6 @@ public class WorkspaceService {
             log.warn("User is already a member of workspace: workspaceId={}, userId={}", workspaceId, userId);
             throw new IllegalArgumentException("User is already a member of this workspace");
         }
-
-
 
         WorkspaceJoinRequest request = WorkspaceJoinRequest.builder()
                 .workspaceId(workspaceId)
@@ -645,7 +633,7 @@ public class WorkspaceService {
      * 가입 신청 승인/거절 (기존 PUT /joinRequests/{requestId} 매핑)
      */
     public JoinRequestResponse updateJoinRequest(UUID workspaceId, UUID requestId,
-                                                 UpdateJoinRequestRequest updateRequest, UUID responderId) {
+            UpdateJoinRequestRequest updateRequest, UUID responderId) {
         log.info("Updating join request: workspaceId={}, requestId={}, status={}, responder={}",
                 workspaceId, requestId, updateRequest.getStatus(), responderId);
 
@@ -701,12 +689,16 @@ public class WorkspaceService {
         checkWorkspaceAdminOrOwner(workspaceId, requesterId);
 
         List<WorkspaceJoinRequest> requests;
-        if (status != null && !status.isEmpty()) {
-            // TODO: Repository에 findByWorkspaceIdAndStatus 메서드 필요
-            requests = workspaceJoinRequestRepository.findByWorkspaceId(workspaceId);
 
+        if (status != null && !status.isEmpty()) {
+            // ✅ 수정: Repository의 findByWorkspaceIdAndStatus 메서드 사용
+            WorkspaceJoinRequest.JoinRequestStatus requestStatus = WorkspaceJoinRequest.JoinRequestStatus
+                    .valueOf(status.toUpperCase());
+            requests = workspaceJoinRequestRepository.findByWorkspaceIdAndStatus(workspaceId, requestStatus);
+            log.debug("Filtered join requests by status {}: count={}", status, requests.size());
         } else {
             requests = workspaceJoinRequestRepository.findByWorkspaceId(workspaceId);
+            log.debug("Fetched all join requests: count={}", requests.size());
         }
 
         return requests.stream()
@@ -719,9 +711,6 @@ public class WorkspaceService {
                 })
                 .collect(Collectors.toList());
     }
-
-
-
 
     // ============================================================================
     // 워크스페이스 접근 확인 (Public API for Board Service)
@@ -745,7 +734,8 @@ public class WorkspaceService {
         // 사용자가 워크스페이스 멤버인지 확인
         boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId);
         log.info("Workspace membership check: workspaceId={}, userId={}, isMember={}", workspaceId, userId, isMember);
-        log.info("Workspace access validation result: workspaceId={}, userId={}, isValid={}", workspaceId, userId, isMember);
+        log.info("Workspace access validation result: workspaceId={}, userId={}, isValid={}", workspaceId, userId,
+                isMember);
         return isMember;
     }
 
@@ -829,7 +819,7 @@ public class WorkspaceService {
     }
 
     private WorkspaceMemberResponse convertToWorkspaceMemberResponse(WorkspaceMember member, String userName,
-                                                                     String profileImageUrl, User user) {
+            String profileImageUrl, User user) {
         return WorkspaceMemberResponse.builder()
                 .id(member.getId())
                 .workspaceId(member.getWorkspaceId())
@@ -868,7 +858,7 @@ public class WorkspaceService {
     }
 
     private JoinRequestResponse convertToJoinRequestResponse(WorkspaceJoinRequest request, User user,
-                                                             UserProfile userProfile) {
+            UserProfile userProfile) {
         return JoinRequestResponse.builder()
                 .id(request.getJoinRequestId())
                 .workspaceId(request.getWorkspaceId())

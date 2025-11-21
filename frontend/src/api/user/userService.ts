@@ -149,10 +149,10 @@ export const getWorkspaceMembers = async (
  * * Response: { data: JoinRequestResponse[] }
  */
 export const getPendingMembers = async (workspaceId: string): Promise<JoinRequestResponse[]> => {
-  const response: AxiosResponse<{ data: JoinRequestResponse[] }> = await userRepoClient.get(
+  const response: AxiosResponse<JoinRequestResponse[]> = await userRepoClient.get(
     `/api/workspaces/${workspaceId}/pendingMembers`,
   );
-  return response.data.data; // data 필드 추출
+  return response.data; // ✅ response.data.data가 아님!
 };
 
 /**

@@ -26,6 +26,7 @@ import java.util.UUID;
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
+
     private UUID extractUserId(Principal principal) {
         if (principal instanceof Authentication authentication) {
             return UUID.fromString(authentication.getName());
@@ -66,15 +67,37 @@ public class UserProfileController {
         log.info("Path Variable - workspaceId: {}", workspaceId);
         log.info("Remote Address: {}", request.getRemoteAddr());
         log.info("Authorization Header Present: {}", request.getHeader("Authorization") != null);
-        
+
         UUID userId = extractUserId(principal);
         log.info("Authenticated userId: {}", userId);
-        
+
         UserProfileResponse response = userProfileService.workSpaceIdGetProfile(workspaceId, userId);
+
+        log.info("Workspace profile retrieved successfully: workspaceId={}, userId={}, profileId={}",
+                workspaceId, userId, response.getProfileId());
+        log.info("=== END REQUEST: Get Workspace Profile ===");
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/workspace/{workspaceId}/user/{userId}")
+    @Operation(
+        summary = "특정 사용자의 워크스페이스 프로필 조회", 
+        description = "워크스페이스 내 특정 사용자의 프로필을 조회합니다. 요청자는 해당 워크스페이스의 멤버여야 합니다."
+    )
+    public ResponseEntity<UserProfileResponse> getWorkspaceProfileByUserId(
+            @Parameter(description = "워크스페이스 ID") @PathVariable UUID workspaceId,
+            @Parameter(description = "조회할 사용자 ID") @PathVariable UUID userId,
+            Principal principal) {
+        UUID requestingUserId = extractUserId(principal);
+        log.info("Fetching workspace profile: workspaceId={}, targetUserId={}, requestingUserId={}", 
+                workspaceId, userId, requestingUserId);
+        
+        UserProfileResponse response = userProfileService.getWorkspaceProfileByUserId(
+                workspaceId, userId, requestingUserId);
         
         log.info("Workspace profile retrieved successfully: workspaceId={}, userId={}, profileId={}", 
                 workspaceId, userId, response.getProfileId());
-        log.info("=== END REQUEST: Get Workspace Profile ===");
         
         return ResponseEntity.ok(response);
     }
@@ -87,13 +110,11 @@ public class UserProfileController {
         return ResponseEntity.ok(response);
     }
 
-
     @PutMapping("/me")
     @Operation(summary = "내 프로필 정보 통합 업데이트", description = "인증된 사용자의 이름 또는 프로필 이미지 URL을 업데이트합니다.")
     public ResponseEntity<UserProfileResponse> updateMyProfile(
             Principal principal,
-            @Valid @RequestBody UpdateProfileRequest request
-    ) {
+            @Valid @RequestBody UpdateProfileRequest request) {
         UUID userId = extractUserId(principal);
         log.info("Received integrated profile update request for user: {}", userId);
 

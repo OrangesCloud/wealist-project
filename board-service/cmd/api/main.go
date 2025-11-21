@@ -16,6 +16,7 @@ import (
 	"project-board-api/internal/config"
 	"project-board-api/internal/database"
 	"project-board-api/internal/logger"
+	"project-board-api/internal/metrics"
 	"project-board-api/internal/router"
 
 	_ "project-board-api/docs" // Swagger docs
@@ -100,6 +101,7 @@ func main() {
 	}
 
 	db, err := database.New(dbConfig)
+
 	if err != nil {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -108,6 +110,23 @@ func main() {
 		zap.String("host", cfg.Database.Host),
 		zap.String("database", cfg.Database.DBName),
 	)
+
+	// Initialize metrics with logger
+	log.Info("Initializing Prometheus metrics")
+	m := metrics.NewWithLogger(log.Logger)
+	
+	// Register GORM callbacks for database metrics
+	database.RegisterMetricsCallbacks(db, m)
+	log.Info("GORM metrics callbacks registered")
+	
+	// Start database stats collector
+	database.StartDBStatsCollector(db, m)
+	log.Info("Database stats collector started")
+	
+	// Initialize and start business metrics collector
+	businessCollector := metrics.NewBusinessMetricsCollector(db, m, log.Logger)
+	businessCollector.Start()
+	log.Info("Business metrics collector started")
 
 	// Run GORM auto-migration with retry logic
 	log.Info("Running GORM auto-migration with retry logic")
@@ -119,7 +138,13 @@ func main() {
 	}
 	log.Info("Database schema migration completed successfully")
 
+	if err := database.InitRedis(*cfg, log.Logger); err != nil {
+		log.Fatal("Failed to connect to Redis", zap.Error(err))
+	}
+	log.Info("Redis connection established")
+
 	// Log complete User API configuration for debugging
+
 	log.Info("User API Configuration",
 		zap.String("base_url", cfg.UserAPI.BaseURL),
 		zap.Duration("timeout", cfg.UserAPI.Timeout),
@@ -131,13 +156,14 @@ func main() {
 		cfg.UserAPI.BaseURL,
 		cfg.UserAPI.Timeout,
 		log.Logger,
+		m,
 	)
 
 	log.Info("User API client initialized successfully",
 		zap.String("base_url", cfg.UserAPI.BaseURL),
 		zap.Duration("timeout", cfg.UserAPI.Timeout),
 	)
-	
+
 	// Log example endpoint URLs for verification
 	log.Info("User API endpoint examples (for debugging)",
 		zap.String("validate_member", cfg.UserAPI.BaseURL+"/api/workspaces/{workspaceId}/validate-member/{userId}"),
@@ -153,6 +179,7 @@ func main() {
 		JWTSecret:  cfg.JWT.Secret,
 		UserClient: userClient,
 		BasePath:   cfg.Server.BasePath,
+		Metrics:    m,
 	}
 
 	r := router.Setup(routerConfig)
@@ -201,6 +228,11 @@ func main() {
 	} else {
 		log.Info("Server shutdown completed, all in-flight requests completed")
 	}
+
+	// Stop business metrics collector
+	log.Info("Stopping business metrics collector")
+	businessCollector.Stop()
+	log.Info("Business metrics collector stopped")
 
 	// Close database connection
 	log.Info("Closing database connection")

@@ -8,6 +8,7 @@ import {
   createWorkspace,
   createJoinRequest,
   getPublicWorkspaces,
+  inviteUser,
 } from '../api/user/userService';
 import { Search, Plus, X, AlertCircle, Settings, LogOut } from 'lucide-react';
 import {
@@ -155,6 +156,7 @@ const SelectWorkspacePage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
+      // 1️⃣ 워크스페이스 생성
       const createData: CreateWorkspaceRequest = {
         workspaceName: newWorkspaceName,
         workspaceDescription: newDescription || '-',
@@ -171,9 +173,36 @@ const SelectWorkspacePage: React.FC = () => {
       const newWorkspaceId = newWorkspace.workspaceId;
       setCreatedWorkspaceId(newWorkspaceId);
 
-      alert(
-        `워크스페이스 '${newWorkspaceName}' 생성 완료! ${pendingMembers.length}명의 멤버 초대 예정입니다.`,
-      );
+      // 2️⃣ 멤버 초대 (pendingMembers가 있을 경우)
+      if (pendingMembers.length > 0) {
+        console.log(`${pendingMembers.length}명의 멤버 초대를 시작합니다...`);
+
+        // 병렬로 모든 초대 요청 실행
+        const invitePromises = pendingMembers.map((member) =>
+          inviteUser(newWorkspaceId, member.email).catch((err) => {
+            console.error(`❌ ${member.email} 초대 실패:`, err);
+            return null; // 실패해도 다른 초대는 계속 진행
+          }),
+        );
+
+        const results = await Promise.all(invitePromises);
+        const successCount = results.filter((r) => r !== null).length;
+        const failCount = pendingMembers.length - successCount;
+
+        if (failCount > 0) {
+          alert(
+            `워크스페이스 '${newWorkspaceName}' 생성 완료!\n` +
+              `${successCount}명 초대 성공, ${failCount}명 초대 실패`,
+          );
+        } else {
+          alert(
+            `워크스페이스 '${newWorkspaceName}' 생성 완료!\n` +
+              `${successCount}명의 멤버 초대 완료!`,
+          );
+        }
+      } else {
+        alert(`워크스페이스 '${newWorkspaceName}' 생성 완료!`);
+      }
 
       resetCreateForm();
       navigate(`/workspace/${newWorkspaceId}`);
