@@ -4,7 +4,10 @@ import OrangeCloud.UserRepo.dto.userprofile.CreateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
 import OrangeCloud.UserRepo.entity.UserProfile;
 import OrangeCloud.UserRepo.repository.UserProfileRepository;
+import OrangeCloud.UserRepo.repository.WorkspaceMemberRepository;
 import OrangeCloud.UserRepo.exception.UserNotFoundException; // ✅ UserNotFoundException을 사용
+import OrangeCloud.UserRepo.exception.CustomException;
+import OrangeCloud.UserRepo.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -24,6 +27,7 @@ import java.util.stream.Collectors;
 public class UserProfileService {
 
     private final UserProfileRepository userProfileRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
     private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     @Transactional
@@ -70,6 +74,47 @@ public class UserProfileService {
                 .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
 
         // 💡 수정: DTO를 반환하도록 로직을 유지
+        return UserProfileResponse.from(profile);
+    }
+
+    /**
+     * 특정 사용자의 워크스페이스 프로필을 조회합니다.
+     * 요청자는 해당 워크스페이스의 멤버여야 합니다.
+     * 
+     * @param workspaceId 워크스페이스 ID
+     * @param targetUserId 조회할 사용자 ID
+     * @param requestingUserId 요청하는 사용자 ID
+     * @return 사용자 프로필 응답 DTO
+     * @throws CustomException 요청자가 워크스페이스 멤버가 아닌 경우 (403 Forbidden)
+     * @throws UserNotFoundException 대상 사용자의 프로필을 찾을 수 없는 경우 (404 Not Found)
+     */
+    @Transactional(readOnly = true)
+    public UserProfileResponse getWorkspaceProfileByUserId(
+            UUID workspaceId, 
+            UUID targetUserId, 
+            UUID requestingUserId) {
+        
+        log.info("Fetching workspace profile: workspaceId={}, targetUserId={}, requestingUserId={}", 
+                workspaceId, targetUserId, requestingUserId);
+        
+        // 1. 요청자가 워크스페이스 멤버인지 검증
+        boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, requestingUserId);
+        if (!isMember) {
+            log.warn("Access denied: User {} is not a member of workspace {}", requestingUserId, workspaceId);
+            throw new CustomException(ErrorCode.HANDLE_ACCESS_DENIED, 
+                    "You must be a member of this workspace to view member profiles");
+        }
+        
+        // 2. 대상 사용자의 워크스페이스 프로필 조회
+        UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, targetUserId)
+                .orElseThrow(() -> {
+                    log.warn("Profile not found: workspaceId={}, userId={}", workspaceId, targetUserId);
+                    return new UserNotFoundException("User profile not found in this workspace");
+                });
+        
+        log.info("Successfully retrieved workspace profile: profileId={}, workspaceId={}, userId={}", 
+                profile.getProfileId(), workspaceId, targetUserId);
+        
         return UserProfileResponse.from(profile);
     }
 
