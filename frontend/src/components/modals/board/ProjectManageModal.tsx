@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   X,
-  Calendar,
   Paperclip,
   Download,
   Edit2,
@@ -14,17 +13,17 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { createProject, updateProject, getBoardsByProject } from '../../../api/board/boardService';
-import { ProjectResponse, BoardResponse, ProjectMemberResponse } from '../../../types/board';
-import { formatDate } from '../../../utils/date';
+import { ProjectResponse, BoardResponse } from '../../../types/board';
 import { IROLES } from '../../../types/common';
 import Portal from '../../common/Portal';
 import { WorkspaceMemberResponse } from '../../../types/user';
 
+// 💡 [추가] 파일 업로드 관련 Import (경로를 실제 구조에 맞게 확인해주세요)
+import { useFileUpload } from '../../../hooks/useFileUpload';
+import { FileUploader } from '../../common/FileUploader';
+
 /**
  * 모달 모드 타입 정의
- * 'create': 프로젝트 생성 폼
- * 'detail': 상세 보기 (읽기 전용)
- * 'edit': 상세 보기 중 수정 폼
  */
 type ProjectModalMode = 'create' | 'detail' | 'edit';
 
@@ -39,10 +38,9 @@ interface ProjectManageModalProps {
   members?: WorkspaceMemberResponse[] | undefined;
 }
 
-// 💡 [추가] 파일 다운로드 핸들러 (재사용)
+// 파일 다운로드 핸들러 (Detail 모드용)
 const handleFileDownload = (fileUrl: string, fileName: string) => {
   if (!fileUrl) return;
-
   const link = document.createElement('a');
   link.href = fileUrl;
   link.setAttribute('download', fileName);
@@ -63,8 +61,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
 }) => {
   const { theme } = useTheme();
   const isExistingProject = !!project;
-
-  // 💡 [통합] 현재 모달의 모드 상태
   const [mode, setMode] = useState<ProjectModalMode>(isExistingProject ? initialMode : 'create');
 
   // Form state
@@ -78,14 +74,14 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 💡 [추가] 프로젝트 보드 상태 및 로딩
   const [boards, setBoards] = useState<BoardResponse[]>([]);
   const [isBoardsLoading, setIsBoardsLoading] = useState(false);
-
-  // 💡 [추가] 프로젝트 멤버 목록 (Mock 데이터)
   const [projectMembers, setProjectMembers] = useState<WorkspaceMemberResponse[]>();
 
-  // 💡 [권한 체크] OWNER 또는 ADMIN/ORGANIZER만 수정 권한을 가집니다.
+  // 💡 [통합] 파일 업로드 훅 사용
+  const { selectedFile, previewUrl, handleFileSelect, handleRemoveFile, upload, setInitialFile } =
+    useFileUpload();
+
   const canEdit = useMemo(() => {
     return (
       isExistingProject &&
@@ -93,7 +89,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     );
   }, [isExistingProject, userRole]);
 
-  // project prop이 변경되거나 mode가 detail로 돌아가면 폼 리셋
+  // 💡 [수정] useEffect: 프로젝트 데이터 로드 및 파일 상태 초기화
   useEffect(() => {
     if (project) {
       setName(project.name);
@@ -101,16 +97,24 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
       setStartDate(project.startDate ? project.startDate.substring(0, 10) : '');
       setDueDate(project.dueDate ? project.dueDate.substring(0, 10) : '');
       setProjectMembers(members);
+
+      // 기존 프로젝트의 파일 정보를 훅에 세팅
+      setInitialFile((project as any).fileUrl, (project as any).fileName);
     } else if (mode === 'create') {
       setName('');
       setDescription('');
       setStartDate('');
       setDueDate('');
+      // 생성 모드 진입 시 파일 선택 상태 초기화
+      handleRemoveFile();
     }
     setError(null);
-  }, [project, mode]);
 
-  // 💡 [추가] 프로젝트 보드 API 호출 로직 (유지)
+    // 🚨 중요: 의존성 배열에서 객체(project, members)를 제거하고
+    // 고유 식별자(project.projectId)와 모드(mode)만 바라보게 해야 무한 루프가 멈춥니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.projectId, mode, setInitialFile, handleRemoveFile]);
+
   const fetchBoards = useCallback(async () => {
     if (!project || mode !== 'detail') {
       setBoards([]);
@@ -128,12 +132,10 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     }
   }, [project, mode]);
 
-  // mode가 'detail'로 변경될 때마다 보드 데이터 로드 (유지)
   useEffect(() => {
     fetchBoards();
   }, [fetchBoards]);
 
-  // 💡 [추가] 프로젝트 통계 계산 (유지)
   const projectStats = useMemo(() => {
     const totalBoards = boards.length;
     const inProgressBoards = boards.filter((b) => (b as any).status === 'IN_PROGRESS').length;
@@ -145,6 +147,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     };
   }, [boards]);
 
+  // 💡 [수정] Submit 핸들러: 파일 업로드 로직 추가
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -157,47 +160,65 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     setError(null);
 
     try {
+      // 1. 파일 업로드 처리
+      // 기존 DB에 저장된 값 (없으면 null)
+      let finalFileUrl = (project as any)?.fileUrl; // 백엔드 DTO 필드명이 fileUrl인지 fileKey인지 확인 필요
+      let finalFileName = (project as any)?.fileName;
+
+      // 새 파일이 선택되었다면 업로드 수행
+      if (selectedFile) {
+        // 🚨 여기서 workspaceId를 넘겨줍니다!
+        const uploadResult = await upload(workspaceId, 'project');
+
+        if (uploadResult) {
+          // 백엔드 DB에 저장할 값 (S3 Key)
+          // 참고: 백엔드가 'fileUrl'이라는 필드에 'S3 Key'를 저장하는지, 'Full URL'을 저장하는지에 따라 다릅니다.
+          // 보통 Presigned URL 패턴에서는 Key를 저장합니다.
+          finalFileUrl = uploadResult.fileKey;
+          finalFileName = uploadResult.fileName;
+        }
+      } else if (!previewUrl) {
+        // 파일 삭제됨
+        finalFileUrl = null;
+        finalFileName = null;
+      }
+
+      // 2. API 호출
       if (mode === 'edit' && project) {
-        // --- ✏️ 편집 로직 ---
         await updateProject(project.projectId, {
           name: name.trim(),
           description: description.trim() || undefined,
-          startDate: `${startDate}T00:00:00Z` || undefined, // 💡 [추가] StartDate 추가
-          dueDate: `${dueDate}T00:00:00Z` || undefined,
-        });
+          startDate: startDate ? `${startDate}T00:00:00Z` : undefined,
+          dueDate: dueDate ? `${dueDate}T00:00:00Z` : undefined,
+          fileUrl: finalFileUrl, // 업데이트된 파일 정보 전달
+          fileName: finalFileName, // 업데이트된 파일 정보 전달
+        } as any); // TODO: UpdateProjectRequest 타입에 fileUrl, fileName 추가 필요
+
         alert(`✅ ${name} 프로젝트가 수정되었습니다!`);
         onProjectSaved();
         setMode('detail');
       } else if (mode === 'create') {
-        // --- ✨ 생성 로직 ---
         const newProjectResponse: ProjectResponse = await createProject({
           workspaceId: workspaceId,
           name: name.trim(),
           description: description.trim() || undefined,
-          startDate: `${startDate}T00:00:00Z` || undefined, // 💡 [추가] StartDate 추가
-          dueDate: `${dueDate}T00:00:00Z` || undefined,
-        });
+          startDate: startDate ? `${startDate}T00:00:00Z` : undefined,
+          dueDate: dueDate ? `${dueDate}T00:00:00Z` : undefined,
+          fileUrl: finalFileUrl, // 파일 정보 전달
+          fileName: finalFileName, // 파일 정보 전달
+        } as any); // TODO: CreateProjectRequest 타입에 fileUrl, fileName 추가 필요
 
         alert(`✅ ${name} 프로젝트가 생성되었습니다!`);
-
         if (newProjectResponse) {
           onProjectCreated?.(newProjectResponse);
         }
         onProjectSaved();
         onClose();
-      } else {
-        return;
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
-      console.error(
-        mode === 'create' ? '❌ 프로젝트 생성 실패:' : '❌ 프로젝트 수정 실패:',
-        errorMsg,
-      );
-      setError(
-        errorMsg ||
-          (mode === 'create' ? '프로젝트 생성에 실패했습니다.' : '프로젝트 수정에 실패했습니다.'),
-      );
+      console.error(mode === 'create' ? '❌ 생성 실패:' : '❌ 수정 실패:', errorMsg);
+      setError(errorMsg || '작업 처리에 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -209,25 +230,23 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
         return '새 프로젝트 만들기';
       case 'edit':
         return `${project?.name || '프로젝트'} 수정`;
-      case 'detail':
       default:
         return `${project?.name || '프로젝트'} 상세 정보`;
     }
   }, [mode, project?.name]);
 
-  const fileUrl = (project as any)?.fileUrl;
-  const fileName = (project as any)?.fileName || 'project_file_attachment';
+  // 상세 보기용 파일 정보
+  const detailFileUrl = (project as any)?.fileUrl;
+  const detailFileName = (project as any)?.fileName || 'project_file_attachment';
 
   // ----------------------------------------------------
   // 🎨 Detail / Edit Mode 렌더링
   // ----------------------------------------------------
   const renderDetailOrEditContent = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* 💡 [수정] 메인 컨텐츠 영역 (2/3) + 사이드바 영역 (1/3) */}
       <div className="grid grid-cols-3 gap-6">
-        {/* === 1. Left Section (Form, Description) - Col Span 2 === */}
         <div className="col-span-2 space-y-4">
-          {/* Name / Title */}
+          {/* Name */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               프로젝트 이름 <span className="text-red-500">*</span>
@@ -237,21 +256,17 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={mode === 'detail' || isLoading}
-              placeholder="예: Wealist 서비스 개발"
               className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                 mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
               }`}
               maxLength={100}
-              autoFocus
             />
           </div>
 
-          {/* Start Date / Due Date (2컬럼) */}
+          {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-1">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                프로젝트 시작일
-              </label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">시작일</label>
               <input
                 type="date"
                 value={startDate}
@@ -263,9 +278,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
               />
             </div>
             <div className="col-span-1">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                프로젝트 마감일
-              </label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">마감일</label>
               <input
                 type="date"
                 value={dueDate}
@@ -278,57 +291,70 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
             </div>
           </div>
 
-          {/* Description (높이 확보) */}
+          {/* Description */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">프로젝트 설명</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={mode === 'detail' || isLoading}
-              placeholder="프로젝트에 대한 간단한 설명을 입력하세요"
               className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none ${
                 mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
               }`}
-              rows={10} // 💡 [수정] 높이 확장
+              rows={10}
               maxLength={800}
             />
           </div>
 
-          {/* Files */}
+          {/* 💡 [수정] Files 섹션: Edit 모드에서는 Uploader, Detail 모드에서는 다운로드 버튼 */}
           <div className="pt-0">
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-              <Paperclip className="w-4 h-4 text-blue-500" />
-              첨부 파일
-            </label>
-            <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-sm">
-              <span className="text-gray-700 truncate flex items-center gap-1">
-                {fileUrl ? (
-                  <span className="text-gray-700">{fileName}</span>
-                ) : (
-                  <span className="text-gray-500">첨부 파일 없음</span>
-                )}
-              </span>
+            {mode === 'edit' ? (
+              // ✏️ 수정 모드: 파일 업로더 표시
+              <FileUploader
+                selectedFile={selectedFile}
+                previewUrl={previewUrl}
+                onFileSelect={handleFileSelect}
+                onRemoveFile={handleRemoveFile}
+                existingFileName={(project as any)?.fileName}
+                disabled={isLoading}
+                label="첨부 파일 수정"
+              />
+            ) : (
+              // 📖 상세 보기 모드: 기존 다운로드 UI 표시
+              <>
+                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                  <Paperclip className="w-4 h-4 text-blue-500" />
+                  첨부 파일
+                </label>
+                <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-sm">
+                  <span className="text-gray-700 truncate flex items-center gap-1">
+                    {detailFileUrl ? (
+                      <span className="text-gray-700">{detailFileName}</span>
+                    ) : (
+                      <span className="text-gray-500">첨부 파일 없음</span>
+                    )}
+                  </span>
 
-              {fileUrl ? (
-                <button
-                  type="button"
-                  onClick={() => handleFileDownload(fileUrl, fileName)}
-                  className="flex items-center gap-1 text-blue-600 hover:text-blue-700 transition font-medium ml-2 flex-shrink-0"
-                  disabled={isLoading}
-                >
-                  <Download className="w-4 h-4" />
-                  <span className="text-xs">다운로드</span>
-                </button>
-              ) : (
-                <span className="text-gray-400 text-xs flex-shrink-0">첨부 가능</span>
-              )}
-            </div>
+                  {detailFileUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => handleFileDownload(detailFileUrl, detailFileName)}
+                      className="flex items-center gap-1 text-blue-600 hover:text-blue-700 transition font-medium ml-2 flex-shrink-0"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span className="text-xs">다운로드</span>
+                    </button>
+                  ) : (
+                    <span className="text-gray-400 text-xs flex-shrink-0">다운로드 불가</span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* === 2. Right Section (Members, Stats) - Col Span 1 === */}
+        {/* Right Section (Same as before) */}
         <div className="col-span-1 space-y-4 divide-y divide-gray-200 pl-4 border-l border-gray-200">
-          {/* Owner Info (Detail/Edit 모드에서만 표시) */}
           {project && (
             <div className="pb-4">
               <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
@@ -339,7 +365,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
             </div>
           )}
 
-          {/* Member List */}
           <div className="pt-4">
             <h3 className="text-md font-bold text-gray-800 mb-2">
               소속 멤버 ({projectMembers?.length}명)
@@ -367,7 +392,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
             </div>
           </div>
 
-          {/* 💡 [추가] 프로젝트 현황 (하단 배치) */}
           {mode === 'detail' && (
             <div className="pt-4">
               <h3 className="text-md font-bold text-gray-800 flex items-center gap-2 mb-3">
@@ -403,7 +427,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
 
       {/* Actions */}
       <div className="flex gap-3 pt-4 px-6 sticky bottom-0 bg-white">
-        {/* 💡 2. 취소 버튼 (Secondary Action - Right) */}
         {mode === 'edit' && (
           <button
             type="button"
@@ -415,7 +438,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
           </button>
         )}
 
-        {/* 💡 3. 닫기 버튼 (Detail Mode 전용) */}
         {mode === 'detail' && (
           <button
             type="button"
@@ -425,7 +447,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
             닫기
           </button>
         )}
-        {/* 💡 1. 저장/생성 버튼 (Primary Action - Left) */}
+
         {(mode === 'edit' || mode === 'create') && (
           <button
             type="submit"
@@ -452,11 +474,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
   // ----------------------------------------------------
   const renderCreateContent = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* 💡 [수정] 생성 모드도 2/3 + 1/3 레이아웃 적용 */}
       <div className="grid grid-cols-3 gap-6">
-        {/* === 1. Left Section (Form, Description) - Col Span 2 === */}
         <div className="col-span-2 space-y-4">
-          {/* Name */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               프로젝트 이름 <span className="text-red-500">*</span>
@@ -473,7 +492,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
             />
           </div>
 
-          {/* Start Date / Due Date (2컬럼) */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -501,7 +519,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
             </div>
           </div>
 
-          {/* Description (높이 확보) */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               프로젝트 설명 (선택)
@@ -511,14 +528,26 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="프로젝트에 대한 간단한 설명을 입력하세요"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-              rows={5} // 💡 [수정] 높이 확장
+              rows={5}
               disabled={isLoading}
               maxLength={500}
             />
           </div>
+
+          {/* 💡 [추가] Create 모드에도 FileUploader 추가 */}
+          <div>
+            <FileUploader
+              selectedFile={selectedFile}
+              previewUrl={previewUrl}
+              onFileSelect={handleFileSelect}
+              onRemoveFile={handleRemoveFile}
+              disabled={isLoading}
+              label="첨부 파일 (선택)"
+            />
+          </div>
         </div>
 
-        {/* === 2. Right Section (Owner Info, Instructions) - Col Span 1 === */}
+        {/* Right Section (Instructions) */}
         <div className="col-span-1 space-y-4 divide-y divide-gray-200 pl-4 border-l border-gray-200">
           <div className="pb-4">
             <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
@@ -541,9 +570,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
         </div>
       </div>
 
-      {/* Actions (Create Mode) */}
       <div className="flex gap-3 pt-4 px-6 sticky bottom-0 bg-white border-t border-gray-300">
-        {/* 💡 생성 버튼이 왼쪽에 오도록 순서 변경 */}
         <button
           type="submit"
           className={`flex-1 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition ${
@@ -565,6 +592,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     </form>
   );
 
+  // Return 구문은 동일 (Portal 등)
   return (
     <Portal>
       <div
@@ -572,18 +600,15 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
         onClick={onClose}
       >
         <div
-          // 💡 [수정] 모달 폭 확장 (max-w-4xl)
           className={`relative w-full max-w-4xl ${theme.colors.card} p-6 ${theme.effects.borderRadius} shadow-xl max-h-[90vh] overflow-y-auto`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between mb-4 pb-2  pr-6">
+          <div className="flex items-center justify-between mb-4 pb-2">
             <div className="flex items-center">
               <h2 className="text-xl font-bold text-gray-800">{modalTitle}</h2>
-
-              {/* 💡 Detail/Edit Mode 전환 버튼 */}
               {mode !== 'create' && canEdit && (
-                <div className="flex items-center gap-3 ml-4">
+                <div className="flex items-center gap-3">
                   {mode === 'detail' ? (
                     <button
                       onClick={() => setMode('edit')}
@@ -612,14 +637,12 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
             </button>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm mx-6">
               {error}
             </div>
           )}
 
-          {/* Content Render */}
           {mode === 'create' ? renderCreateContent() : renderDetailOrEditContent()}
         </div>
       </div>

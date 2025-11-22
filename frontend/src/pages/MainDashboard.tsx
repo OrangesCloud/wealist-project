@@ -57,7 +57,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const currentWorkspaceId = workspaceId || '';
   const location = useLocation(); // 💡 useLocation 훅 추가
-
   const { theme } = useTheme(); // 💡 [추가] location.state에서 userRole 추출 (기본값 설정 필요)
   // 타입 가정이 필요하거나, location.state를 명시적으로 타입 캐스팅해야 할 수 있습니다.
   const passedRole = ((location.state as any)?.userRole as IROLES) || 'GUEST'; // GUEST 등 기본값 설정
@@ -65,7 +64,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   // 💡 currentRole을 useRef 대신 state로 관리하거나, Props로 전달해야 함.
   // 여기서는 currentRole.current를 passedRole로 대체할 수 있습니다.
   const currentRole = useRef<IROLES>(passedRole); // 초기 로드 시점의 역할 설정
-  const canAccessSettings = currentRole.current === 'OWNER' || currentRole.current === 'ADMIN';
 
   // [핵심 상태]
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
@@ -191,7 +189,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     try {
       // 💡 [API 호출] GET /api/projects/{projectId}/init-settings
       const initData = await getProjectInitSettings(selectedProject.projectId);
-
       // 2. 필드 옵션 룩업 테이블 생성
       const fieldLookup = mapFieldOptions(initData.fields);
       setFieldTypesLookup(initData.fieldTypes);
