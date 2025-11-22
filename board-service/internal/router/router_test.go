@@ -61,6 +61,10 @@ func (m *mockUserClient) GetWorkspace(ctx context.Context, workspaceID uuid.UUID
 	return nil, nil
 }
 
+func (m *mockUserClient) ValidateToken(ctx context.Context, tokenStr string) (uuid.UUID, error) {
+	return uuid.Nil, nil
+}
+
 // TestMetricsEndpoint_RootPath tests /metrics endpoint at root path
 func TestMetricsEndpoint_RootPath(t *testing.T) {
 	// Use default registry for this test to match production behavior

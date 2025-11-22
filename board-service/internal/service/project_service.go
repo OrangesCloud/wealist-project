@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -61,12 +62,19 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 		return nil, response.NewAppError(response.ErrCodeForbidden, "You are not a member of this workspace", "")
 	}
 
+	// Validate date range
+	if err := validateProjectDateRange(req.StartDate, req.DueDate); err != nil {
+		return nil, err
+	}
+
 	// Create domain model from request
 	project := &domain.Project{
 		WorkspaceID: req.WorkspaceID,
 		OwnerID:     userID,
 		Name:        req.Name,
 		Description: req.Description,
+		StartDate:   req.StartDate,
+		DueDate:     req.DueDate,
 		IsDefault:   false, // Default to false, can be changed later
 		IsPublic:    false, // Default to private
 	}
@@ -177,13 +185,30 @@ func (s *projectServiceImpl) GetDefaultProject(ctx context.Context, workspaceID,
 
 // toProjectResponse converts domain.Project to dto.ProjectResponse
 func (s *projectServiceImpl) toProjectResponse(project *domain.Project) *dto.ProjectResponse {
+	// Convert attachments to response DTOs
+	attachments := make([]dto.AttachmentResponse, 0, len(project.Attachments))
+	for _, a := range project.Attachments {
+		attachments = append(attachments, dto.AttachmentResponse{
+			ID:          a.ID,
+			FileName:    a.FileName,
+			FileURL:     a.FileURL,
+			FileSize:    a.FileSize,
+			ContentType: a.ContentType,
+			UploadedBy:  a.UploadedBy,
+			UploadedAt:  a.CreatedAt,
+		})
+	}
+	
 	return &dto.ProjectResponse{
 		ID:          project.ID,
 		WorkspaceID: project.WorkspaceID,
 		OwnerID:     project.OwnerID,
 		Name:        project.Name,
 		Description: project.Description,
+		StartDate:   project.StartDate,
+		DueDate:     project.DueDate,
 		IsPublic:    project.IsPublic,
+		Attachments: attachments,
 		CreatedAt:   project.CreatedAt,
 		UpdatedAt:   project.UpdatedAt,
 	}
@@ -310,12 +335,34 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 		return nil, response.NewForbiddenError("Only project owner can update project", "")
 	}
 
+	// Determine the effective start and due dates for validation
+	effectiveStartDate := project.StartDate
+	effectiveDueDate := project.DueDate
+	
+	if req.StartDate != nil {
+		effectiveStartDate = req.StartDate
+	}
+	if req.DueDate != nil {
+		effectiveDueDate = req.DueDate
+	}
+	
+	// Validate date range with effective dates
+	if err := validateProjectDateRange(effectiveStartDate, effectiveDueDate); err != nil {
+		return nil, err
+	}
+
 	// Update fields if provided
 	if req.Name != nil {
 		project.Name = *req.Name
 	}
 	if req.Description != nil {
 		project.Description = *req.Description
+	}
+	if req.StartDate != nil {
+		project.StartDate = req.StartDate
+	}
+	if req.DueDate != nil {
+		project.DueDate = req.DueDate
 	}
 
 	// Save to repository
@@ -526,6 +573,8 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 		Description:      project.Description,
 		OwnerID:          project.OwnerID,
 		IsPublic:         project.IsPublic,
+		StartDate:        project.StartDate,
+		DueDate:          project.DueDate,
 		CreatedAt:        project.CreatedAt,
 		UpdatedAt:        project.UpdatedAt,
 	}
@@ -647,4 +696,14 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 		FieldTypes:    fieldTypes,
 		DefaultViewID: nil, // Can be extended later to support custom views
 	}, nil
+}
+
+// validateProjectDateRange validates that startDate is not after dueDate
+func validateProjectDateRange(startDate, dueDate *time.Time) error {
+	if startDate != nil && dueDate != nil {
+		if startDate.After(*dueDate) {
+			return response.NewAppError(response.ErrCodeValidation, "Start date cannot be after due date", "")
+		}
+	}
+	return nil
 }

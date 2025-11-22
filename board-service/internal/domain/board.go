@@ -16,10 +16,12 @@ type Board struct {
 	Title        string                 `gorm:"type:varchar(255);not null" json:"title"`
 	Content      string                 `gorm:"type:text" json:"content"`
 	CustomFields datatypes.JSON `gorm:"type:jsonb" json:"custom_fields"`
+	StartDate    *time.Time             `gorm:"type:timestamp;index:idx_boards_start_date" json:"start_date"`
 	DueDate      *time.Time             `gorm:"type:timestamp;index:idx_boards_due_date" json:"due_date"`
 	Project      Project                `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"project,omitempty"`
 	Participants []Participant          `gorm:"foreignKey:BoardID;constraint:OnDelete:CASCADE" json:"participants,omitempty"`
 	Comments     []Comment              `gorm:"foreignKey:BoardID;constraint:OnDelete:CASCADE" json:"comments,omitempty"`
+	Attachments  []Attachment           `gorm:"foreignKey:EntityID;constraint:OnDelete:CASCADE" json:"attachments,omitempty"`
 }
 
 // TableName specifies the table name for Board
