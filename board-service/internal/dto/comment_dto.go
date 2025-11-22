@@ -16,8 +16,11 @@ type CreateCommentRequest struct {
 }
 
 // UpdateCommentRequest represents the request to update a comment
+// @Description Request body for updating a comment with optional attachments
+// @Description attachmentIds is an optional array of attachment IDs to add to the comment
 type UpdateCommentRequest struct {
-	Content string `json:"content" binding:"required,min=1"`
+	Content       string      `json:"content" binding:"required,min=1"`
+	AttachmentIDs []uuid.UUID `json:"attachmentIds,omitempty" binding:"omitempty,dive,uuid" example:"f47ac10b-58cc-4372-a567-0e02b2c3d479"`
 }
 
 // CommentResponse represents the comment response

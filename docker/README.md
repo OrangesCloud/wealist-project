@@ -1,5 +1,7 @@
 # weAlist Docker Environment Guide
 
+> **Note**: 상세한 Docker 환경 가이드는 [.kiro/docs/DOCKER_ENVIRONMENT_GUIDE.md](../.kiro/docs/DOCKER_ENVIRONMENT_GUIDE.md)로 이동되었습니다.
+
 weAlist 프로젝트의 Docker 환경 설정 가이드입니다.
 
 ## 디렉토리 구조

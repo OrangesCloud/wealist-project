@@ -431,6 +431,25 @@ sequenceDiagram
 - 제공된 첨부파일 ID는 `TEMP` 상태여야 하며, 존재하지 않거나 이미 `CONFIRMED` 상태인 경우 에러가 발생합니다
 - Board 생성 성공 시 첨부파일은 `CONFIRMED` 상태로 변경되고 `entityId`가 설정됩니다
 
+### Board 수정 API
+
+**Endpoint:** `PUT /api/boards/{boardId}`
+
+**Request Body:**
+```json
+{
+  "title": "Updated Board Title",
+  "content": "Updated Board Content",
+  "attachmentIds": ["attachment-uuid-3"]
+}
+```
+
+**설명:**
+- 모든 필드는 선택 사항입니다
+- `attachmentIds`를 제공하면 새로운 첨부파일이 Board에 추가됩니다
+- 제공된 첨부파일 ID는 `TEMP` 상태여야 하며, Board 수정 성공 시 `CONFIRMED` 상태로 변경됩니다
+- 기존 첨부파일은 유지되며, 새로운 첨부파일이 추가됩니다
+
 ### Comment 생성 API
 
 **Endpoint:** `POST /api/comments`
@@ -447,6 +466,24 @@ sequenceDiagram
 **설명:**
 - `attachmentIds`는 선택 사항입니다
 - Board 생성과 동일한 검증 규칙이 적용됩니다
+
+### Comment 수정 API
+
+**Endpoint:** `PUT /api/comments/{commentId}`
+
+**Request Body:**
+```json
+{
+  "content": "Updated Comment Content",
+  "attachmentIds": ["attachment-uuid-2"]
+}
+```
+
+**설명:**
+- `content`는 필수 사항입니다
+- `attachmentIds`를 제공하면 새로운 첨부파일이 Comment에 추가됩니다
+- 제공된 첨부파일 ID는 `TEMP` 상태여야 하며, Comment 수정 성공 시 `CONFIRMED` 상태로 변경됩니다
+- 기존 첨부파일은 유지되며, 새로운 첨부파일이 추가됩니다
 
 ### Project 생성 API
 
@@ -465,6 +502,26 @@ sequenceDiagram
 **설명:**
 - `attachmentIds`는 선택 사항입니다
 - Board 생성과 동일한 검증 규칙이 적용됩니다
+
+### Project 수정 API
+
+**Endpoint:** `PUT /api/projects/{projectId}`
+
+**Request Body:**
+```json
+{
+  "name": "Updated Project Name",
+  "description": "Updated Project Description",
+  "attachmentIds": ["attachment-uuid-3"]
+}
+```
+
+**설명:**
+- 모든 필드는 선택 사항입니다
+- `attachmentIds`를 제공하면 새로운 첨부파일이 Project에 추가됩니다
+- 제공된 첨부파일 ID는 `TEMP` 상태여야 하며, Project 수정 성공 시 `CONFIRMED` 상태로 변경됩니다
+- 기존 첨부파일은 유지되며, 새로운 첨부파일이 추가됩니다
+- Project Owner만 수정할 수 있습니다
 
 ## 에러 코드
 

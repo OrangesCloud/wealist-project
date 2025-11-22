@@ -266,6 +266,13 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		return nil, err
 	}
 
+	// Validate and confirm attachments if provided
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.validateAndConfirmAttachments(ctx, req.AttachmentIDs, domain.EntityTypeBoard, uuid.Nil); err != nil {
+			return nil, err
+		}
+	}
+
 	// Update fields if provided
 	if req.Title != nil {
 		board.Title = *req.Title
@@ -299,6 +306,27 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 
 	if err := s.boardRepo.Update(ctx, board); err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update board", err.Error())
+	}
+
+	// Confirm attachments after board update
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, board.ID); err != nil {
+			s.logger.Warn("Failed to confirm attachments during board update",
+				zap.String("board_id", board.ID.String()),
+				zap.Error(err))
+			// Continue even if attachment confirmation fails
+		}
+		
+		// Reload board with attachments to include them in response
+		reloadedBoard, err := s.boardRepo.FindByID(ctx, board.ID)
+		if err != nil {
+			s.logger.Warn("Failed to reload board with attachments",
+				zap.String("board_id", board.ID.String()),
+				zap.Error(err))
+			// Continue with original board if reload fails
+		} else {
+			board = reloadedBoard
+		}
 	}
 
 	// Convert to response DTO
