@@ -1,10 +1,18 @@
 basePath: /api
 definitions:
   dto.AddParticipantsRequest:
+    description: 'Request to add single or multiple participants to a board For single
+      participant: provide array with 1 element For multiple participants: provide
+      array with up to 50 elements Duplicate userIds in the request will be automatically
+      removed'
     properties:
       boardId:
+        example: 1275eac5-f0f9-4bee-8235-576a0042f42b
         type: string
       userIds:
+        example:
+        - a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        - b2c3d4e5-f6a7-8901-bcde-f12345678901
         items:
           type: string
         maxItems: 50
@@ -15,17 +23,49 @@ definitions:
     - userIds
     type: object
   dto.AddParticipantsResponse:
+    description: 'Response for bulk participant addition HTTP 201: All participants
+      added successfully (totalFailed=0) HTTP 207: Partial success (totalSuccess>0
+      and totalFailed>0) HTTP 400: All participants failed (totalSuccess=0)'
     properties:
       results:
         items:
           $ref: '#/definitions/dto.ParticipantResult'
         type: array
       totalFailed:
+        example: 1
         type: integer
       totalRequested:
+        example: 3
         type: integer
       totalSuccess:
+        example: 2
         type: integer
+    type: object
+  dto.AttachmentResponse:
+    description: File attachment metadata for boards and projects Contains information
+      about uploaded files including S3 URL, size, and content type
+    properties:
+      contentType:
+        example: application/pdf
+        type: string
+      fileName:
+        example: document.pdf
+        type: string
+      fileSize:
+        example: 1024000
+        type: integer
+      fileUrl:
+        example: https://s3.amazonaws.com/bucket/file.pdf
+        type: string
+      id:
+        example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+        type: string
+      uploadedAt:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      uploadedBy:
+        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        type: string
     type: object
   dto.BoardDetailResponse:
     description: 'Detailed board response with value-based customFields, participants,
@@ -35,6 +75,10 @@ definitions:
       assigneeId:
         example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
+      attachments:
+        items:
+          $ref: '#/definitions/dto.AttachmentResponse'
+        type: array
       authorId:
         example: b2c3d4e5-f6a7-8901-bcde-f12345678901
         type: string
@@ -74,6 +118,9 @@ definitions:
       projectId:
         example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
         type: string
+      startDate:
+        example: "2024-01-01T00:00:00Z"
+        type: string
       title:
         example: Implement user authentication
         type: string
@@ -96,6 +143,10 @@ definitions:
       assigneeId:
         example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
+      attachments:
+        items:
+          $ref: '#/definitions/dto.AttachmentResponse'
+        type: array
       authorId:
         example: b2c3d4e5-f6a7-8901-bcde-f12345678901
         type: string
@@ -127,6 +178,9 @@ definitions:
       projectId:
         example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
         type: string
+      startDate:
+        example: "2024-01-01T00:00:00Z"
+        type: string
       title:
         example: Implement user authentication
         type: string
@@ -136,6 +190,10 @@ definitions:
     type: object
   dto.CommentResponse:
     properties:
+      attachments:
+        items:
+          $ref: '#/definitions/dto.AttachmentResponse'
+        type: array
       boardId:
         type: string
       commentId:
@@ -173,6 +231,9 @@ definitions:
         type: string
       projectId:
         example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
+        type: string
+      startDate:
+        example: "2024-01-01T00:00:00Z"
         type: string
       title:
         example: Implement user authentication
@@ -226,15 +287,27 @@ definitions:
     - projectId
     type: object
   dto.CreateProjectRequest:
+    description: Request body for creating a new project with optional start and due
+      dates startDate and dueDate are optional, but startDate must be before or equal
+      to dueDate if both are provided
     properties:
       description:
+        example: Project for launching new product features in Q1 2024
         maxLength: 500
         type: string
+      dueDate:
+        example: "2024-03-31T23:59:59Z"
+        type: string
       name:
+        example: Q1 2024 Product Launch
         maxLength: 100
         minLength: 2
         type: string
+      startDate:
+        example: "2024-01-01T00:00:00Z"
+        type: string
       workspaceId:
+        example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
         type: string
     required:
     - name
@@ -355,23 +428,34 @@ definitions:
         type: integer
     type: object
   dto.ParticipantResponse:
+    description: Participant information for a board
     properties:
       boardId:
+        example: 1275eac5-f0f9-4bee-8235-576a0042f42b
         type: string
       createdAt:
+        example: "2024-01-15T10:30:00Z"
         type: string
       id:
+        example: f47ac10b-58cc-4372-a567-0e02b2c3d479
         type: string
       userId:
+        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
     type: object
   dto.ParticipantResult:
+    description: Result for each participant addition attempt success=true means participant
+      was added successfully success=false means addition failed, error field contains
+      reason
     properties:
       error:
+        example: Participant already exists
         type: string
       success:
+        example: true
         type: boolean
       userId:
+        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
     type: object
   dto.ProjectBasicInfo:
@@ -379,6 +463,8 @@ definitions:
       createdAt:
         type: string
       description:
+        type: string
+      dueDate:
         type: string
       isPublic:
         type: boolean
@@ -391,6 +477,8 @@ definitions:
       ownerName:
         type: string
       projectId:
+        type: string
+      startDate:
         type: string
       updatedAt:
         type: string
@@ -453,26 +541,49 @@ definitions:
         type: string
     type: object
   dto.ProjectResponse:
+    description: Project response with optional start/due dates and attachments startDate
+      and dueDate are included only if they were set attachments is an array of file
+      metadata (empty array if no attachments)
     properties:
+      attachments:
+        items:
+          $ref: '#/definitions/dto.AttachmentResponse'
+        type: array
       createdAt:
+        example: "2024-01-15T10:30:00Z"
         type: string
       description:
+        example: Project for launching new product features in Q1 2024
+        type: string
+      dueDate:
+        example: "2024-03-31T23:59:59Z"
         type: string
       isPublic:
+        example: true
         type: boolean
       name:
+        example: Q1 2024 Product Launch
         type: string
       ownerEmail:
+        example: owner@example.com
         type: string
       ownerId:
+        example: b2c3d4e5-f6a7-8901-bcde-f12345678901
         type: string
       ownerName:
+        example: John Doe
         type: string
       projectId:
+        example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
+        type: string
+      startDate:
+        example: "2024-01-01T00:00:00Z"
         type: string
       updatedAt:
+        example: "2024-01-15T14:20:00Z"
         type: string
       workspaceId:
+        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
     type: object
   dto.UpdateBoardFieldRequest:
@@ -510,6 +621,9 @@ definitions:
         type: object
       dueDate:
         example: "2024-12-31T23:59:59Z"
+        type: string
+      startDate:
+        example: "2024-01-01T00:00:00Z"
         type: string
       title:
         example: Update user authentication
@@ -557,17 +671,29 @@ definitions:
     - roleName
     type: object
   dto.UpdateProjectRequest:
+    description: Request body for updating a project. All fields are optional. startDate
+      must be before or equal to dueDate if both are provided
     properties:
       description:
+        example: Updated project description
         maxLength: 500
         type: string
+      dueDate:
+        example: "2024-04-15T23:59:59Z"
+        type: string
       name:
+        example: Q1 2024 Product Launch - Updated
         maxLength: 100
         minLength: 2
+        type: string
+      startDate:
+        example: "2024-01-15T00:00:00Z"
         type: string
     type: object
   handler.SchemaDocumentation:
     properties:
+      attachmentResponse:
+        $ref: '#/definitions/dto.AttachmentResponse'
       boardFilters:
         allOf:
         - $ref: '#/definitions/dto.BoardFilters'
@@ -609,6 +735,8 @@ paths:
         특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트
         응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
         예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
+        각 보드는 participantIds (참여자 ID 배열)와 attachments (첨부파일 메타데이터 배열)를 포함합니다
+        startDate와 dueDate는 설정된 경우에만 포함됩니다
       parameters:
       - description: Project ID (UUID)
         in: query
@@ -657,6 +785,8 @@ paths:
         유효한 필드 타입: stage, role, importance
         예시 값: stage="in_progress", role="developer", importance="high"
         잘못된 field value 제공 시 400 에러 반환
+        assigneeId가 제공되지 않으면 자동으로 authorId로 설정됩니다
+        startDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다
       parameters:
       - description: Board 생성 요청
         in: body
@@ -724,9 +854,12 @@ paths:
       - boards
     get:
       description: |-
-        Board ID로 상세 정보를 조회합니다 (참여자, 댓글 포함)
+        Board ID로 상세 정보를 조회합니다 (참여자, 댓글, 첨부파일 포함)
         응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
         예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
+        participantIds는 보드에 참여하는 사용자 ID 배열입니다
+        attachments는 보드에 첨부된 파일 메타데이터 배열입니다
+        startDate와 dueDate는 설정된 경우에만 포함됩니다
       parameters:
       - description: Board ID (UUID)
         in: path
@@ -764,11 +897,12 @@ paths:
       consumes:
       - application/json
       description: |-
-        Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할)
+        Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할, 담당자, 날짜)
         customFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)
         유효한 필드 타입: stage, role, importance
         예시 값: stage="completed", role="designer", importance="medium"
         잘못된 field value 제공 시 400 에러 반환
+        startDate와 dueDate를 수정할 수 있으며, startDate는 dueDate보다 이전이어야 합니다
       parameters:
       - description: Board ID (UUID)
         in: path
@@ -860,6 +994,8 @@ paths:
         특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON 형식)
         응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
         예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
+        각 보드는 participantIds (참여자 ID 배열)와 attachments (첨부파일 메타데이터 배열)를 포함합니다
+        startDate와 dueDate는 설정된 경우에만 포함됩니다
       parameters:
       - description: Project ID (UUID)
         in: path
@@ -1463,7 +1599,9 @@ paths:
       - participants
   /projects:
     get:
-      description: 특정 Workspace에 속한 모든 Project를 조회합니다. 프론트엔드 호환용 엔드포인트
+      description: |-
+        특정 Workspace에 속한 모든 Project를 조회합니다. 프론트엔드 호환용 엔드포인트
+        각 프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다
       parameters:
       - description: Workspace ID (UUID)
         in: query
@@ -1496,7 +1634,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: 새로운 Project를 생성합니다
+      description: |-
+        새로운 Project를 생성합니다
+        startDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다
       parameters:
       - description: Project 생성 요청
         in: body
@@ -1570,7 +1710,9 @@ paths:
       tags:
       - projects
     get:
-      description: 특정 Project의 상세 정보를 조회합니다
+      description: |-
+        특정 Project의 상세 정보를 조회합니다
+        프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다
       parameters:
       - description: Project ID (UUID)
         in: path
@@ -1611,7 +1753,9 @@ paths:
     put:
       consumes:
       - application/json
-      description: Project의 이름과 설명을 수정합니다 (OWNER만 가능)
+      description: |-
+        Project의 이름, 설명, 날짜를 수정합니다 (OWNER만 가능)
+        startDate와 dueDate를 수정할 수 있으며, startDate는 dueDate보다 이전이어야 합니다
       parameters:
       - description: Project ID (UUID)
         in: path
@@ -1936,7 +2080,9 @@ paths:
       - projects
   /projects/workspace/{workspaceId}:
     get:
-      description: 특정 Workspace에 속한 모든 Project를 조회합니다
+      description: |-
+        특정 Workspace에 속한 모든 Project를 조회합니다
+        각 프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다
       parameters:
       - description: Workspace ID (UUID)
         in: path
@@ -1970,7 +2116,9 @@ paths:
       - projects
   /projects/workspace/{workspaceId}/default:
     get:
-      description: 특정 Workspace의 기본(default) Project를 조회합니다
+      description: |-
+        특정 Workspace의 기본(default) Project를 조회합니다
+        프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다
       parameters:
       - description: Workspace ID (UUID)
         in: path

@@ -24,7 +24,7 @@ const docTemplate = `{
     "paths": {
         "/boards": {
             "get": {
-                "description": "특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
+                "description": "특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}\n각 보드는 participantIds (참여자 ID 배열)와 attachments (첨부파일 메타데이터 배열)를 포함합니다\nstartDate와 dueDate는 설정된 경우에만 포함됩니다",
                 "produces": [
                     "application/json"
                 ],
@@ -90,7 +90,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "새로운 Board를 생성합니다\ncustomFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)\n유효한 필드 타입: stage, role, importance\n예시 값: stage=\"in_progress\", role=\"developer\", importance=\"high\"\n잘못된 field value 제공 시 400 에러 반환",
+                "description": "새로운 Board를 생성합니다\ncustomFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)\n유효한 필드 타입: stage, role, importance\n예시 값: stage=\"in_progress\", role=\"developer\", importance=\"high\"\n잘못된 field value 제공 시 400 에러 반환\nassigneeId가 제공되지 않으면 자동으로 authorId로 설정됩니다\nstartDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -154,7 +154,7 @@ const docTemplate = `{
         },
         "/boards/project/{projectId}": {
             "get": {
-                "description": "특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON 형식)\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
+                "description": "특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON 형식)\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}\n각 보드는 participantIds (참여자 ID 배열)와 attachments (첨부파일 메타데이터 배열)를 포함합니다\nstartDate와 dueDate는 설정된 경우에만 포함됩니다",
                 "produces": [
                     "application/json"
                 ],
@@ -222,7 +222,7 @@ const docTemplate = `{
         },
         "/boards/{boardId}": {
             "get": {
-                "description": "Board ID로 상세 정보를 조회합니다 (참여자, 댓글 포함)\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
+                "description": "Board ID로 상세 정보를 조회합니다 (참여자, 댓글, 첨부파일 포함)\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}\nparticipantIds는 보드에 참여하는 사용자 ID 배열입니다\nattachments는 보드에 첨부된 파일 메타데이터 배열입니다\nstartDate와 dueDate는 설정된 경우에만 포함됩니다",
                 "produces": [
                     "application/json"
                 ],
@@ -279,7 +279,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할)\ncustomFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)\n유효한 필드 타입: stage, role, importance\n예시 값: stage=\"completed\", role=\"designer\", importance=\"medium\"\n잘못된 field value 제공 시 400 에러 반환",
+                "description": "Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할, 담당자, 날짜)\ncustomFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)\n유효한 필드 타입: stage, role, importance\n예시 값: stage=\"completed\", role=\"designer\", importance=\"medium\"\n잘못된 field value 제공 시 400 에러 반환\nstartDate와 dueDate를 수정할 수 있으며, startDate는 dueDate보다 이전이어야 합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -1360,7 +1360,7 @@ const docTemplate = `{
         },
         "/projects": {
             "get": {
-                "description": "특정 Workspace에 속한 모든 Project를 조회합니다. 프론트엔드 호환용 엔드포인트",
+                "description": "특정 Workspace에 속한 모든 Project를 조회합니다. 프론트엔드 호환용 엔드포인트\n각 프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다",
                 "produces": [
                     "application/json"
                 ],
@@ -1411,7 +1411,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "새로운 Project를 생성합니다",
+                "description": "새로운 Project를 생성합니다\nstartDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -1549,7 +1549,7 @@ const docTemplate = `{
         },
         "/projects/workspace/{workspaceId}": {
             "get": {
-                "description": "특정 Workspace에 속한 모든 Project를 조회합니다",
+                "description": "특정 Workspace에 속한 모든 Project를 조회합니다\n각 프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다",
                 "produces": [
                     "application/json"
                 ],
@@ -1605,7 +1605,7 @@ const docTemplate = `{
         },
         "/projects/workspace/{workspaceId}/default": {
             "get": {
-                "description": "특정 Workspace의 기본(default) Project를 조회합니다",
+                "description": "특정 Workspace의 기본(default) Project를 조회합니다\n프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다",
                 "produces": [
                     "application/json"
                 ],
@@ -1664,7 +1664,7 @@ const docTemplate = `{
         },
         "/projects/{projectId}": {
             "get": {
-                "description": "특정 Project의 상세 정보를 조회합니다",
+                "description": "특정 Project의 상세 정보를 조회합니다\n프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다",
                 "produces": [
                     "application/json"
                 ],
@@ -1727,7 +1727,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Project의 이름과 설명을 수정합니다 (OWNER만 가능)",
+                "description": "Project의 이름, 설명, 날짜를 수정합니다 (OWNER만 가능)\nstartDate와 dueDate를 수정할 수 있으며, startDate는 dueDate보다 이전이어야 합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -2285,6 +2285,7 @@ const docTemplate = `{
     },
     "definitions": {
         "dto.AddParticipantsRequest": {
+            "description": "Request to add single or multiple participants to a board For single participant: provide array with 1 element For multiple participants: provide array with up to 50 elements Duplicate userIds in the request will be automatically removed",
             "type": "object",
             "required": [
                 "boardId",
@@ -2292,7 +2293,8 @@ const docTemplate = `{
             ],
             "properties": {
                 "boardId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "1275eac5-f0f9-4bee-8235-576a0042f42b"
                 },
                 "userIds": {
                     "type": "array",
@@ -2300,11 +2302,16 @@ const docTemplate = `{
                     "minItems": 1,
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    ]
                 }
             }
         },
         "dto.AddParticipantsResponse": {
+            "description": "Response for bulk participant addition HTTP 201: All participants added successfully (totalFailed=0) HTTP 207: Partial success (totalSuccess\u003e0 and totalFailed\u003e0) HTTP 400: All participants failed (totalSuccess=0)",
             "type": "object",
             "properties": {
                 "results": {
@@ -2314,13 +2321,50 @@ const docTemplate = `{
                     }
                 },
                 "totalFailed": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "totalRequested": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 3
                 },
                 "totalSuccess": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "dto.AttachmentResponse": {
+            "description": "File attachment metadata for boards and projects Contains information about uploaded files including S3 URL, size, and content type",
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string",
+                    "example": "application/pdf"
+                },
+                "fileName": {
+                    "type": "string",
+                    "example": "document.pdf"
+                },
+                "fileSize": {
+                    "type": "integer",
+                    "example": 1024000
+                },
+                "fileUrl": {
+                    "type": "string",
+                    "example": "https://s3.amazonaws.com/bucket/file.pdf"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                },
+                "uploadedAt": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "uploadedBy": {
+                    "type": "string",
+                    "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 }
             }
         },
@@ -2331,6 +2375,12 @@ const docTemplate = `{
                 "assigneeId": {
                     "type": "string",
                     "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AttachmentResponse"
+                    }
                 },
                 "authorId": {
                     "type": "string",
@@ -2387,6 +2437,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
                 },
+                "startDate": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
                 "title": {
                     "type": "string",
                     "example": "Implement user authentication"
@@ -2413,6 +2467,12 @@ const docTemplate = `{
                 "assigneeId": {
                     "type": "string",
                     "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AttachmentResponse"
+                    }
                 },
                 "authorId": {
                     "type": "string",
@@ -2457,6 +2517,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
                 },
+                "startDate": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
                 "title": {
                     "type": "string",
                     "example": "Implement user authentication"
@@ -2470,6 +2534,12 @@ const docTemplate = `{
         "dto.CommentResponse": {
             "type": "object",
             "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AttachmentResponse"
+                    }
+                },
                 "boardId": {
                     "type": "string"
                 },
@@ -2523,6 +2593,10 @@ const docTemplate = `{
                 "projectId": {
                     "type": "string",
                     "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
+                },
+                "startDate": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
                 },
                 "title": {
                     "type": "string",
@@ -2593,6 +2667,7 @@ const docTemplate = `{
             }
         },
         "dto.CreateProjectRequest": {
+            "description": "Request body for creating a new project with optional start and due dates startDate and dueDate are optional, but startDate must be before or equal to dueDate if both are provided",
             "type": "object",
             "required": [
                 "name",
@@ -2601,15 +2676,26 @@ const docTemplate = `{
             "properties": {
                 "description": {
                     "type": "string",
-                    "maxLength": 500
+                    "maxLength": 500,
+                    "example": "Project for launching new product features in Q1 2024"
+                },
+                "dueDate": {
+                    "type": "string",
+                    "example": "2024-03-31T23:59:59Z"
                 },
                 "name": {
                     "type": "string",
                     "maxLength": 100,
-                    "minLength": 2
+                    "minLength": 2,
+                    "example": "Q1 2024 Product Launch"
+                },
+                "startDate": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
                 },
                 "workspaceId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
                 }
             }
         },
@@ -2787,33 +2873,42 @@ const docTemplate = `{
             }
         },
         "dto.ParticipantResponse": {
+            "description": "Participant information for a board",
             "type": "object",
             "properties": {
                 "boardId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "1275eac5-f0f9-4bee-8235-576a0042f42b"
                 },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
                 },
                 "userId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 }
             }
         },
         "dto.ParticipantResult": {
+            "description": "Result for each participant addition attempt success=true means participant was added successfully success=false means addition failed, error field contains reason",
             "type": "object",
             "properties": {
                 "error": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Participant already exists"
                 },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "userId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 }
             }
         },
@@ -2824,6 +2919,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "dueDate": {
                     "type": "string"
                 },
                 "isPublic": {
@@ -2842,6 +2940,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "projectId": {
+                    "type": "string"
+                },
+                "startDate": {
                     "type": "string"
                 },
                 "updatedAt": {
@@ -2937,37 +3038,62 @@ const docTemplate = `{
             }
         },
         "dto.ProjectResponse": {
+            "description": "Project response with optional start/due dates and attachments startDate and dueDate are included only if they were set attachments is an array of file metadata (empty array if no attachments)",
             "type": "object",
             "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AttachmentResponse"
+                    }
+                },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
                 },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Project for launching new product features in Q1 2024"
+                },
+                "dueDate": {
+                    "type": "string",
+                    "example": "2024-03-31T23:59:59Z"
                 },
                 "isPublic": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Q1 2024 Product Launch"
                 },
                 "ownerEmail": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "owner@example.com"
                 },
                 "ownerId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                 },
                 "ownerName": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "John Doe"
                 },
                 "projectId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
+                },
+                "startDate": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
                 },
                 "updatedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-15T14:20:00Z"
                 },
                 "workspaceId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 }
             }
         },
@@ -3016,6 +3142,10 @@ const docTemplate = `{
                 "dueDate": {
                     "type": "string",
                     "example": "2024-12-31T23:59:59Z"
+                },
+                "startDate": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
                 },
                 "title": {
                     "type": "string",
@@ -3084,22 +3214,36 @@ const docTemplate = `{
             }
         },
         "dto.UpdateProjectRequest": {
+            "description": "Request body for updating a project. All fields are optional. startDate must be before or equal to dueDate if both are provided",
             "type": "object",
             "properties": {
                 "description": {
                     "type": "string",
-                    "maxLength": 500
+                    "maxLength": 500,
+                    "example": "Updated project description"
+                },
+                "dueDate": {
+                    "type": "string",
+                    "example": "2024-04-15T23:59:59Z"
                 },
                 "name": {
                     "type": "string",
                     "maxLength": 100,
-                    "minLength": 2
+                    "minLength": 2,
+                    "example": "Q1 2024 Product Launch - Updated"
+                },
+                "startDate": {
+                    "type": "string",
+                    "example": "2024-01-15T00:00:00Z"
                 }
             }
         },
         "handler.SchemaDocumentation": {
             "type": "object",
             "properties": {
+                "attachmentResponse": {
+                    "$ref": "#/definitions/dto.AttachmentResponse"
+                },
                 "boardFilters": {
                     "description": "Board related DTOs",
                     "allOf": [
