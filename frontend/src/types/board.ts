@@ -21,6 +21,63 @@ export interface ErrorResponse {
 }
 
 // =======================================================
+// Attachment Types (대폭 수정됨)
+// =======================================================
+
+/**
+ * @summary 첨부파일 응답 DTO (internal_handler.AttachmentResponse)
+ * [API: GET /api/boards/{boardId}/attachments 등]
+ */
+export interface AttachmentResponse {
+  id: string; // Swagger: id (기존 attachmentId 대체)
+  entityId?: string; // 연관된 엔티티 ID (Board, Project, Comment)
+  entityType?: string; // BOARD, PROJECT, COMMENT
+  fileName: string; // 원본 파일명
+  fileUrl: string; // S3 URL
+  contentType: string; // MIME type
+  fileSize: number; // Byte 단위
+  uploadedBy?: string; // 업로더 ID
+  uploadedAt: string; // 업로드 일시
+  status?: string; // 파일 상태
+  expiresAt?: string; // 만료 일시 (임시 파일인 경우)
+}
+
+/**
+ * @summary Presigned URL 요청 DTO (internal_handler.PresignedURLRequest)
+ * [API: POST /api/attachments/presigned-url]
+ */
+export interface PresignedURLRequest {
+  workspaceId: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+  entityType: 'BOARD' | 'PROJECT' | 'COMMENT'; // 대문자 사용
+}
+
+/**
+ * @summary Presigned URL 응답 DTO (internal_handler.PresignedURLResponse)
+ */
+export interface PresignedURLResponse {
+  attachmentId: string;
+  uploadUrl: string; // S3에 PUT 요청을 보낼 URL
+  fileKey: string; // 업로드 후 서버에 저장할 Key
+  expiresIn: number; // 유효 시간 (초)
+}
+
+/**
+ * @summary 첨부파일 메타데이터 저장 요청 DTO (internal_handler.SaveAttachmentMetadataRequest)
+ * [API: POST /api/attachments]
+ * S3 업로드 성공 후 DB에 메타데이터를 저장할 때 사용
+ */
+export interface SaveAttachmentMetadataRequest {
+  entityType: 'BOARD' | 'PROJECT' | 'COMMENT';
+  fileKey: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+}
+
+// =======================================================
 // Board Types
 // =======================================================
 
@@ -35,12 +92,13 @@ export interface BoardResponse {
   content: string;
   assigneeId: string;
   authorId: string;
-  dueDate: string;
+  startDate?: string; // Swagger에 존재하므로 추가
+  dueDate?: string;
   customFields: Record<string, any>;
   createdAt: string;
   updatedAt: string;
-  fileUrl?: string; // 💡 [추가] 보드 파일 URL 설정
-  fileName?: string; // 💡 [추가] 보드 파일 이름 설정
+  participantIds?: string[]; // Swagger: participantIds
+  attachments: AttachmentResponse[]; // 💡 [변경] 단일 URL -> 배열 객체
 }
 
 /**
@@ -50,6 +108,7 @@ export interface BoardResponse {
 export interface BoardDetailResponse extends BoardResponse {
   participants: ParticipantResponse[];
   comments: CommentResponse[];
+  // attachments는 상속받은 BoardResponse에 이미 포함됨
 }
 
 /**
@@ -64,9 +123,8 @@ export interface CreateBoardRequest {
   startDate?: string;
   dueDate?: string;
   customFields?: Record<string, any>;
-  participants?: string[];
-  fileUrl?: string; // 💡 [추가] 보드 파일 URL 설정
-  fileName?: string; // 💡 [추가] 보드 파일 이름 설정
+  participants?: string[]; // 생성 시 참여자 ID 배열 (최대 50개)
+  attachmentIds?: string[]; // 💡 [변경] fileUrl -> 업로드 완료된 attachment ID 배열
 }
 
 /**
@@ -80,9 +138,17 @@ export interface UpdateBoardRequest {
   startDate?: string;
   dueDate?: string;
   customFields?: Record<string, any>;
-  participants?: string[];
-  fileUrl?: string; // 💡 [추가] 보드 파일 URL 설정
-  fileName?: string; // 💡 [추가] 보드 파일 이름 설정
+  attachmentIds?: string[]; // 💡 [변경] 추가할 attachment ID 배열
+}
+
+/**
+ * @summary 보드 이동 요청 (dto.MoveBoardRequest)
+ * [API: PUT /api/boards/{boardId}/move]
+ */
+export interface MoveBoardRequest {
+  projectId: string;
+  groupByFieldName: string; // 예: 'stage'
+  newFieldValue: string; // 예: 'in_progress'
 }
 
 /**
@@ -116,7 +182,7 @@ export interface UpdateBoardFieldRequest {
 
 /**
  * @summary 프로젝트 응답 DTO (dto.ProjectResponse)
- * [API: GET /api/projects/{projectId}, POST /api/projects, PUT /api/projects/{projectId}]
+ * [API: GET /api/projects/{projectId}, POST /api/projects]
  */
 export interface ProjectResponse {
   projectId: string;
@@ -131,6 +197,7 @@ export interface ProjectResponse {
   updatedAt: string;
   startDate?: string;
   dueDate?: string;
+  attachments: AttachmentResponse[]; // 💡 [변경] 파일 목록 포함
 }
 
 /**
@@ -147,6 +214,9 @@ export interface ProjectBasicInfo {
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
+  // Swagger BasicInfo에는 startDate/dueDate 명시 확인 필요하나 보통 포함됨
+  startDate?: string;
+  dueDate?: string;
 }
 
 /**
@@ -159,6 +229,7 @@ export interface CreateProjectRequest {
   description?: string;
   startDate?: string;
   dueDate?: string;
+  attachmentIds?: string[]; // 💡 [변경] fileUrl/Name 제거 -> attachmentIds
 }
 
 /**
@@ -170,6 +241,7 @@ export interface UpdateProjectRequest {
   description?: string;
   startDate?: string;
   dueDate?: string;
+  attachmentIds?: string[]; // 💡 [변경]
 }
 
 /**
@@ -204,6 +276,9 @@ export interface FieldOption {
   optionValue: string;
   optionLabel: string;
   color?: string;
+  fieldId?: string; // Swagger DTO에 있음
+  description?: string;
+  displayOrder?: number;
 }
 
 /**
@@ -235,7 +310,7 @@ export interface ProjectInitSettingsResponse {
 
 /**
  * @summary 필드 옵션 응답 (dto.FieldOptionResponse)
- * [API: GET /api/field-options, POST /api/field-options, PATCH /api/field-options/{optionId}]
+ * [API: GET /api/field-options 등]
  */
 export interface FieldOptionResponse {
   optionId: string;
@@ -303,7 +378,7 @@ export interface UpdateProjectMemberRoleRequest {
 
 /**
  * @summary 프로젝트 가입 요청 응답 (dto.ProjectJoinRequestResponse)
- * [API: GET /api/projects/{projectId}/join-requests, POST /api/join-requests]
+ * [API: GET /api/projects/{projectId}/join-requests 등]
  */
 export interface ProjectJoinRequestResponse {
   requestId: string;
@@ -338,7 +413,7 @@ export interface UpdateProjectJoinRequestRequest {
 
 /**
  * @summary 댓글 응답 DTO (dto.CommentResponse)
- * [API: GET /api/comments/board/{boardId}, POST /api/comments, PUT /api/comments/{commentId}]
+ * [API: GET /api/comments/board/{boardId}]
  */
 export interface CommentResponse {
   commentId: string;
@@ -347,6 +422,7 @@ export interface CommentResponse {
   content: string;
   createdAt: string;
   updatedAt: string;
+  attachments: AttachmentResponse[]; // 💡 [추가] 댓글도 첨부파일 배열 포함
 }
 
 /**
@@ -356,6 +432,7 @@ export interface CommentResponse {
 export interface CreateCommentRequest {
   boardId: string;
   content: string;
+  attachmentIds?: string[]; // 💡 [추가] 첨부파일 연결 지원
 }
 
 /**
@@ -363,8 +440,8 @@ export interface CreateCommentRequest {
  * [API: PUT /api/comments/{commentId}]
  */
 export interface UpdateCommentRequest {
-  boardId: string;
-  content: string;
+  content: string; // boardId는 request body에서 제외됨 (path param으로 식별되거나 로직상 불필요할 수 있음, swagger 확인)
+  attachmentIds?: string[]; // 💡 [추가]
 }
 
 // =======================================================
@@ -376,19 +453,39 @@ export interface UpdateCommentRequest {
  * [API: GET /api/participants/board/{boardId}]
  */
 export interface ParticipantResponse {
-  id: string;
+  id: string; // Participant ID
   boardId: string;
   userId: string;
   createdAt: string;
 }
 
 /**
- * @summary 참여자 추가 요청 (dto.AddParticipantRequest)
+ * @summary 참여자 추가 결과 (dto.ParticipantResult)
+ */
+export interface ParticipantResult {
+  userId: string;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * @summary 참여자 대량 추가 응답 (dto.AddParticipantsResponse)
  * [API: POST /api/participants]
  */
-export interface AddParticipantRequest {
+export interface AddParticipantsResponse {
+  results: ParticipantResult[];
+  totalRequested: number;
+  totalSuccess: number;
+  totalFailed: number;
+}
+
+/**
+ * @summary 참여자 추가 요청 (dto.AddParticipantsRequest)
+ * [API: POST /api/participants] - 💡 Bulk Insert로 변경됨
+ */
+export interface AddParticipantsRequest {
   boardId: string;
-  userId: string;
+  userIds: string[]; // 단일 userId -> userIds 배열로 변경
 }
 
 // =======================================================
