@@ -16,9 +16,10 @@ import (
 
 // MockParticipantService is a mock implementation of ParticipantService
 type MockParticipantService struct {
-	AddParticipantsFunc   func(ctx context.Context, req *dto.AddParticipantsRequest) (*dto.AddParticipantsResponse, error)
-	GetParticipantsFunc   func(ctx context.Context, boardID uuid.UUID) ([]*dto.ParticipantResponse, error)
-	RemoveParticipantFunc func(ctx context.Context, boardID, userID uuid.UUID) error
+	AddParticipantsFunc         func(ctx context.Context, req *dto.AddParticipantsRequest) (*dto.AddParticipantsResponse, error)
+	AddParticipantsInternalFunc func(ctx context.Context, boardID uuid.UUID, userIDs []uuid.UUID) (int, error)
+	GetParticipantsFunc         func(ctx context.Context, boardID uuid.UUID) ([]*dto.ParticipantResponse, error)
+	RemoveParticipantFunc       func(ctx context.Context, boardID, userID uuid.UUID) error
 }
 
 func (m *MockParticipantService) AddParticipants(ctx context.Context, req *dto.AddParticipantsRequest) (*dto.AddParticipantsResponse, error) {
@@ -26,6 +27,13 @@ func (m *MockParticipantService) AddParticipants(ctx context.Context, req *dto.A
 		return m.AddParticipantsFunc(ctx, req)
 	}
 	return &dto.AddParticipantsResponse{}, nil
+}
+
+func (m *MockParticipantService) AddParticipantsInternal(ctx context.Context, boardID uuid.UUID, userIDs []uuid.UUID) (int, error) {
+	if m.AddParticipantsInternalFunc != nil {
+		return m.AddParticipantsInternalFunc(ctx, boardID, userIDs)
+	}
+	return len(userIDs), nil
 }
 
 func (m *MockParticipantService) GetParticipants(ctx context.Context, boardID uuid.UUID) ([]*dto.ParticipantResponse, error) {

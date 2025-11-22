@@ -37,11 +37,16 @@ func NewBoardHandler(boardService service.BoardService) *BoardHandler {
 // @Description  잘못된 field value 제공 시 400 에러 반환
 // @Description  assigneeId가 제공되지 않으면 자동으로 authorId로 설정됩니다
 // @Description  startDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다
+// @Description  participants는 선택 사항이며, Board 생성 시 참여자를 함께 추가할 수 있습니다
+// @Description  participants는 최대 50개의 UUID 배열이며, 중복된 ID는 자동으로 제거됩니다
+// @Description  participants 추가가 실패해도 Board 생성은 성공하며, 성공한 참여자만 응답에 포함됩니다
+// @Description  응답의 participantIds 필드에 생성된 참여자 ID 목록이 포함됩니다
+// @Description  예시: {"participants": ["550e8400-e29b-41d4-a716-446655440001", "550e8400-e29b-41d4-a716-446655440002"]}
 // @Tags         boards
 // @Accept       json
 // @Produce      json
 // @Param        request body dto.CreateBoardRequest true "Board 생성 요청"
-// @Success      201 {object} response.SuccessResponse{data=dto.BoardResponse} "Board 생성 성공"
+// @Success      201 {object} response.SuccessResponse{data=dto.BoardResponse} "Board 생성 성공 (participantIds 포함)"
 // @Failure      400 {object} response.ErrorResponse "잘못된 요청 또는 유효하지 않은 field value"
 // @Failure      404 {object} response.ErrorResponse "Project를 찾을 수 없음"
 // @Failure      500 {object} response.ErrorResponse "서버 에러"
