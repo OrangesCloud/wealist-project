@@ -131,14 +131,21 @@ func TestIntegration_PresignedURL_BoardFlow(t *testing.T) {
 			contentType:    "image/jpeg",
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
-				var resp PresignedURLResponse
-				err := json.Unmarshal(w.Body.Bytes(), &resp)
+				var response map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 
-				assert.NotEmpty(t, resp.UploadURL, "Upload URL should not be empty")
-				assert.NotEmpty(t, resp.FileKey, "File key should not be empty")
-				assert.Equal(t, 300, resp.ExpiresIn, "Expiration should be 300 seconds")
-				assert.Contains(t, resp.FileKey, "board/boards/", "File key should contain correct path")
+				data, ok := response["data"].(map[string]interface{})
+				require.True(t, ok, "Response should contain data field")
+
+				uploadURL, _ := data["uploadUrl"].(string)
+				fileKey, _ := data["fileKey"].(string)
+				expiresIn, _ := data["expiresIn"].(float64)
+
+				assert.NotEmpty(t, uploadURL, "Upload URL should not be empty")
+				assert.NotEmpty(t, fileKey, "File key should not be empty")
+				assert.Equal(t, float64(300), expiresIn, "Expiration should be 300 seconds")
+				assert.Contains(t, fileKey, "board/boards/", "File key should contain correct path")
 			},
 		},
 		{
@@ -149,13 +156,19 @@ func TestIntegration_PresignedURL_BoardFlow(t *testing.T) {
 			contentType:    "application/pdf",
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
-				var resp PresignedURLResponse
-				err := json.Unmarshal(w.Body.Bytes(), &resp)
+				var response map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 
-				assert.NotEmpty(t, resp.UploadURL)
-				assert.NotEmpty(t, resp.FileKey)
-				assert.Contains(t, resp.FileKey, "board/comments/", "File key should contain correct path")
+				data, ok := response["data"].(map[string]interface{})
+				require.True(t, ok, "Response should contain data field")
+
+				uploadURL, _ := data["uploadUrl"].(string)
+				fileKey, _ := data["fileKey"].(string)
+
+				assert.NotEmpty(t, uploadURL)
+				assert.NotEmpty(t, fileKey)
+				assert.Contains(t, fileKey, "board/comments/", "File key should contain correct path")
 			},
 		},
 		{
@@ -166,13 +179,19 @@ func TestIntegration_PresignedURL_BoardFlow(t *testing.T) {
 			contentType:    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
-				var resp PresignedURLResponse
-				err := json.Unmarshal(w.Body.Bytes(), &resp)
+				var response map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 
-				assert.NotEmpty(t, resp.UploadURL)
-				assert.NotEmpty(t, resp.FileKey)
-				assert.Contains(t, resp.FileKey, "board/projects/", "File key should contain correct path")
+				data, ok := response["data"].(map[string]interface{})
+				require.True(t, ok, "Response should contain data field")
+
+				uploadURL, _ := data["uploadUrl"].(string)
+				fileKey, _ := data["fileKey"].(string)
+
+				assert.NotEmpty(t, uploadURL)
+				assert.NotEmpty(t, fileKey)
+				assert.Contains(t, fileKey, "board/projects/", "File key should contain correct path")
 			},
 		},
 		{
@@ -552,21 +571,28 @@ func TestIntegration_PresignedURL_CompleteWorkflow(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code, "Presigned URL generation should succeed")
 
-	var presignedResp PresignedURLResponse
-	err = json.Unmarshal(w.Body.Bytes(), &presignedResp)
+	var response map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Response should contain data field")
+
+	uploadURL, _ := data["uploadUrl"].(string)
+	fileKey, _ := data["fileKey"].(string)
+	expiresIn, _ := data["expiresIn"].(float64)
+
 	// Validate presigned URL response
-	assert.NotEmpty(t, presignedResp.UploadURL, "Upload URL should not be empty")
-	assert.NotEmpty(t, presignedResp.FileKey, "File key should not be empty")
-	assert.Equal(t, 300, presignedResp.ExpiresIn, "Expiration should be 300 seconds")
-	assert.Contains(t, presignedResp.FileKey, "board/boards/", "File key should contain correct path")
-	assert.Contains(t, presignedResp.FileKey, workspaceID.String(), "File key should contain workspace ID")
+	assert.NotEmpty(t, uploadURL, "Upload URL should not be empty")
+	assert.NotEmpty(t, fileKey, "File key should not be empty")
+	assert.Equal(t, float64(300), expiresIn, "Expiration should be 300 seconds")
+	assert.Contains(t, fileKey, "board/boards/", "File key should contain correct path")
+	assert.Contains(t, fileKey, workspaceID.String(), "File key should contain workspace ID")
 
 	// Step 2: Simulate client uploading to S3 (skipped in test)
-	// In real scenario, client would PUT file to presignedResp.UploadURL
+	// In real scenario, client would PUT file to uploadURL
 
 	// Step 3: Verify file key format
 	// File key should be: board/boards/{workspaceId}/{year}/{month}/{uuid}_{timestamp}.ext
-	assert.Regexp(t, `^board/boards/[a-f0-9-]+/\d{4}/\d{2}/[a-f0-9-]+_\d+\.jpg$`, presignedResp.FileKey, "File key should match expected format")
+	assert.Regexp(t, `^board/boards/[a-f0-9-]+/\d{4}/\d{2}/[a-f0-9-]+_\d+\.jpg$`, fileKey, "File key should match expected format")
 }

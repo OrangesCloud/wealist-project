@@ -315,19 +315,21 @@ func (h *AttachmentHandler) SaveAttachmentMetadata(c *gin.Context) {
 	fileURL := h.s3Client.GetFileURL(req.FileKey)
 
 	// Create attachment record with temporary status
-	// Note: Using uuid.Nil for EntityID to indicate temporary attachment
+	// Note: EntityID is nil to indicate temporary attachment
 	// This will be updated when the entity (board/comment/project) is created
 	now := time.Now()
 	expiresAt := now.Add(1 * time.Hour) // Expires in 1 hour
 
 	attachment := &domain.Attachment{
 		EntityType:  entityType,
-		EntityID:    uuid.Nil, // Will be set when entity is created
+		EntityID:    nil, // Will be set when entity is created
+		Status:      domain.AttachmentStatusTemp,
 		FileName:    req.FileName,
 		FileURL:     fileURL,
 		FileSize:    req.FileSize,
 		ContentType: req.ContentType,
 		UploadedBy:  userID,
+		ExpiresAt:   &expiresAt,
 	}
 
 	// Save to database
@@ -340,16 +342,157 @@ func (h *AttachmentHandler) SaveAttachmentMetadata(c *gin.Context) {
 	resp := AttachmentResponse{
 		ID:          attachment.ID,
 		EntityType:  string(attachment.EntityType),
-		EntityID:    nil, // Temporary attachment, not yet linked
-		Status:      "TEMP",
+		EntityID:    attachment.EntityID,
+		Status:      string(attachment.Status),
 		FileName:    attachment.FileName,
 		FileURL:     attachment.FileURL,
 		FileSize:    attachment.FileSize,
 		ContentType: attachment.ContentType,
 		UploadedBy:  attachment.UploadedBy,
 		UploadedAt:  attachment.CreatedAt,
-		ExpiresAt:   &expiresAt,
+		ExpiresAt:   attachment.ExpiresAt,
 	}
 
 	response.SendSuccess(c, http.StatusCreated, resp)
+}
+
+// GetBoardAttachments godoc
+// @Summary      Get board attachments
+// @Description  Retrieves all attachments associated with a specific board
+// @Description  Returns only confirmed attachments linked to the board
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Param        boardId path string true "Board ID"
+// @Success      200 {object} response.SuccessResponse{data=[]AttachmentResponse} "Attachments retrieved successfully"
+// @Failure      400 {object} response.ErrorResponse "Invalid board ID"
+// @Failure      500 {object} response.ErrorResponse "Failed to retrieve attachments"
+// @Router       /boards/{boardId}/attachments [get]
+func (h *AttachmentHandler) GetBoardAttachments(c *gin.Context) {
+	boardIDStr := c.Param("boardId")
+	boardID, err := uuid.Parse(boardIDStr)
+	if err != nil {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid board ID")
+		return
+	}
+
+	attachments, err := h.attachmentRepo.FindByEntityID(c.Request.Context(), domain.EntityTypeBoard, boardID)
+	if err != nil {
+		response.SendError(c, http.StatusInternalServerError, response.ErrCodeInternal, "Failed to retrieve attachments")
+		return
+	}
+
+	// Convert to response format
+	resp := make([]AttachmentResponse, len(attachments))
+	for i, attachment := range attachments {
+		resp[i] = AttachmentResponse{
+			ID:          attachment.ID,
+			EntityType:  string(attachment.EntityType),
+			EntityID:    attachment.EntityID,
+			Status:      string(attachment.Status),
+			FileName:    attachment.FileName,
+			FileURL:     attachment.FileURL,
+			FileSize:    attachment.FileSize,
+			ContentType: attachment.ContentType,
+			UploadedBy:  attachment.UploadedBy,
+			UploadedAt:  attachment.CreatedAt,
+			ExpiresAt:   attachment.ExpiresAt,
+		}
+	}
+
+	response.SendSuccess(c, http.StatusOK, resp)
+}
+
+// GetCommentAttachments godoc
+// @Summary      Get comment attachments
+// @Description  Retrieves all attachments associated with a specific comment
+// @Description  Returns only confirmed attachments linked to the comment
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Param        commentId path string true "Comment ID"
+// @Success      200 {object} response.SuccessResponse{data=[]AttachmentResponse} "Attachments retrieved successfully"
+// @Failure      400 {object} response.ErrorResponse "Invalid comment ID"
+// @Failure      500 {object} response.ErrorResponse "Failed to retrieve attachments"
+// @Router       /comments/{commentId}/attachments [get]
+func (h *AttachmentHandler) GetCommentAttachments(c *gin.Context) {
+	commentIDStr := c.Param("commentId")
+	commentID, err := uuid.Parse(commentIDStr)
+	if err != nil {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid comment ID")
+		return
+	}
+
+	attachments, err := h.attachmentRepo.FindByEntityID(c.Request.Context(), domain.EntityTypeComment, commentID)
+	if err != nil {
+		response.SendError(c, http.StatusInternalServerError, response.ErrCodeInternal, "Failed to retrieve attachments")
+		return
+	}
+
+	// Convert to response format
+	resp := make([]AttachmentResponse, len(attachments))
+	for i, attachment := range attachments {
+		resp[i] = AttachmentResponse{
+			ID:          attachment.ID,
+			EntityType:  string(attachment.EntityType),
+			EntityID:    attachment.EntityID,
+			Status:      string(attachment.Status),
+			FileName:    attachment.FileName,
+			FileURL:     attachment.FileURL,
+			FileSize:    attachment.FileSize,
+			ContentType: attachment.ContentType,
+			UploadedBy:  attachment.UploadedBy,
+			UploadedAt:  attachment.CreatedAt,
+			ExpiresAt:   attachment.ExpiresAt,
+		}
+	}
+
+	response.SendSuccess(c, http.StatusOK, resp)
+}
+
+// GetProjectAttachments godoc
+// @Summary      Get project attachments
+// @Description  Retrieves all attachments associated with a specific project
+// @Description  Returns only confirmed attachments linked to the project
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Param        projectId path string true "Project ID"
+// @Success      200 {object} response.SuccessResponse{data=[]AttachmentResponse} "Attachments retrieved successfully"
+// @Failure      400 {object} response.ErrorResponse "Invalid project ID"
+// @Failure      500 {object} response.ErrorResponse "Failed to retrieve attachments"
+// @Router       /projects/{projectId}/attachments [get]
+func (h *AttachmentHandler) GetProjectAttachments(c *gin.Context) {
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid project ID")
+		return
+	}
+
+	attachments, err := h.attachmentRepo.FindByEntityID(c.Request.Context(), domain.EntityTypeProject, projectID)
+	if err != nil {
+		response.SendError(c, http.StatusInternalServerError, response.ErrCodeInternal, "Failed to retrieve attachments")
+		return
+	}
+
+	// Convert to response format
+	resp := make([]AttachmentResponse, len(attachments))
+	for i, attachment := range attachments {
+		resp[i] = AttachmentResponse{
+			ID:          attachment.ID,
+			EntityType:  string(attachment.EntityType),
+			EntityID:    attachment.EntityID,
+			Status:      string(attachment.Status),
+			FileName:    attachment.FileName,
+			FileURL:     attachment.FileURL,
+			FileSize:    attachment.FileSize,
+			ContentType: attachment.ContentType,
+			UploadedBy:  attachment.UploadedBy,
+			UploadedAt:  attachment.CreatedAt,
+			ExpiresAt:   attachment.ExpiresAt,
+		}
+	}
+
+	response.SendSuccess(c, http.StatusOK, resp)
 }

@@ -23,15 +23,17 @@ type CommentService interface {
 
 // commentServiceImpl is the implementation of CommentService
 type commentServiceImpl struct {
-	commentRepo repository.CommentRepository
-	boardRepo   repository.BoardRepository
+	commentRepo    repository.CommentRepository
+	boardRepo      repository.BoardRepository
+	attachmentRepo repository.AttachmentRepository
 }
 
 // NewCommentService creates a new instance of CommentService
-func NewCommentService(commentRepo repository.CommentRepository, boardRepo repository.BoardRepository) CommentService {
+func NewCommentService(commentRepo repository.CommentRepository, boardRepo repository.BoardRepository, attachmentRepo repository.AttachmentRepository) CommentService {
 	return &commentServiceImpl{
-		commentRepo: commentRepo,
-		boardRepo:   boardRepo,
+		commentRepo:    commentRepo,
+		boardRepo:      boardRepo,
+		attachmentRepo: attachmentRepo,
 	}
 }
 
@@ -50,6 +52,13 @@ func (s *commentServiceImpl) CreateComment(ctx context.Context, req *dto.CreateC
 	// For now, using a placeholder UUID
 	userID := uuid.MustParse("00000000-0000-0000-0000-000000000000")
 	
+	// Validate and confirm attachments if provided
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.validateAndConfirmAttachments(ctx, req.AttachmentIDs, domain.EntityTypeComment); err != nil {
+			return nil, err
+		}
+	}
+	
 	// Create domain model from request
 	comment := &domain.Comment{
 		BoardID: req.BoardID,
@@ -60,6 +69,15 @@ func (s *commentServiceImpl) CreateComment(ctx context.Context, req *dto.CreateC
 	// Save to repository
 	if err := s.commentRepo.Create(ctx, comment); err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to create comment", err.Error())
+	}
+
+	// Confirm attachments after comment creation
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, comment.ID); err != nil {
+			// Log error but don't fail the request
+			// The comment was created successfully
+			return s.toCommentResponse(comment), nil
+		}
 	}
 
 	// Convert to response DTO
@@ -162,4 +180,37 @@ func (s *commentServiceImpl) toCommentResponse(comment *domain.Comment) *dto.Com
 		CreatedAt:   comment.CreatedAt,
 		UpdatedAt:   comment.UpdatedAt,
 	}
+}
+
+// validateAndConfirmAttachments validates that attachments exist and are in TEMP status
+func (s *commentServiceImpl) validateAndConfirmAttachments(ctx context.Context, attachmentIDs []uuid.UUID, entityType domain.EntityType) error {
+	if len(attachmentIDs) == 0 {
+		return nil
+	}
+	
+	// Fetch attachments by IDs
+	attachments, err := s.attachmentRepo.FindByIDs(ctx, attachmentIDs)
+	if err != nil {
+		return response.NewAppError(response.ErrCodeInternal, "Failed to fetch attachments", err.Error())
+	}
+	
+	// Check if all attachments exist
+	if len(attachments) != len(attachmentIDs) {
+		return response.NewAppError(response.ErrCodeValidation, "One or more attachments not found", "")
+	}
+	
+	// Validate each attachment
+	for _, attachment := range attachments {
+		// Check if attachment is in TEMP status
+		if attachment.Status != domain.AttachmentStatusTemp {
+			return response.NewAppError(response.ErrCodeValidation, "Attachment is not in temporary status and cannot be reused", "")
+		}
+		
+		// Check if attachment entity type matches
+		if attachment.EntityType != entityType {
+			return response.NewAppError(response.ErrCodeValidation, "Attachment entity type does not match", "")
+		}
+	}
+	
+	return nil
 }

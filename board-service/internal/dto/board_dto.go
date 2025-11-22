@@ -12,15 +12,17 @@ import (
 // @Description Valid field types: stage, role, importance
 // @Description Example values: stage="in_progress", role="developer", importance="high"
 // @Description participants is an optional array of user IDs to add as board participants (max 50)
+// @Description attachmentIds is an optional array of attachment IDs to link to the board
 type CreateBoardRequest struct {
-	ProjectID    uuid.UUID              `json:"projectId" binding:"required" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
-	Title        string                 `json:"title" binding:"required,min=1,max=200" example:"Implement user authentication"`
-	Content      string                 `json:"content" binding:"max=5000" example:"Add JWT-based authentication to the API"`
-	CustomFields map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:high"`
-	AssigneeID   *uuid.UUID             `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
-	StartDate    *time.Time             `json:"startDate" example:"2024-01-01T00:00:00Z"`
-	DueDate      *time.Time             `json:"dueDate" example:"2024-12-31T23:59:59Z"`
-	Participants []uuid.UUID            `json:"participants,omitempty" binding:"omitempty,max=50,dive,uuid" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890,b2c3d4e5-f6a7-8901-bcde-f12345678901"`
+	ProjectID     uuid.UUID              `json:"projectId" binding:"required" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
+	Title         string                 `json:"title" binding:"required,min=1,max=200" example:"Implement user authentication"`
+	Content       string                 `json:"content" binding:"max=5000" example:"Add JWT-based authentication to the API"`
+	CustomFields  map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:high"`
+	AssigneeID    *uuid.UUID             `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
+	StartDate     *time.Time             `json:"startDate" example:"2024-01-01T00:00:00Z"`
+	DueDate       *time.Time             `json:"dueDate" example:"2024-12-31T23:59:59Z"`
+	Participants  []uuid.UUID            `json:"participants,omitempty" binding:"omitempty,max=50,dive,uuid" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890,b2c3d4e5-f6a7-8901-bcde-f12345678901"`
+	AttachmentIDs []uuid.UUID            `json:"attachmentIds,omitempty" binding:"omitempty,dive,uuid" example:"f47ac10b-58cc-4372-a567-0e02b2c3d479"`
 }
 
 // UpdateBoardRequest represents the request to update a board

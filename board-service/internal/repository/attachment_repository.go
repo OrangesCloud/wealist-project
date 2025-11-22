@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -13,7 +14,11 @@ import (
 type AttachmentRepository interface {
 	Create(ctx context.Context, attachment *domain.Attachment) error
 	FindByEntityID(ctx context.Context, entityType domain.EntityType, entityID uuid.UUID) ([]*domain.Attachment, error)
+	FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*domain.Attachment, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+	FindExpiredTempAttachments(ctx context.Context) ([]*domain.Attachment, error)
+	ConfirmAttachments(ctx context.Context, attachmentIDs []uuid.UUID, entityID uuid.UUID) error
+	DeleteBatch(ctx context.Context, attachmentIDs []uuid.UUID) error
 }
 
 // attachmentRepositoryImpl is the GORM implementation of AttachmentRepository
@@ -46,9 +51,67 @@ func (r *attachmentRepositoryImpl) FindByEntityID(ctx context.Context, entityTyp
 	return attachments, nil
 }
 
+// FindByIDs finds attachments by their IDs
+func (r *attachmentRepositoryImpl) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*domain.Attachment, error) {
+	if len(ids) == 0 {
+		return []*domain.Attachment{}, nil
+	}
+	
+	var attachments []*domain.Attachment
+	if err := r.db.WithContext(ctx).
+		Where("id IN ?", ids).
+		Find(&attachments).Error; err != nil {
+		return nil, err
+	}
+	return attachments, nil
+}
+
 // Delete soft deletes an attachment by ID
 func (r *attachmentRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {
 	if err := r.db.WithContext(ctx).Delete(&domain.Attachment{}, id).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// FindExpiredTempAttachments finds all temporary attachments that have exceeded their expiration time
+func (r *attachmentRepositoryImpl) FindExpiredTempAttachments(ctx context.Context) ([]*domain.Attachment, error) {
+	var attachments []*domain.Attachment
+	if err := r.db.WithContext(ctx).
+		Where("status = ? AND expires_at < ?", domain.AttachmentStatusTemp, time.Now()).
+		Find(&attachments).Error; err != nil {
+		return nil, err
+	}
+	return attachments, nil
+}
+
+// ConfirmAttachments changes the status of attachments from TEMP to CONFIRMED and sets the entityId
+func (r *attachmentRepositoryImpl) ConfirmAttachments(ctx context.Context, attachmentIDs []uuid.UUID, entityID uuid.UUID) error {
+	if len(attachmentIDs) == 0 {
+		return nil
+	}
+	
+	if err := r.db.WithContext(ctx).
+		Model(&domain.Attachment{}).
+		Where("id IN ?", attachmentIDs).
+		Updates(map[string]interface{}{
+			"status":    domain.AttachmentStatusConfirmed,
+			"entity_id": entityID,
+		}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// DeleteBatch deletes multiple attachments by their IDs
+func (r *attachmentRepositoryImpl) DeleteBatch(ctx context.Context, attachmentIDs []uuid.UUID) error {
+	if len(attachmentIDs) == 0 {
+		return nil
+	}
+	
+	if err := r.db.WithContext(ctx).
+		Where("id IN ?", attachmentIDs).
+		Delete(&domain.Attachment{}).Error; err != nil {
 		return err
 	}
 	return nil

@@ -133,12 +133,14 @@ func setupIntegrationTestDB(t *testing.T) *gorm.DB {
 			updated_at DATETIME NOT NULL,
 			deleted_at DATETIME,
 			entity_type TEXT NOT NULL,
-			entity_id TEXT NOT NULL,
+			entity_id TEXT,
+			status TEXT NOT NULL DEFAULT 'TEMP',
 			file_name TEXT NOT NULL,
 			file_url TEXT NOT NULL,
 			file_size INTEGER NOT NULL,
 			content_type TEXT NOT NULL,
-			uploaded_by TEXT NOT NULL
+			uploaded_by TEXT NOT NULL,
+			expires_at DATETIME
 		)
 	`).Error
 	require.NoError(t, err, "Failed to create attachments table")
@@ -175,9 +177,10 @@ func setupIntegrationRouter(db *gorm.DB) *gin.Engine {
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
 	// Create a no-op logger for tests
 	logger, _ := zap.NewDevelopment()
-	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, participantRepo, fieldOptionConverter, nil, logger)
+	attachmentRepo := repository.NewAttachmentRepository(db)
+	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, participantRepo, attachmentRepo, fieldOptionConverter, nil, logger)
 
-	commentService := service.NewCommentService(commentRepo, boardRepo)
+	commentService := service.NewCommentService(commentRepo, boardRepo, attachmentRepo)
 
 	// Initialize handlers
 	boardHandler := NewBoardHandler(boardService)
@@ -950,12 +953,14 @@ func TestIntegration_AttachmentsRetrieval(t *testing.T) {
 						UpdatedAt: time.Now(),
 					},
 					EntityType:  domain.EntityTypeBoard,
-					EntityID:    board.ID,
+					EntityID:    &board.ID,
+					Status:      domain.AttachmentStatusConfirmed,
 					FileName:    "document.pdf",
 					FileURL:     "https://s3.amazonaws.com/bucket/doc.pdf",
 					FileSize:    1024000,
 					ContentType: "application/pdf",
 					UploadedBy:  uploaderID,
+					ExpiresAt:   nil,
 				},
 				{
 					BaseModel: domain.BaseModel{
@@ -964,12 +969,14 @@ func TestIntegration_AttachmentsRetrieval(t *testing.T) {
 						UpdatedAt: time.Now(),
 					},
 					EntityType:  domain.EntityTypeBoard,
-					EntityID:    board.ID,
+					EntityID:    &board.ID,
+					Status:      domain.AttachmentStatusConfirmed,
 					FileName:    "image.png",
 					FileURL:     "https://s3.amazonaws.com/bucket/img.png",
 					FileSize:    512000,
 					ContentType: "image/png",
 					UploadedBy:  uploaderID,
+					ExpiresAt:   nil,
 				},
 			},
 			validateFunc: func(t *testing.T, attachments []domain.Attachment) {
@@ -990,12 +997,14 @@ func TestIntegration_AttachmentsRetrieval(t *testing.T) {
 						UpdatedAt: time.Now(),
 					},
 					EntityType:  domain.EntityTypeProject,
-					EntityID:    project.ID,
+					EntityID:    &project.ID,
+					Status:      domain.AttachmentStatusConfirmed,
 					FileName:    "spec.docx",
 					FileURL:     "https://s3.amazonaws.com/bucket/spec.docx",
 					FileSize:    2048000,
 					ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 					UploadedBy:  uploaderID,
+					ExpiresAt:   nil,
 				},
 			},
 			validateFunc: func(t *testing.T, attachments []domain.Attachment) {

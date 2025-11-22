@@ -138,6 +138,7 @@ type MockUserClient struct {
 	GetUserProfileFunc          func(ctx context.Context, userID uuid.UUID, token string) (*client.UserProfile, error)
 	GetWorkspaceProfileFunc     func(ctx context.Context, workspaceID, userID uuid.UUID, token string) (*client.WorkspaceProfile, error)
 	GetWorkspaceFunc            func(ctx context.Context, workspaceID uuid.UUID, token string) (*client.Workspace, error)
+	ValidateTokenFunc           func(ctx context.Context, token string) (uuid.UUID, error)
 }
 
 func (m *MockUserClient) ValidateWorkspaceMember(ctx context.Context, workspaceID, userID uuid.UUID, token string) (bool, error) {
@@ -175,4 +176,71 @@ func (m *MockUserClient) GetWorkspace(ctx context.Context, workspaceID uuid.UUID
 		Name:       "Test Workspace",
 		OwnerEmail: "workspace@example.com",
 	}, nil
+}
+
+func (m *MockUserClient) ValidateToken(ctx context.Context, token string) (uuid.UUID, error) {
+	if m.ValidateTokenFunc != nil {
+		return m.ValidateTokenFunc(ctx, token)
+	}
+	return uuid.New(), nil
+}
+
+// MockAttachmentRepository is a mock implementation of AttachmentRepository
+type MockAttachmentRepository struct {
+	CreateFunc                     func(ctx context.Context, attachment *domain.Attachment) error
+	FindByEntityIDFunc             func(ctx context.Context, entityType domain.EntityType, entityID uuid.UUID) ([]*domain.Attachment, error)
+	FindByIDsFunc                  func(ctx context.Context, ids []uuid.UUID) ([]*domain.Attachment, error)
+	DeleteFunc                     func(ctx context.Context, id uuid.UUID) error
+	FindExpiredTempAttachmentsFunc func(ctx context.Context) ([]*domain.Attachment, error)
+	ConfirmAttachmentsFunc         func(ctx context.Context, attachmentIDs []uuid.UUID, entityID uuid.UUID) error
+	DeleteBatchFunc                func(ctx context.Context, attachmentIDs []uuid.UUID) error
+}
+
+func (m *MockAttachmentRepository) Create(ctx context.Context, attachment *domain.Attachment) error {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, attachment)
+	}
+	return nil
+}
+
+func (m *MockAttachmentRepository) FindByEntityID(ctx context.Context, entityType domain.EntityType, entityID uuid.UUID) ([]*domain.Attachment, error) {
+	if m.FindByEntityIDFunc != nil {
+		return m.FindByEntityIDFunc(ctx, entityType, entityID)
+	}
+	return nil, nil
+}
+
+func (m *MockAttachmentRepository) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*domain.Attachment, error) {
+	if m.FindByIDsFunc != nil {
+		return m.FindByIDsFunc(ctx, ids)
+	}
+	return nil, nil
+}
+
+func (m *MockAttachmentRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, id)
+	}
+	return nil
+}
+
+func (m *MockAttachmentRepository) FindExpiredTempAttachments(ctx context.Context) ([]*domain.Attachment, error) {
+	if m.FindExpiredTempAttachmentsFunc != nil {
+		return m.FindExpiredTempAttachmentsFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *MockAttachmentRepository) ConfirmAttachments(ctx context.Context, attachmentIDs []uuid.UUID, entityID uuid.UUID) error {
+	if m.ConfirmAttachmentsFunc != nil {
+		return m.ConfirmAttachmentsFunc(ctx, attachmentIDs, entityID)
+	}
+	return nil
+}
+
+func (m *MockAttachmentRepository) DeleteBatch(ctx context.Context, attachmentIDs []uuid.UUID) error {
+	if m.DeleteBatchFunc != nil {
+		return m.DeleteBatchFunc(ctx, attachmentIDs)
+	}
+	return nil
 }

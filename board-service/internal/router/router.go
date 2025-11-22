@@ -59,10 +59,10 @@ func Setup(cfg Config) *gin.Engine {
 	fieldOptionConverter := converter.NewFieldOptionConverter(fieldOptionRepo)
 
 	// Initialize services with repository dependencies
-	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient, cfg.Metrics, cfg.Logger)
-	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, participantRepo, fieldOptionConverter, cfg.Metrics, cfg.Logger)
+	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, attachmentRepo, cfg.UserClient, cfg.Metrics, cfg.Logger)
+	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, participantRepo, attachmentRepo, fieldOptionConverter, cfg.Metrics, cfg.Logger)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
-	commentService := service.NewCommentService(commentRepo, boardRepo)
+	commentService := service.NewCommentService(commentRepo, boardRepo, attachmentRepo)
 	fieldOptionService := service.NewFieldOptionService(fieldOptionRepo)
 	projectMemberService := service.NewProjectMemberService(projectRepo, cfg.UserClient)
 	projectJoinRequestService := service.NewProjectJoinRequestService(projectRepo, cfg.UserClient)
@@ -202,6 +202,9 @@ func setupRoutes(
 
 			// Project join request routes
 			projects.GET("/:projectId/join-requests", projectJoinRequestHandler.GetJoinRequests)
+			
+			// Attachment routes for projects
+			projects.GET("/:projectId/attachments", attachmentHandler.GetProjectAttachments)
 		}
 
 		// Join request routes (not nested under project)
@@ -224,6 +227,9 @@ func setupRoutes(
 			boards.DELETE("/:boardId", boardHandler.DeleteBoard)
 			// 💡 [제거] boards.PUT("/:boardId/move", boardHandler.MoveBoard)
 			// MoveBoard는 Setup 함수에서 별도로 등록됨
+			
+			// Attachment routes for boards
+			boards.GET("/:boardId/attachments", attachmentHandler.GetBoardAttachments)
 		}
 
 		// Participant routes
@@ -244,6 +250,9 @@ func setupRoutes(
 			comments.GET("/board/:boardId", commentHandler.GetComments)
 			comments.PUT("/:commentId", commentHandler.UpdateComment)
 			comments.DELETE("/:commentId", commentHandler.DeleteComment)
+			
+			// Attachment routes for comments
+			comments.GET("/:commentId/attachments", attachmentHandler.GetCommentAttachments)
 		}
 
 		// Field option routes

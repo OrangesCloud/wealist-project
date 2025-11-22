@@ -33,16 +33,18 @@ type ProjectService interface {
 type projectServiceImpl struct {
 	projectRepo       repository.ProjectRepository
 	fieldOptionRepo   repository.FieldOptionRepository
+	attachmentRepo    repository.AttachmentRepository
 	userClient        client.UserClient
 	metrics           *metrics.Metrics
 	logger            *zap.Logger
 }
 
 // NewProjectService creates a new instance of ProjectService
-func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, userClient client.UserClient, m *metrics.Metrics, logger *zap.Logger) ProjectService {
+func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, attachmentRepo repository.AttachmentRepository, userClient client.UserClient, m *metrics.Metrics, logger *zap.Logger) ProjectService {
 	return &projectServiceImpl{
 		projectRepo:     projectRepo,
 		fieldOptionRepo: fieldOptionRepo,
+		attachmentRepo:  attachmentRepo,
 		userClient:      userClient,
 		metrics:         m,
 		logger:          logger,
@@ -67,6 +69,13 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 		return nil, err
 	}
 
+	// Validate and confirm attachments if provided
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.validateAndConfirmAttachments(ctx, req.AttachmentIDs, domain.EntityTypeProject); err != nil {
+			return nil, err
+		}
+	}
+
 	// Create domain model from request
 	project := &domain.Project{
 		WorkspaceID: req.WorkspaceID,
@@ -82,6 +91,16 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 	// Save to repository
 	if err := s.projectRepo.Create(ctx, project); err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to create project", err.Error())
+	}
+
+	// Confirm attachments after project creation
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, project.ID); err != nil {
+			s.logger.Warn("Failed to confirm attachments during project creation",
+				zap.String("project_id", project.ID.String()),
+				zap.Error(err))
+			// Continue even if attachment confirmation fails
+		}
 	}
 
 	// Add creator as OWNER member
@@ -705,5 +724,38 @@ func validateProjectDateRange(startDate, dueDate *time.Time) error {
 			return response.NewAppError(response.ErrCodeValidation, "Start date cannot be after due date", "")
 		}
 	}
+	return nil
+}
+
+// validateAndConfirmAttachments validates that attachments exist and are in TEMP status
+func (s *projectServiceImpl) validateAndConfirmAttachments(ctx context.Context, attachmentIDs []uuid.UUID, entityType domain.EntityType) error {
+	if len(attachmentIDs) == 0 {
+		return nil
+	}
+	
+	// Fetch attachments by IDs
+	attachments, err := s.attachmentRepo.FindByIDs(ctx, attachmentIDs)
+	if err != nil {
+		return response.NewAppError(response.ErrCodeInternal, "Failed to fetch attachments", err.Error())
+	}
+	
+	// Check if all attachments exist
+	if len(attachments) != len(attachmentIDs) {
+		return response.NewAppError(response.ErrCodeValidation, "One or more attachments not found", "")
+	}
+	
+	// Validate each attachment
+	for _, attachment := range attachments {
+		// Check if attachment is in TEMP status
+		if attachment.Status != domain.AttachmentStatusTemp {
+			return response.NewAppError(response.ErrCodeValidation, "Attachment is not in temporary status and cannot be reused", "")
+		}
+		
+		// Check if attachment entity type matches
+		if attachment.EntityType != entityType {
+			return response.NewAppError(response.ErrCodeValidation, "Attachment entity type does not match", "")
+		}
+	}
+	
 	return nil
 }
