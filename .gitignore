@@ -9,6 +9,12 @@ docker/env/*
 # Docker
 postgres-data/
 redis-data/
+minio-data/
+
+# File uploads (local development)
+uploads/
+storage/
+files/
 
 # Java / Gradle
 .gradle
