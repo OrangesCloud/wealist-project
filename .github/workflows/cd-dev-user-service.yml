@@ -243,10 +243,18 @@ jobs:
           export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH2_CLIENT_REDIRECT_BASE}/api/users/login/oauth2/code/google"
           export SPRING_PROFILES_ACTIVE="aws" # AWS 프로파일 활성화
 
+          # S3 Configuration
+          export S3_BUCKET=$(load_param "s3/bucket")
+          export S3_REGION=$(load_param "s3/region")
+          export S3_ACCESS_KEY=$(load_secret "s3/access-key")
+          export S3_SECRET_KEY=$(load_secret "s3/secret-key")
+
           echo "✅ Parameters loaded, Profiles set to aws"
           echo "   - OAUTH2_CLIENT_REDIRECT_BASE=${OAUTH2_CLIENT_REDIRECT_BASE}"
           echo "   - OAUTH2_REDIRECT_URL_ENV=${OAUTH2_REDIRECT_URL_ENV}"
           echo "   - OAUTH2_CLIENT_REDIRECT_URI=${OAUTH2_CLIENT_REDIRECT_URI}"
+          echo "   - S3_BUCKET=${S3_BUCKET}"
+          echo "   - S3_REGION=${S3_REGION}"
 
 
           # ECR 로그인

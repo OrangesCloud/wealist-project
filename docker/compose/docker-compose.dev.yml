@@ -34,10 +34,20 @@ services:
       - LOGGING_LEVEL_ROOT=INFO
       - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK=DEBUG
       - LOGGING_LEVEL_ORG_HIBERNATE=DEBUG
+      # S3 Configuration
+      - AWS_S3_BUCKET=${S3_BUCKET}
+      - AWS_S3_REGION=${S3_REGION}
+      - AWS_S3_ENDPOINT=${S3_ENDPOINT}
+      - AWS_S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - AWS_S3_SECRET_KEY=${S3_SECRET_KEY}
 
     # 개발 중 코드 변경 감지 (선택사항)
     # volumes:
     #   - ../../user-service/build/libs:/app/libs:ro
+
+    depends_on:
+      minio:
+        condition: service_healthy
 
     networks:
       - frontend-net
@@ -63,6 +73,16 @@ services:
       - ENV=dev
       - LOG_LEVEL=debug
       - BOARD_USE_AUTO_MIGRATE=true
+      # S3 Configuration
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+
+    depends_on:
+      minio:
+        condition: service_healthy
 
     networks:
       - frontend-net
@@ -182,6 +202,70 @@ services:
     networks:
       - database-net
 
+  # MinIO - S3 Compatible Object Storage (Local Development Only)
+  minio:
+    image: minio/minio:latest
+    container_name: wealist-minio-dev
+    hostname: minio
+
+    ports:
+      - "${MINIO_PORT:-9000}:9000"      # API Port
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # Console Port
+
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_DOMAIN=minio
+      - MINIO_REGION_NAME=${AWS_REGION:-ap-northeast-2}
+
+    volumes:
+      - minio-data:/data
+
+    command: server /data --console-address ":9001"
+
+    networks:
+      - backend-net
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    restart: unless-stopped
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # MinIO Client - Create bucket on startup
+  minio-init:
+    image: minio/mc:latest
+    container_name: wealist-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - S3_BUCKET=${S3_BUCKET:-wealist-dev-files}
+
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set minio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb minio/$${S3_BUCKET} --ignore-existing;
+      mc anonymous set download minio/$${S3_BUCKET};
+      echo 'MinIO bucket $${S3_BUCKET} created successfully';
+      exit 0;
+      "
+
+    networks:
+      - backend-net
+
 # =============================================================================
 # Development Networks Override
 # =============================================================================
@@ -196,4 +280,6 @@ volumes:
   postgres-data:
     driver: local
   redis-data:
+    driver: local
+  minio-data:
     driver: local

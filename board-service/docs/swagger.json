@@ -19,6 +19,205 @@
     },
     "basePath": "/api",
     "paths": {
+        "/attachments": {
+            "post": {
+                "description": "Saves attachment metadata to the database after successful S3 upload\nCreates a temporary attachment record with 1-hour expiration\nThe attachment will be linked to an entity (board/comment/project) when that entity is created\nSupported entity types: BOARD, COMMENT, PROJECT",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Save attachment metadata",
+                "parameters": [
+                    {
+                        "description": "Attachment metadata",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SaveAttachmentMetadataRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Attachment metadata saved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.AttachmentResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or file validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - user not authenticated",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to save attachment metadata",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/presigned-url": {
+            "post": {
+                "description": "Generates a presigned URL for uploading a file directly to S3\nValidates file metadata (size, type, name) before generating URL\nSupported entity types: BOARD, COMMENT, PROJECT\nSupported file types: images (jpg, jpeg, png, gif, webp) and documents (pdf, txt, doc, docx, xls, xlsx, ppt, pptx)\nMaximum file size: 20MB\nURL expires in 5 minutes (300 seconds)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Generate presigned URL for file upload",
+                "parameters": [
+                    {
+                        "description": "Presigned URL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.PresignedURLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Presigned URL generated successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.PresignedURLResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or file validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to generate presigned URL",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{attachmentId}": {
+            "delete": {
+                "description": "Deletes an attachment from both S3 and database\nOnly the user who uploaded the attachment can delete it\nPerforms soft delete on the database record",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Delete attachment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attachment ID",
+                        "name": "attachmentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Attachment deleted successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid attachment ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - user not authenticated",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - user does not have permission to delete this attachment",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Attachment not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to delete attachment",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/boards": {
             "get": {
                 "description": "특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트\n응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)\n예시: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}\n각 보드는 participantIds (참여자 ID 배열)와 attachments (첨부파일 메타데이터 배열)를 포함합니다\nstartDate와 dueDate는 설정된 경우에만 포함됩니다",
@@ -383,6 +582,65 @@
                     },
                     "500": {
                         "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/boards/{boardId}/attachments": {
+            "get": {
+                "description": "Retrieves all attachments associated with a specific board\nReturns only confirmed attachments linked to the board",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Get board attachments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Board ID",
+                        "name": "boardId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Attachments retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/handler.AttachmentResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid board ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve attachments",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -756,6 +1014,65 @@
                     },
                     "500": {
                         "description": "서버 에러",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/comments/{commentId}/attachments": {
+            "get": {
+                "description": "Retrieves all attachments associated with a specific comment\nReturns only confirmed attachments linked to the comment",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Get comment attachments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comment ID",
+                        "name": "commentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Attachments retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/handler.AttachmentResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid comment ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve attachments",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -1865,6 +2182,65 @@
                 }
             }
         },
+        "/projects/{projectId}/attachments": {
+            "get": {
+                "description": "Retrieves all attachments associated with a specific project\nReturns only confirmed attachments linked to the project",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "attachments"
+                ],
+                "summary": "Get project attachments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Project ID",
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Attachments retrieved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/handler.AttachmentResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid project ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve attachments",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/projects/{projectId}/init-settings": {
             "get": {
                 "description": "Project 진입 시 필요한 초기 설정 데이터를 한 번에 조회합니다",
@@ -2267,13 +2643,13 @@
                     "401": {
                         "description": "인증 실패",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "type": "string"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "type": "string"
                         }
                     }
                 }
@@ -2558,7 +2934,7 @@
             }
         },
         "dto.CreateBoardRequest": {
-            "description": "Request body for creating a new board with value-based customFields customFields should contain field type as key and value string as value Valid field types: stage, role, importance Example values: stage=\"in_progress\", role=\"developer\", importance=\"high\" participants is an optional array of user IDs to add as board participants (max 50)",
+            "description": "Request body for creating a new board with value-based customFields customFields should contain field type as key and value string as value Valid field types: stage, role, importance Example values: stage=\"in_progress\", role=\"developer\", importance=\"high\" participants is an optional array of user IDs to add as board participants (max 50) attachmentIds is an optional array of attachment IDs to link to the board",
             "type": "object",
             "required": [
                 "projectId",
@@ -2568,6 +2944,15 @@
                 "assigneeId": {
                     "type": "string",
                     "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                },
+                "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                    ]
                 },
                 "content": {
                     "type": "string",
@@ -2615,12 +3000,22 @@
             }
         },
         "dto.CreateCommentRequest": {
+            "description": "Request body for creating a new comment with optional attachments attachmentIds is an optional array of attachment IDs to link to the comment",
             "type": "object",
             "required": [
                 "boardId",
                 "content"
             ],
             "properties": {
+                "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                    ]
+                },
                 "boardId": {
                     "type": "string"
                 },
@@ -2675,13 +3070,22 @@
             }
         },
         "dto.CreateProjectRequest": {
-            "description": "Request body for creating a new project with optional start and due dates startDate and dueDate are optional, but startDate must be before or equal to dueDate if both are provided",
+            "description": "Request body for creating a new project with optional start and due dates startDate and dueDate are optional, but startDate must be before or equal to dueDate if both are provided attachmentIds is an optional array of attachment IDs to link to the project",
             "type": "object",
             "required": [
                 "name",
                 "workspaceId"
             ],
             "properties": {
+                "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                    ]
+                },
                 "description": {
                     "type": "string",
                     "maxLength": 500,
@@ -3243,6 +3647,113 @@
                 "startDate": {
                     "type": "string",
                     "example": "2024-01-15T00:00:00Z"
+                }
+            }
+        },
+        "handler.AttachmentResponse": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "entityId": {
+                    "type": "string"
+                },
+                "entityType": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "fileName": {
+                    "type": "string"
+                },
+                "fileSize": {
+                    "type": "integer"
+                },
+                "fileUrl": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "uploadedAt": {
+                    "type": "string"
+                },
+                "uploadedBy": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.PresignedURLRequest": {
+            "type": "object",
+            "required": [
+                "contentType",
+                "entityType",
+                "fileName",
+                "fileSize",
+                "workspaceId"
+            ],
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "entityType": {
+                    "type": "string"
+                },
+                "fileName": {
+                    "type": "string"
+                },
+                "fileSize": {
+                    "type": "integer"
+                },
+                "workspaceId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.PresignedURLResponse": {
+            "type": "object",
+            "properties": {
+                "expiresIn": {
+                    "description": "seconds",
+                    "type": "integer"
+                },
+                "fileKey": {
+                    "type": "string"
+                },
+                "uploadUrl": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.SaveAttachmentMetadataRequest": {
+            "type": "object",
+            "required": [
+                "contentType",
+                "entityType",
+                "fileKey",
+                "fileName",
+                "fileSize"
+            ],
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "entityType": {
+                    "type": "string"
+                },
+                "fileKey": {
+                    "type": "string"
+                },
+                "fileName": {
+                    "type": "string"
+                },
+                "fileSize": {
+                    "type": "integer"
                 }
             }
         },
