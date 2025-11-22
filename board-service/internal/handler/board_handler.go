@@ -35,6 +35,8 @@ func NewBoardHandler(boardService service.BoardService) *BoardHandler {
 // @Description  유효한 필드 타입: stage, role, importance
 // @Description  예시 값: stage="in_progress", role="developer", importance="high"
 // @Description  잘못된 field value 제공 시 400 에러 반환
+// @Description  assigneeId가 제공되지 않으면 자동으로 authorId로 설정됩니다
+// @Description  startDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다
 // @Tags         boards
 // @Accept       json
 // @Produce      json
@@ -76,9 +78,12 @@ func (h *BoardHandler) CreateBoard(c *gin.Context) {
 
 // GetBoard godoc
 // @Summary      Board 상세 조회
-// @Description  Board ID로 상세 정보를 조회합니다 (참여자, 댓글 포함)
+// @Description  Board ID로 상세 정보를 조회합니다 (참여자, 댓글, 첨부파일 포함)
 // @Description  응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
 // @Description  예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
+// @Description  participantIds는 보드에 참여하는 사용자 ID 배열입니다
+// @Description  attachments는 보드에 첨부된 파일 메타데이터 배열입니다
+// @Description  startDate와 dueDate는 설정된 경우에만 포함됩니다
 // @Tags         boards
 // @Produce      json
 // @Param        boardId path string true "Board ID (UUID)"
@@ -109,6 +114,8 @@ func (h *BoardHandler) GetBoard(c *gin.Context) {
 // @Description  특정 Project에 속한 모든 Board를 조회합니다. customFields 파라미터로 필터링 가능 (JSON 형식)
 // @Description  응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
 // @Description  예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
+// @Description  각 보드는 participantIds (참여자 ID 배열)와 attachments (첨부파일 메타데이터 배열)를 포함합니다
+// @Description  startDate와 dueDate는 설정된 경우에만 포함됩니다
 // @Tags         boards
 // @Produce      json
 // @Param        projectId    path      string  true   "Project ID (UUID)"
@@ -152,6 +159,8 @@ func (h *BoardHandler) GetBoardsByProject(c *gin.Context) {
 // @Description  특정 Project에 속한 모든 Board를 조회합니다. 프론트엔드 호환용 엔드포인트
 // @Description  응답의 customFields는 value 기반 (UUID가 아닌 문자열 값)
 // @Description  예시: {"importance": "high", "role": "developer", "stage": "in_progress"}
+// @Description  각 보드는 participantIds (참여자 ID 배열)와 attachments (첨부파일 메타데이터 배열)를 포함합니다
+// @Description  startDate와 dueDate는 설정된 경우에만 포함됩니다
 // @Tags         boards
 // @Produce      json
 // @Param        projectId    query     string  true   "Project ID (UUID)"
@@ -197,11 +206,12 @@ func (h *BoardHandler) GetBoardsByProjectQuery(c *gin.Context) {
 
 // UpdateBoard godoc
 // @Summary      Board 수정
-// @Description  Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할)
+// @Description  Board 정보를 수정합니다 (제목, 내용, 단계, 중요도, 역할, 담당자, 날짜)
 // @Description  customFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)
 // @Description  유효한 필드 타입: stage, role, importance
 // @Description  예시 값: stage="completed", role="designer", importance="medium"
 // @Description  잘못된 field value 제공 시 400 에러 반환
+// @Description  startDate와 dueDate를 수정할 수 있으며, startDate는 dueDate보다 이전이어야 합니다
 // @Tags         boards
 // @Accept       json
 // @Produce      json
