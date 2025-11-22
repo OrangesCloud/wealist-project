@@ -25,6 +25,7 @@ type Config struct {
 	BasePath           string
 	UserServiceBaseURL string
 	Metrics            *metrics.Metrics
+	S3Client           *client.S3Client
 }
 
 // Setup initializes the router with all dependencies and routes
@@ -52,6 +53,7 @@ func Setup(cfg Config) *gin.Engine {
 	participantRepo := repository.NewParticipantRepository(cfg.DB)
 	commentRepo := repository.NewCommentRepository(cfg.DB)
 	fieldOptionRepo := repository.NewFieldOptionRepository(cfg.DB)
+	attachmentRepo := repository.NewAttachmentRepository(cfg.DB)
 
 	// Initialize converters
 	fieldOptionConverter := converter.NewFieldOptionConverter(fieldOptionRepo)
@@ -73,6 +75,7 @@ func Setup(cfg Config) *gin.Engine {
 	fieldOptionHandler := handler.NewFieldOptionHandler(fieldOptionService)
 	projectMemberHandler := handler.NewProjectMemberHandler(projectMemberService)
 	projectJoinRequestHandler := handler.NewProjectJoinRequestHandler(projectJoinRequestService)
+	attachmentHandler := handler.NewAttachmentHandler(cfg.S3Client, attachmentRepo)
 
 	// 💡 WebSocket Handler 초기화
 	wsHandler := handler.NewWSHandler(cfg.Logger, cfg.UserClient)
@@ -108,7 +111,7 @@ func Setup(cfg Config) *gin.Engine {
 	}
 
 	// Setup API routes
-	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)
+	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler, attachmentHandler)
 
 	// 🔥 [수정] MoveBoard를 /api 그룹 안에 등록
 	// 프론트엔드: PUT /api/boards/api/:boardId/move
@@ -168,6 +171,7 @@ func setupRoutes(
 	fieldOptionHandler *handler.FieldOptionHandler,
 	projectMemberHandler *handler.ProjectMemberHandler,
 	projectJoinRequestHandler *handler.ProjectJoinRequestHandler,
+	attachmentHandler *handler.AttachmentHandler,
 ) {
 	// API group with authentication
 	api := baseGroup.Group("/api")
@@ -249,6 +253,15 @@ func setupRoutes(
 			fieldOptions.POST("", fieldOptionHandler.CreateFieldOption)
 			fieldOptions.PATCH("/:optionId", fieldOptionHandler.UpdateFieldOption)
 			fieldOptions.DELETE("/:optionId", fieldOptionHandler.DeleteFieldOption)
+		}
+
+		// Attachment routes (Presigned URL approach)
+		attachments := api.Group("/attachments")
+		{
+			// Generate presigned URL for direct S3 upload
+			attachments.POST("/presigned-url", attachmentHandler.GeneratePresignedURL)
+			// Save attachment metadata after successful S3 upload
+			attachments.POST("", attachmentHandler.SaveAttachmentMetadata)
 		}
 	}
 }

@@ -164,6 +164,18 @@ func main() {
 		zap.Duration("timeout", cfg.UserAPI.Timeout),
 	)
 
+	// Initialize S3 client
+	s3Client, err := client.NewS3Client(&cfg.S3)
+	if err != nil {
+		log.Fatal("Failed to initialize S3 client", zap.Error(err))
+	}
+
+	log.Info("S3 client initialized successfully",
+		zap.String("bucket", cfg.S3.Bucket),
+		zap.String("region", cfg.S3.Region),
+		zap.String("endpoint", cfg.S3.Endpoint),
+	)
+
 	// Log example endpoint URLs for verification
 	log.Info("User API endpoint examples (for debugging)",
 		zap.String("validate_member", cfg.UserAPI.BaseURL+"/api/workspaces/{workspaceId}/validate-member/{userId}"),
@@ -180,6 +192,7 @@ func main() {
 		UserClient: userClient,
 		BasePath:   cfg.Server.BasePath,
 		Metrics:    m,
+		S3Client:   s3Client,
 	}
 
 	r := router.Setup(routerConfig)
