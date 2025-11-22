@@ -17,9 +17,12 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"project-board-api/internal/client"
+	"project-board-api/internal/config"
 	"project-board-api/internal/converter"
 	"project-board-api/internal/domain"
 	"project-board-api/internal/dto"
+	"project-board-api/internal/metrics"
 	"project-board-api/internal/repository"
 	"project-board-api/internal/service"
 )
@@ -178,9 +181,20 @@ func setupIntegrationRouter(db *gorm.DB) *gin.Engine {
 	// Create a no-op logger for tests
 	logger, _ := zap.NewDevelopment()
 	attachmentRepo := repository.NewAttachmentRepository(db)
-	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, participantRepo, attachmentRepo, fieldOptionConverter, nil, logger)
+	
+	// Create S3 client for tests
+	cfg := &config.S3Config{
+		Bucket:    "test-bucket",
+		Region:    "us-east-1",
+		AccessKey: "test-key",
+		SecretKey: "test-secret",
+	}
+	s3Client, _ := client.NewS3Client(cfg)
+	m := metrics.New()
+	
+	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, participantRepo, attachmentRepo, s3Client, fieldOptionConverter, m, logger)
 
-	commentService := service.NewCommentService(commentRepo, boardRepo, attachmentRepo)
+	commentService := service.NewCommentService(commentRepo, boardRepo, attachmentRepo, s3Client, logger)
 
 	// Initialize handlers
 	boardHandler := NewBoardHandler(boardService)

@@ -188,6 +188,7 @@ func (m *MockUserClient) ValidateToken(ctx context.Context, token string) (uuid.
 // MockAttachmentRepository is a mock implementation of AttachmentRepository
 type MockAttachmentRepository struct {
 	CreateFunc                     func(ctx context.Context, attachment *domain.Attachment) error
+	FindByIDFunc                   func(ctx context.Context, id uuid.UUID) (*domain.Attachment, error)
 	FindByEntityIDFunc             func(ctx context.Context, entityType domain.EntityType, entityID uuid.UUID) ([]*domain.Attachment, error)
 	FindByIDsFunc                  func(ctx context.Context, ids []uuid.UUID) ([]*domain.Attachment, error)
 	DeleteFunc                     func(ctx context.Context, id uuid.UUID) error
@@ -201,6 +202,13 @@ func (m *MockAttachmentRepository) Create(ctx context.Context, attachment *domai
 		return m.CreateFunc(ctx, attachment)
 	}
 	return nil
+}
+
+func (m *MockAttachmentRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Attachment, error) {
+	if m.FindByIDFunc != nil {
+		return m.FindByIDFunc(ctx, id)
+	}
+	return nil, nil
 }
 
 func (m *MockAttachmentRepository) FindByEntityID(ctx context.Context, entityType domain.EntityType, entityID uuid.UUID) ([]*domain.Attachment, error) {

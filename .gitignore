@@ -46,6 +46,9 @@ Thumbs.db
 # Log files
 *.log
 
+# Backup files
+*.bak
+
 
 # Claude Code
 .claude/

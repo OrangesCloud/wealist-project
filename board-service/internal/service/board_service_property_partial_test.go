@@ -111,9 +111,10 @@ func TestProperty_PartialFailureResilience(t *testing.T) {
 				mockProjectRepo,
 				mockFieldOptionRepo,
 				mockParticipantRepo,
-		&MockAttachmentRepository{},
+				&MockAttachmentRepository{},
+				nil, // s3Client
 				mockConverter,
-				nil,
+				nil, // metrics
 				logger,
 			)
 
@@ -224,9 +225,10 @@ func TestProperty_FailureIsolation(t *testing.T) {
 				mockProjectRepo,
 				mockFieldOptionRepo,
 				mockParticipantRepo,
-		&MockAttachmentRepository{},
+				&MockAttachmentRepository{},
+				nil, // s3Client
 				mockConverter,
-				nil,
+				nil, // metrics
 				logger,
 			)
 

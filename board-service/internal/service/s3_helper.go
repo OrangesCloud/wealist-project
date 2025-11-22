@@ -19,10 +19,10 @@ func extractS3KeyFromURL(fileURL string) string {
 	if start == -1 {
 		// Try alternative format for MinIO or custom endpoints
 		// Format: http://localhost:9000/{bucket}/{key}
-		parts := strings.SplitN(fileURL, "/", 4)
-		if len(parts) >= 4 {
-			// Skip protocol and domain, return bucket/key
-			return strings.Join(parts[3:], "/")
+		parts := strings.SplitN(fileURL, "/", 5)
+		if len(parts) >= 5 {
+			// Skip protocol, domain, and bucket name, return key only
+			return strings.Join(parts[4:], "/")
 		}
 		return ""
 	}

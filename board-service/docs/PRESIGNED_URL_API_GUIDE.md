@@ -286,16 +286,185 @@ const projectResponse = await fetch('/api/projects', {
 });
 ```
 
+### 4. 첨부파일 조회
+
+**Board 첨부파일 조회**
+
+**Endpoint:** `GET /api/boards/{boardId}/attachments`
+
+**설명:** 특정 Board에 연결된 모든 첨부파일을 조회합니다.
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
+```
+
+**Response (200 OK):**
+```json
+{
+  "requestId": "...",
+  "data": [
+    {
+      "id": "attachment-uuid",
+      "entityType": "BOARD",
+      "entityId": "board-uuid",
+      "status": "CONFIRMED",
+      "fileName": "image.jpg",
+      "fileUrl": "https://...",
+      "fileSize": 1024000,
+      "contentType": "image/jpeg",
+      "uploadedBy": "user-uuid",
+      "uploadedAt": "2024-01-15T10:30:00Z",
+      "expiresAt": null
+    }
+  ]
+}
+```
+
+**Comment 첨부파일 조회**
+
+**Endpoint:** `GET /api/comments/{commentId}/attachments`
+
+**설명:** 특정 Comment에 연결된 모든 첨부파일을 조회합니다.
+
+**Project 첨부파일 조회**
+
+**Endpoint:** `GET /api/projects/{projectId}/attachments`
+
+**설명:** 특정 Project에 연결된 모든 첨부파일을 조회합니다.
+
+### 5. 첨부파일 삭제
+
+**Endpoint:** `DELETE /api/attachments/{attachmentId}`
+
+**설명:** 첨부파일을 S3와 데이터베이스에서 삭제합니다. 업로드한 사용자만 삭제할 수 있습니다.
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
+```
+
+**Response (200 OK):**
+```json
+{
+  "requestId": "...",
+  "data": {
+    "message": "Attachment deleted successfully"
+  }
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: 잘못된 첨부파일 ID
+- `401 Unauthorized`: 인증되지 않은 사용자
+- `403 Forbidden`: 삭제 권한 없음 (업로드한 사용자가 아님)
+- `404 Not Found`: 첨부파일을 찾을 수 없음
+- `500 Internal Server Error`: 삭제 실패
+
 ## 임시 파일 관리
+
+### 임시 파일 플로우
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant S3
+    participant DB
+    participant CleanupJob
+
+    Client->>API: 1. POST /attachments/presigned-url
+    API-->>Client: uploadUrl, fileKey
+    
+    Client->>S3: 2. PUT uploadUrl (파일 업로드)
+    S3-->>Client: 업로드 완료
+    
+    Client->>API: 3. POST /attachments (메타데이터)
+    API->>DB: 임시 첨부파일 저장 (TEMP, expiresAt: +1h)
+    API-->>Client: attachment (status: TEMP)
+    
+    Note over Client,DB: 1시간 이내에 Board/Comment/Project 생성 필요
+    
+    Client->>API: 4. POST /boards (attachmentIds 포함)
+    API->>DB: Board 생성 + 첨부파일 확정 (CONFIRMED)
+    API-->>Client: Board 생성 완료
+    
+    Note over CleanupJob,DB: 매 시간 실행
+    CleanupJob->>DB: 만료된 TEMP 첨부파일 조회
+    CleanupJob->>S3: 만료된 파일 삭제
+    CleanupJob->>DB: 만료된 레코드 삭제
+```
 
 ### 임시 파일 상태
 - 메타데이터 저장 시 첨부파일은 `TEMP` 상태로 생성됩니다
 - 만료 시간은 생성 시간으로부터 **1시간**입니다
 - Board/Comment/Project 생성 시 `attachmentIds`를 포함하면 `CONFIRMED` 상태로 변경됩니다
+- `CONFIRMED` 상태의 첨부파일은 `expiresAt`이 null로 설정되어 자동 삭제되지 않습니다
 
 ### 자동 정리
 - 만료된 임시 파일은 매 시간마다 자동으로 삭제됩니다
 - S3 파일과 데이터베이스 레코드가 모두 삭제됩니다
+- `CONFIRMED` 상태의 첨부파일은 자동 삭제되지 않습니다
+
+### Entity 삭제 시 첨부파일 처리
+- Board/Comment/Project가 삭제되면 연결된 모든 첨부파일도 함께 삭제됩니다
+- S3 파일과 데이터베이스 레코드가 모두 삭제됩니다
+
+## Board/Comment/Project 생성 시 첨부파일 연결
+
+### Board 생성 API
+
+**Endpoint:** `POST /api/boards`
+
+**Request Body:**
+```json
+{
+  "projectId": "project-uuid",
+  "title": "Board Title",
+  "content": "Board Content",
+  "attachmentIds": ["attachment-uuid-1", "attachment-uuid-2"]
+}
+```
+
+**설명:**
+- `attachmentIds`는 선택 사항입니다
+- 제공된 첨부파일 ID는 `TEMP` 상태여야 하며, 존재하지 않거나 이미 `CONFIRMED` 상태인 경우 에러가 발생합니다
+- Board 생성 성공 시 첨부파일은 `CONFIRMED` 상태로 변경되고 `entityId`가 설정됩니다
+
+### Comment 생성 API
+
+**Endpoint:** `POST /api/comments`
+
+**Request Body:**
+```json
+{
+  "boardId": "board-uuid",
+  "content": "Comment Content",
+  "attachmentIds": ["attachment-uuid-1"]
+}
+```
+
+**설명:**
+- `attachmentIds`는 선택 사항입니다
+- Board 생성과 동일한 검증 규칙이 적용됩니다
+
+### Project 생성 API
+
+**Endpoint:** `POST /api/projects`
+
+**Request Body:**
+```json
+{
+  "workspaceId": "workspace-uuid",
+  "name": "Project Name",
+  "description": "Project Description",
+  "attachmentIds": ["attachment-uuid-1", "attachment-uuid-2"]
+}
+```
+
+**설명:**
+- `attachmentIds`는 선택 사항입니다
+- Board 생성과 동일한 검증 규칙이 적용됩니다
 
 ## 에러 코드
 
@@ -304,7 +473,11 @@ const projectResponse = await fetch('/api/projects', {
 | `FILE_TOO_LARGE` | 400 | 파일 크기가 20MB 초과 |
 | `INVALID_FILE_TYPE` | 400 | 지원하지 않는 파일 형식 |
 | `VALIDATION_ERROR` | 400 | 요청 데이터 검증 실패 |
+| `ATTACHMENT_NOT_FOUND` | 400 | 첨부파일을 찾을 수 없음 |
+| `ATTACHMENT_ALREADY_CONFIRMED` | 400 | 이미 확정된 첨부파일 (재사용 불가) |
 | `UNAUTHORIZED` | 401 | 인증되지 않은 사용자 |
+| `FORBIDDEN` | 403 | 권한 없음 |
+| `NOT_FOUND` | 404 | 리소스를 찾을 수 없음 |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 |
 
 ## 보안 고려사항
@@ -386,7 +559,7 @@ function FileUpload({ entityType, onUploadComplete }) {
 }
 ```
 
-### cURL 예제
+### cURL 예제 - 전체 플로우
 
 ```bash
 # 1. Presigned URL 요청
@@ -409,7 +582,7 @@ curl -X PUT "$UPLOAD_URL" \
   --data-binary @image.jpg
 
 # 3. 메타데이터 저장
-curl -X POST http://localhost:8080/api/attachments \
+METADATA_RESPONSE=$(curl -X POST http://localhost:8080/api/attachments \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
@@ -418,7 +591,101 @@ curl -X POST http://localhost:8080/api/attachments \
     \"fileName\": \"image.jpg\",
     \"fileSize\": 1024000,
     \"contentType\": \"image/jpeg\"
-  }"
+  }")
+
+ATTACHMENT_ID=$(echo $METADATA_RESPONSE | jq -r '.data.id')
+
+# 4. Board 생성 (첨부파일 포함)
+BOARD_RESPONSE=$(curl -X POST http://localhost:8080/api/boards \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"projectId\": \"project-uuid\",
+    \"title\": \"Board with Attachment\",
+    \"content\": \"This board has an attachment\",
+    \"attachmentIds\": [\"$ATTACHMENT_ID\"]
+  }")
+
+BOARD_ID=$(echo $BOARD_RESPONSE | jq -r '.data.boardId')
+
+# 5. Board 첨부파일 조회
+curl -X GET "http://localhost:8080/api/boards/$BOARD_ID/attachments" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+# 6. 첨부파일 삭제
+curl -X DELETE "http://localhost:8080/api/attachments/$ATTACHMENT_ID" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### React 예제 - 첨부파일 조회 및 삭제
+
+```jsx
+import React, { useState, useEffect } from 'react';
+
+function BoardAttachments({ boardId }) {
+  const [attachments, setAttachments] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // 첨부파일 조회
+  useEffect(() => {
+    const fetchAttachments = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/boards/${boardId}/attachments`, {
+          headers: {
+            'Authorization': `Bearer ${getAccessToken()}`
+          }
+        });
+        const data = await response.json();
+        setAttachments(data.data);
+      } catch (error) {
+        console.error('Failed to fetch attachments:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAttachments();
+  }, [boardId]);
+
+  // 첨부파일 삭제
+  const handleDelete = async (attachmentId) => {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+
+    try {
+      await fetch(`/api/attachments/${attachmentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${getAccessToken()}`
+        }
+      });
+      
+      // 목록에서 제거
+      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    } catch (error) {
+      console.error('Failed to delete attachment:', error);
+    }
+  };
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <h3>첨부파일 ({attachments.length})</h3>
+      <ul>
+        {attachments.map(attachment => (
+          <li key={attachment.id}>
+            <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer">
+              {attachment.fileName}
+            </a>
+            <span> ({(attachment.fileSize / 1024).toFixed(2)} KB)</span>
+            <button onClick={() => handleDelete(attachment.id)}>삭제</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 ```
 
 ## 참고사항

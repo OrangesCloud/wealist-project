@@ -343,7 +343,7 @@ func TestBoardService_CreateBoard(t *testing.T) {
 			
 			mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 
 			// When
 			got, err := service.CreateBoard(tt.ctx, tt.req)
@@ -443,7 +443,7 @@ func TestBoardService_CreateBoard_CustomFields(t *testing.T) {
 			mockConverter := &MockFieldOptionConverter{}
 			mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 			
 			req := &dto.CreateBoardRequest{
 				ProjectID:    projectID,
@@ -558,7 +558,7 @@ func TestBoardService_GetBoard(t *testing.T) {
 			
 			mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 
 			// When
 			got, err := service.GetBoard(context.Background(), tt.boardID)
@@ -684,7 +684,7 @@ func TestBoardService_UpdateBoard(t *testing.T) {
 			
 			mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 
 			// When
 			got, err := service.UpdateBoard(context.Background(), tt.boardID, tt.req)
@@ -787,7 +787,7 @@ func TestBoardService_UpdateBoard_CustomFields(t *testing.T) {
 			mockConverter := &MockFieldOptionConverter{}
 			mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 			
 			req := &dto.UpdateBoardRequest{
 				CustomFields: &tt.updateFields,
@@ -993,7 +993,7 @@ func TestBoardService_GetBoardsByProject_CustomFieldsFilter(t *testing.T) {
 			
 			mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 
 			// When
 			got, err := service.GetBoardsByProject(context.Background(), projectID, tt.filters)
@@ -1077,7 +1077,7 @@ func TestBoardService_DeleteBoard(t *testing.T) {
 			
 			mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 
 			// When
 			err := service.DeleteBoard(context.Background(), tt.boardID)
@@ -1220,7 +1220,7 @@ func TestBoardService_GetBoardsByProject_WithParticipantIDs(t *testing.T) {
 			
 			mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 
 			// When
 			got, err := service.GetBoardsByProject(context.Background(), projectID, nil)
@@ -1323,7 +1323,7 @@ func TestBoardService_toBoardResponse_ParticipantIDs(t *testing.T) {
 			
 			mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger).(*boardServiceImpl)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger).(*boardServiceImpl)
 
 			// When
 			response := service.toBoardResponse(tt.board)
@@ -1359,7 +1359,7 @@ func TestBoardService_toBoardResponse_Attachments(t *testing.T) {
 
 	mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 	boardService := service.(*boardServiceImpl)
 
 	tests := []struct {
@@ -1516,7 +1516,7 @@ func TestCreateBoard_DateValidation(t *testing.T) {
 	
 	mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 	
 	ctx := context.WithValue(context.Background(), "user_id", userID)
 	
@@ -1583,7 +1583,7 @@ func TestCreateBoard_ValidDateRange(t *testing.T) {
 	
 	mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 	
 	ctx := context.WithValue(context.Background(), "user_id", userID)
 	
@@ -1641,7 +1641,7 @@ func TestUpdateBoard_DateValidation(t *testing.T) {
 	
 	mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 	
 	ctx := context.Background()
 	
@@ -1695,7 +1695,7 @@ func TestUpdateBoard_ValidDateUpdate(t *testing.T) {
 	
 	mockParticipantRepo := &MockParticipantRepository{}
 			logger, _ := zap.NewDevelopment()
-			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, mockConverter, nil, logger)
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockParticipantRepo, &MockAttachmentRepository{}, nil, mockConverter, nil, logger)
 	
 	ctx := context.Background()
 	

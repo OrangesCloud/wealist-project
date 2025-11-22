@@ -68,8 +68,9 @@ func TestCreateBoardWithAttachments(t *testing.T) {
 			mockFieldOptionRepo,
 			mockParticipantRepo,
 			mockAttachmentRepo,
+			nil, // s3Client
 			mockFieldOptionConverter,
-			nil,
+			nil, // metrics
 			logger,
 		)
 
@@ -118,8 +119,9 @@ func TestCreateBoardWithAttachments(t *testing.T) {
 			mockFieldOptionRepo,
 			mockParticipantRepo,
 			mockAttachmentRepo,
+			nil, // s3Client
 			mockFieldOptionConverter,
-			nil,
+			nil, // metrics
 			logger,
 		)
 
@@ -178,8 +180,9 @@ func TestCreateBoardWithAttachments(t *testing.T) {
 			mockFieldOptionRepo,
 			mockParticipantRepo,
 			mockAttachmentRepo,
+			nil, // s3Client
 			mockFieldOptionConverter,
-			nil,
+			nil, // metrics
 			logger,
 		)
 
@@ -238,8 +241,9 @@ func TestCreateBoardWithAttachments(t *testing.T) {
 			mockFieldOptionRepo,
 			mockParticipantRepo,
 			mockAttachmentRepo,
+			nil, // s3Client
 			mockFieldOptionConverter,
-			nil,
+			nil, // metrics
 			logger,
 		)
 
@@ -269,6 +273,7 @@ func TestCreateBoardWithAttachments(t *testing.T) {
 // TestCreateCommentWithAttachments tests creating a comment with attachments
 func TestCreateCommentWithAttachments(t *testing.T) {
 	ctx := context.Background()
+	logger := zap.NewNop()
 
 	t.Run("Success - Create comment with valid temp attachments", func(t *testing.T) {
 		boardID := uuid.New()
@@ -305,7 +310,7 @@ func TestCreateCommentWithAttachments(t *testing.T) {
 			},
 		}
 
-		service := NewCommentService(mockCommentRepo, mockBoardRepo, mockAttachmentRepo)
+		service := NewCommentService(mockCommentRepo, mockBoardRepo, mockAttachmentRepo, nil, logger)
 
 		req := &dto.CreateCommentRequest{
 			BoardID:       boardID,
@@ -340,7 +345,7 @@ func TestCreateCommentWithAttachments(t *testing.T) {
 			},
 		}
 
-		service := NewCommentService(mockCommentRepo, mockBoardRepo, mockAttachmentRepo)
+		service := NewCommentService(mockCommentRepo, mockBoardRepo, mockAttachmentRepo, nil, logger)
 
 		req := &dto.CreateCommentRequest{
 			BoardID:       boardID,
@@ -405,7 +410,7 @@ func TestCreateProjectWithAttachments(t *testing.T) {
 			},
 		}
 
-		service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockAttachmentRepo, mockUserClient, nil, logger)
+		service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockAttachmentRepo, nil, mockUserClient, nil, logger)
 
 		req := &dto.CreateProjectRequest{
 			WorkspaceID:   workspaceID,
@@ -444,7 +449,7 @@ func TestCreateProjectWithAttachments(t *testing.T) {
 			},
 		}
 
-		service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockAttachmentRepo, mockUserClient, nil, logger)
+		service := NewProjectService(mockProjectRepo, mockFieldOptionRepo, mockAttachmentRepo, nil, mockUserClient, nil, logger)
 
 		req := &dto.CreateProjectRequest{
 			WorkspaceID:   workspaceID,
@@ -459,5 +464,3 @@ func TestCreateProjectWithAttachments(t *testing.T) {
 		}
 	})
 }
-
-

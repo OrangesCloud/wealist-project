@@ -94,6 +94,7 @@ func TestProperty_ParticipantArrayAcceptance(t *testing.T) {
 				mockFieldOptionRepo,
 				mockParticipantRepo,
 			&MockAttachmentRepository{},
+				nil, // s3Client
 				mockConverter,
 				nil,
 				logger,
@@ -224,6 +225,7 @@ func TestProperty_RoundTripParticipantConsistency(t *testing.T) {
 				mockFieldOptionRepo,
 				mockParticipantRepo,
 			&MockAttachmentRepository{},
+				nil, // s3Client
 				mockConverter,
 				nil,
 				logger,
@@ -429,6 +431,7 @@ func TestProperty_BackwardCompatibility(t *testing.T) {
 				mockFieldOptionRepo,
 				mockParticipantRepo,
 			&MockAttachmentRepository{},
+				nil, // s3Client
 				mockConverter,
 				nil,
 				logger,
@@ -579,6 +582,7 @@ func TestProperty_AssigneeAsParticipant(t *testing.T) {
 				mockFieldOptionRepo,
 				mockParticipantRepo,
 			&MockAttachmentRepository{},
+				nil, // s3Client
 				mockConverter,
 				nil,
 				logger,
