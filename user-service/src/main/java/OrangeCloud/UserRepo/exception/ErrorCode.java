@@ -40,7 +40,13 @@ public enum ErrorCode {
     MALFORMED_TOKEN(HttpStatus.UNAUTHORIZED, "J004", "Malformed JWT token"),
     TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "J005", "JWT token not found"),
     TOKEN_SIGNATURE_INVALID(HttpStatus.UNAUTHORIZED, "J006", "JWT signature is invalid"),
-    TOKEN_BLACKLISTED(HttpStatus.UNAUTHORIZED, "J007", "JWT token is blacklisted");
+    TOKEN_BLACKLISTED(HttpStatus.UNAUTHORIZED, "J007", "JWT token is blacklisted"),
+
+    // S3 Specific Errors
+    S3_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "S001", "S3 upload failed"),
+    S3_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "S002", "S3 service unavailable"),
+    FILE_TOO_LARGE(HttpStatus.BAD_REQUEST, "S003", "File size exceeds limit"),
+    INVALID_FILE_TYPE(HttpStatus.BAD_REQUEST, "S004", "Invalid file type");
 
     private final HttpStatus status;
     private final String code;
