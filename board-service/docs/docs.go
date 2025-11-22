@@ -53,7 +53,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -61,7 +61,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project-board-api_internal_dto.BoardResponse"
+                                                "$ref": "#/definitions/dto.BoardResponse"
                                             }
                                         }
                                     }
@@ -72,19 +72,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Project ID 또는 필터 파라미터",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -108,7 +108,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.CreateBoardRequest"
+                            "$ref": "#/definitions/dto.CreateBoardRequest"
                         }
                     }
                 ],
@@ -118,13 +118,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.BoardResponse"
+                                            "$ref": "#/definitions/dto.BoardResponse"
                                         }
                                     }
                                 }
@@ -134,19 +134,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청 또는 유효하지 않은 field value",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -183,7 +183,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -191,7 +191,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project-board-api_internal_dto.BoardResponse"
+                                                "$ref": "#/definitions/dto.BoardResponse"
                                             }
                                         }
                                     }
@@ -202,19 +202,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Project ID 또는 필터 파라미터",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -245,13 +245,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.BoardDetailResponse"
+                                            "$ref": "#/definitions/dto.BoardDetailResponse"
                                         }
                                     }
                                 }
@@ -261,19 +261,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Board ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -304,7 +304,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.UpdateBoardRequest"
+                            "$ref": "#/definitions/dto.UpdateBoardRequest"
                         }
                     }
                 ],
@@ -314,13 +314,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.BoardResponse"
+                                            "$ref": "#/definitions/dto.BoardResponse"
                                         }
                                     }
                                 }
@@ -330,19 +330,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청 또는 유효하지 않은 field value",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -369,25 +369,25 @@ const docTemplate = `{
                     "200": {
                         "description": "Board 삭제 성공",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                            "$ref": "#/definitions/response.SuccessResponse"
                         }
                     },
                     "400": {
                         "description": "잘못된 Board ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -420,7 +420,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.MoveBoardRequest"
+                            "$ref": "#/definitions/dto.MoveBoardRequest"
                         }
                     }
                 ],
@@ -430,13 +430,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.MoveBoardResponse"
+                                            "$ref": "#/definitions/dto.MoveBoardResponse"
                                         }
                                     }
                                 }
@@ -446,19 +446,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -489,7 +489,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -497,7 +497,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project-board-api_internal_dto.CommentResponse"
+                                                "$ref": "#/definitions/dto.CommentResponse"
                                             }
                                         }
                                     }
@@ -508,19 +508,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Board ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -544,7 +544,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.CreateCommentRequest"
+                            "$ref": "#/definitions/dto.CreateCommentRequest"
                         }
                     }
                 ],
@@ -554,13 +554,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.CommentResponse"
+                                            "$ref": "#/definitions/dto.CommentResponse"
                                         }
                                     }
                                 }
@@ -570,19 +570,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -613,7 +613,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -621,7 +621,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project-board-api_internal_dto.CommentResponse"
+                                                "$ref": "#/definitions/dto.CommentResponse"
                                             }
                                         }
                                     }
@@ -632,19 +632,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Board ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -677,7 +677,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.UpdateCommentRequest"
+                            "$ref": "#/definitions/dto.UpdateCommentRequest"
                         }
                     }
                 ],
@@ -687,13 +687,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.CommentResponse"
+                                            "$ref": "#/definitions/dto.CommentResponse"
                                         }
                                     }
                                 }
@@ -703,19 +703,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Comment를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -742,25 +742,25 @@ const docTemplate = `{
                     "200": {
                         "description": "Comment 삭제 성공",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                            "$ref": "#/definitions/response.SuccessResponse"
                         }
                     },
                     "400": {
                         "description": "잘못된 Comment ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Comment를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -796,7 +796,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -804,7 +804,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project-board-api_internal_dto.FieldOptionResponse"
+                                                "$ref": "#/definitions/dto.FieldOptionResponse"
                                             }
                                         }
                                     }
@@ -815,13 +815,13 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -845,7 +845,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.CreateFieldOptionRequest"
+                            "$ref": "#/definitions/dto.CreateFieldOptionRequest"
                         }
                     }
                 ],
@@ -855,13 +855,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.FieldOptionResponse"
+                                            "$ref": "#/definitions/dto.FieldOptionResponse"
                                         }
                                     }
                                 }
@@ -871,19 +871,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "중복된 필드 옵션",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -912,31 +912,31 @@ const docTemplate = `{
                     "200": {
                         "description": "필드 옵션 삭제 성공",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                            "$ref": "#/definitions/response.SuccessResponse"
                         }
                     },
                     "400": {
                         "description": "잘못된 Option ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "시스템 기본 옵션은 삭제 불가",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "필드 옵션을 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -967,7 +967,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.UpdateFieldOptionRequest"
+                            "$ref": "#/definitions/dto.UpdateFieldOptionRequest"
                         }
                     }
                 ],
@@ -977,13 +977,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.FieldOptionResponse"
+                                            "$ref": "#/definitions/dto.FieldOptionResponse"
                                         }
                                     }
                                 }
@@ -993,19 +993,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "필드 옵션을 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1025,7 +1025,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.SchemaDocumentation"
+                            "$ref": "#/definitions/handler.SchemaDocumentation"
                         }
                     }
                 }
@@ -1051,7 +1051,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.CreateProjectJoinRequestRequest"
+                            "$ref": "#/definitions/dto.CreateProjectJoinRequestRequest"
                         }
                     }
                 ],
@@ -1061,13 +1061,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.ProjectJoinRequestResponse"
+                                            "$ref": "#/definitions/dto.ProjectJoinRequestResponse"
                                         }
                                     }
                                 }
@@ -1077,31 +1077,31 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "이미 멤버이거나 요청이 존재함",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1134,7 +1134,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.UpdateProjectJoinRequestRequest"
+                            "$ref": "#/definitions/dto.UpdateProjectJoinRequestRequest"
                         }
                     }
                 ],
@@ -1144,13 +1144,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.ProjectJoinRequestResponse"
+                                            "$ref": "#/definitions/dto.ProjectJoinRequestResponse"
                                         }
                                     }
                                 }
@@ -1160,25 +1160,25 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "가입 요청을 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1186,7 +1186,7 @@ const docTemplate = `{
         },
         "/participants": {
             "post": {
-                "description": "Board에 참여자를 추가합니다",
+                "description": "Board에 한 명 또는 여러 명의 참여자를 추가합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -1196,47 +1196,47 @@ const docTemplate = `{
                 "tags": [
                     "participants"
                 ],
-                "summary": "Participant 추가",
+                "summary": "Participant 추가 (단건/다중)",
                 "parameters": [
                     {
-                        "description": "Participant 추가 요청",
+                        "description": "Participant 추가 요청 (단건: userIds 배열에 1개, 다중: userIds 배열에 여러 개)",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.AddParticipantRequest"
+                            "$ref": "#/definitions/dto.AddParticipantsRequest"
                         }
                     }
                 ],
                 "responses": {
                     "201": {
-                        "description": "Participant 추가 성공",
+                        "description": "모든 참여자 추가 성공",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                            "$ref": "#/definitions/dto.AddParticipantsResponse"
+                        }
+                    },
+                    "207": {
+                        "description": "일부 참여자만 추가 성공 (Multi-Status)",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AddParticipantsResponse"
                         }
                     },
                     "400": {
-                        "description": "잘못된 요청",
+                        "description": "잘못된 요청 또는 모든 참여자 추가 실패",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "이미 참여 중인 사용자",
-                        "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1267,7 +1267,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -1275,7 +1275,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project-board-api_internal_dto.ParticipantResponse"
+                                                "$ref": "#/definitions/dto.ParticipantResponse"
                                             }
                                         }
                                     }
@@ -1286,19 +1286,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Board ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1334,25 +1334,25 @@ const docTemplate = `{
                     "200": {
                         "description": "Participant 제거 성공",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                            "$ref": "#/definitions/response.SuccessResponse"
                         }
                     },
                     "400": {
                         "description": "잘못된 ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Board 또는 Participant를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1383,13 +1383,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.PaginatedProjectsResponse"
+                                            "$ref": "#/definitions/dto.PaginatedProjectsResponse"
                                         }
                                     }
                                 }
@@ -1399,13 +1399,13 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Workspace ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1429,7 +1429,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.CreateProjectRequest"
+                            "$ref": "#/definitions/dto.CreateProjectRequest"
                         }
                     }
                 ],
@@ -1439,13 +1439,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.ProjectResponse"
+                                            "$ref": "#/definitions/dto.ProjectResponse"
                                         }
                                     }
                                 }
@@ -1455,13 +1455,13 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1513,13 +1513,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.PaginatedProjectsResponse"
+                                            "$ref": "#/definitions/dto.PaginatedProjectsResponse"
                                         }
                                     }
                                 }
@@ -1529,19 +1529,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1572,7 +1572,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -1580,7 +1580,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project-board-api_internal_dto.ProjectResponse"
+                                                "$ref": "#/definitions/dto.ProjectResponse"
                                             }
                                         }
                                     }
@@ -1591,13 +1591,13 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Workspace ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1628,13 +1628,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.ProjectResponse"
+                                            "$ref": "#/definitions/dto.ProjectResponse"
                                         }
                                     }
                                 }
@@ -1644,19 +1644,19 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Workspace ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "기본 Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1687,13 +1687,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.ProjectResponse"
+                                            "$ref": "#/definitions/dto.ProjectResponse"
                                         }
                                     }
                                 }
@@ -1703,25 +1703,25 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Project ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1752,7 +1752,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.UpdateProjectRequest"
+                            "$ref": "#/definitions/dto.UpdateProjectRequest"
                         }
                     }
                 ],
@@ -1762,13 +1762,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.ProjectResponse"
+                                            "$ref": "#/definitions/dto.ProjectResponse"
                                         }
                                     }
                                 }
@@ -1778,25 +1778,25 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1825,7 +1825,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -1844,25 +1844,25 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Project ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1893,13 +1893,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.ProjectInitSettingsResponse"
+                                            "$ref": "#/definitions/dto.ProjectInitSettingsResponse"
                                         }
                                     }
                                 }
@@ -1909,25 +1909,25 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Project ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -1964,7 +1964,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -1972,7 +1972,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project-board-api_internal_dto.ProjectJoinRequestResponse"
+                                                "$ref": "#/definitions/dto.ProjectJoinRequestResponse"
                                             }
                                         }
                                     }
@@ -1983,25 +1983,25 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Project ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -2032,7 +2032,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -2040,7 +2040,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project-board-api_internal_dto.ProjectMemberResponse"
+                                                "$ref": "#/definitions/dto.ProjectMemberResponse"
                                             }
                                         }
                                     }
@@ -2051,25 +2051,25 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 Project ID",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Project를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -2107,7 +2107,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
@@ -2126,25 +2126,25 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "멤버를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -2184,7 +2184,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_dto.UpdateProjectMemberRoleRequest"
+                            "$ref": "#/definitions/dto.UpdateProjectMemberRoleRequest"
                         }
                     }
                 ],
@@ -2194,13 +2194,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/project-board-api_internal_response.SuccessResponse"
+                                    "$ref": "#/definitions/response.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project-board-api_internal_dto.ProjectMemberResponse"
+                                            "$ref": "#/definitions/dto.ProjectMemberResponse"
                                         }
                                     }
                                 }
@@ -2210,25 +2210,25 @@ const docTemplate = `{
                     "400": {
                         "description": "잘못된 요청",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "멤버를 찾을 수 없음",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -2270,13 +2270,13 @@ const docTemplate = `{
                     "401": {
                         "description": "인증 실패",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "서버 에러",
                         "schema": {
-                            "$ref": "#/definitions/project-board-api_internal_response.ErrorResponse"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -2284,41 +2284,47 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "internal_handler.SchemaDocumentation": {
-            "type": "object",
-            "properties": {
-                "boardFilters": {
-                    "description": "Board related DTOs",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/project-board-api_internal_dto.BoardFilters"
-                        }
-                    ]
-                },
-                "paginatedBoardsResponse": {
-                    "$ref": "#/definitions/project-board-api_internal_dto.PaginatedBoardsResponse"
-                },
-                "updateBoardFieldRequest": {
-                    "$ref": "#/definitions/project-board-api_internal_dto.UpdateBoardFieldRequest"
-                }
-            }
-        },
-        "project-board-api_internal_dto.AddParticipantRequest": {
+        "dto.AddParticipantsRequest": {
             "type": "object",
             "required": [
                 "boardId",
-                "userId"
+                "userIds"
             ],
             "properties": {
                 "boardId": {
                     "type": "string"
                 },
-                "userId": {
-                    "type": "string"
+                "userIds": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
-        "project-board-api_internal_dto.BoardDetailResponse": {
+        "dto.AddParticipantsResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ParticipantResult"
+                    }
+                },
+                "totalFailed": {
+                    "type": "integer"
+                },
+                "totalRequested": {
+                    "type": "integer"
+                },
+                "totalSuccess": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.BoardDetailResponse": {
             "description": "Detailed board response with value-based customFields, participants, and comments customFields contains field type as key and value string as value (not UUIDs) Example: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
             "type": "object",
             "properties": {
@@ -2337,7 +2343,7 @@ const docTemplate = `{
                 "comments": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/project-board-api_internal_dto.CommentResponse"
+                        "$ref": "#/definitions/dto.CommentResponse"
                     }
                 },
                 "content": {
@@ -2361,10 +2367,20 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2024-12-31T23:59:59Z"
                 },
+                "participantIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    ]
+                },
                 "participants": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/project-board-api_internal_dto.ParticipantResponse"
+                        "$ref": "#/definitions/dto.ParticipantResponse"
                     }
                 },
                 "projectId": {
@@ -2381,7 +2397,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.BoardFilters": {
+        "dto.BoardFilters": {
             "type": "object",
             "properties": {
                 "customFields": {
@@ -2390,8 +2406,8 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.BoardResponse": {
-            "description": "Board response with value-based customFields customFields contains field type as key and value string as value (not UUIDs) Example: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"}",
+        "dto.BoardResponse": {
+            "description": "Board response with value-based customFields and participant IDs customFields contains field type as key and value string as value (not UUIDs) Example: {\"importance\": \"high\", \"role\": \"developer\", \"stage\": \"in_progress\"} participantIds contains an array of user IDs who are participants of the board",
             "type": "object",
             "properties": {
                 "assigneeId": {
@@ -2427,6 +2443,16 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2024-12-31T23:59:59Z"
                 },
+                "participantIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    ]
+                },
                 "projectId": {
                     "type": "string",
                     "example": "539167fb-b599-41ba-9ead-344a6d0b3a2f"
@@ -2441,7 +2467,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.CommentResponse": {
+        "dto.CommentResponse": {
             "type": "object",
             "properties": {
                 "boardId": {
@@ -2464,7 +2490,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.CreateBoardRequest": {
+        "dto.CreateBoardRequest": {
             "description": "Request body for creating a new board with value-based customFields customFields should contain field type as key and value string as value Valid field types: stage, role, importance Example values: stage=\"in_progress\", role=\"developer\", importance=\"high\"",
             "type": "object",
             "required": [
@@ -2506,7 +2532,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.CreateCommentRequest": {
+        "dto.CreateCommentRequest": {
             "type": "object",
             "required": [
                 "boardId",
@@ -2522,7 +2548,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.CreateFieldOptionRequest": {
+        "dto.CreateFieldOptionRequest": {
             "type": "object",
             "required": [
                 "color",
@@ -2555,7 +2581,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.CreateProjectJoinRequestRequest": {
+        "dto.CreateProjectJoinRequestRequest": {
             "type": "object",
             "required": [
                 "projectId"
@@ -2566,7 +2592,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.CreateProjectRequest": {
+        "dto.CreateProjectRequest": {
             "type": "object",
             "required": [
                 "name",
@@ -2587,7 +2613,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.FieldOption": {
+        "dto.FieldOption": {
             "type": "object",
             "properties": {
                 "color": {
@@ -2613,7 +2639,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.FieldOptionResponse": {
+        "dto.FieldOptionResponse": {
             "type": "object",
             "properties": {
                 "color": {
@@ -2645,7 +2671,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.FieldTypeInfo": {
+        "dto.FieldTypeInfo": {
             "type": "object",
             "properties": {
                 "description": {
@@ -2659,7 +2685,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.FieldWithOptionsResponse": {
+        "dto.FieldWithOptionsResponse": {
             "type": "object",
             "properties": {
                 "description": {
@@ -2680,12 +2706,12 @@ const docTemplate = `{
                 "options": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/project-board-api_internal_dto.FieldOption"
+                        "$ref": "#/definitions/dto.FieldOption"
                     }
                 }
             }
         },
-        "project-board-api_internal_dto.MoveBoardRequest": {
+        "dto.MoveBoardRequest": {
             "type": "object",
             "required": [
                 "groupByFieldName",
@@ -2706,7 +2732,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.MoveBoardResponse": {
+        "dto.MoveBoardResponse": {
             "type": "object",
             "properties": {
                 "boardId": {
@@ -2720,13 +2746,13 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.PaginatedBoardsResponse": {
+        "dto.PaginatedBoardsResponse": {
             "type": "object",
             "properties": {
                 "boards": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/project-board-api_internal_dto.BoardResponse"
+                        "$ref": "#/definitions/dto.BoardResponse"
                     }
                 },
                 "limit": {
@@ -2740,7 +2766,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.PaginatedProjectsResponse": {
+        "dto.PaginatedProjectsResponse": {
             "type": "object",
             "properties": {
                 "limit": {
@@ -2752,7 +2778,7 @@ const docTemplate = `{
                 "projects": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/project-board-api_internal_dto.ProjectResponse"
+                        "$ref": "#/definitions/dto.ProjectResponse"
                     }
                 },
                 "total": {
@@ -2760,7 +2786,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.ParticipantResponse": {
+        "dto.ParticipantResponse": {
             "type": "object",
             "properties": {
                 "boardId": {
@@ -2777,7 +2803,21 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.ProjectBasicInfo": {
+        "dto.ParticipantResult": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "userId": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ProjectBasicInfo": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -2792,7 +2832,13 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "ownerEmail": {
+                    "type": "string"
+                },
                 "ownerId": {
+                    "type": "string"
+                },
+                "ownerName": {
                     "type": "string"
                 },
                 "projectId": {
@@ -2812,7 +2858,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.ProjectInitSettingsResponse": {
+        "dto.ProjectInitSettingsResponse": {
             "type": "object",
             "properties": {
                 "defaultViewId": {
@@ -2821,21 +2867,21 @@ const docTemplate = `{
                 "fieldTypes": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/project-board-api_internal_dto.FieldTypeInfo"
+                        "$ref": "#/definitions/dto.FieldTypeInfo"
                     }
                 },
                 "fields": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/project-board-api_internal_dto.FieldWithOptionsResponse"
+                        "$ref": "#/definitions/dto.FieldWithOptionsResponse"
                     }
                 },
                 "project": {
-                    "$ref": "#/definitions/project-board-api_internal_dto.ProjectBasicInfo"
+                    "$ref": "#/definitions/dto.ProjectBasicInfo"
                 }
             }
         },
-        "project-board-api_internal_dto.ProjectJoinRequestResponse": {
+        "dto.ProjectJoinRequestResponse": {
             "type": "object",
             "properties": {
                 "projectId": {
@@ -2864,7 +2910,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.ProjectMemberResponse": {
+        "dto.ProjectMemberResponse": {
             "type": "object",
             "properties": {
                 "joinedAt": {
@@ -2890,7 +2936,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.ProjectResponse": {
+        "dto.ProjectResponse": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -2925,7 +2971,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.UpdateBoardFieldRequest": {
+        "dto.UpdateBoardFieldRequest": {
             "type": "object",
             "required": [
                 "fieldId",
@@ -2945,7 +2991,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.UpdateBoardRequest": {
+        "dto.UpdateBoardRequest": {
             "description": "Request body for updating a board with value-based customFields customFields should contain field type as key and value string as value Valid field types: stage, role, importance Example values: stage=\"completed\", role=\"designer\", importance=\"medium\"",
             "type": "object",
             "properties": {
@@ -2979,7 +3025,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.UpdateCommentRequest": {
+        "dto.UpdateCommentRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -2991,7 +3037,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.UpdateFieldOptionRequest": {
+        "dto.UpdateFieldOptionRequest": {
             "type": "object",
             "properties": {
                 "color": {
@@ -3006,7 +3052,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.UpdateProjectJoinRequestRequest": {
+        "dto.UpdateProjectJoinRequestRequest": {
             "type": "object",
             "required": [
                 "status"
@@ -3021,7 +3067,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.UpdateProjectMemberRoleRequest": {
+        "dto.UpdateProjectMemberRoleRequest": {
             "type": "object",
             "required": [
                 "roleName"
@@ -3037,7 +3083,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_dto.UpdateProjectRequest": {
+        "dto.UpdateProjectRequest": {
             "type": "object",
             "properties": {
                 "description": {
@@ -3051,7 +3097,26 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_response.ErrorResponse": {
+        "handler.SchemaDocumentation": {
+            "type": "object",
+            "properties": {
+                "boardFilters": {
+                    "description": "Board related DTOs",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.BoardFilters"
+                        }
+                    ]
+                },
+                "paginatedBoardsResponse": {
+                    "$ref": "#/definitions/dto.PaginatedBoardsResponse"
+                },
+                "updateBoardFieldRequest": {
+                    "$ref": "#/definitions/dto.UpdateBoardFieldRequest"
+                }
+            }
+        },
+        "response.ErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {},
@@ -3060,7 +3125,7 @@ const docTemplate = `{
                 }
             }
         },
-        "project-board-api_internal_response.SuccessResponse": {
+        "response.SuccessResponse": {
             "type": "object",
             "properties": {
                 "data": {},

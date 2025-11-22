@@ -44,6 +44,7 @@ func setupBoardTestDB(t *testing.T) *gorm.DB {
 		title TEXT NOT NULL,
 		content TEXT,
 		custom_fields TEXT,
+		start_date DATETIME,
 		due_date DATETIME
 	)`)
 
