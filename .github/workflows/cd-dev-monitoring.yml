@@ -202,7 +202,7 @@ jobs:
           sed -i "s|\${REDIS_EXPORTER_PORT}|${REDIS_EXPORTER_PORT}:${REDIS_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
           sed -i "s|\${POSTGRES_EXPORTER_PORT}|${POSTGRES_EXPORTER_PORT}:${POSTGRES_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
           sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${REDIS_PORT}|${REDIS_PORT}:${REDIS_PORT}|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${REDIS_PORT}|${REDIS_PORT}|g" docker-compose.ec2-dev-monitoring.yml
           sed -i "s|\${REDIS_PASSWORD}|${REDIS_PASSWORD}|g" docker-compose.ec2-dev-monitoring.yml
           sed -i "s|\${PROMETHEUS_CONFIG_DIR}|${PROMETHEUS_CONFIG_DIR}|g" docker-compose.ec2-dev-monitoring.yml
           # Remove depends_on for external services
