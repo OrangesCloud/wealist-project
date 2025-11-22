@@ -6,6 +6,8 @@ import OrangeCloud.UserRepo.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -26,10 +28,12 @@ public class S3Service {
     private static final Duration PRESIGNED_URL_EXPIRATION = Duration.ofMinutes(5);
 
     private final S3Presigner s3Presigner;
+    private final S3Client s3Client;
     private final S3Config s3Config;
 
-    public S3Service(S3Presigner s3Presigner, S3Config s3Config) {
+    public S3Service(S3Presigner s3Presigner, S3Client s3Client, S3Config s3Config) {
         this.s3Presigner = s3Presigner;
+        this.s3Client = s3Client;
         this.s3Config = s3Config;
     }
 
@@ -152,6 +156,31 @@ public class S3Service {
         }
         if (contentType == null || contentType.trim().isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "Content-Type은 필수입니다.");
+        }
+    }
+
+    /**
+     * S3에서 파일 삭제
+     *
+     * @param fileKey 삭제할 파일의 키
+     */
+    public void deleteFile(String fileKey) {
+        if (fileKey == null || fileKey.trim().isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "파일 키는 필수입니다.");
+        }
+
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(s3Config.getBucket())
+                    .key(fileKey)
+                    .build();
+
+            s3Client.deleteObject(deleteRequest);
+            logger.info("S3 파일 삭제 성공 - fileKey: {}", fileKey);
+
+        } catch (Exception e) {
+            logger.error("S3 파일 삭제 실패 - fileKey: {}, error: {}", fileKey, e.getMessage(), e);
+            throw new CustomException(ErrorCode.S3_UPLOAD_FAILED, "S3 파일 삭제에 실패했습니다.");
         }
     }
 

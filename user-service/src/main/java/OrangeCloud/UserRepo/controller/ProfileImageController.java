@@ -1,12 +1,10 @@
 package OrangeCloud.UserRepo.controller;
 
-import OrangeCloud.UserRepo.dto.userprofile.PresignedUrlRequest;
-import OrangeCloud.UserRepo.dto.userprofile.PresignedUrlResponse;
-import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileImageByKeyRequest;
-import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
-import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
+import OrangeCloud.UserRepo.dto.userprofile.*;
+import OrangeCloud.UserRepo.entity.Attachment;
 import OrangeCloud.UserRepo.exception.CustomException;
 import OrangeCloud.UserRepo.exception.ErrorCode;
+import OrangeCloud.UserRepo.service.AttachmentService;
 import OrangeCloud.UserRepo.service.S3Service;
 import OrangeCloud.UserRepo.service.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,6 +44,7 @@ public class ProfileImageController {
 
     private final S3Service s3Service;
     private final UserProfileService userProfileService;
+    private final AttachmentService attachmentService;
 
     /**
      * 인증된 사용자 ID 추출
@@ -135,6 +134,45 @@ public class ProfileImageController {
 
         log.debug("파일 메타데이터 검증 완료 - fileName: {}, fileSize: {}, contentType: {}",
                 request.fileName(), request.fileSize(), request.contentType());
+    }
+
+    /**
+     * 임시 첨부파일 메타데이터 저장
+     * S3에 업로드된 파일의 메타데이터를 임시로 저장합니다.
+     *
+     * @param request   첨부파일 저장 요청
+     * @param principal 인증된 사용자 정보
+     * @return 저장된 첨부파일 정보
+     */
+    @PostMapping("/attachment")
+    @Operation(
+            summary = "프로필 이미지 첨부파일 메타데이터 저장",
+            description = "S3에 업로드된 파일의 메타데이터를 임시로 저장합니다. " +
+                    "임시 파일은 1시간 후 자동으로 삭제되며, 프로필 업데이트 시 확정됩니다."
+    )
+    public ResponseEntity<AttachmentResponse> saveAttachmentMetadata(
+            @Valid @RequestBody SaveAttachmentRequest request,
+            Principal principal) {
+
+        UUID userId = extractUserId(principal);
+        log.info("첨부파일 메타데이터 저장 요청 - userId: {}, fileKey: {}, fileName: {}",
+                userId, request.fileKey(), request.fileName());
+
+        // 임시 첨부파일 생성
+        Attachment attachment = attachmentService.createTempAttachment(
+                Attachment.EntityType.USER_PROFILE,
+                request.fileName(),
+                request.fileKey(),
+                request.fileSize(),
+                request.contentType(),
+                userId
+        );
+
+        AttachmentResponse response = AttachmentResponse.from(attachment);
+        log.info("첨부파일 메타데이터 저장 완료 - attachmentId: {}, expiresAt: {}",
+                response.getId(), response.getExpiresAt());
+
+        return ResponseEntity.ok(response);
     }
 
     /**

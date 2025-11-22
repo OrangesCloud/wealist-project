@@ -32,15 +32,18 @@ class S3ServiceTest {
     private S3Presigner s3Presigner;
 
     @Mock
+    private software.amazon.awssdk.services.s3.S3Client s3Client;
+
+    @Mock
     private S3Config s3Config;
 
     private S3Service s3Service;
 
     @BeforeEach
     void setUp() {
-        s3Service = new S3Service(s3Presigner, s3Config);
-        when(s3Config.getBucket()).thenReturn("wealist-dev-files");
-        when(s3Config.getRegion()).thenReturn("ap-northeast-2");
+        s3Service = new S3Service(s3Presigner, s3Client, s3Config);
+        lenient().when(s3Config.getBucket()).thenReturn("wealist-dev-files");
+        lenient().when(s3Config.getRegion()).thenReturn("ap-northeast-2");
     }
 
     @Test

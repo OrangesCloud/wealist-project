@@ -46,7 +46,11 @@ public enum ErrorCode {
     S3_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "S001", "S3 upload failed"),
     S3_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "S002", "S3 service unavailable"),
     FILE_TOO_LARGE(HttpStatus.BAD_REQUEST, "S003", "File size exceeds limit"),
-    INVALID_FILE_TYPE(HttpStatus.BAD_REQUEST, "S004", "Invalid file type");
+    INVALID_FILE_TYPE(HttpStatus.BAD_REQUEST, "S004", "Invalid file type"),
+
+    // Attachment Specific Errors
+    ATTACHMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "Attachment not found"),
+    INVALID_ATTACHMENT_STATUS(HttpStatus.BAD_REQUEST, "A002", "Invalid attachment status");
 
     private final HttpStatus status;
     private final String code;
