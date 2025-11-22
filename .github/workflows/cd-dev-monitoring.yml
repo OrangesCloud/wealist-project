@@ -104,7 +104,7 @@ jobs:
           
           # Load Redis parameters
           REDIS_PORT=$(load_param "/redis/port")
-          REDIS_PASSWORD=$(load_secret "/redis/password")
+          REDIS_PASSWORD=$(load_secret "cache/redis_password")
           # Export all variables
           export GRAFANA_ADMIN_USER
           export GRAFANA_ADMIN_PASSWORD
