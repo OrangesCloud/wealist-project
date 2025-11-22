@@ -19,10 +19,11 @@ type UpdateCommentRequest struct {
 
 // CommentResponse represents the comment response
 type CommentResponse struct {
-	CommentID uuid.UUID `json:"commentId"`
-	BoardID   uuid.UUID `json:"boardId"`
-	UserID    uuid.UUID `json:"userId"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	CommentID   uuid.UUID            `json:"commentId"`
+	BoardID     uuid.UUID            `json:"boardId"`
+	UserID      uuid.UUID            `json:"userId"`
+	Content     string               `json:"content"`
+	Attachments []AttachmentResponse `json:"attachments"`
+	CreatedAt   time.Time            `json:"createdAt"`
+	UpdatedAt   time.Time            `json:"updatedAt"`
 }

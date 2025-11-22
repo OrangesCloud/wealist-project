@@ -541,6 +541,15 @@ func TestBoardHandler_DeleteBoard(t *testing.T) {
 			name:    "성공: Board 삭제",
 			boardID: boardID.String(),
 			mockService: func(m *MockBoardService) {
+				m.GetBoardFunc = func(ctx context.Context, id uuid.UUID) (*dto.BoardDetailResponse, error) {
+					return &dto.BoardDetailResponse{
+						BoardResponse: dto.BoardResponse{
+							ID:        boardID,
+							ProjectID: uuid.New(),
+							Title:     "Test Board",
+						},
+					}, nil
+				}
 				m.DeleteBoardFunc = func(ctx context.Context, id uuid.UUID) error {
 					return nil
 				}
@@ -557,8 +566,8 @@ func TestBoardHandler_DeleteBoard(t *testing.T) {
 			name:    "실패: Board가 존재하지 않음",
 			boardID: boardID.String(),
 			mockService: func(m *MockBoardService) {
-				m.DeleteBoardFunc = func(ctx context.Context, id uuid.UUID) error {
-					return response.NewAppError(response.ErrCodeNotFound, "Board not found", "")
+				m.GetBoardFunc = func(ctx context.Context, id uuid.UUID) (*dto.BoardDetailResponse, error) {
+					return nil, response.NewAppError(response.ErrCodeNotFound, "Board not found", "")
 				}
 			},
 			expectedStatus: http.StatusNotFound,

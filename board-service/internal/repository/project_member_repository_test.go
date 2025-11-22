@@ -29,6 +29,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		owner_id TEXT NOT NULL,
 		name TEXT NOT NULL,
 		description TEXT,
+		start_date DATETIME,
+		due_date DATETIME,
 		is_default INTEGER DEFAULT 0,
 		is_public INTEGER DEFAULT 0
 	)`)
@@ -49,6 +51,20 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		status TEXT NOT NULL DEFAULT 'PENDING',
 		requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`)
+
+	db.Exec(`CREATE TABLE attachments (
+		id TEXT PRIMARY KEY,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		deleted_at DATETIME,
+		entity_type TEXT NOT NULL,
+		entity_id TEXT NOT NULL,
+		file_name TEXT NOT NULL,
+		file_url TEXT NOT NULL,
+		file_size INTEGER NOT NULL,
+		content_type TEXT NOT NULL,
+		uploaded_by TEXT NOT NULL
 	)`)
 
 	return db

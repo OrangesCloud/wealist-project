@@ -54,10 +54,13 @@ func (r *projectRepositoryImpl) Create(ctx context.Context, project *domain.Proj
 	return nil
 }
 
-// FindByID finds a project by ID
+// FindByID finds a project by ID with preloaded attachments
 func (r *projectRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
 	var project domain.Project
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&project).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Preload("Attachments").
+		Where("id = ?", id).
+		First(&project).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
@@ -66,11 +69,14 @@ func (r *projectRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*do
 	return &project, nil
 }
 
-// FindByWorkspaceID finds all projects by workspace ID
+// FindByWorkspaceID finds all projects by workspace ID with preloaded attachments
 func (r *projectRepositoryImpl) FindByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]*domain.Project, error) {
 	// Explicitly initialize empty array to prevent nil return
 	projects := make([]*domain.Project, 0)
-	if err := r.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).Find(&projects).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Preload("Attachments").
+		Where("workspace_id = ?", workspaceID).
+		Find(&projects).Error; err != nil {
 		return nil, err
 	}
 	return projects, nil

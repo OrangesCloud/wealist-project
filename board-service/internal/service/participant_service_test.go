@@ -50,23 +50,27 @@ func (m *MockParticipantRepository) Delete(ctx context.Context, boardID, userID 
 	return nil
 }
 
-func TestParticipantService_AddParticipant(t *testing.T) {
+func TestParticipantService_AddParticipants(t *testing.T) {
 	boardID := uuid.New()
-	userID := uuid.New()
+	userID1 := uuid.New()
+	userID2 := uuid.New()
+	userID3 := uuid.New()
 
 	tests := []struct {
 		name            string
-		req             *dto.AddParticipantRequest
+		req             *dto.AddParticipantsRequest
 		mockBoard       func(*MockBoardRepository)
 		mockParticipant func(*MockParticipantRepository)
 		wantErr         bool
 		wantErrCode     string
+		wantSuccess     int
+		wantFailed      int
 	}{
 		{
-			name: "성공: 정상적인 Participant 추가",
-			req: &dto.AddParticipantRequest{
+			name: "성공: 단건 Participant 추가 (배열 1개 요소)",
+			req: &dto.AddParticipantsRequest{
 				BoardID: boardID,
-				UserID:  userID,
+				UserIDs: []uuid.UUID{userID1},
 			},
 			mockBoard: func(m *MockBoardRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
@@ -84,51 +88,15 @@ func TestParticipantService_AddParticipant(t *testing.T) {
 					return nil
 				}
 			},
-			wantErr: false,
+			wantErr:     false,
+			wantSuccess: 1,
+			wantFailed:  0,
 		},
 		{
-			name: "실패: Board가 존재하지 않음",
-			req: &dto.AddParticipantRequest{
+			name: "성공: 다중 Participant 추가",
+			req: &dto.AddParticipantsRequest{
 				BoardID: boardID,
-				UserID:  userID,
-			},
-			mockBoard: func(m *MockBoardRepository) {
-				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
-					return nil, gorm.ErrRecordNotFound
-				}
-			},
-			mockParticipant: func(m *MockParticipantRepository) {},
-			wantErr:         true,
-			wantErrCode:     response.ErrCodeNotFound,
-		},
-		{
-			name: "실패: 이미 참여 중인 User",
-			req: &dto.AddParticipantRequest{
-				BoardID: boardID,
-				UserID:  userID,
-			},
-			mockBoard: func(m *MockBoardRepository) {
-				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
-					return &domain.Board{}, nil
-				}
-			},
-			mockParticipant: func(m *MockParticipantRepository) {
-				m.FindByBoardAndUserFunc = func(ctx context.Context, bID, uID uuid.UUID) (*domain.Participant, error) {
-					return &domain.Participant{
-						BaseModel: domain.BaseModel{ID: uuid.New()},
-						BoardID:   boardID,
-						UserID:    userID,
-					}, nil
-				}
-			},
-			wantErr:     true,
-			wantErrCode: response.ErrCodeAlreadyExists,
-		},
-		{
-			name: "실패: Unique constraint 위반",
-			req: &dto.AddParticipantRequest{
-				BoardID: boardID,
-				UserID:  userID,
+				UserIDs: []uuid.UUID{userID1, userID2, userID3},
 			},
 			mockBoard: func(m *MockBoardRepository) {
 				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
@@ -140,11 +108,144 @@ func TestParticipantService_AddParticipant(t *testing.T) {
 					return nil, gorm.ErrRecordNotFound
 				}
 				m.CreateFunc = func(ctx context.Context, participant *domain.Participant) error {
-					return errors.New("duplicate key value violates unique constraint")
+					participant.ID = uuid.New()
+					participant.CreatedAt = time.Now()
+					participant.UpdatedAt = time.Now()
+					return nil
 				}
 			},
-			wantErr:     true,
-			wantErrCode: response.ErrCodeAlreadyExists,
+			wantErr:     false,
+			wantSuccess: 3,
+			wantFailed:  0,
+		},
+		{
+			name: "성공: 중복 UserID 제거 처리",
+			req: &dto.AddParticipantsRequest{
+				BoardID: boardID,
+				UserIDs: []uuid.UUID{userID1, userID1, userID2},
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					return &domain.Board{}, nil
+				}
+			},
+			mockParticipant: func(m *MockParticipantRepository) {
+				m.FindByBoardAndUserFunc = func(ctx context.Context, bID, uID uuid.UUID) (*domain.Participant, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+				m.CreateFunc = func(ctx context.Context, participant *domain.Participant) error {
+					participant.ID = uuid.New()
+					participant.CreatedAt = time.Now()
+					participant.UpdatedAt = time.Now()
+					return nil
+				}
+			},
+			wantErr:     false,
+			wantSuccess: 2,
+			wantFailed:  0,
+		},
+		{
+			name: "부분 성공: 일부 Participant는 이미 존재",
+			req: &dto.AddParticipantsRequest{
+				BoardID: boardID,
+				UserIDs: []uuid.UUID{userID1, userID2, userID3},
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					return &domain.Board{}, nil
+				}
+			},
+			mockParticipant: func(m *MockParticipantRepository) {
+				m.FindByBoardAndUserFunc = func(ctx context.Context, bID, uID uuid.UUID) (*domain.Participant, error) {
+					// userID2는 이미 존재
+					if uID == userID2 {
+						return &domain.Participant{
+							BaseModel: domain.BaseModel{ID: uuid.New()},
+							BoardID:   boardID,
+							UserID:    userID2,
+						}, nil
+					}
+					return nil, gorm.ErrRecordNotFound
+				}
+				m.CreateFunc = func(ctx context.Context, participant *domain.Participant) error {
+					participant.ID = uuid.New()
+					participant.CreatedAt = time.Now()
+					participant.UpdatedAt = time.Now()
+					return nil
+				}
+			},
+			wantErr:     false,
+			wantSuccess: 2,
+			wantFailed:  1,
+		},
+		{
+			name: "모두 실패: 모든 Participant가 이미 존재",
+			req: &dto.AddParticipantsRequest{
+				BoardID: boardID,
+				UserIDs: []uuid.UUID{userID1, userID2},
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					return &domain.Board{}, nil
+				}
+			},
+			mockParticipant: func(m *MockParticipantRepository) {
+				m.FindByBoardAndUserFunc = func(ctx context.Context, bID, uID uuid.UUID) (*domain.Participant, error) {
+					return &domain.Participant{
+						BaseModel: domain.BaseModel{ID: uuid.New()},
+						BoardID:   boardID,
+						UserID:    uID,
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantSuccess: 0,
+			wantFailed:  2,
+		},
+		{
+			name: "실패: Board가 존재하지 않음",
+			req: &dto.AddParticipantsRequest{
+				BoardID: boardID,
+				UserIDs: []uuid.UUID{userID1},
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			mockParticipant: func(m *MockParticipantRepository) {},
+			wantErr:         true,
+			wantErrCode:     response.ErrCodeNotFound,
+		},
+		{
+			name: "부분 성공: 일부 Participant 생성 실패 (DB 에러)",
+			req: &dto.AddParticipantsRequest{
+				BoardID: boardID,
+				UserIDs: []uuid.UUID{userID1, userID2},
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
+					return &domain.Board{}, nil
+				}
+			},
+			mockParticipant: func(m *MockParticipantRepository) {
+				m.FindByBoardAndUserFunc = func(ctx context.Context, bID, uID uuid.UUID) (*domain.Participant, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+				m.CreateFunc = func(ctx context.Context, participant *domain.Participant) error {
+					// userID2 생성 시 에러
+					if participant.UserID == userID2 {
+						return errors.New("database error")
+					}
+					participant.ID = uuid.New()
+					participant.CreatedAt = time.Now()
+					participant.UpdatedAt = time.Now()
+					return nil
+				}
+			},
+			wantErr:     false,
+			wantSuccess: 1,
+			wantFailed:  1,
 		},
 	}
 
@@ -159,22 +260,39 @@ func TestParticipantService_AddParticipant(t *testing.T) {
 			service := NewParticipantService(mockParticipantRepo, mockBoardRepo)
 
 			// When
-			err := service.AddParticipant(context.Background(), tt.req)
+			result, err := service.AddParticipants(context.Background(), tt.req)
 
 			// Then
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("AddParticipant() error = nil, wantErr %v", tt.wantErr)
+					t.Errorf("AddParticipants() error = nil, wantErr %v", tt.wantErr)
 					return
 				}
 				if appErr, ok := err.(*response.AppError); ok {
 					if appErr.Code != tt.wantErrCode {
-						t.Errorf("AddParticipant() error code = %v, want %v", appErr.Code, tt.wantErrCode)
+						t.Errorf("AddParticipants() error code = %v, want %v", appErr.Code, tt.wantErrCode)
 					}
 				}
 			} else {
 				if err != nil {
-					t.Errorf("AddParticipant() unexpected error = %v", err)
+					t.Errorf("AddParticipants() unexpected error = %v", err)
+					return
+				}
+				if result == nil {
+					t.Error("AddParticipants() returned nil result")
+					return
+				}
+				if result.TotalSuccess != tt.wantSuccess {
+					t.Errorf("AddParticipants() TotalSuccess = %v, want %v", result.TotalSuccess, tt.wantSuccess)
+				}
+				if result.TotalFailed != tt.wantFailed {
+					t.Errorf("AddParticipants() TotalFailed = %v, want %v", result.TotalFailed, tt.wantFailed)
+				}
+				if result.TotalRequested != tt.wantSuccess+tt.wantFailed {
+					t.Errorf("AddParticipants() TotalRequested = %v, want %v", result.TotalRequested, tt.wantSuccess+tt.wantFailed)
+				}
+				if len(result.Results) != tt.wantSuccess+tt.wantFailed {
+					t.Errorf("AddParticipants() Results length = %v, want %v", len(result.Results), tt.wantSuccess+tt.wantFailed)
 				}
 			}
 		})

@@ -15,6 +15,7 @@ type SchemaDocumentation struct {
 	BoardFilters            dto.BoardFilters            `json:"boardFilters"`
 	PaginatedBoardsResponse dto.PaginatedBoardsResponse `json:"paginatedBoardsResponse"`
 	UpdateBoardFieldRequest dto.UpdateBoardFieldRequest `json:"updateBoardFieldRequest"`
+	AttachmentResponse      dto.AttachmentResponse      `json:"attachmentResponse"`
 }
 
 // GetSchemaDocumentation is a dummy handler that will never be called

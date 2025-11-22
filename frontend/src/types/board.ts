@@ -39,6 +39,8 @@ export interface BoardResponse {
   customFields: Record<string, any>;
   createdAt: string;
   updatedAt: string;
+  fileUrl?: string; // 💡 [추가] 보드 파일 URL 설정
+  fileName?: string; // 💡 [추가] 보드 파일 이름 설정
 }
 
 /**
@@ -59,8 +61,12 @@ export interface CreateBoardRequest {
   title: string;
   content?: string;
   assigneeId?: string;
+  startDate?: string;
   dueDate?: string;
   customFields?: Record<string, any>;
+  participants?: string[];
+  fileUrl?: string; // 💡 [추가] 보드 파일 URL 설정
+  fileName?: string; // 💡 [추가] 보드 파일 이름 설정
 }
 
 /**
@@ -71,8 +77,12 @@ export interface UpdateBoardRequest {
   title?: string;
   content?: string;
   assigneeId?: string;
+  startDate?: string;
   dueDate?: string;
   customFields?: Record<string, any>;
+  participants?: string[];
+  fileUrl?: string; // 💡 [추가] 보드 파일 URL 설정
+  fileName?: string; // 💡 [추가] 보드 파일 이름 설정
 }
 
 /**
@@ -119,6 +129,8 @@ export interface ProjectResponse {
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
+  startDate?: string;
+  dueDate?: string;
 }
 
 /**
@@ -145,6 +157,8 @@ export interface CreateProjectRequest {
   workspaceId: string;
   name: string;
   description?: string;
+  startDate?: string;
+  dueDate?: string;
 }
 
 /**
@@ -154,6 +168,8 @@ export interface CreateProjectRequest {
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;
+  startDate?: string;
+  dueDate?: string;
 }
 
 /**

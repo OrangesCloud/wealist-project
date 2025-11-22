@@ -136,12 +136,30 @@ func (s *commentServiceImpl) DeleteComment(ctx context.Context, commentID uuid.U
 
 // toCommentResponse converts domain.Comment to dto.CommentResponse
 func (s *commentServiceImpl) toCommentResponse(comment *domain.Comment) *dto.CommentResponse {
+	// Convert attachments
+	attachments := make([]dto.AttachmentResponse, 0)
+	if comment.Attachments != nil {
+		attachments = make([]dto.AttachmentResponse, len(comment.Attachments))
+		for i, att := range comment.Attachments {
+			attachments[i] = dto.AttachmentResponse{
+				ID:          att.ID,
+				FileName:    att.FileName,
+				FileURL:     att.FileURL,
+				FileSize:    att.FileSize,
+				ContentType: att.ContentType,
+				UploadedBy:  att.UploadedBy,
+				UploadedAt:  att.CreatedAt,
+			}
+		}
+	}
+
 	return &dto.CommentResponse{
-		CommentID: comment.ID,
-		BoardID:   comment.BoardID,
-		UserID:    comment.UserID,
-		Content:   comment.Content,
-		CreatedAt: comment.CreatedAt,
-		UpdatedAt: comment.UpdatedAt,
+		CommentID:   comment.ID,
+		BoardID:     comment.BoardID,
+		UserID:      comment.UserID,
+		Content:     comment.Content,
+		Attachments: attachments,
+		CreatedAt:   comment.CreatedAt,
+		UpdatedAt:   comment.UpdatedAt,
 	}
 }
