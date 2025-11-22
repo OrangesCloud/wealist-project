@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * ProfileImage 통합 테스트 - Presigned URL 플로우
  * **Validates: Requirements 2.3, 2.4, 2.5**
  */
-@SpringBootTest
+@SpringBootTest(classes = {OrangeCloud.UserRepo.UserRepoApplication.class, OrangeCloud.UserRepo.config.TestS3Config.class})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
