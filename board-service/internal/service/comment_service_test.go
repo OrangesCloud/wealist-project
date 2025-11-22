@@ -470,3 +470,118 @@ func TestCommentService_DeleteComment(t *testing.T) {
 		})
 	}
 }
+
+// TestCommentService_toCommentResponse_Attachments tests attachment conversion in toCommentResponse
+func TestCommentService_toCommentResponse_Attachments(t *testing.T) {
+	mockCommentRepo := &MockCommentRepository{}
+	mockBoardRepo := &MockBoardRepository{}
+	service := NewCommentService(mockCommentRepo, mockBoardRepo)
+
+	t.Run("첨부파일 변환: 여러 첨부파일", func(t *testing.T) {
+		commentID := uuid.New()
+		boardID := uuid.New()
+		userID := uuid.New()
+		uploader1 := uuid.New()
+		uploader2 := uuid.New()
+
+		comment := &domain.Comment{
+			BaseModel: domain.BaseModel{
+				ID:        commentID,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			BoardID: boardID,
+			UserID:  userID,
+			Content: "Test comment with attachments",
+			Attachments: []domain.Attachment{
+				{
+					BaseModel: domain.BaseModel{
+						ID:        uuid.New(),
+						CreatedAt: time.Now(),
+					},
+					EntityType:  domain.EntityTypeComment,
+					EntityID:    commentID,
+					FileName:    "document.pdf",
+					FileURL:     "https://s3.example.com/document.pdf",
+					FileSize:    1024000,
+					ContentType: "application/pdf",
+					UploadedBy:  uploader1,
+				},
+				{
+					BaseModel: domain.BaseModel{
+						ID:        uuid.New(),
+						CreatedAt: time.Now(),
+					},
+					EntityType:  domain.EntityTypeComment,
+					EntityID:    commentID,
+					FileName:    "image.png",
+					FileURL:     "https://s3.example.com/image.png",
+					FileSize:    512000,
+					ContentType: "image/png",
+					UploadedBy:  uploader2,
+				},
+			},
+		}
+
+		serviceImpl := service.(*commentServiceImpl)
+		response := serviceImpl.toCommentResponse(comment)
+
+		if len(response.Attachments) != 2 {
+			t.Errorf("Expected 2 attachments, got %d", len(response.Attachments))
+		}
+
+		if response.Attachments[0].FileName != "document.pdf" {
+			t.Errorf("Expected first attachment filename 'document.pdf', got '%s'", response.Attachments[0].FileName)
+		}
+
+		if response.Attachments[1].FileName != "image.png" {
+			t.Errorf("Expected second attachment filename 'image.png', got '%s'", response.Attachments[1].FileName)
+		}
+	})
+
+	t.Run("첨부파일 변환: 첨부파일 없음 (빈 배열)", func(t *testing.T) {
+		comment := &domain.Comment{
+			BaseModel: domain.BaseModel{
+				ID:        uuid.New(),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			BoardID:     uuid.New(),
+			UserID:      uuid.New(),
+			Content:     "Test comment without attachments",
+			Attachments: []domain.Attachment{},
+		}
+
+		serviceImpl := service.(*commentServiceImpl)
+		response := serviceImpl.toCommentResponse(comment)
+
+		if len(response.Attachments) != 0 {
+			t.Errorf("Expected 0 attachments, got %d", len(response.Attachments))
+		}
+	})
+
+	t.Run("첨부파일 변환: nil 첨부파일 슬라이스", func(t *testing.T) {
+		comment := &domain.Comment{
+			BaseModel: domain.BaseModel{
+				ID:        uuid.New(),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			BoardID:     uuid.New(),
+			UserID:      uuid.New(),
+			Content:     "Test comment with nil attachments",
+			Attachments: nil,
+		}
+
+		serviceImpl := service.(*commentServiceImpl)
+		response := serviceImpl.toCommentResponse(comment)
+
+		if response.Attachments == nil {
+			t.Error("Expected empty slice, got nil")
+		}
+
+		if len(response.Attachments) != 0 {
+			t.Errorf("Expected 0 attachments, got %d", len(response.Attachments))
+		}
+	})
+}
