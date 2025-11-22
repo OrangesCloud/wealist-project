@@ -20,10 +20,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-    show-sql: ${JPA_SHOW_SQL}
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        format_sql: ${JPA_FORMAT_SQL}
+        format_sql: ${JPA_FORMAT_SQL:false}
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
     sql:
       init:

@@ -140,15 +140,17 @@ class BoardServiceClientTest {
         // Given
         UUID projectId = UUID.randomUUID();
         UUID boardId = UUID.randomUUID();
-        UUID roleId = UUID.randomUUID();
-        UUID stageId = UUID.randomUUID();
+        UUID authorId = UUID.randomUUID();
+        UUID assigneeId = UUID.randomUUID();
         
         CreateBoardRequest request = CreateBoardRequest.builder()
                 .projectId(projectId)
+                .authorId(authorId)
+                .assigneeId(assigneeId)
                 .title("Test Board")
                 .content("Test Content")
-                .roleIds(List.of(roleId))
-                .stageId(stageId)
+                .startDate(LocalDateTime.now())
+                .dueDate(LocalDateTime.now().plusDays(7))
                 .build();
 
         BoardResponse.BoardData boardData = BoardResponse.BoardData.builder()

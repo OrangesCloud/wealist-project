@@ -6,7 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -21,24 +22,24 @@ public class CreateBoardRequest {
     @JsonProperty("project_id")
     private UUID projectId;
     
+    @JsonProperty("author_id")
+    private UUID authorId;
+    
+    @JsonProperty("assignee_id")
+    private UUID assigneeId;
+    
     @JsonProperty("title")
     private String title;
     
     @JsonProperty("content")
     private String content;
     
-    @JsonProperty("role_ids")
-    private List<UUID> roleIds;
+    @JsonProperty("custom_fields")
+    private Map<String, Object> customFields;
     
-    @JsonProperty("stage_id")
-    private UUID stageId;
+    @JsonProperty("start_date")
+    private LocalDateTime startDate;
     
-    @JsonProperty("importance_id")
-    private UUID importanceId;
-    
-    @JsonProperty("assignee_id")
-    private UUID assigneeId;
-    
-    @JsonProperty("dueDate")
-    private String dueDate;
+    @JsonProperty("due_date")
+    private LocalDateTime dueDate;
 }
