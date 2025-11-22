@@ -126,12 +126,40 @@ func (s *commentServiceImpl) UpdateComment(ctx context.Context, commentID uuid.U
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch comment", err.Error())
 	}
 
+	// Validate and confirm attachments if provided
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.validateAndConfirmAttachments(ctx, req.AttachmentIDs, domain.EntityTypeComment); err != nil {
+			return nil, err
+		}
+	}
+
 	// Update content
 	comment.Content = req.Content
 
 	// Save updated comment
 	if err := s.commentRepo.Update(ctx, comment); err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update comment", err.Error())
+	}
+
+	// Confirm attachments after comment update
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, comment.ID); err != nil {
+			s.logger.Warn("Failed to confirm attachments during comment update",
+				zap.String("comment_id", comment.ID.String()),
+				zap.Error(err))
+			// Continue even if attachment confirmation fails
+		}
+		
+		// Reload comment with attachments to include them in response
+		reloadedComment, err := s.commentRepo.FindByID(ctx, comment.ID)
+		if err != nil {
+			s.logger.Warn("Failed to reload comment with attachments",
+				zap.String("comment_id", comment.ID.String()),
+				zap.Error(err))
+			// Continue with original comment if reload fails
+		} else {
+			comment = reloadedComment
+		}
 	}
 
 	// Convert to response DTO

@@ -22,11 +22,13 @@ type CreateProjectRequest struct {
 // UpdateProjectRequest represents the request to update a project
 // @Description Request body for updating a project. All fields are optional.
 // @Description startDate must be before or equal to dueDate if both are provided
+// @Description attachmentIds is an optional array of attachment IDs to add to the project
 type UpdateProjectRequest struct {
-	Name        *string    `json:"name" binding:"omitempty,min=2,max=100" example:"Q1 2024 Product Launch - Updated"`
-	Description *string    `json:"description" binding:"omitempty,max=500" example:"Updated project description"`
-	StartDate   *time.Time `json:"startDate,omitempty" example:"2024-01-15T00:00:00Z"`
-	DueDate     *time.Time `json:"dueDate,omitempty" example:"2024-04-15T23:59:59Z"`
+	Name          *string     `json:"name" binding:"omitempty,min=2,max=100" example:"Q1 2024 Product Launch - Updated"`
+	Description   *string     `json:"description" binding:"omitempty,max=500" example:"Updated project description"`
+	StartDate     *time.Time  `json:"startDate,omitempty" example:"2024-01-15T00:00:00Z"`
+	DueDate       *time.Time  `json:"dueDate,omitempty" example:"2024-04-15T23:59:59Z"`
+	AttachmentIDs []uuid.UUID `json:"attachmentIds,omitempty" binding:"omitempty,dive,uuid" example:"f47ac10b-58cc-4372-a567-0e02b2c3d479"`
 }
 
 // ProjectResponse represents the project response
