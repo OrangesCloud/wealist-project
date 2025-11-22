@@ -47,7 +47,7 @@ type BoardResponse struct {
 	ID           uuid.UUID              `json:"boardId" example:"1275eac5-f0f9-4bee-8235-576a0042f42b"`
 	ProjectID    uuid.UUID              `json:"projectId" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
 	AuthorID     uuid.UUID              `json:"authorId" example:"b2c3d4e5-f6a7-8901-bcde-f12345678901"`
-	AssigneeID   *uuid.UUID             `json:"assigneeId,omitempty" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
+	AssigneeID   *uuid.UUID             `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
 	Title        string                 `json:"title" example:"Implement user authentication"`
 	Content      string                 `json:"content" example:"Add JWT-based authentication to the API"`
 	CustomFields map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:high"`

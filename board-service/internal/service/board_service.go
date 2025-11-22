@@ -91,6 +91,12 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		customFieldsJSON = jsonBytes
 	}
 
+	// Set assigneeID: use provided value, or default to authorID if not provided
+	assigneeID := req.AssigneeID
+	if assigneeID == nil {
+		assigneeID = &authorID
+	}
+
 	// Create domain model from request with AuthorID
 	board := &domain.Board{
 		ProjectID:    req.ProjectID,
@@ -98,7 +104,7 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		Title:        req.Title,
 		Content:      req.Content,
 		CustomFields: customFieldsJSON,
-		AssigneeID:   req.AssigneeID,
+		AssigneeID:   assigneeID,
 		DueDate:      req.DueDate,
 	}
 
