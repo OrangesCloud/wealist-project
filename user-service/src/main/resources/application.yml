@@ -20,10 +20,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-    show-sql: ${JPA_SHOW_SQL}
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        format_sql: ${JPA_FORMAT_SQL}
+        format_sql: ${JPA_FORMAT_SQL:false}
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
     sql:
       init:
@@ -133,6 +133,40 @@ management:
     metrics:
       export:
         enabled: true
+
+# Sample data generation configuration
+sample-data:
+  enabled: ${SAMPLE_DATA_ENABLED:false}
+
+board-service:
+  url: ${BOARD_SERVICE_URL:http://localhost:8081}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+sample-data:
+  enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: staging
+
+sample-data:
+  enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+
+sample-data:
+  enabled: false
 
 ---
 spring:

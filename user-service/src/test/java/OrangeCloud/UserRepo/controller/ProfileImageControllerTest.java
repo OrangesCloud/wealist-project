@@ -6,6 +6,7 @@ import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
 import OrangeCloud.UserRepo.exception.CustomException;
 import OrangeCloud.UserRepo.exception.ErrorCode;
+import OrangeCloud.UserRepo.exception.GlobalExceptionHandler;
 import OrangeCloud.UserRepo.exception.UserNotFoundException;
 import OrangeCloud.UserRepo.service.S3Service;
 import OrangeCloud.UserRepo.service.UserProfileService;
@@ -53,7 +54,9 @@ class ProfileImageControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(profileImageController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(profileImageController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
         objectMapper = new ObjectMapper();
     }
 
@@ -544,19 +547,18 @@ class ProfileImageControllerTest {
                 emptyFileKey
         );
 
-        when(s3Service.generateS3Url(emptyFileKey))
-                .thenThrow(new CustomException(ErrorCode.INVALID_INPUT_VALUE, "파일 키는 필수입니다."));
-
         Principal principal = createMockPrincipal(userId);
 
         // When & Then
+        // @NotBlank validation에 의해 400 에러 발생
         mockMvc.perform(put("/api/profiles/me/image")
                         .principal(principal)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
 
-        verify(s3Service, times(1)).generateS3Url(emptyFileKey);
+        // Validation에서 걸리므로 s3Service는 호출되지 않음
+        verify(s3Service, never()).generateS3Url(any());
         verify(userProfileService, never()).updateProfile(any());
     }
 
