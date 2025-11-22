@@ -102,6 +102,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	
+	// jqwik for property-based testing
+	testImplementation 'net.jqwik:jqwik:1.8.2'
 }
 
 tasks.named('test') {

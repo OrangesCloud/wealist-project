@@ -134,6 +134,40 @@ management:
       export:
         enabled: true
 
+# Sample data generation configuration
+sample-data:
+  enabled: ${SAMPLE_DATA_ENABLED:false}
+
+board-service:
+  url: ${BOARD_SERVICE_URL:http://localhost:8081}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+sample-data:
+  enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: staging
+
+sample-data:
+  enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+
+sample-data:
+  enabled: false
+
 ---
 spring:
   config:
