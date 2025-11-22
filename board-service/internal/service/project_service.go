@@ -372,6 +372,13 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 		return nil, err
 	}
 
+	// Validate and confirm attachments if provided
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.validateAndConfirmAttachments(ctx, req.AttachmentIDs, domain.EntityTypeProject); err != nil {
+			return nil, err
+		}
+	}
+
 	// Update fields if provided
 	if req.Name != nil {
 		project.Name = *req.Name
@@ -389,6 +396,27 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 	// Save to repository
 	if err := s.projectRepo.Update(ctx, project); err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update project", err.Error())
+	}
+
+	// Confirm attachments after project update
+	if len(req.AttachmentIDs) > 0 {
+		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, project.ID); err != nil {
+			s.logger.Warn("Failed to confirm attachments during project update",
+				zap.String("project_id", project.ID.String()),
+				zap.Error(err))
+			// Continue even if attachment confirmation fails
+		}
+		
+		// Reload project with attachments to include them in response
+		reloadedProject, err := s.projectRepo.FindByID(ctx, project.ID)
+		if err != nil {
+			s.logger.Warn("Failed to reload project with attachments",
+				zap.String("project_id", project.ID.String()),
+				zap.Error(err))
+			// Continue with original project if reload fails
+		} else {
+			project = reloadedProject
+		}
 	}
 
 	// Convert to response DTO

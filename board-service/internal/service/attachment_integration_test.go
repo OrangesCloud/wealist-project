@@ -318,7 +318,8 @@ func TestCreateCommentWithAttachments(t *testing.T) {
 			AttachmentIDs: []uuid.UUID{attachmentID},
 		}
 
-		result, err := service.CreateComment(ctx, req)
+		userID := uuid.New()
+		result, err := service.CreateComment(ctx, userID, req)
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -353,7 +354,8 @@ func TestCreateCommentWithAttachments(t *testing.T) {
 			AttachmentIDs: []uuid.UUID{attachmentID},
 		}
 
-		_, err := service.CreateComment(ctx, req)
+		userID := uuid.New()
+		_, err := service.CreateComment(ctx, userID, req)
 		if err == nil {
 			t.Fatal("Expected error for missing attachment, got nil")
 		}

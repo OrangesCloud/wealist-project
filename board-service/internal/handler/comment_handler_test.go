@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"project-board-api/internal/dto"
@@ -16,15 +17,15 @@ import (
 
 // MockCommentService is a mock implementation of CommentService
 type MockCommentService struct {
-	CreateCommentFunc func(ctx context.Context, req *dto.CreateCommentRequest) (*dto.CommentResponse, error)
+	CreateCommentFunc func(ctx context.Context, userID uuid.UUID, req *dto.CreateCommentRequest) (*dto.CommentResponse, error)
 	GetCommentsFunc   func(ctx context.Context, boardID uuid.UUID) ([]*dto.CommentResponse, error)
 	UpdateCommentFunc func(ctx context.Context, commentID uuid.UUID, req *dto.UpdateCommentRequest) (*dto.CommentResponse, error)
 	DeleteCommentFunc func(ctx context.Context, commentID uuid.UUID) error
 }
 
-func (m *MockCommentService) CreateComment(ctx context.Context, req *dto.CreateCommentRequest) (*dto.CommentResponse, error) {
+func (m *MockCommentService) CreateComment(ctx context.Context, userID uuid.UUID, req *dto.CreateCommentRequest) (*dto.CommentResponse, error) {
 	if m.CreateCommentFunc != nil {
-		return m.CreateCommentFunc(ctx, req)
+		return m.CreateCommentFunc(ctx, userID, req)
 	}
 	return nil, nil
 }
@@ -68,11 +69,11 @@ func TestCommentHandler_CreateComment(t *testing.T) {
 				Content: "Test Comment",
 			},
 			mockService: func(m *MockCommentService) {
-				m.CreateCommentFunc = func(ctx context.Context, req *dto.CreateCommentRequest) (*dto.CommentResponse, error) {
+				m.CreateCommentFunc = func(ctx context.Context, uid uuid.UUID, req *dto.CreateCommentRequest) (*dto.CommentResponse, error) {
 					return &dto.CommentResponse{
 						CommentID: commentID,
 						BoardID:   req.BoardID,
-						UserID:    userID,
+						UserID:    uid,
 						Content:   req.Content,
 					}, nil
 				}
@@ -92,7 +93,7 @@ func TestCommentHandler_CreateComment(t *testing.T) {
 				Content: "Test Comment",
 			},
 			mockService: func(m *MockCommentService) {
-				m.CreateCommentFunc = func(ctx context.Context, req *dto.CreateCommentRequest) (*dto.CommentResponse, error) {
+				m.CreateCommentFunc = func(ctx context.Context, uid uuid.UUID, req *dto.CreateCommentRequest) (*dto.CommentResponse, error) {
 					return nil, response.NewAppError(response.ErrCodeNotFound, "Board not found", "")
 				}
 			},
@@ -108,7 +109,11 @@ func TestCommentHandler_CreateComment(t *testing.T) {
 			handler := NewCommentHandler(mockService)
 
 			router := setupTestRouter()
-			router.POST("/api/comments", handler.CreateComment)
+			router.POST("/api/comments", func(c *gin.Context) {
+				// Set user_id in context for testing
+				c.Set("user_id", userID)
+				handler.CreateComment(c)
+			})
 
 			body, _ := json.Marshal(tt.requestBody)
 			req := httptest.NewRequest(http.MethodPost, "/api/comments", bytes.NewBuffer(body))

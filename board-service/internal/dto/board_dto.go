@@ -30,13 +30,15 @@ type CreateBoardRequest struct {
 // @Description customFields should contain field type as key and value string as value
 // @Description Valid field types: stage, role, importance
 // @Description Example values: stage="completed", role="designer", importance="medium"
+// @Description attachmentIds is an optional array of attachment IDs to add to the board
 type UpdateBoardRequest struct {
-	Title        *string                 `json:"title" binding:"omitempty,min=1,max=200" example:"Update user authentication"`
-	Content      *string                 `json:"content" binding:"omitempty,max=5000" example:"Refactor JWT implementation"`
-	CustomFields *map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:medium"`
-	AssigneeID   *uuid.UUID              `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
-	StartDate    *time.Time              `json:"startDate" example:"2024-01-01T00:00:00Z"`
-	DueDate      *time.Time              `json:"dueDate" example:"2024-12-31T23:59:59Z"`
+	Title         *string                 `json:"title" binding:"omitempty,min=1,max=200" example:"Update user authentication"`
+	Content       *string                 `json:"content" binding:"omitempty,max=5000" example:"Refactor JWT implementation"`
+	CustomFields  *map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:medium"`
+	AssigneeID    *uuid.UUID              `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
+	StartDate     *time.Time              `json:"startDate" example:"2024-01-01T00:00:00Z"`
+	DueDate       *time.Time              `json:"dueDate" example:"2024-12-31T23:59:59Z"`
+	AttachmentIDs []uuid.UUID             `json:"attachmentIds,omitempty" binding:"omitempty,dive,uuid" example:"f47ac10b-58cc-4372-a567-0e02b2c3d479"`
 }
 
 // UpdateBoardFieldRequest represents the request to update a single board field

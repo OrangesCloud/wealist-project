@@ -89,10 +89,41 @@ JWT_SECRET=your-secret-key
 JWT_EXPIRATION=86400000
 
 # S3 (Presigned URL 업로드용)
-AWS_S3_BUCKET=wealist-dev-files
-AWS_S3_REGION=ap-northeast-2
-AWS_ACCESS_KEY_ID=your-access-key
-AWS_SECRET_ACCESS_KEY=your-secret-key
+S3_BUCKET=wealist-dev-files
+S3_REGION=ap-northeast-2
+# S3_ENDPOINT=http://localhost:9000  # MinIO 사용 시에만 설정
+# S3_ACCESS_KEY=minioadmin           # MinIO 사용 시에만 설정
+# S3_SECRET_KEY=minioadmin           # MinIO 사용 시에만 설정
+```
+
+### S3 자격증명 설정
+
+**AWS 환경 (EC2):**
+- IAM 역할 사용 (자격증명 불필요)
+- EC2 인스턴스에 S3 접근 권한이 있는 IAM 역할 할당
+
+**로컬 환경:**
+- `~/.aws/credentials` 파일 사용 (권장)
+- 또는 환경 변수 사용: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+
+```bash
+# ~/.aws/credentials 파일 설정
+[default]
+aws_access_key_id = YOUR_ACCESS_KEY
+aws_secret_access_key = YOUR_SECRET_KEY
+
+# ~/.aws/config 파일 설정
+[default]
+region = ap-northeast-2
+```
+
+**MinIO 사용 (로컬 테스트):**
+- `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` 환경 변수 설정 필요
+
+```bash
+S3_ENDPOINT=http://localhost:9000
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
 ```
 
 ## 테스트
