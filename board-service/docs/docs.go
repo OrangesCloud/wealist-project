@@ -90,7 +90,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "새로운 Board를 생성합니다\ncustomFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)\n유효한 필드 타입: stage, role, importance\n예시 값: stage=\"in_progress\", role=\"developer\", importance=\"high\"\n잘못된 field value 제공 시 400 에러 반환\nassigneeId가 제공되지 않으면 자동으로 authorId로 설정됩니다\nstartDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다",
+                "description": "새로운 Board를 생성합니다\ncustomFields는 value 기반 인터페이스를 사용합니다 (UUID 아님)\n유효한 필드 타입: stage, role, importance\n예시 값: stage=\"in_progress\", role=\"developer\", importance=\"high\"\n잘못된 field value 제공 시 400 에러 반환\nassigneeId가 제공되지 않으면 자동으로 authorId로 설정됩니다\nstartDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다\nparticipants는 선택 사항이며, Board 생성 시 참여자를 함께 추가할 수 있습니다\nparticipants는 최대 50개의 UUID 배열이며, 중복된 ID는 자동으로 제거됩니다\nparticipants 추가가 실패해도 Board 생성은 성공하며, 성공한 참여자만 응답에 포함됩니다\n응답의 participantIds 필드에 생성된 참여자 ID 목록이 포함됩니다\n예시: {\"participants\": [\"550e8400-e29b-41d4-a716-446655440001\", \"550e8400-e29b-41d4-a716-446655440002\"]}",
                 "consumes": [
                     "application/json"
                 ],
@@ -114,7 +114,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Board 생성 성공",
+                        "description": "Board 생성 성공 (participantIds 포함)",
                         "schema": {
                             "allOf": [
                                 {
@@ -2561,7 +2561,7 @@ const docTemplate = `{
             }
         },
         "dto.CreateBoardRequest": {
-            "description": "Request body for creating a new board with value-based customFields customFields should contain field type as key and value string as value Valid field types: stage, role, importance Example values: stage=\"in_progress\", role=\"developer\", importance=\"high\"",
+            "description": "Request body for creating a new board with value-based customFields customFields should contain field type as key and value string as value Valid field types: stage, role, importance Example values: stage=\"in_progress\", role=\"developer\", importance=\"high\" participants is an optional array of user IDs to add as board participants (max 50)",
             "type": "object",
             "required": [
                 "projectId",
@@ -2589,6 +2589,17 @@ const docTemplate = `{
                 "dueDate": {
                     "type": "string",
                     "example": "2024-12-31T23:59:59Z"
+                },
+                "participants": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    ]
                 },
                 "projectId": {
                     "type": "string",

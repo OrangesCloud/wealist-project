@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
@@ -28,11 +30,13 @@ type BoardService interface {
 
 // boardServiceImpl is the implementation of BoardService
 type boardServiceImpl struct {
-	boardRepo           repository.BoardRepository
-	projectRepo         repository.ProjectRepository
-	fieldOptionRepo     repository.FieldOptionRepository
+	boardRepo            repository.BoardRepository
+	projectRepo          repository.ProjectRepository
+	fieldOptionRepo      repository.FieldOptionRepository
+	participantRepo      repository.ParticipantRepository
 	fieldOptionConverter FieldOptionConverter
-	metrics             *metrics.Metrics
+	metrics              *metrics.Metrics
+	logger               *zap.Logger
 }
 
 // FieldOptionConverter handles conversion between field option values and IDs
@@ -47,15 +51,19 @@ func NewBoardService(
 	boardRepo repository.BoardRepository,
 	projectRepo repository.ProjectRepository,
 	fieldOptionRepo repository.FieldOptionRepository,
+	participantRepo repository.ParticipantRepository,
 	fieldOptionConverter FieldOptionConverter,
 	m *metrics.Metrics,
+	logger *zap.Logger,
 ) BoardService {
 	return &boardServiceImpl{
 		boardRepo:            boardRepo,
 		projectRepo:          projectRepo,
 		fieldOptionRepo:      fieldOptionRepo,
+		participantRepo:      participantRepo,
 		fieldOptionConverter: fieldOptionConverter,
 		metrics:              m,
+		logger:               logger,
 	}
 }
 
@@ -123,6 +131,28 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 	// Increment board creation metric
 	if s.metrics != nil {
 		s.metrics.IncrementBoardCreated()
+	}
+
+	// Add participants if provided
+	if len(req.Participants) > 0 {
+		successCount, err := s.addParticipantsInternal(ctx, board.ID, req.Participants)
+		if err != nil {
+			s.logger.Warn("Error occurred while adding participants during board creation",
+				zap.String("board_id", board.ID.String()),
+				zap.Int("success_count", successCount),
+				zap.Error(err))
+		}
+		
+		// Reload board with participants to include them in response
+		reloadedBoard, err := s.boardRepo.FindByID(ctx, board.ID)
+		if err != nil {
+			s.logger.Warn("Failed to reload board with participants",
+				zap.String("board_id", board.ID.String()),
+				zap.Error(err))
+			// Continue with original board if reload fails
+		} else {
+			board = reloadedBoard
+		}
 	}
 
 	// Convert to response DTO
@@ -382,4 +412,67 @@ func validateDateRange(startDate, dueDate *time.Time) error {
 		}
 	}
 	return nil
+}
+
+// addParticipantsInternal is an internal helper to add participants during board creation
+// It does not verify board existence (assumes board was just created)
+// Returns the number of successfully added participants and any errors
+func (s *boardServiceImpl) addParticipantsInternal(ctx context.Context, boardID uuid.UUID, userIDs []uuid.UUID) (int, error) {
+	// Remove duplicates from the user IDs
+	uniqueUserIDs := removeDuplicateUUIDs(userIDs)
+	
+	successCount := 0
+	var failedUserIDs []uuid.UUID
+	
+	// Process each participant individually
+	for _, userID := range uniqueUserIDs {
+		// Check if participant already exists
+		existing, err := s.participantRepo.FindByBoardAndUser(ctx, boardID, userID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Warn("Failed to check existing participant",
+				zap.String("board_id", boardID.String()),
+				zap.String("user_id", userID.String()),
+				zap.Error(err))
+			failedUserIDs = append(failedUserIDs, userID)
+			continue
+		}
+		if existing != nil {
+			// Participant already exists, skip
+			continue
+		}
+		
+		// Create domain model
+		participant := &domain.Participant{
+			BoardID: boardID,
+			UserID:  userID,
+		}
+		
+		// Save to repository
+		if err := s.participantRepo.Create(ctx, participant); err != nil {
+			// Check for unique constraint violation
+			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+				// Participant already exists, skip
+				continue
+			}
+			s.logger.Warn("Failed to add participant",
+				zap.String("board_id", boardID.String()),
+				zap.String("user_id", userID.String()),
+				zap.Error(err))
+			failedUserIDs = append(failedUserIDs, userID)
+			continue
+		}
+		
+		successCount++
+	}
+	
+	// Log summary if there were failures
+	if len(failedUserIDs) > 0 {
+		s.logger.Warn("Some participants failed to be added during board creation",
+			zap.String("board_id", boardID.String()),
+			zap.Int("success_count", successCount),
+			zap.Int("failed_count", len(failedUserIDs)),
+			zap.Any("failed_user_ids", failedUserIDs))
+	}
+	
+	return successCount, nil
 }

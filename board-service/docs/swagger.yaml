@@ -211,7 +211,8 @@ definitions:
     description: 'Request body for creating a new board with value-based customFields
       customFields should contain field type as key and value string as value Valid
       field types: stage, role, importance Example values: stage="in_progress", role="developer",
-      importance="high"'
+      importance="high" participants is an optional array of user IDs to add as board
+      participants (max 50)'
     properties:
       assigneeId:
         example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -229,6 +230,14 @@ definitions:
       dueDate:
         example: "2024-12-31T23:59:59Z"
         type: string
+      participants:
+        example:
+        - a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        - b2c3d4e5-f6a7-8901-bcde-f12345678901
+        items:
+          type: string
+        maxItems: 50
+        type: array
       projectId:
         example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
         type: string
@@ -787,6 +796,11 @@ paths:
         잘못된 field value 제공 시 400 에러 반환
         assigneeId가 제공되지 않으면 자동으로 authorId로 설정됩니다
         startDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다
+        participants는 선택 사항이며, Board 생성 시 참여자를 함께 추가할 수 있습니다
+        participants는 최대 50개의 UUID 배열이며, 중복된 ID는 자동으로 제거됩니다
+        participants 추가가 실패해도 Board 생성은 성공하며, 성공한 참여자만 응답에 포함됩니다
+        응답의 participantIds 필드에 생성된 참여자 ID 목록이 포함됩니다
+        예시: {"participants": ["550e8400-e29b-41d4-a716-446655440001", "550e8400-e29b-41d4-a716-446655440002"]}
       parameters:
       - description: Board 생성 요청
         in: body
@@ -798,7 +812,7 @@ paths:
       - application/json
       responses:
         "201":
-          description: Board 생성 성공
+          description: Board 생성 성공 (participantIds 포함)
           schema:
             allOf:
             - $ref: '#/definitions/response.SuccessResponse'
