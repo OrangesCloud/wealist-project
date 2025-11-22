@@ -189,6 +189,9 @@ func (h *AttachmentHandler) GeneratePresignedURL(c *gin.Context) {
 	expiresAt := now.Add(1 * time.Hour) // Expires in 1 hour
 
 	attachment := &domain.Attachment{
+		BaseModel: domain.BaseModel{
+			ID: uuid.New(), // Generate UUID in Go code
+		},
 		EntityType:  entityType,
 		EntityID:    nil, // Will be set when entity is created
 		Status:      domain.AttachmentStatusTemp,
@@ -373,6 +376,9 @@ func (h *AttachmentHandler) SaveAttachmentMetadata(c *gin.Context) {
 	expiresAt := now.Add(1 * time.Hour) // Expires in 1 hour
 
 	attachment := &domain.Attachment{
+		BaseModel: domain.BaseModel{
+			ID: uuid.New(), // Generate UUID in Go code
+		},
 		EntityType:  entityType,
 		EntityID:    nil, // Will be set when entity is created
 		Status:      domain.AttachmentStatusTemp,
