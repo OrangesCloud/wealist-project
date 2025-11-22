@@ -32,6 +32,9 @@ type S3Client struct {
 }
 
 // NewS3Client creates a new S3 client
+// Uses AWS SDK default credential chain:
+// - EC2: IAM role credentials (automatic)
+// - Local: ~/.aws/credentials or environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
 func NewS3Client(cfg *appConfig.S3Config) (*S3Client, error) {
 	if cfg.Bucket == "" {
 		return nil, fmt.Errorf("S3 bucket is required")
@@ -44,8 +47,13 @@ func NewS3Client(cfg *appConfig.S3Config) (*S3Client, error) {
 	var awsCfg aws.Config
 	var err error
 
-	// If endpoint is provided (for local MinIO), use custom endpoint resolver
+	// If endpoint is provided (for local MinIO), use custom endpoint resolver with explicit credentials
 	if cfg.Endpoint != "" {
+		// MinIO requires explicit credentials
+		if cfg.AccessKey == "" || cfg.SecretKey == "" {
+			return nil, fmt.Errorf("access key and secret key are required for MinIO endpoint")
+		}
+		
 		awsCfg, err = config.LoadDefaultConfig(context.TODO(),
 			config.WithRegion(cfg.Region),
 			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
@@ -64,14 +72,9 @@ func NewS3Client(cfg *appConfig.S3Config) (*S3Client, error) {
 			)),
 		)
 	} else {
-		// Use default AWS configuration
+		// Use AWS SDK default credential chain (IAM role on EC2, ~/.aws/credentials locally)
 		awsCfg, err = config.LoadDefaultConfig(context.TODO(),
 			config.WithRegion(cfg.Region),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-				cfg.AccessKey,
-				cfg.SecretKey,
-				"",
-			)),
 		)
 	}
 

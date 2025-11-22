@@ -14,6 +14,10 @@ import java.net.URI;
 /**
  * S3 설정 클래스
  * 로컬 및 AWS 환경에서 S3 클라이언트를 구성합니다.
+ * 
+ * AWS SDK 기본 자격증명 체인 사용:
+ * - EC2: IAM 역할 자격증명 (자동)
+ * - 로컬: ~/.aws/credentials 또는 환경 변수 (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
  */
 @Configuration
 @ConfigurationProperties(prefix = "aws.s3")
@@ -21,25 +25,31 @@ public class S3Config {
 
     private String bucket;
     private String region;
-    private String accessKey;
-    private String secretKey;
-    private String endpoint; // 로컬 MinIO용 (선택적)
+    private String accessKey; // MinIO용만 필요 (선택적)
+    private String secretKey; // MinIO용만 필요 (선택적)
+    private String endpoint;  // 로컬 MinIO용 (선택적)
 
     /**
      * S3 클라이언트 빈 생성
+     * endpoint가 설정된 경우(MinIO) 명시적 자격증명 사용
+     * 그 외의 경우 AWS SDK 기본 자격증명 체인 사용
      */
     @Bean
     public S3Client s3Client() {
         var builder = S3Client.builder()
-                .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)
-                ));
+                .region(Region.of(region));
 
-        // 로컬 환경에서 MinIO 사용 시 endpoint 설정
+        // MinIO 사용 시 명시적 자격증명 필요
         if (endpoint != null && !endpoint.isEmpty()) {
+            if (accessKey == null || accessKey.isEmpty() || secretKey == null || secretKey.isEmpty()) {
+                throw new IllegalStateException("Access key and secret key are required for MinIO endpoint");
+            }
+            builder.credentialsProvider(StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(accessKey, secretKey)
+            ));
             builder.endpointOverride(URI.create(endpoint));
         }
+        // AWS 환경에서는 기본 자격증명 체인 사용 (IAM 역할 또는 ~/.aws/credentials)
 
         return builder.build();
     }
@@ -51,15 +61,19 @@ public class S3Config {
     @Bean
     public S3Presigner s3Presigner() {
         var builder = S3Presigner.builder()
-                .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)
-                ));
+                .region(Region.of(region));
 
-        // 로컬 환경에서 MinIO 사용 시 endpoint 설정
+        // MinIO 사용 시 명시적 자격증명 필요
         if (endpoint != null && !endpoint.isEmpty()) {
+            if (accessKey == null || accessKey.isEmpty() || secretKey == null || secretKey.isEmpty()) {
+                throw new IllegalStateException("Access key and secret key are required for MinIO endpoint");
+            }
+            builder.credentialsProvider(StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(accessKey, secretKey)
+            ));
             builder.endpointOverride(URI.create(endpoint));
         }
+        // AWS 환경에서는 기본 자격증명 체인 사용 (IAM 역할 또는 ~/.aws/credentials)
 
         return builder.build();
     }
