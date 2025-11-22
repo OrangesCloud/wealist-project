@@ -578,7 +578,6 @@ board-service는 user-service와 통신하기 위해 올바른 base URL 설정�
 
 **자세한 설정 가이드**: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)를 참조하세요.
 
-**배포 가이드**: [.kiro/docs/DEPLOYMENT_GUIDES.md](../.kiro/docs/DEPLOYMENT_GUIDES.md)를 참조하세요.
 
 ## 개발
 
@@ -616,7 +615,6 @@ make test-coverage-text # 테스트 커버리지 (텍스트)
 ./board-service/scripts/quick-test.sh projects
 ```
 
-자세한 내용은 [.kiro/docs/TESTING_GUIDES.md](../.kiro/docs/TESTING_GUIDES.md)를 참조하세요.
 
 ### 코드 품질
 
