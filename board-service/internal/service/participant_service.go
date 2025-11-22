@@ -17,6 +17,7 @@ import (
 // ParticipantService defines the interface for participant business logic
 type ParticipantService interface {
 	AddParticipants(ctx context.Context, req *dto.AddParticipantsRequest) (*dto.AddParticipantsResponse, error)
+	AddParticipantsInternal(ctx context.Context, boardID uuid.UUID, userIDs []uuid.UUID) (int, error)
 	GetParticipants(ctx context.Context, boardID uuid.UUID) ([]*dto.ParticipantResponse, error)
 	RemoveParticipant(ctx context.Context, boardID, userID uuid.UUID) error
 }
@@ -50,26 +51,62 @@ func (s *participantServiceImpl) AddParticipants(ctx context.Context, req *dto.A
 	uniqueUserIDs := removeDuplicateUUIDs(req.UserIDs)
 
 	// Initialize response
-	response := &dto.AddParticipantsResponse{
+	resp := &dto.AddParticipantsResponse{
 		TotalRequested: len(uniqueUserIDs),
 		TotalSuccess:   0,
 		TotalFailed:    0,
 		Results:        make([]dto.ParticipantResult, 0, len(uniqueUserIDs)),
 	}
 
-	// Process each participant individually
-	for _, userID := range uniqueUserIDs {
-		result := s.addSingleParticipant(ctx, req.BoardID, userID)
-		response.Results = append(response.Results, result)
-		
+	// Use shared logic to add participants
+	results := s.addParticipantsShared(ctx, req.BoardID, uniqueUserIDs)
+	
+	// Populate response
+	for _, result := range results {
+		resp.Results = append(resp.Results, result)
 		if result.Success {
-			response.TotalSuccess++
+			resp.TotalSuccess++
 		} else {
-			response.TotalFailed++
+			resp.TotalFailed++
 		}
 	}
 
-	return response, nil
+	return resp, nil
+}
+
+// AddParticipantsInternal adds participants without board existence check
+// Used internally by BoardService during board creation
+// Returns count of successful additions and any errors
+func (s *participantServiceImpl) AddParticipantsInternal(ctx context.Context, boardID uuid.UUID, userIDs []uuid.UUID) (int, error) {
+	// Remove duplicates from the user IDs
+	uniqueUserIDs := removeDuplicateUUIDs(userIDs)
+	
+	// Use shared logic to add participants
+	results := s.addParticipantsShared(ctx, boardID, uniqueUserIDs)
+	
+	// Count successes
+	successCount := 0
+	for _, result := range results {
+		if result.Success {
+			successCount++
+		}
+	}
+	
+	return successCount, nil
+}
+
+// addParticipantsShared contains the common logic for adding participants
+// Returns a slice of ParticipantResult for each user ID
+func (s *participantServiceImpl) addParticipantsShared(ctx context.Context, boardID uuid.UUID, userIDs []uuid.UUID) []dto.ParticipantResult {
+	results := make([]dto.ParticipantResult, 0, len(userIDs))
+	
+	// Process each participant individually
+	for _, userID := range userIDs {
+		result := s.addSingleParticipant(ctx, boardID, userID)
+		results = append(results, result)
+	}
+	
+	return results
 }
 
 // addSingleParticipant attempts to add a single participant and returns the result
