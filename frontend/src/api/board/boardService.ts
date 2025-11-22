@@ -1034,3 +1034,16 @@ export const moveBoard = async (
     throw error;
   }
 };
+export const addCommentToBoardWithFile = async (
+  boardId: string,
+  formData: FormData,
+): Promise<CommentResponse> => {
+  // Axios 요청 시 Content-Type을 'multipart/form-data'로 설정해야 합니다.
+  // 보통 Axios는 FormData 객체를 사용하면 자동으로 Content-Type을 설정합니다.
+  const response = await boardServiceClient.post<CommentResponse>(`/api/boards/${boardId}/comments`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};

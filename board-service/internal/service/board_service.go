@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
@@ -27,11 +30,13 @@ type BoardService interface {
 
 // boardServiceImpl is the implementation of BoardService
 type boardServiceImpl struct {
-	boardRepo           repository.BoardRepository
-	projectRepo         repository.ProjectRepository
-	fieldOptionRepo     repository.FieldOptionRepository
+	boardRepo            repository.BoardRepository
+	projectRepo          repository.ProjectRepository
+	fieldOptionRepo      repository.FieldOptionRepository
+	participantRepo      repository.ParticipantRepository
 	fieldOptionConverter FieldOptionConverter
-	metrics             *metrics.Metrics
+	metrics              *metrics.Metrics
+	logger               *zap.Logger
 }
 
 // FieldOptionConverter handles conversion between field option values and IDs
@@ -46,15 +51,19 @@ func NewBoardService(
 	boardRepo repository.BoardRepository,
 	projectRepo repository.ProjectRepository,
 	fieldOptionRepo repository.FieldOptionRepository,
+	participantRepo repository.ParticipantRepository,
 	fieldOptionConverter FieldOptionConverter,
 	m *metrics.Metrics,
+	logger *zap.Logger,
 ) BoardService {
 	return &boardServiceImpl{
 		boardRepo:            boardRepo,
 		projectRepo:          projectRepo,
 		fieldOptionRepo:      fieldOptionRepo,
+		participantRepo:      participantRepo,
 		fieldOptionConverter: fieldOptionConverter,
 		metrics:              m,
+		logger:               logger,
 	}
 }
 
@@ -64,6 +73,11 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 	authorID, exists := ctx.Value("user_id").(uuid.UUID)
 	if !exists {
 		return nil, response.NewAppError(response.ErrCodeUnauthorized, "User ID not found in context", "")
+	}
+
+	// Validate date range
+	if err := validateDateRange(req.StartDate, req.DueDate); err != nil {
+		return nil, err
 	}
 
 	// Verify project exists
@@ -91,6 +105,12 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		customFieldsJSON = jsonBytes
 	}
 
+	// Set assigneeID: use provided value, or default to authorID if not provided
+	assigneeID := req.AssigneeID
+	if assigneeID == nil {
+		assigneeID = &authorID
+	}
+
 	// Create domain model from request with AuthorID
 	board := &domain.Board{
 		ProjectID:    req.ProjectID,
@@ -98,7 +118,8 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		Title:        req.Title,
 		Content:      req.Content,
 		CustomFields: customFieldsJSON,
-		AssigneeID:   req.AssigneeID,
+		AssigneeID:   assigneeID,
+		StartDate:    req.StartDate,
 		DueDate:      req.DueDate,
 	}
 
@@ -110,6 +131,28 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 	// Increment board creation metric
 	if s.metrics != nil {
 		s.metrics.IncrementBoardCreated()
+	}
+
+	// Add participants if provided
+	if len(req.Participants) > 0 {
+		successCount, err := s.addParticipantsInternal(ctx, board.ID, req.Participants)
+		if err != nil {
+			s.logger.Warn("Error occurred while adding participants during board creation",
+				zap.String("board_id", board.ID.String()),
+				zap.Int("success_count", successCount),
+				zap.Error(err))
+		}
+		
+		// Reload board with participants to include them in response
+		reloadedBoard, err := s.boardRepo.FindByID(ctx, board.ID)
+		if err != nil {
+			s.logger.Warn("Failed to reload board with participants",
+				zap.String("board_id", board.ID.String()),
+				zap.Error(err))
+			// Continue with original board if reload fails
+		} else {
+			board = reloadedBoard
+		}
 	}
 
 	// Convert to response DTO
@@ -184,6 +227,22 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch board", err.Error())
 	}
 
+	// Determine the effective start and due dates for validation
+	effectiveStartDate := board.StartDate
+	effectiveDueDate := board.DueDate
+	
+	if req.StartDate != nil {
+		effectiveStartDate = req.StartDate
+	}
+	if req.DueDate != nil {
+		effectiveDueDate = req.DueDate
+	}
+	
+	// Validate date range with effective dates
+	if err := validateDateRange(effectiveStartDate, effectiveDueDate); err != nil {
+		return nil, err
+	}
+
 	// Update fields if provided
 	if req.Title != nil {
 		board.Title = *req.Title
@@ -207,6 +266,9 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 	}
 	if req.AssigneeID != nil {
 		board.AssigneeID = req.AssigneeID
+	}
+	if req.StartDate != nil {
+		board.StartDate = req.StartDate
 	}
 	if req.DueDate != nil {
 		board.DueDate = req.DueDate
@@ -272,17 +334,40 @@ func (s *boardServiceImpl) toBoardResponse(board *domain.Board) *dto.BoardRespon
 		_ = json.Unmarshal(board.CustomFields, &customFields)
 	}
 	
+	// Extract participant IDs from board participants
+	participantIDs := make([]uuid.UUID, 0, len(board.Participants))
+	for _, p := range board.Participants {
+		participantIDs = append(participantIDs, p.UserID)
+	}
+	
+	// Convert attachments to response DTOs
+	attachments := make([]dto.AttachmentResponse, 0, len(board.Attachments))
+	for _, a := range board.Attachments {
+		attachments = append(attachments, dto.AttachmentResponse{
+			ID:          a.ID,
+			FileName:    a.FileName,
+			FileURL:     a.FileURL,
+			FileSize:    a.FileSize,
+			ContentType: a.ContentType,
+			UploadedBy:  a.UploadedBy,
+			UploadedAt:  a.CreatedAt,
+		})
+	}
+	
 	return &dto.BoardResponse{
-		ID:           board.ID,
-		ProjectID:    board.ProjectID,
-		AuthorID:     board.AuthorID,
-		AssigneeID:   board.AssigneeID,
-		Title:        board.Title,
-		Content:      board.Content,
-		CustomFields: customFields,
-		DueDate:      board.DueDate,
-		CreatedAt:    board.CreatedAt,
-		UpdatedAt:    board.UpdatedAt,
+		ID:             board.ID,
+		ProjectID:      board.ProjectID,
+		AuthorID:       board.AuthorID,
+		AssigneeID:     board.AssigneeID,
+		Title:          board.Title,
+		Content:        board.Content,
+		CustomFields:   customFields,
+		StartDate:      board.StartDate,
+		DueDate:        board.DueDate,
+		ParticipantIDs: participantIDs,
+		Attachments:    attachments,
+		CreatedAt:      board.CreatedAt,
+		UpdatedAt:      board.UpdatedAt,
 	}
 }
 
@@ -317,4 +402,77 @@ func (s *boardServiceImpl) toBoardDetailResponse(board *domain.Board) *dto.Board
 		Participants:  participants,
 		Comments:      comments,
 	}
+}
+
+// validateDateRange validates that startDate is not after dueDate
+func validateDateRange(startDate, dueDate *time.Time) error {
+	if startDate != nil && dueDate != nil {
+		if startDate.After(*dueDate) {
+			return response.NewAppError(response.ErrCodeValidation, "Start date cannot be after due date", "")
+		}
+	}
+	return nil
+}
+
+// addParticipantsInternal is an internal helper to add participants during board creation
+// It does not verify board existence (assumes board was just created)
+// Returns the number of successfully added participants and any errors
+func (s *boardServiceImpl) addParticipantsInternal(ctx context.Context, boardID uuid.UUID, userIDs []uuid.UUID) (int, error) {
+	// Remove duplicates from the user IDs
+	uniqueUserIDs := removeDuplicateUUIDs(userIDs)
+	
+	successCount := 0
+	var failedUserIDs []uuid.UUID
+	
+	// Process each participant individually
+	for _, userID := range uniqueUserIDs {
+		// Check if participant already exists
+		existing, err := s.participantRepo.FindByBoardAndUser(ctx, boardID, userID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Warn("Failed to check existing participant",
+				zap.String("board_id", boardID.String()),
+				zap.String("user_id", userID.String()),
+				zap.Error(err))
+			failedUserIDs = append(failedUserIDs, userID)
+			continue
+		}
+		if existing != nil {
+			// Participant already exists, skip
+			continue
+		}
+		
+		// Create domain model
+		participant := &domain.Participant{
+			BoardID: boardID,
+			UserID:  userID,
+		}
+		
+		// Save to repository
+		if err := s.participantRepo.Create(ctx, participant); err != nil {
+			// Check for unique constraint violation
+			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+				// Participant already exists, skip
+				continue
+			}
+			s.logger.Warn("Failed to add participant",
+				zap.String("board_id", boardID.String()),
+				zap.String("user_id", userID.String()),
+				zap.Error(err))
+			failedUserIDs = append(failedUserIDs, userID)
+			continue
+		}
+		
+		successCount++
+	}
+	
+	// Log summary if there were failures
+	if len(failedUserIDs) > 0 {
+		s.logger.Warn("Some participants failed to be added during board creation",
+			zap.String("board_id", boardID.String()),
+			zap.Int("success_count", successCount),
+			zap.Int("failed_count", len(failedUserIDs)),
+			zap.Any("failed_user_ids", failedUserIDs))
+	}
+	
+	return successCount, nil
 }

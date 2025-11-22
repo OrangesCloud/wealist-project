@@ -205,7 +205,8 @@ const SelectWorkspacePage: React.FC = () => {
       }
 
       resetCreateForm();
-      navigate(`/workspace/${newWorkspaceId}`);
+      // 💡 [수정] 생성 시 역할(role)은 OWNER로 가정하고 navigate state로 전달
+      navigate(`/workspace/${newWorkspaceId}`, { state: { userRole: 'OWNER' } });
     } catch (e: any) {
       const err = e as Error;
       setError(`워크스페이스 생성 실패: ${err.message}`);
@@ -220,10 +221,9 @@ const SelectWorkspacePage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // ⚠️ 여기에 API 호출이 필요할 수 있습니다 (예: 기본 워크스페이스 설정)
-      // 현재 명세에는 POST /api/workspaces/default가 있으나, 여기서는 단순 navigate만 수행합니다.
+      // 💡 [수정] navigate state로 해당 워크스페이스의 role 전달
       alert(`워크스페이스 '${workspace.workspaceName}'에 참여 완료!`);
-      navigate(`/workspace/${workspace.workspaceId}`);
+      navigate(`/workspace/${workspace.workspaceId}`, { state: { userRole: workspace.role } });
     } catch (e: any) {
       const err = e as Error;
       setError(`워크스페이스 참여 실패: ${err.message}`);

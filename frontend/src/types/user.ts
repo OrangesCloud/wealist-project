@@ -131,6 +131,7 @@ export interface WorkspaceMemberResponse {
   roleName: WorkspaceMemberRole;
   isDefault: boolean;
   joinedAt: string;
+  role: string;
 }
 
 /**

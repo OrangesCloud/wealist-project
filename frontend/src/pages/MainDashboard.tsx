@@ -1,6 +1,6 @@
 // src/pages/Dashboard.tsx (MainDashboard.tsx)
 
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Briefcase } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
@@ -25,8 +25,8 @@ import {
 import { WorkspaceMemberResponse } from '../types/user';
 import { CustomFieldManageModal } from '../components/modals/board/customFields/CustomFieldManageModal';
 import { BoardManageModal } from '../components/modals/board/BoardManageModal';
-import { ProjectModal } from '../components/modals/board/ProjectModal';
 import { IROLES } from '../types/common';
+import { ProjectManageModal } from '../components/modals/board/ProjectManageModal';
 
 interface MainDashboardProps {
   onLogout: () => void;
@@ -36,10 +36,11 @@ interface MainDashboardProps {
 interface UIState {
   showProjectSelector?: boolean;
   showUserProfile?: boolean;
-  showCreateProject?: boolean;
-  showManageModal?: boolean;
-  showProjectSettings?: boolean;
+  showCreateProject?: boolean; // 프로젝트 생성 (모드: 'create')
+  showManageModal?: boolean; // 커스텀 필드 관리
+  showProjectSettings?: boolean; // 프로젝트 설정 (모드: 'edit')
   showCreateBoard?: boolean;
+  showProjectDetail?: boolean; // 프로젝트 상세 보기 (모드: 'detail')
 }
 
 // 💡 [추가] 필드 옵션 룩업 인터페이스
@@ -55,10 +56,16 @@ interface FieldOptionsLookup {
 const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const currentWorkspaceId = workspaceId || '';
+  const location = useLocation(); // 💡 useLocation 훅 추가
 
-  const { theme } = useTheme();
-  const currentRole = useRef<IROLES>('ORGANIZER');
-  const canAccessSettings = currentRole.current === 'OWNER' || currentRole.current === 'ORGANIZER';
+  const { theme } = useTheme(); // 💡 [추가] location.state에서 userRole 추출 (기본값 설정 필요)
+  // 타입 가정이 필요하거나, location.state를 명시적으로 타입 캐스팅해야 할 수 있습니다.
+  const passedRole = ((location.state as any)?.userRole as IROLES) || 'GUEST'; // GUEST 등 기본값 설정
+
+  // 💡 currentRole을 useRef 대신 state로 관리하거나, Props로 전달해야 함.
+  // 여기서는 currentRole.current를 passedRole로 대체할 수 있습니다.
+  const currentRole = useRef<IROLES>(passedRole); // 초기 로드 시점의 역할 설정
+  const canAccessSettings = currentRole.current === 'OWNER' || currentRole.current === 'ADMIN';
 
   // [핵심 상태]
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
@@ -211,8 +218,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
 
   // 💡 ProjectContent에서 보드/필드 업데이트 시 호출될 함수
   const handleBoardContentUpdate = useCallback(() => {
-    console.log('[Dashboard] Board content updated in ProjectContent. Reloading Field Data.');
-    // 💡 데이터 변경 (CUD 작업) 후, InitData를 다시 로드하여 ProjectContent에 새 룩업 데이터를 전달
     fetchProjectContentInitSettings();
   }, [fetchProjectContentInitSettings]);
 
@@ -240,14 +245,14 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
       {/* 1. 헤더 영역 */}
       <ProjectHeader
         projects={projects}
+        userRole={currentRole?.current} // 💡 [수정] userRole prop 추가
         selectedProject={selectedProject}
         workspaceMembers={workspaceMembers}
         setSelectedProject={setSelectedProject}
         setShowCreateProject={() => toggleUiState('showCreateProject', true)}
-        setShowProjectSettings={() => toggleUiState('showProjectSettings', true)}
         showProjectSelector={uiState?.showProjectSelector || false}
         setShowProjectSelector={(show) => toggleUiState('showProjectSelector', show)}
-        canAccessSettings={canAccessSettings}
+        setShowProjectDetail={() => toggleUiState('showProjectDetail', true)}
       />
 
       {/* 2. 메인 콘텐츠 영역 */}
@@ -288,23 +293,40 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
         <UserProfileModal onClose={() => toggleUiState('showUserProfile', false)} />
       )}
 
+      {/* 💡 [통합] Project Manage Modal (Create, Settings/Edit, Detail) */}
       {/* Create Project Modal */}
       {uiState?.showCreateProject && (
-        <ProjectModal
+        <ProjectManageModal
           workspaceId={currentWorkspaceId}
           onClose={() => toggleUiState('showCreateProject', false)}
-          onProjectSaved={fetchProjects} // ✅ onProjectSaved 시, fetchProjects가 호출되어 최신 프로젝트가 선택됩니다.
+          onProjectSaved={fetchProjects}
           onProjectCreated={handleProjectCreated}
+          userRole={currentRole.current} // 💡 역할 전달
+          initialMode="create" // 💡 모드 지정
         />
       )}
 
-      {/* Project Settings Modal */}
+      {/* Project Settings Modal (Edit/Settings) */}
       {uiState?.showProjectSettings && selectedProject && (
-        <ProjectModal
+        <ProjectManageModal
           workspaceId={currentWorkspaceId}
           project={selectedProject}
           onClose={() => toggleUiState('showProjectSettings', false)}
           onProjectSaved={fetchProjects}
+          userRole={currentRole.current} // 💡 역할 전달
+          initialMode="edit" // 💡 모드 지정 (설정/수정으로 바로 진입)
+        />
+      )}
+
+      {/* Project Detail Modal (Detail) */}
+      {uiState?.showProjectDetail && selectedProject && (
+        <ProjectManageModal
+          workspaceId={currentWorkspaceId}
+          project={selectedProject}
+          onClose={() => toggleUiState('showProjectDetail', false)}
+          onProjectSaved={fetchProjects}
+          userRole={currentRole.current} // 💡 역할 전달
+          initialMode="detail" // 💡 모드 지정 (상세 보기로 바로 진입)
         />
       )}
 
