@@ -23,10 +23,13 @@ import {
   FieldOption,
   CommentResponse,
   ParticipantResponse,
+  CreateCommentRequest,
 } from '../../../types/board';
 import {
   getBoard,
   deleteBoard,
+  createComment,
+  getCommentsByBoard,
   // createCommentWithFile
 } from '../../../api/board/boardService';
 import { getWorkspaceMembers } from '../../../api/user/userService';
@@ -34,6 +37,8 @@ import { WorkspaceMemberResponse } from '../../../types/user';
 import { AvatarStack } from '../../common/AvartarStack';
 import { formatDate } from '../../../utils/date';
 import Portal from '../../common/Portal';
+import CommentList from '../../comment/CommentList';
+import { useAuth } from '../../../contexts/AuthContext';
 
 // 💡 1. 정적 데이터를 담을 인터페이스 정의 (startDate 추가)
 interface BoardState {
@@ -105,6 +110,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   fieldOptionsLookup,
 }) => {
   const { theme } = useTheme();
+  const { userId } = useAuth();
 
   // 💡 3. 정적 보드 데이터를 하나의 객체로 묶음
   const [boardData, setBoardData] = useState<BoardState>(initialBoardState);
@@ -182,6 +188,13 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
     }
   }, [workspaceId]);
 
+  // 1. 댓글 목록을 다시 불러오는 함수 필요
+  const fetchComments = async () => {
+    // 기존에 댓글 불러오는 로직
+    const res = await getCommentsByBoard(boardId);
+    setComments(res);
+  };
+
   const handleDelete = async () => {
     if (!window.confirm('정말 이 보드를 삭제하시겠습니까?')) return;
 
@@ -227,26 +240,27 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
   };
 
   const handleAddComment = async () => {
-    if (!newComment.trim() && !selectedFile) return;
+    // 1. 유효성 검사: 파일 로직은 인터페이스에 없으므로 텍스트만 체크하거나,
+    // 파일이 필요 없다면 제거해야 합니다. (여기서는 텍스트만 체크하도록 수정)
+    if (!newComment.trim()) return;
     if (isLoading) return;
 
     setIsLoading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('boardId', boardId);
-      formData.append('content', newComment.trim());
+      // 💡 FormData 대신 일반 객체(JSON) 생성
+      const requestBody: CreateCommentRequest = {
+        boardId: boardId,
+        content: newComment.trim(),
+      };
 
-      if (selectedFile) {
-        formData.append('file', selectedFile);
-      }
+      // API 호출 (이제 JSON 객체를 넘깁니다)
+      const addedComment = await createComment(requestBody);
 
-      // 💡 API 호출
-      // const addedComment = await createCommentWithFile(formData);
-
-      // 댓글 목록에 새 댓글 추가 (최신순 또는 서버의 정렬 기준에 따라)
-      // setComments((prevComments) => [...prevComments, addedComment]);
+      setComments((prevComments) => [...prevComments, addedComment]);
       setNewComment('');
+      // 파일 관련 초기화 로직은 인터페이스상 불필요해 보이지만,
+      // UI에 남아있다면 유지하거나 제거하세요.
       setSelectedFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -470,7 +484,21 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                   작업자 ({participantMembers.length}명)
                 </label>
                 {participantMembers.length > 0 ? (
-                  <AvatarStack members={participantMembers} />
+                  <div className="flex items-center gap-2">
+                    {/* 1. 아바타 스택 */}
+                    <AvatarStack members={participantMembers} />
+
+                    {/* 2. 이름 표시 로직 */}
+                    <span className="text-sm text-gray-700">
+                      {participantMembers
+                        .slice(0, 3) // 앞에서 3명만 자름
+                        .map((m) => m.userName) // 이름만 추출
+                        .join(', ')}{' '}
+                      {participantMembers.length > 3 && ( // 3명이 넘으면 '외 N명' 붙임
+                        <span className="text-gray-500"> 외 {participantMembers.length - 3}명</span>
+                      )}
+                    </span>
+                  </div>
                 ) : (
                   <span className="text-sm text-gray-500">없음</span>
                 )}
@@ -513,36 +541,18 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
 
           {/* Comments Section (이전과 동일) */}
           <div className="pt-4 border-t border-gray-200">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pb-2">
               <MessageSquare className="w-5 h-5 text-gray-700" />
               <h3 className="text-base font-bold text-gray-800">댓글 ({comments.length}개)</h3>
             </div>
-
             <div className="space-y-3 mb-4 max-h-40 overflow-y-auto">
-              {comments.map((comment) => (
-                <div
-                  key={comment.commentId}
-                  className="p-3 bg-gray-100 border border-gray-200 rounded-lg"
-                >
-                  <div className="flex items-start gap-2">
-                    <div className="w-6 h-6 bg-blue-500 flex items-center justify-center text-white text-xs font-bold rounded-full flex-shrink-0">
-                      {comment.userId?.[0] || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold">사용자 ID: {comment.userId}</span>
-                        <span className="text-[10px] text-gray-500">
-                          {formatDate(comment.createdAt)}
-                        </span>
-                      </div>
-                      <p className="text-sm break-words text-gray-700">{comment.content}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              <CommentList
+                comments={comments}
+                members={workspaceMembers}
+                currentUserId={userId as string} // 내 아이디 (Store나 Auth Context에서 가져온 값)
+                onRefresh={fetchComments} // 수정/삭제 완료되면 이 함수가 실행됨 -> 목록 갱신
+              />
             </div>
-
-            {/* 파일 input (숨김) */}
             <input
               type="file"
               ref={fileInputRef}

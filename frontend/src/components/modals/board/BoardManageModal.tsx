@@ -234,8 +234,8 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
           customFields,
           assigneeId: selectedAssigneeId || undefined,
           participants: selectedParticipantIds,
-          dueDate: dueDate || undefined,
-          startDate: startDate || undefined, // 💡 [추가] StartDate Payload에 추가
+          dueDate: `${dueDate}T00:00:00Z` || undefined,
+          startDate: `${startDate}T00:00:00Z` || undefined, // 💡 [추가] StartDate Payload에 추가
         };
 
         if (isEditing) {

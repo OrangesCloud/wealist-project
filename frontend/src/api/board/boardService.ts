@@ -46,26 +46,6 @@ const USE_MOCK_DATA = false; // 💡 목업 모드 ON/OFF
 export const getProjectInitSettings = async (
   projectId: string,
 ): Promise<ProjectInitSettingsResponse> => {
-  if (USE_MOCK_DATA) {
-    return {
-      project: {
-        projectId: 'mock-project-id',
-        workspaceId: 'mock-workspace-id',
-        workspaceName: 'Mock Workspace',
-        workspaceEmail: 'workspace@example.com',
-        name: 'Mock Project',
-        description: 'Mock project description',
-        ownerId: 'mock-owner-id',
-        isPublic: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      fields: [],
-      fieldTypes: [],
-      defaultViewId: 'mock-view-id',
-    };
-  }
-
   try {
     const response: AxiosResponse<SuccessResponse<ProjectInitSettingsResponse>> =
       await boardServiceClient.get(`/projects/${projectId}/init-settings`);
@@ -85,23 +65,6 @@ export const getProjectInitSettings = async (
  * [API] GET /api/projects/workspace/{workspaceId}
  */
 export const getProjects = async (workspaceId: string): Promise<ProjectResponse[]> => {
-  if (USE_MOCK_DATA) {
-    return [
-      {
-        projectId: 'mock-project-1',
-        workspaceId: workspaceId,
-        name: 'Mock Project 1',
-        description: 'First mock project',
-        ownerId: 'mock-owner-1',
-        ownerName: 'Mock Owner',
-        ownerEmail: 'owner@example.com',
-        isPublic: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
-  }
-
   try {
     const response: AxiosResponse<SuccessResponse<ProjectResponse[]>> =
       await boardServiceClient.get(`/projects/workspace/${workspaceId}`);
@@ -872,17 +835,6 @@ export const getCommentsByBoard = async (boardId: string): Promise<CommentRespon
  * [API] POST /api/comments
  */
 export const createComment = async (data: CreateCommentRequest): Promise<CommentResponse> => {
-  if (USE_MOCK_DATA) {
-    return {
-      commentId: 'mock-new-comment',
-      boardId: data.boardId,
-      userId: 'mock-user-id',
-      content: data.content,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
   try {
     const response: AxiosResponse<SuccessResponse<CommentResponse>> = await boardServiceClient.post(
       '/comments',
@@ -1040,10 +992,14 @@ export const addCommentToBoardWithFile = async (
 ): Promise<CommentResponse> => {
   // Axios 요청 시 Content-Type을 'multipart/form-data'로 설정해야 합니다.
   // 보통 Axios는 FormData 객체를 사용하면 자동으로 Content-Type을 설정합니다.
-  const response = await boardServiceClient.post<CommentResponse>(`/api/boards/${boardId}/comments`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
+  const response = await boardServiceClient.post<CommentResponse>(
+    `/api/boards/${boardId}/comments`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     },
-  });
+  );
   return response.data;
 };

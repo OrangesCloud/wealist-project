@@ -7,7 +7,6 @@ import OrangeCloud.UserRepo.oauth.OAuth2SuccessHandler;
 import OrangeCloud.UserRepo.service.AuthService;
 import OrangeCloud.UserRepo.util.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper; // 💡 ObjectMapper 임포트 추가
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

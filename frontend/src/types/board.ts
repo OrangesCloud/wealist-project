@@ -363,6 +363,7 @@ export interface CreateCommentRequest {
  * [API: PUT /api/comments/{commentId}]
  */
 export interface UpdateCommentRequest {
+  boardId: string;
   content: string;
 }
 

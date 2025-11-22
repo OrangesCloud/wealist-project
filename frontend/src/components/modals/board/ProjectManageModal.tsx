@@ -162,8 +162,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
         await updateProject(project.projectId, {
           name: name.trim(),
           description: description.trim() || undefined,
-          startDate: startDate || undefined, // 💡 [추가] StartDate 추가
-          dueDate: dueDate || undefined,
+          startDate: `${startDate}T00:00:00Z` || undefined, // 💡 [추가] StartDate 추가
+          dueDate: `${dueDate}T00:00:00Z` || undefined,
         });
         alert(`✅ ${name} 프로젝트가 수정되었습니다!`);
         onProjectSaved();
@@ -174,8 +174,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
           workspaceId: workspaceId,
           name: name.trim(),
           description: description.trim() || undefined,
-          startDate: startDate || undefined, // 💡 [추가] StartDate 추가
-          dueDate: dueDate || undefined,
+          startDate: `${startDate}T00:00:00Z` || undefined, // 💡 [추가] StartDate 추가
+          dueDate: `${dueDate}T00:00:00Z` || undefined,
         });
 
         alert(`✅ ${name} 프로젝트가 생성되었습니다!`);
