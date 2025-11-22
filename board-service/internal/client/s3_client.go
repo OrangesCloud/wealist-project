@@ -14,6 +14,15 @@ import (
 	appConfig "project-board-api/internal/config"
 )
 
+// S3ClientInterface defines the interface for S3 operations
+type S3ClientInterface interface {
+	GenerateFileKey(entityType, workspaceID, fileExt string) (string, error)
+	GeneratePresignedURL(ctx context.Context, entityType, workspaceID, fileName, contentType string) (string, string, error)
+	UploadFile(ctx context.Context, key string, file io.Reader, contentType string) (string, error)
+	DeleteFile(ctx context.Context, key string) error
+	GetFileURL(key string) string
+}
+
 // S3Client wraps AWS S3 client
 type S3Client struct {
 	client         *s3.Client

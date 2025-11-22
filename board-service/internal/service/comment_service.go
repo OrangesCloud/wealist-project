@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
