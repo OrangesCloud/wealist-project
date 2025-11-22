@@ -100,8 +100,13 @@ func setupAttachmentHandler(t *testing.T) (*AttachmentHandler, *gin.Engine) {
 	// Create handler
 	handler := NewAttachmentHandler(s3Client, mockRepo)
 
-	// Setup router
+	// Setup router with auth middleware
 	router := gin.New()
+	// Add middleware to set user_id in context (simulating auth middleware)
+	router.Use(func(c *gin.Context) {
+		c.Set("user_id", uuid.New())
+		c.Next()
+	})
 	router.POST("/attachments/presigned-url", handler.GeneratePresignedURL)
 
 	return handler, router
@@ -173,6 +178,10 @@ func TestGeneratePresignedURL_Success(t *testing.T) {
 			require.True(t, ok, "Response should contain data field")
 
 			// Verify presigned URL fields
+			attachmentID, ok := data["attachmentId"].(string)
+			assert.True(t, ok, "Response should contain attachmentId")
+			assert.NotEmpty(t, attachmentID, "Attachment ID should not be empty")
+
 			uploadURL, ok := data["uploadUrl"].(string)
 			assert.True(t, ok, "Response should contain uploadUrl")
 			assert.NotEmpty(t, uploadURL, "Upload URL should not be empty")

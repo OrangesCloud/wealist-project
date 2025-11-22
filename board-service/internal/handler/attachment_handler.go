@@ -82,14 +82,16 @@ type PresignedURLRequest struct {
 
 // PresignedURLResponse represents the response containing the presigned URL
 type PresignedURLResponse struct {
-	UploadURL string `json:"uploadUrl"`
-	FileKey   string `json:"fileKey"`
-	ExpiresIn int    `json:"expiresIn"` // seconds
+	AttachmentID uuid.UUID `json:"attachmentId"`
+	UploadURL    string    `json:"uploadUrl"`
+	FileKey      string    `json:"fileKey"`
+	ExpiresIn    int       `json:"expiresIn"` // seconds
 }
 
 // GeneratePresignedURL godoc
 // @Summary      Generate presigned URL for file upload
 // @Description  Generates a presigned URL for uploading a file directly to S3
+// @Description  Creates a temporary attachment record and returns its ID along with the presigned URL
 // @Description  Validates file metadata (size, type, name) before generating URL
 // @Description  Supported entity types: BOARD, COMMENT, PROJECT
 // @Description  Supported file types: images (jpg, jpeg, png, gif, webp) and documents (pdf, txt, doc, docx, xls, xlsx, ppt, pptx)
@@ -101,6 +103,7 @@ type PresignedURLResponse struct {
 // @Param        request body PresignedURLRequest true "Presigned URL request"
 // @Success      200 {object} response.SuccessResponse{data=PresignedURLResponse} "Presigned URL generated successfully"
 // @Failure      400 {object} response.ErrorResponse "Invalid request or file validation failed"
+// @Failure      401 {object} response.ErrorResponse "Unauthorized - user not authenticated"
 // @Failure      500 {object} response.ErrorResponse "Failed to generate presigned URL"
 // @Router       /attachments/presigned-url [post]
 func (h *AttachmentHandler) GeneratePresignedURL(c *gin.Context) {
@@ -108,6 +111,29 @@ func (h *AttachmentHandler) GeneratePresignedURL(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid request body")
 		return
+	}
+
+	// Get user ID from context (set by auth middleware)
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "User not authenticated")
+		return
+	}
+
+	userID, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		// Try parsing as string if it's not already a UUID
+		userIDStr, ok := userIDValue.(string)
+		if !ok {
+			response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "Invalid user ID format")
+			return
+		}
+		var err error
+		userID, err = uuid.Parse(userIDStr)
+		if err != nil {
+			response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "Invalid user ID format")
+			return
+		}
 	}
 
 	// Validate file size
@@ -155,11 +181,37 @@ func (h *AttachmentHandler) GeneratePresignedURL(c *gin.Context) {
 		return
 	}
 
-	// Return presigned URL response
+	// Generate file URL from file key
+	fileURL := h.s3Client.GetFileURL(fileKey)
+
+	// Create attachment record with temporary status
+	now := time.Now()
+	expiresAt := now.Add(1 * time.Hour) // Expires in 1 hour
+
+	attachment := &domain.Attachment{
+		EntityType:  entityType,
+		EntityID:    nil, // Will be set when entity is created
+		Status:      domain.AttachmentStatusTemp,
+		FileName:    req.FileName,
+		FileURL:     fileURL,
+		FileSize:    req.FileSize,
+		ContentType: req.ContentType,
+		UploadedBy:  userID,
+		ExpiresAt:   &expiresAt,
+	}
+
+	// Save to database
+	if err := h.attachmentRepo.Create(c.Request.Context(), attachment); err != nil {
+		response.SendError(c, http.StatusInternalServerError, response.ErrCodeInternal, "Failed to create attachment record")
+		return
+	}
+
+	// Return presigned URL response with attachment ID
 	resp := PresignedURLResponse{
-		UploadURL: uploadURL,
-		FileKey:   fileKey,
-		ExpiresIn: 300, // 5 minutes
+		AttachmentID: attachment.ID,
+		UploadURL:    uploadURL,
+		FileKey:      fileKey,
+		ExpiresIn:    300, // 5 minutes
 	}
 
 	response.SendSuccess(c, http.StatusOK, resp)
