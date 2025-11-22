@@ -9,12 +9,14 @@ import (
 // CreateProjectRequest represents the request to create a new project
 // @Description Request body for creating a new project with optional start and due dates
 // @Description startDate and dueDate are optional, but startDate must be before or equal to dueDate if both are provided
+// @Description attachmentIds is an optional array of attachment IDs to link to the project
 type CreateProjectRequest struct {
-	WorkspaceID uuid.UUID  `json:"workspaceId" binding:"required" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
-	Name        string     `json:"name" binding:"required,min=2,max=100" example:"Q1 2024 Product Launch"`
-	Description string     `json:"description" binding:"max=500" example:"Project for launching new product features in Q1 2024"`
-	StartDate   *time.Time `json:"startDate,omitempty" example:"2024-01-01T00:00:00Z"`
-	DueDate     *time.Time `json:"dueDate,omitempty" example:"2024-03-31T23:59:59Z"`
+	WorkspaceID   uuid.UUID   `json:"workspaceId" binding:"required" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
+	Name          string      `json:"name" binding:"required,min=2,max=100" example:"Q1 2024 Product Launch"`
+	Description   string      `json:"description" binding:"max=500" example:"Project for launching new product features in Q1 2024"`
+	StartDate     *time.Time  `json:"startDate,omitempty" example:"2024-01-01T00:00:00Z"`
+	DueDate       *time.Time  `json:"dueDate,omitempty" example:"2024-03-31T23:59:59Z"`
+	AttachmentIDs []uuid.UUID `json:"attachmentIds,omitempty" binding:"omitempty,dive,uuid" example:"f47ac10b-58cc-4372-a567-0e02b2c3d479"`
 }
 
 // UpdateProjectRequest represents the request to update a project

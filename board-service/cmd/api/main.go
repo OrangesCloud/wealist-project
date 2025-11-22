@@ -12,11 +12,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"github.com/robfig/cron/v3"
+
 	"project-board-api/internal/client"
 	"project-board-api/internal/config"
 	"project-board-api/internal/database"
+	"project-board-api/internal/job"
 	"project-board-api/internal/logger"
 	"project-board-api/internal/metrics"
+	"project-board-api/internal/repository"
 	"project-board-api/internal/router"
 
 	_ "project-board-api/docs" // Swagger docs
@@ -164,6 +168,40 @@ func main() {
 		zap.Duration("timeout", cfg.UserAPI.Timeout),
 	)
 
+	// Initialize S3 client
+	s3Client, err := client.NewS3Client(&cfg.S3)
+	if err != nil {
+		log.Fatal("Failed to initialize S3 client", zap.Error(err))
+	}
+
+	log.Info("S3 client initialized successfully",
+		zap.String("bucket", cfg.S3.Bucket),
+		zap.String("region", cfg.S3.Region),
+		zap.String("endpoint", cfg.S3.Endpoint),
+	)
+
+	// Initialize attachment repository for cleanup job
+	attachmentRepo := repository.NewAttachmentRepository(db)
+
+	// Initialize cleanup job
+	cleanupJob := job.NewCleanupJob(attachmentRepo, s3Client, log.Logger)
+
+	// Setup cron scheduler
+	c := cron.New()
+	
+	// Schedule cleanup job to run every hour
+	_, err = c.AddFunc("@hourly", func() {
+		log.Info("Running scheduled cleanup job")
+		cleanupJob.Run()
+	})
+	if err != nil {
+		log.Fatal("Failed to schedule cleanup job", zap.Error(err))
+	}
+	
+	// Start cron scheduler
+	c.Start()
+	log.Info("Cleanup job scheduled successfully (runs every hour)")
+
 	// Log example endpoint URLs for verification
 	log.Info("User API endpoint examples (for debugging)",
 		zap.String("validate_member", cfg.UserAPI.BaseURL+"/api/workspaces/{workspaceId}/validate-member/{userId}"),
@@ -180,6 +218,7 @@ func main() {
 		UserClient: userClient,
 		BasePath:   cfg.Server.BasePath,
 		Metrics:    m,
+		S3Client:   s3Client,
 	}
 
 	r := router.Setup(routerConfig)
@@ -233,6 +272,12 @@ func main() {
 	log.Info("Stopping business metrics collector")
 	businessCollector.Stop()
 	log.Info("Business metrics collector stopped")
+
+	// Stop cron scheduler
+	log.Info("Stopping cleanup job scheduler")
+	cronCtx := c.Stop()
+	<-cronCtx.Done()
+	log.Info("Cleanup job scheduler stopped")
 
 	// Close database connection
 	log.Info("Closing database connection")

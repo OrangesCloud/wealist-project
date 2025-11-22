@@ -198,6 +198,25 @@ Swagger UI에서는 다음 기능을 제공합니다:
 - API 직접 테스트 (Try it out)
 - 예시 요청/응답 확인
 
+### Presigned URL 기반 파일 업로드 API
+
+Board, Comment, Project에 파일을 첨부할 수 있는 Presigned URL 기반 업로드 API를 제공합니다.
+
+**주요 특징:**
+- 클라이언트가 S3에 직접 업로드하여 서버 부하 최소화
+- 이미지 및 문서 파일 지원 (최대 20MB)
+- 임시 파일 자동 정리 (1시간 후)
+
+**지원 파일 형식:**
+- 이미지: jpg, jpeg, png, gif, webp
+- 문서: pdf, txt, doc, docx, xls, xlsx, ppt, pptx
+
+**API 엔드포인트:**
+- `POST /api/attachments/presigned-url` - Presigned URL 생성
+- `POST /api/attachments` - 첨부파일 메타데이터 저장
+
+**상세 가이드:** [docs/PRESIGNED_URL_API_GUIDE.md](docs/PRESIGNED_URL_API_GUIDE.md)를 참조하세요.
+
 ### API 마이그레이션 가이드
 
 API 표준화 작업으로 인해 엔드포인트와 필드명이 변경되었습니다. 자세한 내용은 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)를 참조하세요.
