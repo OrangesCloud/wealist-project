@@ -225,7 +225,7 @@ func setupRoutes(
 		// Participant routes
 		participants := api.Group("/participants")
 		{
-			participants.POST("", participantHandler.AddParticipant)
+			participants.POST("", participantHandler.AddParticipants)
 			participants.GET("/board/:boardId", participantHandler.GetParticipants)
 			participants.DELETE("/board/:boardId/user/:userId", participantHandler.RemoveParticipant)
 		}

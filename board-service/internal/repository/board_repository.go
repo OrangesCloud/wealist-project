@@ -57,8 +57,10 @@ func (r *boardRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*doma
 func (r *boardRepositoryImpl) FindByProjectID(ctx context.Context, projectID uuid.UUID, filters interface{}) ([]*domain.Board, error) {
 	var boards []*domain.Board
 	
-	// Start building the query
-	query := r.db.WithContext(ctx).Where("project_id = ?", projectID)
+	// Start building the query with Participants preload
+	query := r.db.WithContext(ctx).
+		Preload("Participants").
+		Where("project_id = ?", projectID)
 	
 	// Apply filters if provided
 	if filters != nil {

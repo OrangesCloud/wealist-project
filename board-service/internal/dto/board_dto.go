@@ -40,20 +40,22 @@ type UpdateBoardFieldRequest struct {
 }
 
 // BoardResponse represents the board response
-// @Description Board response with value-based customFields
+// @Description Board response with value-based customFields and participant IDs
 // @Description customFields contains field type as key and value string as value (not UUIDs)
 // @Description Example: {"importance": "high", "role": "developer", "stage": "in_progress"}
+// @Description participantIds contains an array of user IDs who are participants of the board
 type BoardResponse struct {
-	ID           uuid.UUID              `json:"boardId" example:"1275eac5-f0f9-4bee-8235-576a0042f42b"`
-	ProjectID    uuid.UUID              `json:"projectId" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
-	AuthorID     uuid.UUID              `json:"authorId" example:"b2c3d4e5-f6a7-8901-bcde-f12345678901"`
-	AssigneeID   *uuid.UUID             `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
-	Title        string                 `json:"title" example:"Implement user authentication"`
-	Content      string                 `json:"content" example:"Add JWT-based authentication to the API"`
-	CustomFields map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:high"`
-	DueDate      *time.Time             `json:"dueDate,omitempty" example:"2024-12-31T23:59:59Z"`
-	CreatedAt    time.Time              `json:"createdAt" example:"2024-01-15T10:30:00Z"`
-	UpdatedAt    time.Time              `json:"updatedAt" example:"2024-01-15T14:20:00Z"`
+	ID             uuid.UUID              `json:"boardId" example:"1275eac5-f0f9-4bee-8235-576a0042f42b"`
+	ProjectID      uuid.UUID              `json:"projectId" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
+	AuthorID       uuid.UUID              `json:"authorId" example:"b2c3d4e5-f6a7-8901-bcde-f12345678901"`
+	AssigneeID     *uuid.UUID             `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
+	Title          string                 `json:"title" example:"Implement user authentication"`
+	Content        string                 `json:"content" example:"Add JWT-based authentication to the API"`
+	CustomFields   map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:high"`
+	DueDate        *time.Time             `json:"dueDate,omitempty" example:"2024-12-31T23:59:59Z"`
+	ParticipantIDs []uuid.UUID            `json:"participantIds" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890,b2c3d4e5-f6a7-8901-bcde-f12345678901"`
+	CreatedAt      time.Time              `json:"createdAt" example:"2024-01-15T10:30:00Z"`
+	UpdatedAt      time.Time              `json:"updatedAt" example:"2024-01-15T14:20:00Z"`
 }
 
 // PaginatedBoardsResponse represents paginated boards response

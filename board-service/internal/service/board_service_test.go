@@ -1086,3 +1086,247 @@ func TestBoardService_DeleteBoard(t *testing.T) {
 		})
 	}
 }
+
+// TestBoardService_GetBoardsByProject_WithParticipantIDs tests that participant IDs are included in board responses
+func TestBoardService_GetBoardsByProject_WithParticipantIDs(t *testing.T) {
+	projectID := uuid.New()
+	user1ID := uuid.New()
+	user2ID := uuid.New()
+	user3ID := uuid.New()
+	
+	tests := []struct {
+		name              string
+		mockProject       func(*MockProjectRepository)
+		mockBoard         func(*MockBoardRepository)
+		wantParticipants  map[string][]uuid.UUID // board title -> participant IDs
+		wantErr           bool
+	}{
+		{
+			name: "성공: 참여자 ID 포함된 보드 목록 조회",
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{}, nil
+				}
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByProjectIDFunc = func(ctx context.Context, pid uuid.UUID, filters interface{}) ([]*domain.Board, error) {
+					return []*domain.Board{
+						{
+							BaseModel: domain.BaseModel{ID: uuid.New()},
+							Title:     "Board with participants",
+							Participants: []domain.Participant{
+								{UserID: user1ID},
+								{UserID: user2ID},
+								{UserID: user3ID},
+							},
+						},
+					}, nil
+				}
+			},
+			wantParticipants: map[string][]uuid.UUID{
+				"Board with participants": {user1ID, user2ID, user3ID},
+			},
+			wantErr: false,
+		},
+		{
+			name: "성공: 참여자 없는 보드는 빈 배열 반환",
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{}, nil
+				}
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByProjectIDFunc = func(ctx context.Context, pid uuid.UUID, filters interface{}) ([]*domain.Board, error) {
+					return []*domain.Board{
+						{
+							BaseModel:    domain.BaseModel{ID: uuid.New()},
+							Title:        "Board without participants",
+							Participants: []domain.Participant{},
+						},
+					}, nil
+				}
+			},
+			wantParticipants: map[string][]uuid.UUID{
+				"Board without participants": {},
+			},
+			wantErr: false,
+		},
+		{
+			name: "성공: 여러 보드, 각각 다른 참여자 수",
+			mockProject: func(m *MockProjectRepository) {
+				m.FindByIDFunc = func(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
+					return &domain.Project{}, nil
+				}
+			},
+			mockBoard: func(m *MockBoardRepository) {
+				m.FindByProjectIDFunc = func(ctx context.Context, pid uuid.UUID, filters interface{}) ([]*domain.Board, error) {
+					return []*domain.Board{
+						{
+							BaseModel: domain.BaseModel{ID: uuid.New()},
+							Title:     "Board 1",
+							Participants: []domain.Participant{
+								{UserID: user1ID},
+							},
+						},
+						{
+							BaseModel:    domain.BaseModel{ID: uuid.New()},
+							Title:        "Board 2",
+							Participants: []domain.Participant{},
+						},
+						{
+							BaseModel: domain.BaseModel{ID: uuid.New()},
+							Title:     "Board 3",
+							Participants: []domain.Participant{
+								{UserID: user2ID},
+								{UserID: user3ID},
+							},
+						},
+					}, nil
+				}
+			},
+			wantParticipants: map[string][]uuid.UUID{
+				"Board 1": {user1ID},
+				"Board 2": {},
+				"Board 3": {user2ID, user3ID},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockProjectRepo := &MockProjectRepository{}
+			mockBoardRepo := &MockBoardRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
+			mockConverter := &MockFieldOptionConverter{}
+			tt.mockProject(mockProjectRepo)
+			tt.mockBoard(mockBoardRepo)
+			
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter, nil)
+
+			// When
+			got, err := service.GetBoardsByProject(context.Background(), projectID, nil)
+
+			// Then
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("GetBoardsByProject() error = nil, wantErr %v", tt.wantErr)
+					return
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetBoardsByProject() unexpected error = %v", err)
+					return
+				}
+				
+				// Verify participant IDs are included in response
+				for _, board := range got {
+					expectedParticipants, ok := tt.wantParticipants[board.Title]
+					if !ok {
+						t.Errorf("Unexpected board title: %s", board.Title)
+						continue
+					}
+					
+					// Check ParticipantIDs field exists and is not nil
+					if board.ParticipantIDs == nil {
+						t.Errorf("Board %s: ParticipantIDs is nil, want non-nil slice", board.Title)
+						continue
+					}
+					
+					// Check participant count
+					if len(board.ParticipantIDs) != len(expectedParticipants) {
+						t.Errorf("Board %s: ParticipantIDs count = %d, want %d", 
+							board.Title, len(board.ParticipantIDs), len(expectedParticipants))
+						continue
+					}
+					
+					// Check each participant ID
+					for i, expectedID := range expectedParticipants {
+						if board.ParticipantIDs[i] != expectedID {
+							t.Errorf("Board %s: ParticipantIDs[%d] = %v, want %v", 
+								board.Title, i, board.ParticipantIDs[i], expectedID)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestBoardService_toBoardResponse_ParticipantIDs tests the toBoardResponse method directly
+func TestBoardService_toBoardResponse_ParticipantIDs(t *testing.T) {
+	user1ID := uuid.New()
+	user2ID := uuid.New()
+	
+	tests := []struct {
+		name             string
+		board            *domain.Board
+		wantParticipants []uuid.UUID
+	}{
+		{
+			name: "참여자 ID 추출: 여러 참여자",
+			board: &domain.Board{
+				BaseModel: domain.BaseModel{ID: uuid.New()},
+				Title:     "Test Board",
+				Participants: []domain.Participant{
+					{UserID: user1ID},
+					{UserID: user2ID},
+				},
+			},
+			wantParticipants: []uuid.UUID{user1ID, user2ID},
+		},
+		{
+			name: "참여자 ID 추출: 참여자 없음 (빈 배열)",
+			board: &domain.Board{
+				BaseModel:    domain.BaseModel{ID: uuid.New()},
+				Title:        "Test Board",
+				Participants: []domain.Participant{},
+			},
+			wantParticipants: []uuid.UUID{},
+		},
+		{
+			name: "참여자 ID 추출: nil 참여자 슬라이스",
+			board: &domain.Board{
+				BaseModel:    domain.BaseModel{ID: uuid.New()},
+				Title:        "Test Board",
+				Participants: nil,
+			},
+			wantParticipants: []uuid.UUID{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockBoardRepo := &MockBoardRepository{}
+			mockProjectRepo := &MockProjectRepository{}
+			mockFieldOptionRepo := &MockFieldOptionRepository{}
+			mockConverter := &MockFieldOptionConverter{}
+			
+			service := NewBoardService(mockBoardRepo, mockProjectRepo, mockFieldOptionRepo, mockConverter, nil).(*boardServiceImpl)
+
+			// When
+			response := service.toBoardResponse(tt.board)
+
+			// Then
+			if response.ParticipantIDs == nil {
+				t.Error("ParticipantIDs is nil, want non-nil slice")
+				return
+			}
+			
+			if len(response.ParticipantIDs) != len(tt.wantParticipants) {
+				t.Errorf("ParticipantIDs count = %d, want %d", 
+					len(response.ParticipantIDs), len(tt.wantParticipants))
+				return
+			}
+			
+			for i, expectedID := range tt.wantParticipants {
+				if response.ParticipantIDs[i] != expectedID {
+					t.Errorf("ParticipantIDs[%d] = %v, want %v", 
+						i, response.ParticipantIDs[i], expectedID)
+				}
+			}
+		})
+	}
+}

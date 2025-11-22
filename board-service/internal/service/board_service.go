@@ -278,17 +278,24 @@ func (s *boardServiceImpl) toBoardResponse(board *domain.Board) *dto.BoardRespon
 		_ = json.Unmarshal(board.CustomFields, &customFields)
 	}
 	
+	// Extract participant IDs from board participants
+	participantIDs := make([]uuid.UUID, 0, len(board.Participants))
+	for _, p := range board.Participants {
+		participantIDs = append(participantIDs, p.UserID)
+	}
+	
 	return &dto.BoardResponse{
-		ID:           board.ID,
-		ProjectID:    board.ProjectID,
-		AuthorID:     board.AuthorID,
-		AssigneeID:   board.AssigneeID,
-		Title:        board.Title,
-		Content:      board.Content,
-		CustomFields: customFields,
-		DueDate:      board.DueDate,
-		CreatedAt:    board.CreatedAt,
-		UpdatedAt:    board.UpdatedAt,
+		ID:             board.ID,
+		ProjectID:      board.ProjectID,
+		AuthorID:       board.AuthorID,
+		AssigneeID:     board.AssigneeID,
+		Title:          board.Title,
+		Content:        board.Content,
+		CustomFields:   customFields,
+		DueDate:        board.DueDate,
+		ParticipantIDs: participantIDs,
+		CreatedAt:      board.CreatedAt,
+		UpdatedAt:      board.UpdatedAt,
 	}
 }
 
