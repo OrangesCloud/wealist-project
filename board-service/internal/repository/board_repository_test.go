@@ -29,6 +29,8 @@ func setupBoardTestDB(t *testing.T) *gorm.DB {
 		owner_id TEXT NOT NULL,
 		name TEXT NOT NULL,
 		description TEXT,
+		start_date DATETIME,
+		due_date DATETIME,
 		is_default INTEGER DEFAULT 0,
 		is_public INTEGER DEFAULT 0
 	)`)
@@ -56,6 +58,20 @@ func setupBoardTestDB(t *testing.T) *gorm.DB {
 		board_id TEXT NOT NULL,
 		user_id TEXT NOT NULL,
 		UNIQUE(board_id, user_id)
+	)`)
+
+	db.Exec(`CREATE TABLE attachments (
+		id TEXT PRIMARY KEY,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		deleted_at DATETIME,
+		entity_type TEXT NOT NULL,
+		entity_id TEXT NOT NULL,
+		file_name TEXT NOT NULL,
+		file_url TEXT NOT NULL,
+		file_size INTEGER NOT NULL,
+		content_type TEXT NOT NULL,
+		uploaded_by TEXT NOT NULL
 	)`)
 
 	return db

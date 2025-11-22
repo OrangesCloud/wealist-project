@@ -17,6 +17,7 @@ type CreateBoardRequest struct {
 	Content      string                 `json:"content" binding:"max=5000" example:"Add JWT-based authentication to the API"`
 	CustomFields map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:high"`
 	AssigneeID   *uuid.UUID             `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
+	StartDate    *time.Time             `json:"startDate" example:"2024-01-01T00:00:00Z"`
 	DueDate      *time.Time             `json:"dueDate" example:"2024-12-31T23:59:59Z"`
 }
 
@@ -30,6 +31,7 @@ type UpdateBoardRequest struct {
 	Content      *string                 `json:"content" binding:"omitempty,max=5000" example:"Refactor JWT implementation"`
 	CustomFields *map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:medium"`
 	AssigneeID   *uuid.UUID              `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
+	StartDate    *time.Time              `json:"startDate" example:"2024-01-01T00:00:00Z"`
 	DueDate      *time.Time              `json:"dueDate" example:"2024-12-31T23:59:59Z"`
 }
 
@@ -37,6 +39,19 @@ type UpdateBoardRequest struct {
 type UpdateBoardFieldRequest struct {
 	FieldID string `json:"fieldId" binding:"required,oneof=stage importance role"`
 	Value   string `json:"value" binding:"required"`
+}
+
+// AttachmentResponse represents file attachment metadata
+// @Description File attachment metadata for boards and projects
+// @Description Contains information about uploaded files including S3 URL, size, and content type
+type AttachmentResponse struct {
+	ID          uuid.UUID `json:"id" example:"f47ac10b-58cc-4372-a567-0e02b2c3d479"`
+	FileName    string    `json:"fileName" example:"document.pdf"`
+	FileURL     string    `json:"fileUrl" example:"https://s3.amazonaws.com/bucket/file.pdf"`
+	FileSize    int64     `json:"fileSize" example:"1024000"`
+	ContentType string    `json:"contentType" example:"application/pdf"`
+	UploadedBy  uuid.UUID `json:"uploadedBy" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
+	UploadedAt  time.Time `json:"uploadedAt" example:"2024-01-15T10:30:00Z"`
 }
 
 // BoardResponse represents the board response
@@ -52,8 +67,10 @@ type BoardResponse struct {
 	Title          string                 `json:"title" example:"Implement user authentication"`
 	Content        string                 `json:"content" example:"Add JWT-based authentication to the API"`
 	CustomFields   map[string]interface{} `json:"customFields" swaggertype:"object,string" example:"importance:high"`
+	StartDate      *time.Time             `json:"startDate,omitempty" example:"2024-01-01T00:00:00Z"`
 	DueDate        *time.Time             `json:"dueDate,omitempty" example:"2024-12-31T23:59:59Z"`
 	ParticipantIDs []uuid.UUID            `json:"participantIds" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890,b2c3d4e5-f6a7-8901-bcde-f12345678901"`
+	Attachments    []AttachmentResponse   `json:"attachments"`
 	CreatedAt      time.Time              `json:"createdAt" example:"2024-01-15T10:30:00Z"`
 	UpdatedAt      time.Time              `json:"updatedAt" example:"2024-01-15T14:20:00Z"`
 }

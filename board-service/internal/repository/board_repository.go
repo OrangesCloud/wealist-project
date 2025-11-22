@@ -37,12 +37,13 @@ func (r *boardRepositoryImpl) Create(ctx context.Context, board *domain.Board) e
 	return nil
 }
 
-// FindByID finds a board by ID with preloaded participants and comments
+// FindByID finds a board by ID with preloaded participants, comments, and attachments
 func (r *boardRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
 	var board domain.Board
 	if err := r.db.WithContext(ctx).
 		Preload("Participants").
 		Preload("Comments").
+		Preload("Attachments").
 		Where("id = ?", id).
 		First(&board).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -57,9 +58,10 @@ func (r *boardRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*doma
 func (r *boardRepositoryImpl) FindByProjectID(ctx context.Context, projectID uuid.UUID, filters interface{}) ([]*domain.Board, error) {
 	var boards []*domain.Board
 	
-	// Start building the query with Participants preload
+	// Start building the query with Participants and Attachments preload
 	query := r.db.WithContext(ctx).
 		Preload("Participants").
+		Preload("Attachments").
 		Where("project_id = ?", projectID)
 	
 	// Apply filters if provided
