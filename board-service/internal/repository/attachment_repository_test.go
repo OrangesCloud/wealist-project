@@ -271,3 +271,51 @@ func TestAttachmentRepository_DeleteBatch_EmptyList(t *testing.T) {
 		t.Fatalf("DeleteBatch() with empty list error = %v", err)
 	}
 }
+
+func TestAttachmentRepository_FindByID(t *testing.T) {
+	db := setupAttachmentTestDB(t)
+	repo := NewAttachmentRepository(db)
+	ctx := context.Background()
+
+	// Create test attachment
+	attachment := &domain.Attachment{
+		BaseModel:   domain.BaseModel{ID: uuid.New()},
+		EntityType:  domain.EntityTypeBoard,
+		Status:      domain.AttachmentStatusConfirmed,
+		FileName:    "test.jpg",
+		FileURL:     "https://s3.amazonaws.com/bucket/test.jpg",
+		FileSize:    1024,
+		ContentType: "image/jpeg",
+		UploadedBy:  uuid.New(),
+	}
+	db.Create(attachment)
+
+	// Test: FindByID should return the attachment
+	found, err := repo.FindByID(ctx, attachment.ID)
+	if err != nil {
+		t.Fatalf("FindByID() error = %v", err)
+	}
+
+	if found.ID != attachment.ID {
+		t.Errorf("FindByID() ID = %v, want %v", found.ID, attachment.ID)
+	}
+	if found.FileName != attachment.FileName {
+		t.Errorf("FindByID() FileName = %v, want %v", found.FileName, attachment.FileName)
+	}
+	if found.FileURL != attachment.FileURL {
+		t.Errorf("FindByID() FileURL = %v, want %v", found.FileURL, attachment.FileURL)
+	}
+}
+
+func TestAttachmentRepository_FindByID_NotFound(t *testing.T) {
+	db := setupAttachmentTestDB(t)
+	repo := NewAttachmentRepository(db)
+	ctx := context.Background()
+
+	// Test: FindByID with non-existent ID should return error
+	nonExistentID := uuid.New()
+	_, err := repo.FindByID(ctx, nonExistentID)
+	if err == nil {
+		t.Error("FindByID() expected error for non-existent ID, got nil")
+	}
+}

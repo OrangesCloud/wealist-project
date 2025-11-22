@@ -496,3 +496,97 @@ func (h *AttachmentHandler) GetProjectAttachments(c *gin.Context) {
 
 	response.SendSuccess(c, http.StatusOK, resp)
 }
+
+// DeleteAttachment godoc
+// @Summary      Delete attachment
+// @Description  Deletes an attachment from both S3 and database
+// @Description  Only the user who uploaded the attachment can delete it
+// @Description  Performs soft delete on the database record
+// @Tags         attachments
+// @Accept       json
+// @Produce      json
+// @Param        attachmentId path string true "Attachment ID"
+// @Success      200 {object} response.SuccessResponse{data=map[string]string} "Attachment deleted successfully"
+// @Failure      400 {object} response.ErrorResponse "Invalid attachment ID"
+// @Failure      401 {object} response.ErrorResponse "Unauthorized - user not authenticated"
+// @Failure      403 {object} response.ErrorResponse "Forbidden - user does not have permission to delete this attachment"
+// @Failure      404 {object} response.ErrorResponse "Attachment not found"
+// @Failure      500 {object} response.ErrorResponse "Failed to delete attachment"
+// @Router       /attachments/{attachmentId} [delete]
+func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
+	// Parse attachment ID
+	attachmentIDStr := c.Param("attachmentId")
+	attachmentID, err := uuid.Parse(attachmentIDStr)
+	if err != nil {
+		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid attachment ID")
+		return
+	}
+
+	// Get user ID from context (set by auth middleware)
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "User not authenticated")
+		return
+	}
+
+	userID, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		// Try parsing as string if it's not already a UUID
+		userIDStr, ok := userIDValue.(string)
+		if !ok {
+			response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "Invalid user ID format")
+			return
+		}
+		userID, err = uuid.Parse(userIDStr)
+		if err != nil {
+			response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "Invalid user ID format")
+			return
+		}
+	}
+
+	// Find attachment by ID
+	attachment, err := h.attachmentRepo.FindByID(c.Request.Context(), attachmentID)
+	if err != nil {
+		response.SendError(c, http.StatusNotFound, response.ErrCodeNotFound, "Attachment not found")
+		return
+	}
+
+	// Verify user has permission to delete (must be the uploader)
+	if attachment.UploadedBy != userID {
+		response.SendError(c, http.StatusForbidden, response.ErrCodeForbidden, "You do not have permission to delete this attachment")
+		return
+	}
+
+	// Extract file key from file URL
+	// FileURL format: https://{bucket}.s3.{region}.amazonaws.com/{key}
+	fileKey := ""
+	if len(attachment.FileURL) > 0 {
+		// Find the last occurrence of ".amazonaws.com/"
+		prefix := ".amazonaws.com/"
+		for i := len(attachment.FileURL) - len(prefix); i >= 0; i-- {
+			if i+len(prefix) <= len(attachment.FileURL) && attachment.FileURL[i:i+len(prefix)] == prefix {
+				fileKey = attachment.FileURL[i+len(prefix):]
+				break
+			}
+		}
+	}
+
+	// Delete file from S3
+	if fileKey != "" {
+		if err := h.s3Client.DeleteFile(c.Request.Context(), fileKey); err != nil {
+			// Log error but continue with database deletion
+			// This ensures we don't leave orphaned database records
+			c.Error(err)
+		}
+	}
+
+	// Delete attachment record from database (soft delete)
+	if err := h.attachmentRepo.Delete(c.Request.Context(), attachmentID); err != nil {
+		response.SendError(c, http.StatusInternalServerError, response.ErrCodeInternal, "Failed to delete attachment")
+		return
+	}
+
+	response.SendSuccess(c, http.StatusOK, map[string]string{
+		"message": "Attachment deleted successfully",
+	})
+}

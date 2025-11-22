@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"project-board-api/internal/domain"
@@ -26,14 +28,18 @@ type commentServiceImpl struct {
 	commentRepo    repository.CommentRepository
 	boardRepo      repository.BoardRepository
 	attachmentRepo repository.AttachmentRepository
+	s3Client       S3Client
+	logger         *zap.Logger
 }
 
 // NewCommentService creates a new instance of CommentService
-func NewCommentService(commentRepo repository.CommentRepository, boardRepo repository.BoardRepository, attachmentRepo repository.AttachmentRepository) CommentService {
+func NewCommentService(commentRepo repository.CommentRepository, boardRepo repository.BoardRepository, attachmentRepo repository.AttachmentRepository, s3Client S3Client, logger *zap.Logger) CommentService {
 	return &commentServiceImpl{
 		commentRepo:    commentRepo,
 		boardRepo:      boardRepo,
 		attachmentRepo: attachmentRepo,
+		s3Client:       s3Client,
+		logger:         logger,
 	}
 }
 
@@ -133,7 +139,7 @@ func (s *commentServiceImpl) UpdateComment(ctx context.Context, commentID uuid.U
 	return s.toCommentResponse(comment), nil
 }
 
-// DeleteComment soft deletes a comment
+// DeleteComment soft deletes a comment and its associated attachments
 func (s *commentServiceImpl) DeleteComment(ctx context.Context, commentID uuid.UUID) error {
 	// Verify comment exists
 	_, err := s.commentRepo.FindByID(ctx, commentID)
@@ -142,6 +148,20 @@ func (s *commentServiceImpl) DeleteComment(ctx context.Context, commentID uuid.U
 			return response.NewAppError(response.ErrCodeNotFound, "Comment not found", "")
 		}
 		return response.NewAppError(response.ErrCodeInternal, "Failed to verify comment", err.Error())
+	}
+
+	// Find all attachments associated with this comment
+	attachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeComment, commentID)
+	if err != nil {
+		s.logger.Warn("Failed to fetch attachments for comment deletion",
+			zap.String("comment_id", commentID.String()),
+			zap.Error(err))
+		// Continue with comment deletion even if attachment fetch fails
+	}
+
+	// Delete attachments from S3 and database
+	if len(attachments) > 0 {
+		s.deleteAttachmentsWithS3(ctx, attachments)
 	}
 
 	// Delete comment
@@ -213,4 +233,41 @@ func (s *commentServiceImpl) validateAndConfirmAttachments(ctx context.Context, 
 	}
 	
 	return nil
+}
+
+// deleteAttachmentsWithS3 deletes attachments from both S3 and database
+func (s *commentServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attachments []*domain.Attachment) {
+	attachmentIDs := make([]uuid.UUID, 0, len(attachments))
+	
+	// Delete files from S3
+	for _, attachment := range attachments {
+		// Extract S3 key from FileURL
+		fileKey := extractS3KeyFromURL(attachment.FileURL)
+		if fileKey == "" {
+			s.logger.Warn("Failed to extract S3 key from URL",
+				zap.String("attachment_id", attachment.ID.String()),
+				zap.String("file_url", attachment.FileURL))
+			continue
+		}
+		
+		// Delete from S3
+		if err := s.s3Client.DeleteFile(ctx, fileKey); err != nil {
+			s.logger.Warn("Failed to delete file from S3",
+				zap.String("attachment_id", attachment.ID.String()),
+				zap.String("file_key", fileKey),
+				zap.Error(err))
+			// Continue even if S3 deletion fails
+		}
+		
+		attachmentIDs = append(attachmentIDs, attachment.ID)
+	}
+	
+	// Delete from database
+	if len(attachmentIDs) > 0 {
+		if err := s.attachmentRepo.DeleteBatch(ctx, attachmentIDs); err != nil {
+			s.logger.Warn("Failed to delete attachments from database",
+				zap.Int("count", len(attachmentIDs)),
+				zap.Error(err))
+		}
+	}
 }

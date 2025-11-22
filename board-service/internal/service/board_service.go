@@ -35,6 +35,7 @@ type boardServiceImpl struct {
 	fieldOptionRepo      repository.FieldOptionRepository
 	participantRepo      repository.ParticipantRepository
 	attachmentRepo       repository.AttachmentRepository
+	s3Client             S3Client
 	fieldOptionConverter FieldOptionConverter
 	metrics              *metrics.Metrics
 	logger               *zap.Logger
@@ -54,6 +55,7 @@ func NewBoardService(
 	fieldOptionRepo repository.FieldOptionRepository,
 	participantRepo repository.ParticipantRepository,
 	attachmentRepo repository.AttachmentRepository,
+	s3Client S3Client,
 	fieldOptionConverter FieldOptionConverter,
 	m *metrics.Metrics,
 	logger *zap.Logger,
@@ -64,6 +66,7 @@ func NewBoardService(
 		fieldOptionRepo:      fieldOptionRepo,
 		participantRepo:      participantRepo,
 		attachmentRepo:       attachmentRepo,
+		s3Client:             s3Client,
 		fieldOptionConverter: fieldOptionConverter,
 		metrics:              m,
 		logger:               logger,
@@ -302,7 +305,7 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 	return s.toBoardResponse(board), nil
 }
 
-// DeleteBoard soft deletes a board
+// DeleteBoard soft deletes a board and its associated attachments
 func (s *boardServiceImpl) DeleteBoard(ctx context.Context, boardID uuid.UUID) error {
 	// Verify board exists
 	_, err := s.boardRepo.FindByID(ctx, boardID)
@@ -311,6 +314,20 @@ func (s *boardServiceImpl) DeleteBoard(ctx context.Context, boardID uuid.UUID) e
 			return response.NewAppError(response.ErrCodeNotFound, "Board not found", "")
 		}
 		return response.NewAppError(response.ErrCodeInternal, "Failed to verify board", err.Error())
+	}
+
+	// Find all attachments associated with this board
+	attachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeBoard, boardID)
+	if err != nil {
+		s.logger.Warn("Failed to fetch attachments for board deletion",
+			zap.String("board_id", boardID.String()),
+			zap.Error(err))
+		// Continue with board deletion even if attachment fetch fails
+	}
+
+	// Delete attachments from S3 and database
+	if len(attachments) > 0 {
+		s.deleteAttachmentsWithS3(ctx, attachments)
 	}
 
 	// Delete board
@@ -528,4 +545,41 @@ func (s *boardServiceImpl) validateAndConfirmAttachments(ctx context.Context, at
 	}
 	
 	return nil
+}
+
+// deleteAttachmentsWithS3 deletes attachments from both S3 and database
+func (s *boardServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attachments []*domain.Attachment) {
+	attachmentIDs := make([]uuid.UUID, 0, len(attachments))
+	
+	// Delete files from S3
+	for _, attachment := range attachments {
+		// Extract S3 key from FileURL
+		fileKey := extractS3KeyFromURL(attachment.FileURL)
+		if fileKey == "" {
+			s.logger.Warn("Failed to extract S3 key from URL",
+				zap.String("attachment_id", attachment.ID.String()),
+				zap.String("file_url", attachment.FileURL))
+			continue
+		}
+		
+		// Delete from S3
+		if err := s.s3Client.DeleteFile(ctx, fileKey); err != nil {
+			s.logger.Warn("Failed to delete file from S3",
+				zap.String("attachment_id", attachment.ID.String()),
+				zap.String("file_key", fileKey),
+				zap.Error(err))
+			// Continue even if S3 deletion fails
+		}
+		
+		attachmentIDs = append(attachmentIDs, attachment.ID)
+	}
+	
+	// Delete from database
+	if len(attachmentIDs) > 0 {
+		if err := s.attachmentRepo.DeleteBatch(ctx, attachmentIDs); err != nil {
+			s.logger.Warn("Failed to delete attachments from database",
+				zap.Int("count", len(attachmentIDs)),
+				zap.Error(err))
+		}
+	}
 }

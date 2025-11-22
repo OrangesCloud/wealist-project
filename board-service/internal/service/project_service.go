@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,17 +35,19 @@ type projectServiceImpl struct {
 	projectRepo       repository.ProjectRepository
 	fieldOptionRepo   repository.FieldOptionRepository
 	attachmentRepo    repository.AttachmentRepository
+	s3Client          S3Client
 	userClient        client.UserClient
 	metrics           *metrics.Metrics
 	logger            *zap.Logger
 }
 
 // NewProjectService creates a new instance of ProjectService
-func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, attachmentRepo repository.AttachmentRepository, userClient client.UserClient, m *metrics.Metrics, logger *zap.Logger) ProjectService {
+func NewProjectService(projectRepo repository.ProjectRepository, fieldOptionRepo repository.FieldOptionRepository, attachmentRepo repository.AttachmentRepository, s3Client S3Client, userClient client.UserClient, m *metrics.Metrics, logger *zap.Logger) ProjectService {
 	return &projectServiceImpl{
 		projectRepo:     projectRepo,
 		fieldOptionRepo: fieldOptionRepo,
 		attachmentRepo:  attachmentRepo,
+		s3Client:        s3Client,
 		userClient:      userClient,
 		metrics:         m,
 		logger:          logger,
@@ -393,7 +396,7 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 	return s.toProjectResponse(project), nil
 }
 
-// DeleteProject soft deletes a project (OWNER only)
+// DeleteProject soft deletes a project and its associated attachments (OWNER only)
 func (s *projectServiceImpl) DeleteProject(ctx context.Context, projectID, userID uuid.UUID) error {
 	// Fetch project from repository
 	project, err := s.projectRepo.FindByID(ctx, projectID)
@@ -414,6 +417,20 @@ func (s *projectServiceImpl) DeleteProject(ctx context.Context, projectID, userI
 	}
 	if member.RoleName != domain.ProjectRoleOwner {
 		return response.NewForbiddenError("Only project owner can delete project", "")
+	}
+
+	// Find all attachments associated with this project
+	attachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeProject, projectID)
+	if err != nil {
+		s.logger.Warn("Failed to fetch attachments for project deletion",
+			zap.String("project_id", projectID.String()),
+			zap.Error(err))
+		// Continue with project deletion even if attachment fetch fails
+	}
+
+	// Delete attachments from S3 and database
+	if len(attachments) > 0 {
+		s.deleteAttachmentsWithS3(ctx, attachments)
 	}
 
 	// Delete from repository
@@ -758,4 +775,41 @@ func (s *projectServiceImpl) validateAndConfirmAttachments(ctx context.Context, 
 	}
 	
 	return nil
+}
+
+// deleteAttachmentsWithS3 deletes attachments from both S3 and database
+func (s *projectServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attachments []*domain.Attachment) {
+	attachmentIDs := make([]uuid.UUID, 0, len(attachments))
+	
+	// Delete files from S3
+	for _, attachment := range attachments {
+		// Extract S3 key from FileURL
+		fileKey := extractS3KeyFromURL(attachment.FileURL)
+		if fileKey == "" {
+			s.logger.Warn("Failed to extract S3 key from URL",
+				zap.String("attachment_id", attachment.ID.String()),
+				zap.String("file_url", attachment.FileURL))
+			continue
+		}
+		
+		// Delete from S3
+		if err := s.s3Client.DeleteFile(ctx, fileKey); err != nil {
+			s.logger.Warn("Failed to delete file from S3",
+				zap.String("attachment_id", attachment.ID.String()),
+				zap.String("file_key", fileKey),
+				zap.Error(err))
+			// Continue even if S3 deletion fails
+		}
+		
+		attachmentIDs = append(attachmentIDs, attachment.ID)
+	}
+	
+	// Delete from database
+	if len(attachmentIDs) > 0 {
+		if err := s.attachmentRepo.DeleteBatch(ctx, attachmentIDs); err != nil {
+			s.logger.Warn("Failed to delete attachments from database",
+				zap.Int("count", len(attachmentIDs)),
+				zap.Error(err))
+		}
+	}
 }

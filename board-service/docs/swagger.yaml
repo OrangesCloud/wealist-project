@@ -1,92 +1,6 @@
 basePath: /api
 definitions:
-  internal_handler.AttachmentResponse:
-    properties:
-      contentType:
-        type: string
-      entityId:
-        type: string
-      entityType:
-        type: string
-      expiresAt:
-        type: string
-      fileName:
-        type: string
-      fileSize:
-        type: integer
-      fileUrl:
-        type: string
-      id:
-        type: string
-      status:
-        type: string
-      uploadedAt:
-        type: string
-      uploadedBy:
-        type: string
-    type: object
-  internal_handler.PresignedURLRequest:
-    properties:
-      contentType:
-        type: string
-      entityType:
-        type: string
-      fileName:
-        type: string
-      fileSize:
-        type: integer
-      workspaceId:
-        type: string
-    required:
-    - contentType
-    - entityType
-    - fileName
-    - fileSize
-    - workspaceId
-    type: object
-  internal_handler.PresignedURLResponse:
-    properties:
-      expiresIn:
-        description: seconds
-        type: integer
-      fileKey:
-        type: string
-      uploadUrl:
-        type: string
-    type: object
-  internal_handler.SaveAttachmentMetadataRequest:
-    properties:
-      contentType:
-        type: string
-      entityType:
-        type: string
-      fileKey:
-        type: string
-      fileName:
-        type: string
-      fileSize:
-        type: integer
-    required:
-    - contentType
-    - entityType
-    - fileKey
-    - fileName
-    - fileSize
-    type: object
-  internal_handler.SchemaDocumentation:
-    properties:
-      attachmentResponse:
-        $ref: '#/definitions/project-board-api_internal_dto.AttachmentResponse'
-      boardFilters:
-        allOf:
-        - $ref: '#/definitions/project-board-api_internal_dto.BoardFilters'
-        description: Board related DTOs
-      paginatedBoardsResponse:
-        $ref: '#/definitions/project-board-api_internal_dto.PaginatedBoardsResponse'
-      updateBoardFieldRequest:
-        $ref: '#/definitions/project-board-api_internal_dto.UpdateBoardFieldRequest'
-    type: object
-  project-board-api_internal_dto.AddParticipantsRequest:
+  dto.AddParticipantsRequest:
     description: 'Request to add single or multiple participants to a board For single
       participant: provide array with 1 element For multiple participants: provide
       array with up to 50 elements Duplicate userIds in the request will be automatically
@@ -108,14 +22,14 @@ definitions:
     - boardId
     - userIds
     type: object
-  project-board-api_internal_dto.AddParticipantsResponse:
+  dto.AddParticipantsResponse:
     description: 'Response for bulk participant addition HTTP 201: All participants
       added successfully (totalFailed=0) HTTP 207: Partial success (totalSuccess>0
       and totalFailed>0) HTTP 400: All participants failed (totalSuccess=0)'
     properties:
       results:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.ParticipantResult'
+          $ref: '#/definitions/dto.ParticipantResult'
         type: array
       totalFailed:
         example: 1
@@ -127,7 +41,7 @@ definitions:
         example: 2
         type: integer
     type: object
-  project-board-api_internal_dto.AttachmentResponse:
+  dto.AttachmentResponse:
     description: File attachment metadata for boards and projects Contains information
       about uploaded files including S3 URL, size, and content type
     properties:
@@ -153,7 +67,7 @@ definitions:
         example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
     type: object
-  project-board-api_internal_dto.BoardDetailResponse:
+  dto.BoardDetailResponse:
     description: 'Detailed board response with value-based customFields, participants,
       and comments customFields contains field type as key and value string as value
       (not UUIDs) Example: {"importance": "high", "role": "developer", "stage": "in_progress"}'
@@ -163,7 +77,7 @@ definitions:
         type: string
       attachments:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.AttachmentResponse'
+          $ref: '#/definitions/dto.AttachmentResponse'
         type: array
       authorId:
         example: b2c3d4e5-f6a7-8901-bcde-f12345678901
@@ -173,7 +87,7 @@ definitions:
         type: string
       comments:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.CommentResponse'
+          $ref: '#/definitions/dto.CommentResponse'
         type: array
       content:
         example: Add JWT-based authentication to the API
@@ -199,7 +113,7 @@ definitions:
         type: array
       participants:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.ParticipantResponse'
+          $ref: '#/definitions/dto.ParticipantResponse'
         type: array
       projectId:
         example: 539167fb-b599-41ba-9ead-344a6d0b3a2f
@@ -214,13 +128,13 @@ definitions:
         example: "2024-01-15T14:20:00Z"
         type: string
     type: object
-  project-board-api_internal_dto.BoardFilters:
+  dto.BoardFilters:
     properties:
       customFields:
         additionalProperties: true
         type: object
     type: object
-  project-board-api_internal_dto.BoardResponse:
+  dto.BoardResponse:
     description: 'Board response with value-based customFields and participant IDs
       customFields contains field type as key and value string as value (not UUIDs)
       Example: {"importance": "high", "role": "developer", "stage": "in_progress"}
@@ -231,7 +145,7 @@ definitions:
         type: string
       attachments:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.AttachmentResponse'
+          $ref: '#/definitions/dto.AttachmentResponse'
         type: array
       authorId:
         example: b2c3d4e5-f6a7-8901-bcde-f12345678901
@@ -274,11 +188,11 @@ definitions:
         example: "2024-01-15T14:20:00Z"
         type: string
     type: object
-  project-board-api_internal_dto.CommentResponse:
+  dto.CommentResponse:
     properties:
       attachments:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.AttachmentResponse'
+          $ref: '#/definitions/dto.AttachmentResponse'
         type: array
       boardId:
         type: string
@@ -293,16 +207,23 @@ definitions:
       userId:
         type: string
     type: object
-  project-board-api_internal_dto.CreateBoardRequest:
+  dto.CreateBoardRequest:
     description: 'Request body for creating a new board with value-based customFields
       customFields should contain field type as key and value string as value Valid
       field types: stage, role, importance Example values: stage="in_progress", role="developer",
       importance="high" participants is an optional array of user IDs to add as board
-      participants (max 50)'
+      participants (max 50) attachmentIds is an optional array of attachment IDs to
+      link to the board'
     properties:
       assigneeId:
         example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
+      attachmentIds:
+        example:
+        - f47ac10b-58cc-4372-a567-0e02b2c3d479
+        items:
+          type: string
+        type: array
       content:
         example: Add JWT-based authentication to the API
         maxLength: 5000
@@ -339,8 +260,16 @@ definitions:
     - projectId
     - title
     type: object
-  project-board-api_internal_dto.CreateCommentRequest:
+  dto.CreateCommentRequest:
+    description: Request body for creating a new comment with optional attachments
+      attachmentIds is an optional array of attachment IDs to link to the comment
     properties:
+      attachmentIds:
+        example:
+        - f47ac10b-58cc-4372-a567-0e02b2c3d479
+        items:
+          type: string
+        type: array
       boardId:
         type: string
       content:
@@ -350,7 +279,7 @@ definitions:
     - boardId
     - content
     type: object
-  project-board-api_internal_dto.CreateFieldOptionRequest:
+  dto.CreateFieldOptionRequest:
     properties:
       color:
         type: string
@@ -374,18 +303,25 @@ definitions:
     - label
     - value
     type: object
-  project-board-api_internal_dto.CreateProjectJoinRequestRequest:
+  dto.CreateProjectJoinRequestRequest:
     properties:
       projectId:
         type: string
     required:
     - projectId
     type: object
-  project-board-api_internal_dto.CreateProjectRequest:
+  dto.CreateProjectRequest:
     description: Request body for creating a new project with optional start and due
       dates startDate and dueDate are optional, but startDate must be before or equal
-      to dueDate if both are provided
+      to dueDate if both are provided attachmentIds is an optional array of attachment
+      IDs to link to the project
     properties:
+      attachmentIds:
+        example:
+        - f47ac10b-58cc-4372-a567-0e02b2c3d479
+        items:
+          type: string
+        type: array
       description:
         example: Project for launching new product features in Q1 2024
         maxLength: 500
@@ -408,7 +344,7 @@ definitions:
     - name
     - workspaceId
     type: object
-  project-board-api_internal_dto.FieldOption:
+  dto.FieldOption:
     properties:
       color:
         type: string
@@ -425,7 +361,7 @@ definitions:
       optionValue:
         type: string
     type: object
-  project-board-api_internal_dto.FieldOptionResponse:
+  dto.FieldOptionResponse:
     properties:
       color:
         type: string
@@ -446,7 +382,7 @@ definitions:
       value:
         type: string
     type: object
-  project-board-api_internal_dto.FieldTypeInfo:
+  dto.FieldTypeInfo:
     properties:
       description:
         type: string
@@ -455,7 +391,7 @@ definitions:
       typeName:
         type: string
     type: object
-  project-board-api_internal_dto.FieldWithOptionsResponse:
+  dto.FieldWithOptionsResponse:
     properties:
       description:
         type: string
@@ -469,10 +405,10 @@ definitions:
         type: boolean
       options:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.FieldOption'
+          $ref: '#/definitions/dto.FieldOption'
         type: array
     type: object
-  project-board-api_internal_dto.MoveBoardRequest:
+  dto.MoveBoardRequest:
     properties:
       groupByFieldName:
         example: stage
@@ -487,7 +423,7 @@ definitions:
     - groupByFieldName
     - projectId
     type: object
-  project-board-api_internal_dto.MoveBoardResponse:
+  dto.MoveBoardResponse:
     properties:
       boardId:
         type: string
@@ -496,11 +432,11 @@ definitions:
       newFieldValue:
         type: string
     type: object
-  project-board-api_internal_dto.PaginatedBoardsResponse:
+  dto.PaginatedBoardsResponse:
     properties:
       boards:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.BoardResponse'
+          $ref: '#/definitions/dto.BoardResponse'
         type: array
       limit:
         type: integer
@@ -509,7 +445,7 @@ definitions:
       total:
         type: integer
     type: object
-  project-board-api_internal_dto.PaginatedProjectsResponse:
+  dto.PaginatedProjectsResponse:
     properties:
       limit:
         type: integer
@@ -517,12 +453,12 @@ definitions:
         type: integer
       projects:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.ProjectResponse'
+          $ref: '#/definitions/dto.ProjectResponse'
         type: array
       total:
         type: integer
     type: object
-  project-board-api_internal_dto.ParticipantResponse:
+  dto.ParticipantResponse:
     description: Participant information for a board
     properties:
       boardId:
@@ -538,7 +474,7 @@ definitions:
         example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
     type: object
-  project-board-api_internal_dto.ParticipantResult:
+  dto.ParticipantResult:
     description: Result for each participant addition attempt success=true means participant
       was added successfully success=false means addition failed, error field contains
       reason
@@ -553,7 +489,7 @@ definitions:
         example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
     type: object
-  project-board-api_internal_dto.ProjectBasicInfo:
+  dto.ProjectBasicInfo:
     properties:
       createdAt:
         type: string
@@ -584,22 +520,22 @@ definitions:
       workspaceName:
         type: string
     type: object
-  project-board-api_internal_dto.ProjectInitSettingsResponse:
+  dto.ProjectInitSettingsResponse:
     properties:
       defaultViewId:
         type: string
       fieldTypes:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.FieldTypeInfo'
+          $ref: '#/definitions/dto.FieldTypeInfo'
         type: array
       fields:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.FieldWithOptionsResponse'
+          $ref: '#/definitions/dto.FieldWithOptionsResponse'
         type: array
       project:
-        $ref: '#/definitions/project-board-api_internal_dto.ProjectBasicInfo'
+        $ref: '#/definitions/dto.ProjectBasicInfo'
     type: object
-  project-board-api_internal_dto.ProjectJoinRequestResponse:
+  dto.ProjectJoinRequestResponse:
     properties:
       projectId:
         type: string
@@ -618,7 +554,7 @@ definitions:
       userName:
         type: string
     type: object
-  project-board-api_internal_dto.ProjectMemberResponse:
+  dto.ProjectMemberResponse:
     properties:
       joinedAt:
         type: string
@@ -635,14 +571,14 @@ definitions:
       userName:
         type: string
     type: object
-  project-board-api_internal_dto.ProjectResponse:
+  dto.ProjectResponse:
     description: Project response with optional start/due dates and attachments startDate
       and dueDate are included only if they were set attachments is an array of file
       metadata (empty array if no attachments)
     properties:
       attachments:
         items:
-          $ref: '#/definitions/project-board-api_internal_dto.AttachmentResponse'
+          $ref: '#/definitions/dto.AttachmentResponse'
         type: array
       createdAt:
         example: "2024-01-15T10:30:00Z"
@@ -681,7 +617,7 @@ definitions:
         example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         type: string
     type: object
-  project-board-api_internal_dto.UpdateBoardFieldRequest:
+  dto.UpdateBoardFieldRequest:
     properties:
       fieldId:
         enum:
@@ -695,7 +631,7 @@ definitions:
     - fieldId
     - value
     type: object
-  project-board-api_internal_dto.UpdateBoardRequest:
+  dto.UpdateBoardRequest:
     description: 'Request body for updating a board with value-based customFields
       customFields should contain field type as key and value string as value Valid
       field types: stage, role, importance Example values: stage="completed", role="designer",
@@ -726,7 +662,7 @@ definitions:
         minLength: 1
         type: string
     type: object
-  project-board-api_internal_dto.UpdateCommentRequest:
+  dto.UpdateCommentRequest:
     properties:
       content:
         minLength: 1
@@ -734,7 +670,7 @@ definitions:
     required:
     - content
     type: object
-  project-board-api_internal_dto.UpdateFieldOptionRequest:
+  dto.UpdateFieldOptionRequest:
     properties:
       color:
         type: string
@@ -744,7 +680,7 @@ definitions:
         maxLength: 200
         type: string
     type: object
-  project-board-api_internal_dto.UpdateProjectJoinRequestRequest:
+  dto.UpdateProjectJoinRequestRequest:
     properties:
       status:
         enum:
@@ -754,7 +690,7 @@ definitions:
     required:
     - status
     type: object
-  project-board-api_internal_dto.UpdateProjectMemberRoleRequest:
+  dto.UpdateProjectMemberRoleRequest:
     properties:
       roleName:
         enum:
@@ -765,7 +701,7 @@ definitions:
     required:
     - roleName
     type: object
-  project-board-api_internal_dto.UpdateProjectRequest:
+  dto.UpdateProjectRequest:
     description: Request body for updating a project. All fields are optional. startDate
       must be before or equal to dueDate if both are provided
     properties:
@@ -785,13 +721,99 @@ definitions:
         example: "2024-01-15T00:00:00Z"
         type: string
     type: object
-  project-board-api_internal_response.ErrorResponse:
+  handler.AttachmentResponse:
+    properties:
+      contentType:
+        type: string
+      entityId:
+        type: string
+      entityType:
+        type: string
+      expiresAt:
+        type: string
+      fileName:
+        type: string
+      fileSize:
+        type: integer
+      fileUrl:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      uploadedAt:
+        type: string
+      uploadedBy:
+        type: string
+    type: object
+  handler.PresignedURLRequest:
+    properties:
+      contentType:
+        type: string
+      entityType:
+        type: string
+      fileName:
+        type: string
+      fileSize:
+        type: integer
+      workspaceId:
+        type: string
+    required:
+    - contentType
+    - entityType
+    - fileName
+    - fileSize
+    - workspaceId
+    type: object
+  handler.PresignedURLResponse:
+    properties:
+      expiresIn:
+        description: seconds
+        type: integer
+      fileKey:
+        type: string
+      uploadUrl:
+        type: string
+    type: object
+  handler.SaveAttachmentMetadataRequest:
+    properties:
+      contentType:
+        type: string
+      entityType:
+        type: string
+      fileKey:
+        type: string
+      fileName:
+        type: string
+      fileSize:
+        type: integer
+    required:
+    - contentType
+    - entityType
+    - fileKey
+    - fileName
+    - fileSize
+    type: object
+  handler.SchemaDocumentation:
+    properties:
+      attachmentResponse:
+        $ref: '#/definitions/dto.AttachmentResponse'
+      boardFilters:
+        allOf:
+        - $ref: '#/definitions/dto.BoardFilters'
+        description: Board related DTOs
+      paginatedBoardsResponse:
+        $ref: '#/definitions/dto.PaginatedBoardsResponse'
+      updateBoardFieldRequest:
+        $ref: '#/definitions/dto.UpdateBoardFieldRequest'
+    type: object
+  response.ErrorResponse:
     properties:
       error: {}
       requestId:
         type: string
     type: object
-  project-board-api_internal_response.SuccessResponse:
+  response.SuccessResponse:
     properties:
       data: {}
       requestId:
@@ -826,7 +848,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.SaveAttachmentMetadataRequest'
+          $ref: '#/definitions/handler.SaveAttachmentMetadataRequest'
       produces:
       - application/json
       responses:
@@ -834,24 +856,75 @@ paths:
           description: Attachment metadata saved successfully
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_handler.AttachmentResponse'
+                  $ref: '#/definitions/handler.AttachmentResponse'
               type: object
         "400":
           description: Invalid request or file validation failed
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "401":
           description: Unauthorized - user not authenticated
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: Failed to save attachment metadata
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Save attachment metadata
+      tags:
+      - attachments
+  /attachments/{attachmentId}:
+    delete:
+      consumes:
+      - application/json
+      description: |-
+        Deletes an attachment from both S3 and database
+        Only the user who uploaded the attachment can delete it
+        Performs soft delete on the database record
+      parameters:
+      - description: Attachment ID
+        in: path
+        name: attachmentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Attachment deleted successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: Invalid attachment ID
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized - user not authenticated
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden - user does not have permission to delete this attachment
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Attachment not found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Failed to delete attachment
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Delete attachment
       tags:
       - attachments
   /attachments/presigned-url:
@@ -871,7 +944,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.PresignedURLRequest'
+          $ref: '#/definitions/handler.PresignedURLRequest'
       produces:
       - application/json
       responses:
@@ -879,19 +952,19 @@ paths:
           description: Presigned URL generated successfully
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_handler.PresignedURLResponse'
+                  $ref: '#/definitions/handler.PresignedURLResponse'
               type: object
         "400":
           description: Invalid request or file validation failed
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: Failed to generate presigned URL
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Generate presigned URL for file upload
       tags:
       - attachments
@@ -920,25 +993,25 @@ paths:
           description: Board 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/project-board-api_internal_dto.BoardResponse'
+                    $ref: '#/definitions/dto.BoardResponse'
                   type: array
               type: object
         "400":
           description: 잘못된 Project ID 또는 필터 파라미터
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Project의 Board 목록 조회 (쿼리 파라미터 방식)
       tags:
       - boards
@@ -964,7 +1037,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.CreateBoardRequest'
+          $ref: '#/definitions/dto.CreateBoardRequest'
       produces:
       - application/json
       responses:
@@ -972,23 +1045,23 @@ paths:
           description: Board 생성 성공 (participantIds 포함)
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.BoardResponse'
+                  $ref: '#/definitions/dto.BoardResponse'
               type: object
         "400":
           description: 잘못된 요청 또는 유효하지 않은 field value
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Board 생성
       tags:
       - boards
@@ -1007,19 +1080,19 @@ paths:
         "200":
           description: Board 삭제 성공
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            $ref: '#/definitions/response.SuccessResponse'
         "400":
           description: 잘못된 Board ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Board 삭제
       tags:
       - boards
@@ -1044,23 +1117,23 @@ paths:
           description: Board 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.BoardDetailResponse'
+                  $ref: '#/definitions/dto.BoardDetailResponse'
               type: object
         "400":
           description: 잘못된 Board ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Board 상세 조회
       tags:
       - boards
@@ -1085,7 +1158,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.UpdateBoardRequest'
+          $ref: '#/definitions/dto.UpdateBoardRequest'
       produces:
       - application/json
       responses:
@@ -1093,26 +1166,64 @@ paths:
           description: Board 수정 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.BoardResponse'
+                  $ref: '#/definitions/dto.BoardResponse'
               type: object
         "400":
           description: 잘못된 요청 또는 유효하지 않은 field value
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Board 수정
       tags:
       - boards
+  /boards/{boardId}/attachments:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Retrieves all attachments associated with a specific board
+        Returns only confirmed attachments linked to the board
+      parameters:
+      - description: Board ID
+        in: path
+        name: boardId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Attachments retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/handler.AttachmentResponse'
+                  type: array
+              type: object
+        "400":
+          description: Invalid board ID
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Failed to retrieve attachments
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get board attachments
+      tags:
+      - attachments
   /boards/{boardId}/move:
     put:
       consumes:
@@ -1131,7 +1242,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.MoveBoardRequest'
+          $ref: '#/definitions/dto.MoveBoardRequest'
       produces:
       - application/json
       responses:
@@ -1139,23 +1250,23 @@ paths:
           description: Board 이동 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.MoveBoardResponse'
+                  $ref: '#/definitions/dto.MoveBoardResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Board 이동 (실시간 동기화)
       tags:
       - boards
@@ -1184,25 +1295,25 @@ paths:
           description: Board 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/project-board-api_internal_dto.BoardResponse'
+                    $ref: '#/definitions/dto.BoardResponse'
                   type: array
               type: object
         "400":
           description: 잘못된 Project ID 또는 필터 파라미터
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Project의 Board 목록 조회
       tags:
       - boards
@@ -1222,25 +1333,25 @@ paths:
           description: Comment 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/project-board-api_internal_dto.CommentResponse'
+                    $ref: '#/definitions/dto.CommentResponse'
                   type: array
               type: object
         "400":
           description: 잘못된 Board ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Board의 Comment 목록 조회 (쿼리 파라미터 방식)
       tags:
       - comments
@@ -1254,7 +1365,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.CreateCommentRequest'
+          $ref: '#/definitions/dto.CreateCommentRequest'
       produces:
       - application/json
       responses:
@@ -1262,23 +1373,23 @@ paths:
           description: Comment 생성 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.CommentResponse'
+                  $ref: '#/definitions/dto.CommentResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Comment 생성
       tags:
       - comments
@@ -1297,19 +1408,19 @@ paths:
         "200":
           description: Comment 삭제 성공
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            $ref: '#/definitions/response.SuccessResponse'
         "400":
           description: 잘못된 Comment ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Comment를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Comment 삭제
       tags:
       - comments
@@ -1328,7 +1439,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.UpdateCommentRequest'
+          $ref: '#/definitions/dto.UpdateCommentRequest'
       produces:
       - application/json
       responses:
@@ -1336,26 +1447,64 @@ paths:
           description: Comment 수정 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.CommentResponse'
+                  $ref: '#/definitions/dto.CommentResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Comment를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Comment 수정
       tags:
       - comments
+  /comments/{commentId}/attachments:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Retrieves all attachments associated with a specific comment
+        Returns only confirmed attachments linked to the comment
+      parameters:
+      - description: Comment ID
+        in: path
+        name: commentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Attachments retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/handler.AttachmentResponse'
+                  type: array
+              type: object
+        "400":
+          description: Invalid comment ID
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Failed to retrieve attachments
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get comment attachments
+      tags:
+      - attachments
   /comments/board/{boardId}:
     get:
       description: 특정 Board의 모든 Comment를 조회합니다
@@ -1372,25 +1521,25 @@ paths:
           description: Comment 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/project-board-api_internal_dto.CommentResponse'
+                    $ref: '#/definitions/dto.CommentResponse'
                   type: array
               type: object
         "400":
           description: 잘못된 Board ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Board의 Comment 목록 조회
       tags:
       - comments
@@ -1414,21 +1563,21 @@ paths:
           description: 필드 옵션 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/project-board-api_internal_dto.FieldOptionResponse'
+                    $ref: '#/definitions/dto.FieldOptionResponse'
                   type: array
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 필드 옵션 목록 조회
       tags:
       - field-options
@@ -1442,7 +1591,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.CreateFieldOptionRequest'
+          $ref: '#/definitions/dto.CreateFieldOptionRequest'
       produces:
       - application/json
       responses:
@@ -1450,23 +1599,23 @@ paths:
           description: 필드 옵션 생성 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.FieldOptionResponse'
+                  $ref: '#/definitions/dto.FieldOptionResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "409":
           description: 중복된 필드 옵션
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 필드 옵션 생성
       tags:
       - field-options
@@ -1485,23 +1634,23 @@ paths:
         "200":
           description: 필드 옵션 삭제 성공
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            $ref: '#/definitions/response.SuccessResponse'
         "400":
           description: 잘못된 Option ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 시스템 기본 옵션은 삭제 불가
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: 필드 옵션을 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 필드 옵션 삭제
       tags:
       - field-options
@@ -1520,7 +1669,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.UpdateFieldOptionRequest'
+          $ref: '#/definitions/dto.UpdateFieldOptionRequest'
       produces:
       - application/json
       responses:
@@ -1528,23 +1677,23 @@ paths:
           description: 필드 옵션 수정 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.FieldOptionResponse'
+                  $ref: '#/definitions/dto.FieldOptionResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: 필드 옵션을 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 필드 옵션 수정
       tags:
       - field-options
@@ -1557,7 +1706,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_handler.SchemaDocumentation'
+            $ref: '#/definitions/handler.SchemaDocumentation'
       summary: Schema Documentation (Not a real endpoint)
       tags:
       - internal
@@ -1572,7 +1721,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.CreateProjectJoinRequestRequest'
+          $ref: '#/definitions/dto.CreateProjectJoinRequestRequest'
       produces:
       - application/json
       responses:
@@ -1580,31 +1729,31 @@ paths:
           description: 가입 요청 생성 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.ProjectJoinRequestResponse'
+                  $ref: '#/definitions/dto.ProjectJoinRequestResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "409":
           description: 이미 멤버이거나 요청이 존재함
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 프로젝트 가입 요청 생성
       tags:
       - project-join-requests
@@ -1624,7 +1773,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.UpdateProjectJoinRequestRequest'
+          $ref: '#/definitions/dto.UpdateProjectJoinRequestRequest'
       produces:
       - application/json
       responses:
@@ -1632,27 +1781,27 @@ paths:
           description: 가입 요청 처리 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.ProjectJoinRequestResponse'
+                  $ref: '#/definitions/dto.ProjectJoinRequestResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: 가입 요청을 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 프로젝트 가입 요청 승인/거부
       tags:
       - project-join-requests
@@ -1667,30 +1816,30 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.AddParticipantsRequest'
+          $ref: '#/definitions/dto.AddParticipantsRequest'
       produces:
       - application/json
       responses:
         "201":
           description: 모든 참여자 추가 성공
           schema:
-            $ref: '#/definitions/project-board-api_internal_dto.AddParticipantsResponse'
+            $ref: '#/definitions/dto.AddParticipantsResponse'
         "207":
           description: 일부 참여자만 추가 성공 (Multi-Status)
           schema:
-            $ref: '#/definitions/project-board-api_internal_dto.AddParticipantsResponse'
+            $ref: '#/definitions/dto.AddParticipantsResponse'
         "400":
           description: 잘못된 요청 또는 모든 참여자 추가 실패
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Participant 추가 (단건/다중)
       tags:
       - participants
@@ -1710,25 +1859,25 @@ paths:
           description: Participant 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/project-board-api_internal_dto.ParticipantResponse'
+                    $ref: '#/definitions/dto.ParticipantResponse'
                   type: array
               type: object
         "400":
           description: 잘못된 Board ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Board의 Participant 목록 조회
       tags:
       - participants
@@ -1752,19 +1901,19 @@ paths:
         "200":
           description: Participant 제거 성공
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            $ref: '#/definitions/response.SuccessResponse'
         "400":
           description: 잘못된 ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Board 또는 Participant를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Participant 제거
       tags:
       - participants
@@ -1786,19 +1935,19 @@ paths:
           description: Project 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.PaginatedProjectsResponse'
+                  $ref: '#/definitions/dto.PaginatedProjectsResponse'
               type: object
         "400":
           description: 잘못된 Workspace ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Workspace의 Project 목록 조회 (쿼리 파라미터 방식)
       tags:
       - projects
@@ -1814,7 +1963,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.CreateProjectRequest'
+          $ref: '#/definitions/dto.CreateProjectRequest'
       produces:
       - application/json
       responses:
@@ -1822,19 +1971,19 @@ paths:
           description: Project 생성 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.ProjectResponse'
+                  $ref: '#/definitions/dto.ProjectResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Project 생성
       tags:
       - projects
@@ -1854,7 +2003,7 @@ paths:
           description: Project 삭제 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   additionalProperties:
@@ -1864,19 +2013,19 @@ paths:
         "400":
           description: 잘못된 Project ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Project 삭제
       tags:
       - projects
@@ -1897,27 +2046,27 @@ paths:
           description: Project 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.ProjectResponse'
+                  $ref: '#/definitions/dto.ProjectResponse'
               type: object
         "400":
           description: 잘못된 Project ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Project 상세 조회
       tags:
       - projects
@@ -1938,7 +2087,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.UpdateProjectRequest'
+          $ref: '#/definitions/dto.UpdateProjectRequest'
       produces:
       - application/json
       responses:
@@ -1946,30 +2095,68 @@ paths:
           description: Project 수정 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.ProjectResponse'
+                  $ref: '#/definitions/dto.ProjectResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Project 수정
       tags:
       - projects
+  /projects/{projectId}/attachments:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Retrieves all attachments associated with a specific project
+        Returns only confirmed attachments linked to the project
+      parameters:
+      - description: Project ID
+        in: path
+        name: projectId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Attachments retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/handler.AttachmentResponse'
+                  type: array
+              type: object
+        "400":
+          description: Invalid project ID
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Failed to retrieve attachments
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get project attachments
+      tags:
+      - attachments
   /projects/{projectId}/init-settings:
     get:
       description: Project 진입 시 필요한 초기 설정 데이터를 한 번에 조회합니다
@@ -1986,27 +2173,27 @@ paths:
           description: 초기 설정 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.ProjectInitSettingsResponse'
+                  $ref: '#/definitions/dto.ProjectInitSettingsResponse'
               type: object
         "400":
           description: 잘못된 Project ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Project 초기 설정 조회
       tags:
       - projects
@@ -2030,29 +2217,29 @@ paths:
           description: 가입 요청 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/project-board-api_internal_dto.ProjectJoinRequestResponse'
+                    $ref: '#/definitions/dto.ProjectJoinRequestResponse'
                   type: array
               type: object
         "400":
           description: 잘못된 Project ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 프로젝트 가입 요청 목록 조회
       tags:
       - project-join-requests
@@ -2072,29 +2259,29 @@ paths:
           description: 멤버 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/project-board-api_internal_dto.ProjectMemberResponse'
+                    $ref: '#/definitions/dto.ProjectMemberResponse'
                   type: array
               type: object
         "400":
           description: 잘못된 Project ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 프로젝트 멤버 목록 조회
       tags:
       - project-members
@@ -2119,7 +2306,7 @@ paths:
           description: 멤버 제거 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   additionalProperties:
@@ -2129,19 +2316,19 @@ paths:
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: 멤버를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 프로젝트 멤버 제거
       tags:
       - project-members
@@ -2166,7 +2353,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/project-board-api_internal_dto.UpdateProjectMemberRoleRequest'
+          $ref: '#/definitions/dto.UpdateProjectMemberRoleRequest'
       produces:
       - application/json
       responses:
@@ -2174,27 +2361,27 @@ paths:
           description: 역할 변경 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.ProjectMemberResponse'
+                  $ref: '#/definitions/dto.ProjectMemberResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: 멤버를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: 프로젝트 멤버 역할 변경
       tags:
       - project-members
@@ -2229,23 +2416,23 @@ paths:
           description: 검색 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.PaginatedProjectsResponse'
+                  $ref: '#/definitions/dto.PaginatedProjectsResponse'
               type: object
         "400":
           description: 잘못된 요청
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "403":
           description: 권한 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Project 검색
       tags:
       - projects
@@ -2267,21 +2454,21 @@ paths:
           description: Project 목록 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/project-board-api_internal_dto.ProjectResponse'
+                    $ref: '#/definitions/dto.ProjectResponse'
                   type: array
               type: object
         "400":
           description: 잘못된 Workspace ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Workspace의 Project 목록 조회
       tags:
       - projects
@@ -2303,23 +2490,23 @@ paths:
           description: 기본 Project 조회 성공
           schema:
             allOf:
-            - $ref: '#/definitions/project-board-api_internal_response.SuccessResponse'
+            - $ref: '#/definitions/response.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/project-board-api_internal_dto.ProjectResponse'
+                  $ref: '#/definitions/dto.ProjectResponse'
               type: object
         "400":
           description: 잘못된 Workspace ID
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "404":
           description: 기본 Project를 찾을 수 없음
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
         "500":
           description: 서버 에러
           schema:
-            $ref: '#/definitions/project-board-api_internal_response.ErrorResponse'
+            $ref: '#/definitions/response.ErrorResponse'
       summary: Workspace의 기본 Project 조회
       tags:
       - projects

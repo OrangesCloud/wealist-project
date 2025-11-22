@@ -13,6 +13,7 @@ import (
 // AttachmentRepository defines the interface for attachment data access
 type AttachmentRepository interface {
 	Create(ctx context.Context, attachment *domain.Attachment) error
+	FindByID(ctx context.Context, id uuid.UUID) (*domain.Attachment, error)
 	FindByEntityID(ctx context.Context, entityType domain.EntityType, entityID uuid.UUID) ([]*domain.Attachment, error)
 	FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*domain.Attachment, error)
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -37,6 +38,15 @@ func (r *attachmentRepositoryImpl) Create(ctx context.Context, attachment *domai
 		return err
 	}
 	return nil
+}
+
+// FindByID finds an attachment by its ID
+func (r *attachmentRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*domain.Attachment, error) {
+	var attachment domain.Attachment
+	if err := r.db.WithContext(ctx).First(&attachment, id).Error; err != nil {
+		return nil, err
+	}
+	return &attachment, nil
 }
 
 // FindByEntityID finds all attachments by entity type and entity ID

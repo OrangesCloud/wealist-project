@@ -59,10 +59,10 @@ func Setup(cfg Config) *gin.Engine {
 	fieldOptionConverter := converter.NewFieldOptionConverter(fieldOptionRepo)
 
 	// Initialize services with repository dependencies
-	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, attachmentRepo, cfg.UserClient, cfg.Metrics, cfg.Logger)
-	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, participantRepo, attachmentRepo, fieldOptionConverter, cfg.Metrics, cfg.Logger)
+	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, attachmentRepo, cfg.S3Client, cfg.UserClient, cfg.Metrics, cfg.Logger)
+	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, participantRepo, attachmentRepo, cfg.S3Client, fieldOptionConverter, cfg.Metrics, cfg.Logger)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
-	commentService := service.NewCommentService(commentRepo, boardRepo, attachmentRepo)
+	commentService := service.NewCommentService(commentRepo, boardRepo, attachmentRepo, cfg.S3Client, cfg.Logger)
 	fieldOptionService := service.NewFieldOptionService(fieldOptionRepo)
 	projectMemberService := service.NewProjectMemberService(projectRepo, cfg.UserClient)
 	projectJoinRequestService := service.NewProjectJoinRequestService(projectRepo, cfg.UserClient)
@@ -271,6 +271,8 @@ func setupRoutes(
 			attachments.POST("/presigned-url", attachmentHandler.GeneratePresignedURL)
 			// Save attachment metadata after successful S3 upload
 			attachments.POST("", attachmentHandler.SaveAttachmentMetadata)
+			// Delete attachment
+			attachments.DELETE("/:attachmentId", attachmentHandler.DeleteAttachment)
 		}
 	}
 }
