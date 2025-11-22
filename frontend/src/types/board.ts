@@ -58,6 +58,7 @@ export interface PresignedURLRequest {
  * @summary Presigned URL 응답 DTO (internal_handler.PresignedURLResponse)
  */
 export interface PresignedURLResponse {
+  attachmentId: string;
   uploadUrl: string; // S3에 PUT 요청을 보낼 URL
   fileKey: string; // 업로드 후 서버에 저장할 Key
   expiresIn: number; // 유효 시간 (초)
