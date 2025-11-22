@@ -16,7 +16,7 @@ import (
 
 // CommentService defines the interface for comment business logic
 type CommentService interface {
-	CreateComment(ctx context.Context, req *dto.CreateCommentRequest) (*dto.CommentResponse, error)
+	CreateComment(ctx context.Context, userID uuid.UUID, req *dto.CreateCommentRequest) (*dto.CommentResponse, error)
 	GetComments(ctx context.Context, boardID uuid.UUID) ([]*dto.CommentResponse, error)
 	UpdateComment(ctx context.Context, commentID uuid.UUID, req *dto.UpdateCommentRequest) (*dto.CommentResponse, error)
 	DeleteComment(ctx context.Context, commentID uuid.UUID) error
@@ -43,7 +43,7 @@ func NewCommentService(commentRepo repository.CommentRepository, boardRepo repos
 }
 
 // CreateComment creates a new comment on a board
-func (s *commentServiceImpl) CreateComment(ctx context.Context, req *dto.CreateCommentRequest) (*dto.CommentResponse, error) {
+func (s *commentServiceImpl) CreateComment(ctx context.Context, userID uuid.UUID, req *dto.CreateCommentRequest) (*dto.CommentResponse, error) {
 	// Verify board exists
 	_, err := s.boardRepo.FindByID(ctx, req.BoardID)
 	if err != nil {
@@ -52,10 +52,6 @@ func (s *commentServiceImpl) CreateComment(ctx context.Context, req *dto.CreateC
 		}
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to verify board", err.Error())
 	}
-
-	// TODO: Get UserID from context (authentication middleware)
-	// For now, using a placeholder UUID
-	userID := uuid.MustParse("00000000-0000-0000-0000-000000000000")
 	
 	// Validate and confirm attachments if provided
 	if len(req.AttachmentIDs) > 0 {

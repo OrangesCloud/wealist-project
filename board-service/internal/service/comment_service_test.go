@@ -139,7 +139,8 @@ func TestCommentService_CreateComment(t *testing.T) {
 			service := NewCommentService(mockCommentRepo, mockBoardRepo, &MockAttachmentRepository{}, nil, logger)
 
 			// When
-			got, err := service.CreateComment(context.Background(), tt.req)
+			userID := uuid.New()
+			got, err := service.CreateComment(context.Background(), userID, tt.req)
 
 			// Then
 			if tt.wantErr {

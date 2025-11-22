@@ -78,9 +78,9 @@ type RedisConfig struct {
 type S3Config struct {
 	Bucket    string `yaml:"bucket"`
 	Region    string `yaml:"region"`
-	AccessKey string `yaml:"access_key"`
-	SecretKey string `yaml:"secret_key"`
-	Endpoint  string `yaml:"endpoint"` // 로컬 MinIO용 (선택적)
+	AccessKey string `yaml:"access_key"` // MinIO용만 필요 (선택적)
+	SecretKey string `yaml:"secret_key"` // MinIO용만 필요 (선택적)
+	Endpoint  string `yaml:"endpoint"`   // 로컬 MinIO용 (선택적)
 }
 
 // Load loads configuration from file and environment variables
@@ -269,6 +269,7 @@ func (c *Config) overrideFromEnv() {
 	if s3Region := os.Getenv("S3_REGION"); s3Region != "" {
 		c.S3.Region = s3Region
 	}
+	// AccessKey/SecretKey는 MinIO 사용 시에만 필요 (선택적)
 	if s3AccessKey := os.Getenv("S3_ACCESS_KEY"); s3AccessKey != "" {
 		c.S3.AccessKey = s3AccessKey
 	}
