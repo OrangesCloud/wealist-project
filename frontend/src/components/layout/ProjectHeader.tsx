@@ -1,29 +1,27 @@
 // src/components/layout/ProjectHeader.tsx
 
 import React, { useRef, useEffect } from 'react';
-import { ChevronDown, Plus, Settings } from 'lucide-react';
+import { ChevronDown, Plus, ClipboardCheck } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ProjectResponse } from '../../types/board';
 import { WorkspaceMemberResponse } from '../../types/user';
 import { AvatarStack } from '../common/AvartarStack';
+import { IROLES } from '../../types/common';
 
 interface ProjectHeaderProps {
   // Data
   projects: ProjectResponse[];
   selectedProject: ProjectResponse | null;
   workspaceMembers: WorkspaceMemberResponse[];
+  userRole: IROLES; // 💡 [추가] 사용자 역할 정보 (권한 제어용)
 
   // State Handlers
   setSelectedProject: (project: ProjectResponse | null) => void;
   setShowCreateProject: (show: boolean) => void;
-  setShowProjectSettings: (show: boolean) => void;
-
+  setShowProjectDetail: (show: boolean) => void; // 💡 [추가] 프로젝트 상세 모달 핸들러
   // UI State
   showProjectSelector: boolean;
   setShowProjectSelector: (show: boolean) => void;
-
-  // Permissions
-  canAccessSettings: boolean;
 }
 
 const sidebarWidth = 'w-16 sm:w-20'; // MainLayout과 동일한 값 사용
@@ -32,12 +30,12 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
   projects,
   selectedProject,
   workspaceMembers,
+  userRole, // 💡 [추가] userRole
   setSelectedProject,
   setShowCreateProject,
-  setShowProjectSettings,
+  setShowProjectDetail, // 💡 [추가] Project Detail 핸들러
   showProjectSelector,
   setShowProjectSelector,
-  canAccessSettings,
 }) => {
   const { theme } = useTheme();
   const projectSelectorRef = useRef<HTMLDivElement>(null);
@@ -93,15 +91,16 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
           }}
           className={`flex items-center gap-2 font-bold text-xl ${theme.colors.text} hover:opacity-80 transition project-selector-trigger`}
         >
-          {selectedProject?.name || '프로젝트를 선택'}
+          {selectedProject?.name || '프로젝트를 생성하세요'}
         </button>
-        {canAccessSettings && selectedProject && (
+        {/* 💡 [수정/통합] 프로젝트 상세 정보 버튼 (모든 사용자 접근 가능) */}
+        {selectedProject && (
           <button
-            onClick={() => setShowProjectSettings(true)}
-            className={`p-2 rounded-lg transition ${theme.colors.text} hover:bg-gray-100 project-selector-trigger`}
-            title="프로젝트 설정"
+            onClick={() => setShowProjectDetail(true)}
+            className={`p-2 rounded-lg transition ${theme.colors.text} hover:bg-gray-100`}
+            title="프로젝트 상세 정보 보기"
           >
-            <Settings className="w-5 h-5" />
+            <ClipboardCheck className="w-5 h-5 text-gray-600" />
           </button>
         )}
         <ChevronDown
@@ -157,9 +156,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
       </div>
       {selectedProject && (
         <button
-          className={`flex items-center gap-2 p-1 rounded-lg transition ${
-            canAccessSettings ? 'hover:bg-blue-100' : 'hover:bg-gray-100'
-          }`}
+          className={`flex items-center gap-2 p-1 rounded-lg transition hover:bg-gray-100`}
           title="조직원"
         >
           <AvatarStack members={workspaceMembers} />

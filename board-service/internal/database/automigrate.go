@@ -28,6 +28,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&domain.Participant{},
 		&domain.Comment{},
 		&domain.FieldOption{},
+		&domain.Attachment{},
 	}
 
 	// Run auto-migration for all models
@@ -54,6 +55,7 @@ func SafeAutoMigrate(db *gorm.DB, logger *zap.Logger) error {
 		{&domain.Participant{}, "participants"},
 		{&domain.Comment{}, "comments"},
 		{&domain.FieldOption{}, "field_options"},
+		{&domain.Attachment{}, "attachments"},
 	}
 
 	logger.Info("Starting safe auto-migration",

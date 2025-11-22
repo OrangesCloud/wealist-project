@@ -40,7 +40,10 @@ func (r *commentRepositoryImpl) Create(ctx context.Context, comment *domain.Comm
 // FindByID finds a comment by ID
 func (r *commentRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*domain.Comment, error) {
 	var comment domain.Comment
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&comment).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Preload("Attachments").
+		Where("id = ?", id).
+		First(&comment).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
@@ -53,6 +56,7 @@ func (r *commentRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*do
 func (r *commentRepositoryImpl) FindByBoardID(ctx context.Context, boardID uuid.UUID) ([]*domain.Comment, error) {
 	var comments []*domain.Comment
 	if err := r.db.WithContext(ctx).
+		Preload("Attachments").
 		Where("board_id = ?", boardID).
 		Order("created_at ASC").
 		Find(&comments).Error; err != nil {

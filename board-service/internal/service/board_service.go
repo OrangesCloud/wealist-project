@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
@@ -66,6 +67,11 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		return nil, response.NewAppError(response.ErrCodeUnauthorized, "User ID not found in context", "")
 	}
 
+	// Validate date range
+	if err := validateDateRange(req.StartDate, req.DueDate); err != nil {
+		return nil, err
+	}
+
 	// Verify project exists
 	_, err := s.projectRepo.FindByID(ctx, req.ProjectID)
 	if err != nil {
@@ -91,6 +97,12 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		customFieldsJSON = jsonBytes
 	}
 
+	// Set assigneeID: use provided value, or default to authorID if not provided
+	assigneeID := req.AssigneeID
+	if assigneeID == nil {
+		assigneeID = &authorID
+	}
+
 	// Create domain model from request with AuthorID
 	board := &domain.Board{
 		ProjectID:    req.ProjectID,
@@ -98,7 +110,8 @@ func (s *boardServiceImpl) CreateBoard(ctx context.Context, req *dto.CreateBoard
 		Title:        req.Title,
 		Content:      req.Content,
 		CustomFields: customFieldsJSON,
-		AssigneeID:   req.AssigneeID,
+		AssigneeID:   assigneeID,
+		StartDate:    req.StartDate,
 		DueDate:      req.DueDate,
 	}
 
@@ -184,6 +197,22 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch board", err.Error())
 	}
 
+	// Determine the effective start and due dates for validation
+	effectiveStartDate := board.StartDate
+	effectiveDueDate := board.DueDate
+	
+	if req.StartDate != nil {
+		effectiveStartDate = req.StartDate
+	}
+	if req.DueDate != nil {
+		effectiveDueDate = req.DueDate
+	}
+	
+	// Validate date range with effective dates
+	if err := validateDateRange(effectiveStartDate, effectiveDueDate); err != nil {
+		return nil, err
+	}
+
 	// Update fields if provided
 	if req.Title != nil {
 		board.Title = *req.Title
@@ -207,6 +236,9 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 	}
 	if req.AssigneeID != nil {
 		board.AssigneeID = req.AssigneeID
+	}
+	if req.StartDate != nil {
+		board.StartDate = req.StartDate
 	}
 	if req.DueDate != nil {
 		board.DueDate = req.DueDate
@@ -272,17 +304,40 @@ func (s *boardServiceImpl) toBoardResponse(board *domain.Board) *dto.BoardRespon
 		_ = json.Unmarshal(board.CustomFields, &customFields)
 	}
 	
+	// Extract participant IDs from board participants
+	participantIDs := make([]uuid.UUID, 0, len(board.Participants))
+	for _, p := range board.Participants {
+		participantIDs = append(participantIDs, p.UserID)
+	}
+	
+	// Convert attachments to response DTOs
+	attachments := make([]dto.AttachmentResponse, 0, len(board.Attachments))
+	for _, a := range board.Attachments {
+		attachments = append(attachments, dto.AttachmentResponse{
+			ID:          a.ID,
+			FileName:    a.FileName,
+			FileURL:     a.FileURL,
+			FileSize:    a.FileSize,
+			ContentType: a.ContentType,
+			UploadedBy:  a.UploadedBy,
+			UploadedAt:  a.CreatedAt,
+		})
+	}
+	
 	return &dto.BoardResponse{
-		ID:           board.ID,
-		ProjectID:    board.ProjectID,
-		AuthorID:     board.AuthorID,
-		AssigneeID:   board.AssigneeID,
-		Title:        board.Title,
-		Content:      board.Content,
-		CustomFields: customFields,
-		DueDate:      board.DueDate,
-		CreatedAt:    board.CreatedAt,
-		UpdatedAt:    board.UpdatedAt,
+		ID:             board.ID,
+		ProjectID:      board.ProjectID,
+		AuthorID:       board.AuthorID,
+		AssigneeID:     board.AssigneeID,
+		Title:          board.Title,
+		Content:        board.Content,
+		CustomFields:   customFields,
+		StartDate:      board.StartDate,
+		DueDate:        board.DueDate,
+		ParticipantIDs: participantIDs,
+		Attachments:    attachments,
+		CreatedAt:      board.CreatedAt,
+		UpdatedAt:      board.UpdatedAt,
 	}
 }
 
@@ -317,4 +372,14 @@ func (s *boardServiceImpl) toBoardDetailResponse(board *domain.Board) *dto.Board
 		Participants:  participants,
 		Comments:      comments,
 	}
+}
+
+// validateDateRange validates that startDate is not after dueDate
+func validateDateRange(startDate, dueDate *time.Time) error {
+	if startDate != nil && dueDate != nil {
+		if startDate.After(*dueDate) {
+			return response.NewAppError(response.ErrCodeValidation, "Start date cannot be after due date", "")
+		}
+	}
+	return nil
 }

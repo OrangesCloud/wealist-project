@@ -16,7 +16,7 @@ import (
 
 // ParticipantService defines the interface for participant business logic
 type ParticipantService interface {
-	AddParticipant(ctx context.Context, req *dto.AddParticipantRequest) error
+	AddParticipants(ctx context.Context, req *dto.AddParticipantsRequest) (*dto.AddParticipantsResponse, error)
 	GetParticipants(ctx context.Context, boardID uuid.UUID) ([]*dto.ParticipantResponse, error)
 	RemoveParticipant(ctx context.Context, boardID, userID uuid.UUID) error
 }
@@ -35,42 +35,95 @@ func NewParticipantService(participantRepo repository.ParticipantRepository, boa
 	}
 }
 
-// AddParticipant adds a participant to a board
-func (s *participantServiceImpl) AddParticipant(ctx context.Context, req *dto.AddParticipantRequest) error {
+// AddParticipants adds one or more participants to a board (supports single and bulk operations)
+func (s *participantServiceImpl) AddParticipants(ctx context.Context, req *dto.AddParticipantsRequest) (*dto.AddParticipantsResponse, error) {
 	// Verify board exists
 	_, err := s.boardRepo.FindByID(ctx, req.BoardID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return response.NewAppError(response.ErrCodeNotFound, "Board not found", "")
+			return nil, response.NewAppError(response.ErrCodeNotFound, "Board not found", "")
 		}
-		return response.NewAppError(response.ErrCodeInternal, "Failed to verify board", err.Error())
+		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to verify board", err.Error())
+	}
+
+	// Remove duplicates from the request
+	uniqueUserIDs := removeDuplicateUUIDs(req.UserIDs)
+
+	// Initialize response
+	response := &dto.AddParticipantsResponse{
+		TotalRequested: len(uniqueUserIDs),
+		TotalSuccess:   0,
+		TotalFailed:    0,
+		Results:        make([]dto.ParticipantResult, 0, len(uniqueUserIDs)),
+	}
+
+	// Process each participant individually
+	for _, userID := range uniqueUserIDs {
+		result := s.addSingleParticipant(ctx, req.BoardID, userID)
+		response.Results = append(response.Results, result)
+		
+		if result.Success {
+			response.TotalSuccess++
+		} else {
+			response.TotalFailed++
+		}
+	}
+
+	return response, nil
+}
+
+// addSingleParticipant attempts to add a single participant and returns the result
+func (s *participantServiceImpl) addSingleParticipant(ctx context.Context, boardID, userID uuid.UUID) dto.ParticipantResult {
+	result := dto.ParticipantResult{
+		UserID:  userID,
+		Success: false,
 	}
 
 	// Check if participant already exists
-	existing, err := s.participantRepo.FindByBoardAndUser(ctx, req.BoardID, req.UserID)
+	existing, err := s.participantRepo.FindByBoardAndUser(ctx, boardID, userID)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return response.NewAppError(response.ErrCodeInternal, "Failed to check existing participant", err.Error())
+		result.Error = "Failed to check existing participant"
+		return result
 	}
 	if existing != nil {
-		return response.NewAppError(response.ErrCodeAlreadyExists, "Participant already exists", "")
+		result.Error = "Participant already exists"
+		return result
 	}
 
-	// Create domain model from request
+	// Create domain model
 	participant := &domain.Participant{
-		BoardID: req.BoardID,
-		UserID:  req.UserID,
+		BoardID: boardID,
+		UserID:  userID,
 	}
 
 	// Save to repository
 	if err := s.participantRepo.Create(ctx, participant); err != nil {
 		// Check for unique constraint violation
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
-			return response.NewAppError(response.ErrCodeAlreadyExists, "Participant already exists", "")
+			result.Error = "Participant already exists"
+		} else {
+			result.Error = "Failed to add participant"
 		}
-		return response.NewAppError(response.ErrCodeInternal, "Failed to add participant", err.Error())
+		return result
 	}
 
-	return nil
+	result.Success = true
+	return result
+}
+
+// removeDuplicateUUIDs removes duplicate UUIDs from a slice
+func removeDuplicateUUIDs(uuids []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]bool)
+	result := make([]uuid.UUID, 0, len(uuids))
+	
+	for _, id := range uuids {
+		if !seen[id] {
+			seen[id] = true
+			result = append(result, id)
+		}
+	}
+	
+	return result
 }
 
 // GetParticipants retrieves all participants for a board
