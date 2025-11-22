@@ -110,6 +110,34 @@ public class S3Service {
     }
 
     /**
+     * 파일 키로부터 S3 URL 생성
+     *
+     * @param fileKey S3 파일 키
+     * @return S3 파일 URL
+     */
+    public String generateS3Url(String fileKey) {
+        if (fileKey == null || fileKey.trim().isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "파일 키는 필수입니다.");
+        }
+
+        // fileKey 형식 검증 (user/ 로 시작해야 함)
+        if (!fileKey.startsWith("user/")) {
+            logger.warn("Invalid fileKey format: {}", fileKey);
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "잘못된 파일 키 형식입니다.");
+        }
+
+        // S3 URL 생성
+        // 형식: https://{bucket}.s3.{region}.amazonaws.com/{fileKey}
+        String s3Url = String.format("https://%s.s3.%s.amazonaws.com/%s",
+                s3Config.getBucket(),
+                s3Config.getRegion(),
+                fileKey);
+
+        logger.debug("Generated S3 URL from fileKey: {} -> {}", fileKey, s3Url);
+        return s3Url;
+    }
+
+    /**
      * 파라미터 검증
      */
     private void validateParameters(UUID workspaceId, UUID userId, String fileName, String contentType) {

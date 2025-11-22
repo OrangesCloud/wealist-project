@@ -2,9 +2,13 @@ package OrangeCloud.UserRepo.controller;
 
 import OrangeCloud.UserRepo.dto.userprofile.PresignedUrlRequest;
 import OrangeCloud.UserRepo.dto.userprofile.PresignedUrlResponse;
+import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileImageByKeyRequest;
+import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
+import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
 import OrangeCloud.UserRepo.exception.CustomException;
 import OrangeCloud.UserRepo.exception.ErrorCode;
 import OrangeCloud.UserRepo.service.S3Service;
+import OrangeCloud.UserRepo.service.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -41,6 +45,7 @@ public class ProfileImageController {
     );
 
     private final S3Service s3Service;
+    private final UserProfileService userProfileService;
 
     /**
      * 인증된 사용자 ID 추출
@@ -130,5 +135,48 @@ public class ProfileImageController {
 
         log.debug("파일 메타데이터 검증 완료 - fileName: {}, fileSize: {}, contentType: {}",
                 request.fileName(), request.fileSize(), request.contentType());
+    }
+
+    /**
+     * 프로필 이미지 업데이트 (fileKey 기반)
+     * S3에 업로드된 파일의 fileKey를 받아 프로필 이미지 URL을 업데이트합니다.
+     *
+     * @param request   프로필 이미지 업데이트 요청
+     * @param principal 인증된 사용자 정보
+     * @return 업데이트된 프로필 정보
+     */
+    @PutMapping
+    @Operation(
+            summary = "프로필 이미지 업데이트",
+            description = "S3에 업로드된 파일의 fileKey를 받아 프로필 이미지를 업데이트합니다. " +
+                    "클라이언트는 먼저 Presigned URL을 받아 S3에 직접 업로드한 후, " +
+                    "이 엔드포인트를 호출하여 프로필을 업데이트해야 합니다."
+    )
+    public ResponseEntity<UserProfileResponse> updateProfileImage(
+            @Valid @RequestBody UpdateProfileImageByKeyRequest request,
+            Principal principal) {
+
+        UUID userId = extractUserId(principal);
+        log.info("프로필 이미지 업데이트 요청 - userId: {}, workspaceId: {}, fileKey: {}",
+                userId, request.workspaceId(), request.fileKey());
+
+        // fileKey로부터 S3 URL 생성
+        String s3Url = s3Service.generateS3Url(request.fileKey());
+        log.debug("Generated S3 URL: {}", s3Url);
+
+        // 프로필 업데이트
+        UpdateProfileRequest updateRequest = new UpdateProfileRequest(
+                request.workspaceId(),
+                userId,
+                null,  // nickName은 변경하지 않음
+                null,  // email은 변경하지 않음
+                s3Url  // 프로필 이미지 URL만 업데이트
+        );
+
+        UserProfileResponse response = userProfileService.updateProfile(updateRequest);
+        log.info("프로필 이미지 업데이트 완료 - userId: {}, profileImageUrl: {}",
+                userId, response.getProfileImageUrl());
+
+        return ResponseEntity.ok(response);
     }
 }

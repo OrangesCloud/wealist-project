@@ -39,7 +39,8 @@ class S3ServiceTest {
     @BeforeEach
     void setUp() {
         s3Service = new S3Service(s3Presigner, s3Config);
-        when(s3Config.getBucket()).thenReturn("test-bucket");
+        when(s3Config.getBucket()).thenReturn("wealist-dev-files");
+        when(s3Config.getRegion()).thenReturn("ap-northeast-2");
     }
 
     @Test
@@ -257,5 +258,115 @@ class S3ServiceTest {
 
         // Then
         assertThat(response.getExpiresIn()).isEqualTo(300); // 5분 = 300초
+    }
+
+    // ========== generateS3Url 메서드 테스트 ==========
+
+    @Test
+    @DisplayName("유효한 fileKey로 S3 URL 생성 성공")
+    void generateS3Url_Success() {
+        // Given
+        UUID workspaceId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        String fileKey = "user/" + workspaceId + "/2024/01/" + userId + "_1704326400.jpg";
+
+        // When
+        String s3Url = s3Service.generateS3Url(fileKey);
+
+        // Then
+        assertThat(s3Url).isNotNull();
+        assertThat(s3Url).startsWith("https://wealist-dev-files.s3.ap-northeast-2.amazonaws.com/");
+        assertThat(s3Url).endsWith(fileKey);
+        assertThat(s3Url).isEqualTo("https://wealist-dev-files.s3.ap-northeast-2.amazonaws.com/" + fileKey);
+    }
+
+    @Test
+    @DisplayName("fileKey가 null인 경우 예외 발생")
+    void generateS3Url_NullFileKey_ThrowsException() {
+        // When & Then
+        assertThatThrownBy(() -> s3Service.generateS3Url(null))
+                .isInstanceOf(CustomException.class)
+                .hasMessageContaining("파일 키는 필수입니다")
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("fileKey가 빈 문자열인 경우 예외 발생")
+    void generateS3Url_EmptyFileKey_ThrowsException() {
+        // When & Then
+        assertThatThrownBy(() -> s3Service.generateS3Url("  "))
+                .isInstanceOf(CustomException.class)
+                .hasMessageContaining("파일 키는 필수입니다")
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("잘못된 fileKey 형식 - board/로 시작 - 예외 발생")
+    void generateS3Url_InvalidFormat_Board_ThrowsException() {
+        // Given
+        String invalidFileKey = "board/boards/abc123/2024/01/test.jpg";
+
+        // When & Then
+        assertThatThrownBy(() -> s3Service.generateS3Url(invalidFileKey))
+                .isInstanceOf(CustomException.class)
+                .hasMessageContaining("잘못된 파일 키 형식입니다")
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("잘못된 fileKey 형식 - 임의의 문자열 - 예외 발생")
+    void generateS3Url_InvalidFormat_Random_ThrowsException() {
+        // Given
+        String invalidFileKey = "random/path/file.jpg";
+
+        // When & Then
+        assertThatThrownBy(() -> s3Service.generateS3Url(invalidFileKey))
+                .isInstanceOf(CustomException.class)
+                .hasMessageContaining("잘못된 파일 키 형식입니다")
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    @DisplayName("다양한 유효한 fileKey 형식으로 S3 URL 생성")
+    void generateS3Url_VariousValidFormats() {
+        // Given
+        UUID workspaceId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        String[] validFileKeys = {
+                "user/" + workspaceId + "/2024/01/" + userId + "_1704326400.jpg",
+                "user/" + workspaceId + "/2024/12/" + userId + "_1704326400.png",
+                "user/" + workspaceId + "/2025/06/" + userId + "_1704326400.gif",
+                "user/" + workspaceId + "/2023/03/" + userId + "_1704326400.webp"
+        };
+
+        for (String fileKey : validFileKeys) {
+            // When
+            String s3Url = s3Service.generateS3Url(fileKey);
+
+            // Then
+            assertThat(s3Url).isNotNull();
+            assertThat(s3Url).startsWith("https://wealist-dev-files.s3.ap-northeast-2.amazonaws.com/user/");
+            assertThat(s3Url).endsWith(fileKey);
+        }
+    }
+
+    @Test
+    @DisplayName("fileKey에 특수 문자가 포함된 경우도 URL 생성")
+    void generateS3Url_SpecialCharactersInFileKey() {
+        // Given
+        UUID workspaceId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        String fileKey = "user/" + workspaceId + "/2024/01/" + userId + "_1704326400-test_file.jpg";
+
+        // When
+        String s3Url = s3Service.generateS3Url(fileKey);
+
+        // Then
+        assertThat(s3Url).isNotNull();
+        assertThat(s3Url).contains(fileKey);
     }
 }
