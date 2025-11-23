@@ -74,9 +74,10 @@ public class AttachmentService {
      * 
      * @param attachmentId 첨부파일 ID
      * @param entityId     연결할 엔티티 ID
+     * @return 확정된 첨부파일
      */
     @Transactional
-    public void confirmAttachment(UUID attachmentId, UUID entityId) {
+    public Attachment confirmAttachment(UUID attachmentId, UUID entityId) {
         Attachment attachment = attachmentRepository.findByIdAndDeletedAtIsNull(attachmentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ATTACHMENT_NOT_FOUND));
 
@@ -86,9 +87,11 @@ public class AttachmentService {
         }
 
         attachment.confirm(entityId);
-        attachmentRepository.save(attachment);
+        Attachment confirmed = attachmentRepository.save(attachment);
 
         log.info("첨부파일 확정 완료 - attachmentId: {}, entityId: {}", attachmentId, entityId);
+        
+        return confirmed;
     }
 
     /**
