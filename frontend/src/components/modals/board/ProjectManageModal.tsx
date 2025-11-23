@@ -46,19 +46,15 @@ interface ProjectManageModalProps {
 // 파일 다운로드 핸들러 (Detail 모드용)
 const handleFileDownload = (fileUrl: string, fileName: string) => {
   if (!fileUrl) return;
-  // 🚨 API 명세 변경으로 인해 fileUrl이 S3 Key일 수 있으므로, 실제 다운로드는 백엔드 API를 호출해야 함
-  console.log(
-    `[File Download Attempt] S3 Key: ${fileUrl}, Filename: ${fileName}. Need Backend API for presigned download URL.`,
-  );
-  alert('파일 다운로드는 백엔드의 Presigned Download URL API가 필요합니다.');
 
-  // 기존 코드 (Full URL을 받는 경우):
-  // const link = document.createElement('a');
-  // link.href = fileUrl;
-  // link.setAttribute('download', fileName);
-  // document.body.appendChild(link);
-  // link.click();
-  // document.body.removeChild(link);
+  // ✅ fileUrl은 이미 full URL이므로 바로 사용 가능
+  const link = document.createElement('a');
+  link.href = fileUrl;
+  link.setAttribute('download', fileName);
+  link.setAttribute('target', '_blank'); // 새 탭에서 열기
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
@@ -90,7 +86,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
   const [isBoardsLoading, setIsBoardsLoading] = useState(false);
   const [projectMembers, setProjectMembers] = useState<WorkspaceMemberResponse[]>();
 
-  // 💡 [통합] 파일 업로드 훅 사용
+  // 💡 파일 업로드 훅 사용
   const {
     selectedFile,
     previewUrl,
@@ -98,20 +94,12 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     handleRemoveFile,
     upload,
     setInitialFile,
-    attachmentId, // 💡 [추가] 훅에서 관리되는 attachmentId 상태
-    setAttachmentId, // 💡 [추가] attachmentId를 외부에서 설정하기 위한 함수 (필요 시)
+    attachmentId,
+    setAttachmentId,
   } = useFileUpload();
 
-  // 💡 [추가] 프로젝트의 기존 첨부파일 ID 목록을 관리할 상태
-  // 프로젝트 DTO에 attachmentIds 필드가 있다면 그 값을 사용해야 합니다.
-  const initialAttachmentIds = useMemo(() => {
-    // 🚨 project.attachmentIds가 없으므로 임시로 빈 배열을 반환합니다.
-    return (project as any)?.attachmentIds || [];
-  }, [project]);
-
-  // 💡 [변경] 현재 프로젝트에 첨부된 파일 ID 목록 (기존 ID + 새로 업로드된 ID)
-  // Edit/Create 모드에서 최종적으로 백엔드로 전송할 ID 목록입니다.
-  const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(initialAttachmentIds);
+  // ✅ 수정: attachmentIds 배열 관리 (백엔드로 전송용)
+  const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
 
   const canEdit = useMemo(() => {
     return (
@@ -129,16 +117,15 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
       setDueDate(project.dueDate ? project.dueDate.substring(0, 10) : '');
       setProjectMembers(members);
 
-      // 🚨 기존 프로젝트의 파일 정보 초기화 로직 변경:
-      // DTO에 attachmentIds가 있다면 그 값을 사용해야 합니다.
-      const existingAttachmentIds = (project as any)?.attachmentIds || [];
+      // ✅ attachments 배열에서 ID 추출
+      const existingAttachmentIds = project.attachments?.map((att) => att.id) || [];
       setCurrentAttachmentIds(existingAttachmentIds);
 
-      // useFileUpload 훅 초기화 (첫 번째 첨부파일이 있다면 그 정보로 Uploader UI 초기화)
-      if (existingAttachmentIds.length > 0) {
-        // UI 표시를 위해 기존의 fileUrl/fileName 필드가 DTO에 남아있다고 가정하고 초기화
-        setInitialFile((project as any).fileUrl, (project as any).fileName);
-        setAttachmentId(existingAttachmentIds[0]); // 첫 번째 ID만 UI 상태로 설정 (단일 파일 가정)
+      // ✅ 첫 번째 첨부파일로 UI 초기화
+      if (project.attachments && project.attachments.length > 0) {
+        const firstAttachment = project.attachments[0];
+        setInitialFile(firstAttachment.fileUrl, firstAttachment.fileName);
+        setAttachmentId(firstAttachment.id);
       } else {
         handleRemoveFile();
       }
@@ -149,17 +136,18 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
       setDueDate('');
       setProjectMembers(undefined);
       setCurrentAttachmentIds([]);
-      // 생성 모드 진입 시 파일 선택 상태 초기화
       handleRemoveFile();
     }
     setError(null);
-
-    // 🚨 중요: 의존성 배열에서 객체(project, members)를 제거하고
-    // 고유 식별자(project.projectId)와 모드(mode)만 바라보게 해야 무한 루프가 멈춥니다.
-    // setInitialFile, handleRemoveFile, setAttachmentId는 useCallback으로 래핑되어야 합니다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.projectId, mode, setInitialFile, handleRemoveFile, setAttachmentId, members.length]); // members 대신 members.length로 변경 시도 (더 안전함)
-
+  }, [
+    project?.projectId,
+    mode,
+    setInitialFile,
+    handleRemoveFile,
+    setAttachmentId,
+    members.length,
+    project?.attachments, // ✅ attachments 변경 감지
+  ]);
   const fetchBoards = useCallback(async () => {
     if (!project || mode !== 'detail') {
       setBoards([]);
@@ -287,10 +275,13 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     }
   }, [mode, project?.name]);
 
-  // 상세 보기용 파일 정보 (기존 DTO 필드가 남아있다고 가정하고 UI를 유지)
-  const detailFileUrl = (project as any)?.fileUrl;
-  const detailFileName = (project as any)?.fileName || 'project_file_attachment';
-  const hasAttachments = detailFileUrl || currentAttachmentIds.length > 0; // 첨부 파일 유무 체크
+  // ========================================
+  // 🔧 수정 4: 상세 보기용 파일 정보 (attachments 배열 사용)
+  // ========================================
+  const firstAttachment = project?.attachments?.[0];
+  const detailFileUrl = firstAttachment?.fileUrl || '';
+  const detailFileName = firstAttachment?.fileName || 'project_file_attachment';
+  const hasAttachments = !!firstAttachment;
 
   // ----------------------------------------------------
   // 🎨 Detail / Edit Mode 렌더링
@@ -368,12 +359,12 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
                 previewUrl={previewUrl}
                 onFileSelect={handleFileSelect}
                 onRemoveFile={handleRemoveFile}
-                existingFileName={(project as any)?.fileName}
+                existingFileName={firstAttachment?.fileName}
                 disabled={isLoading}
                 label="첨부 파일 수정"
               />
             ) : (
-              // 📖 상세 보기 모드: 기존 다운로드 UI 표시
+              // 📖 상세 보기 모드: 다운로드 UI 표시
               <>
                 <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
                   <Paperclip className="w-4 h-4 text-blue-500" />
