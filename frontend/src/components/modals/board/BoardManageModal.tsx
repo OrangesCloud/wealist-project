@@ -3,9 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
-  Tag,
-  CheckSquare,
-  AlertCircle,
   Plus,
   Settings,
   User,
@@ -47,6 +44,14 @@ interface BoardManageModalProps {
     importance: string;
     assigneeId?: string;
     participantIds?: string[];
+    attachments?: Array<{
+      // 💡 추가
+      id: string;
+      fileName: string;
+      fileUrl: string;
+      fileSize: number;
+      contentType: string;
+    }>;
   } | null;
   workspaceId: string;
   onClose: () => void;
@@ -114,6 +119,13 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [showParticipantDropdown, setShowParticipantDropdown] = useState(false);
 
+  // 💡 기존 첨부파일 state 추가
+  const [existingAttachment, setExistingAttachment] = useState<{
+    id: string;
+    fileName: string;
+    fileUrl: string;
+  } | null>(editData?.attachments?.[0] || null);
+
   // 파일 업로드 훅
   const { selectedFile, handleFileSelect, handleRemoveFile } = useFileUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -171,16 +183,20 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
     setError(null);
 
     try {
-      // 1. 파일 업로드 먼저 진행 (Presigned URL -> S3 -> Metadata)
+      // 1. 파일 업로드 처리
       let attachmentIds: string[] = [];
 
+      // 💡 새 파일이 선택된 경우
       if (selectedFile) {
-        // 💡 uploadAttachment 함수 내부에서 Presigned URL 요청 및 S3 업로드 후 attachmentId를 반환함
         const uploadedAttachment = await uploadAttachment(selectedFile, 'BOARD', workspaceId);
         attachmentIds.push(uploadedAttachment.id);
       }
+      // 💡 기존 파일이 있고 삭제하지 않은 경우
+      else if (existingAttachment && editData?.boardId) {
+        attachmentIds.push(existingAttachment.id);
+      }
 
-      // 2. 보드 데이터 준비 (JSON)
+      // 2. 보드 데이터 준비
       const customFields = {
         stage: selectedStageId,
         role: selectedRoleId,
@@ -195,10 +211,9 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         content: content.trim() || undefined,
         customFields,
         assigneeId: selectedAssigneeId || undefined,
-        participants: selectedParticipantIds, // string[]
+        participants: selectedParticipantIds,
         dueDate: dueDate ? `${dueDate}T00:00:00Z` : undefined,
         startDate: startDate ? `${startDate}T00:00:00Z` : undefined,
-        // 💡 업로드된 attachmentId를 배열로 전송
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
       };
 
@@ -221,7 +236,6 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
       setIsLoading(false);
     }
   };
-
   const currentAssignee = getMember(workspaceMembers, selectedAssigneeId);
 
   return (
@@ -288,7 +302,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                       disabled={isLoading}
                     />
 
-                    {/* 심플한 파일 첨부 영역 */}
+                    {/* 파일 첨부 영역 */}
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         type="file"
@@ -296,6 +310,8 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                         onChange={(e) => {
                           if (e.target.files && e.target.files.length > 0) {
                             handleFileSelect(e as any);
+                            // 💡 새 파일 선택 시 기존 파일 제거
+                            setExistingAttachment(null);
                           }
                         }}
                         className="hidden"
@@ -312,6 +328,7 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                         <span>파일 첨부</span>
                       </button>
 
+                      {/* 💡 새로 선택한 파일 표시 */}
                       {selectedFile && (
                         <div className="flex items-center gap-1 pl-2 pr-1 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-100 max-w-[250px]">
                           <span className="truncate max-w-[200px]">{selectedFile.name}</span>
@@ -327,10 +344,25 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                           </button>
                         </div>
                       )}
+
+                      {/* 💡 기존 첨부파일 표시 (새 파일이 없을 때만) */}
+                      {!selectedFile && existingAttachment && (
+                        <div className="flex items-center gap-1 pl-2 pr-1 py-0.5 bg-green-50 text-green-700 rounded-full text-xs border border-green-100 max-w-[250px]">
+                          <span className="truncate max-w-[200px]">
+                            {existingAttachment.fileName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setExistingAttachment(null)}
+                            className="p-0.5 text-green-400 hover:text-green-600 hover:bg-green-100 rounded-full"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-
                 <hr className="border-gray-100" />
 
                 {/* Date Inputs */}

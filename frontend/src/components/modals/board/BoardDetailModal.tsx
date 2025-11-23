@@ -21,6 +21,7 @@ import {
   FieldOption,
   CommentResponse,
   ParticipantResponse,
+  AttachmentResponse,
 } from '../../../types/board';
 import {
   getBoard,
@@ -52,7 +53,7 @@ interface BoardState {
   participants: ParticipantResponse[];
   fileUrl?: string;
   fileName?: string;
-  attachments: any[]; // 💡 첨부파일 배열 호환을 위해 추가
+  attachments: AttachmentResponse[]; // 💡 첨부파일 배열 호환을 위해 추가
 }
 
 const initialBoardState: BoardState = {
@@ -90,6 +91,7 @@ interface BoardDetailModalProps {
     importance?: string;
     dueDate?: string;
     startDate?: string;
+    attachments?: AttachmentResponse[];
   }) => void;
   fieldOptionsLookup: {
     stages?: FieldOption[];
@@ -119,8 +121,19 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
 
   // Comment state
   const [comments, setComments] = useState<CommentResponse[]>([]);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   // 💡 삭제: newComment, selectedFile, fileInputRef (CommentList가 담당함)
-
+  // 이미지 파일 여부 확인
+  const isImageFile = (contentType?: string, fileName?: string): boolean => {
+    if (contentType) {
+      return contentType.startsWith('image/');
+    }
+    if (fileName) {
+      const ext = fileName.split('.').pop()?.toLowerCase();
+      return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '');
+    }
+    return false;
+  };
   // 보드 데이터 조회
   useEffect(() => {
     const fetchBoard = async () => {
@@ -303,9 +316,16 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
               <p className="text-sm text-gray-600 whitespace-pre-wrap">
                 {boardData.content || '설명이 없습니다.'}
               </p>
-
-              {/* 보드 첨부파일 다운로드 (보드 자체에 첨부된 파일) */}
-              <div className="mt-4 p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-sm">
+              {/* 보드 첨부파일 다운로드 (기존 UI 개선) */}
+              <div
+                className="mt-4 p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-sm relative"
+                onMouseEnter={() => {
+                  if (boardData.fileUrl && isImageFile(undefined, boardData.fileName)) {
+                    setPreviewImage(boardData.fileUrl);
+                  }
+                }}
+                onMouseLeave={() => setPreviewImage(null)}
+              >
                 <span className="text-gray-700 truncate flex items-center gap-1">
                   <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
                   {boardData.fileUrl ? (
@@ -331,6 +351,20 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                   </button>
                 ) : (
                   <span className="text-gray-400 text-xs flex-shrink-0">첨부 가능</span>
+                )}
+
+                {/* 💡 이미지 미리보기 툴팁 */}
+                {previewImage && (
+                  <div className="absolute left-0 top-full mt-2 z-50 pointer-events-none">
+                    <div className="bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-2">
+                      <img
+                        src={previewImage}
+                        alt="미리보기"
+                        className="max-w-xs max-h-64 rounded"
+                        style={{ objectFit: 'contain' }}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -517,6 +551,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                   assigneeId: boardData.selectedAssigneeId,
                   dueDate: boardData.dueDate,
                   startDate: boardData.startDate,
+                  attachments: boardData.attachments,
                 });
               }}
               className="flex-1 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
