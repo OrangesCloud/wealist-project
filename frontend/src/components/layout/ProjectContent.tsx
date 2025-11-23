@@ -5,12 +5,13 @@ import { Plus, ArrowUp, ArrowDown, Users, User } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { getDefaultColorByIndex } from '../../constants/colors';
-import { AssigneeAvatarStack } from '../common/AvartarStack';
 import { ProjectResponse, BoardResponse, Column, ViewState, FieldOption } from '../../types/board';
 import { getBoardsByProject, moveBoard } from '../../api/board/boardService';
 import { BoardDetailModal } from '../modals/board/BoardDetailModal';
 import { FilterBar } from '../modals/board/FilterBar';
 import { connectWebSocket, disconnectWebSocket, WS_BOARD_MTH } from '../../utils/websocket';
+import { useAuth } from '../../contexts/AuthContext';
+import { AssigneeAvatarStack } from '../common/AvartarStack';
 
 interface ProjectContentProps {
   // Data
@@ -43,6 +44,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
   setShowCreateBoard,
 }) => {
   const { theme } = useTheme();
+  const { userId } = useAuth(); // useAuth 훅 사용 가정
 
   // 💡 [Board Data States]
   const [columns, setColumns] = useState<Column[]>([]);
@@ -264,9 +266,12 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
           ...board,
           stageName: stageOption?.optionLabel || column.title,
           stageColor: (stageOption as any)?.color || column.color,
-          stageId: stageOption?.optionValue || stageId, // 🔥 optionValue 사용
+          stageId: stageOption?.optionValue || stageId,
           roleOption: getRoleOption(roleId),
           importanceOption: getImportanceOption(importanceId),
+          // 💡 현재 사용자 ID가 할당자 또는 참여자인지 확인하는 필터링 기준
+          isAssignedOrParticipant:
+            board.assigneeId === userId || board.participantIds?.includes(userId as string),
         };
       }),
     );
@@ -279,6 +284,12 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
       filteredBoardsByCompletion = boardsToProcess.filter(
         (board) => !completedStageIds?.includes(board.stageId),
+      );
+    }
+    // 2. 💡 [추가] '나의 일감' 필터링 로직
+    if (viewState?.filterOption === 'my_tasks' && userId) {
+      filteredBoardsByCompletion = filteredBoardsByCompletion.filter(
+        (board) => board.isAssignedOrParticipant,
       );
     }
 
@@ -341,6 +352,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     getRoleOption,
     getImportanceOption,
     getStageOption,
+    userId,
   ]);
 
   // 7. 뷰 기준에 따라 컬럼을 재구성 (useMemo)
@@ -555,6 +567,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         stageOptions={fieldOptionsLookup?.stages || []}
         roleOptions={fieldOptionsLookup?.roles || []}
         importanceOptions={fieldOptionsLookup?.importances || []}
+        currentFilter={viewState.filterOption as string}
       />
 
       {/* Boards or Table View */}

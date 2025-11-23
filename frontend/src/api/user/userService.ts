@@ -7,17 +7,17 @@ import {
   UserProfileResponse,
   WorkspaceResponse,
   WorkspaceMemberResponse,
-  WorkspaceMemberRole, // DTO 타입에서 역할 타입을 가져옴
+  WorkspaceMemberRole,
   WorkspaceSettingsResponse,
   JoinRequestResponse,
   InviteUserRequest,
   UserWorkspaceResponse,
   SaveAttachmentRequest,
-  UpdateProfileImageByKeyRequest,
+  // 💡 [수정] Attachment ID 기반 요청 DTO를 명시적으로 사용
+  UpdateProfileImageRequest,
   PresignedUrlRequest,
   PresignedUrlResponse,
   AttachmentResponse,
-  // UpdateWorkspaceRequest DTO가 명시되지 않아 임시로 구조를 정의함
 } from '../../types/user';
 import { userRepoClient } from '../apiConfig';
 import { AxiosResponse } from 'axios';
@@ -40,9 +40,6 @@ export const getMyWorkspaces = async (): Promise<UserWorkspaceResponse[]> => {
 
 /**
  * 퍼블릭 워크스페이스 목록 조회 (GET /api/workspaces/public/{workspaceName})
- * (참고: API 설명에 따르면 '퍼블릭 워크스페이스 검색'이 목적이므로,
- * path parameter인 workspaceName을 검색어로 사용하여 필터링하는 것으로 해석됩니다.)
- *
  * @param workspaceName 검색/필터링할 워크스페이스 이름
  * @returns WorkspaceResponse 배열을 담은 Promise
  */
@@ -68,7 +65,7 @@ export const getWorkspace = async (workspaceId: string): Promise<WorkspaceRespon
 /**
  * 워크스페이스 생성
  * [API] POST /api/workspaces/create
- * * Response: WorkspaceResponse (API 스펙에 따라 { data: WorkspaceResponse }가 아닐 수 있음)
+ * * Response: WorkspaceResponse
  */
 export const createWorkspace = async (data: CreateWorkspaceRequest): Promise<WorkspaceResponse> => {
   const response: AxiosResponse<WorkspaceResponse> = await userRepoClient.post(
@@ -131,8 +128,7 @@ export const updateWorkspaceSettings = async (
 };
 
 // ========================================
-// Member & Join Request API Functions (회원/가입 요청 관리)
-// * WorkspaceMembersTab.tsx 에서 사용되는 주요 함수 그룹
+// Member & Join Request API Functions
 // ========================================
 
 /**
@@ -151,13 +147,12 @@ export const getWorkspaceMembers = async (
 /**
  * 승인 대기 회원 목록 조회
  * [API] GET /api/workspaces/{workspaceId}/pendingMembers
- * * Response: { data: JoinRequestResponse[] }
  */
 export const getPendingMembers = async (workspaceId: string): Promise<JoinRequestResponse[]> => {
   const response: AxiosResponse<JoinRequestResponse[]> = await userRepoClient.get(
     `/api/workspaces/${workspaceId}/pendingMembers`,
   );
-  return response.data; // ✅ response.data.data가 아님!
+  return response.data;
 };
 
 /**
@@ -240,7 +235,7 @@ export const getJoinRequests = async (
 /**
  * 워크스페이스 가입 신청
  * [API] POST /api/workspaces/join-requests
- * * Response: { data: JoinRequestResponse }
+ * * Response: JoinRequestResponse (API 스펙에 따라 data 필드가 없을 수 있음)
  */
 export const createJoinRequest = async (workspaceId: string): Promise<JoinRequestResponse> => {
   const data = { workspaceId };
@@ -249,7 +244,7 @@ export const createJoinRequest = async (workspaceId: string): Promise<JoinReques
     data,
   );
   console.log(response.data);
-  return response.data; // data 필드 추출
+  return response.data;
 };
 
 // ========================================
@@ -271,18 +266,18 @@ export const getMyProfile = async (): Promise<UserProfileResponse> => {
 /**
  * 내 모든 프로필 조회 (기본 프로필 + 워크스페이스별 프로필)
  * [API] GET /api/profiles/all/me
- * * Response: { data: UserProfileResponse[] }
+ * * Response: UserProfileResponse[] (API 스펙에 따라 data 필드가 없을 수 있음)
  */
 export const getAllMyProfiles = async (): Promise<UserProfileResponse[]> => {
   const response: AxiosResponse<UserProfileResponse[]> = await userRepoClient.get(
     '/api/profiles/all/me',
   );
   console.log(response.data);
-  return response.data; // data 필드 추출
+  return response.data;
 };
 
 /**
- * 내 프로필 정보 통합 업데이트 (기본 프로필)
+ * 내 프로필 정보 통합 업데이트 (닉네임/이메일 등)
  * [API] PUT /api/profiles/me
  * * Response: { data: UserProfileResponse }
  */
@@ -308,30 +303,7 @@ export const setDefaultWorkspace = async (workspaceId: string): Promise<void> =>
 };
 
 // ========================================
-// [제거/대체됨] 워크스페이스 프로필 관리 함수 (호환성 유지용)
-// ========================================
-
-/**
- * [제거됨] 워크스페이스 프로필 조회 (GET /api/profiles/workspace/{workspaceId})
- * @deprecated 프론트엔드에서 `getAllMyProfiles()`를 호출하여 필터링해야 합니다.
- */
-// export const getWorkspaceProfile = async (
-//   workspaceId: string,
-// ): Promise<UserProfileResponse | null> => {
-//   return null;
-// };
-
-// /**
-//  * [제거됨] 워크스페이스 프로필 생성/수정 (PUT /api/profiles/workspace/{workspaceId})
-//  */
-// export const updateWorkspaceProfile = async (
-//   workspaceId: string,
-//   data: UpdateProfileRequest,
-// ): Promise<UserProfileResponse> => {
-//   throw new Error('워크스페이스별 프로필 업데이트 엔드포인트가 제거되었습니다. (백엔드 구현 필요)');
-// };
-// ========================================
-// Profile Image Upload API Functions (추가 필요)
+// Profile Image Upload API Functions
 // ========================================
 
 /**
@@ -351,6 +323,7 @@ export const generateProfilePresignedUrl = async (
 /**
  * 프로필 이미지 첨부파일 메타데이터 저장
  * [API] POST /api/profiles/me/image/attachment
+ * 💡 [수정] 응답 타입이 AttachmentResponse임을 명시
  */
 export const saveProfileAttachmentMetadata = async (
   data: SaveAttachmentRequest,
@@ -363,30 +336,37 @@ export const saveProfileAttachmentMetadata = async (
 };
 
 /**
- * 프로필 이미지 업데이트 (fileKey 기반)
+ * 💡 [추가/수정] 프로필 이미지 업데이트 (Attachment ID 기반)
  * [API] PUT /api/profiles/me/image
+ * * DTO: { workspaceId, attachmentId }
  */
-export const updateProfileImageByKey = async (
-  data: UpdateProfileImageByKeyRequest,
+export const updateProfileImage = async (
+  workspaceId: string,
+  attachmentId: string,
 ): Promise<UserProfileResponse> => {
-  const response: AxiosResponse<{ data: UserProfileResponse }> = await userRepoClient.put(
+  const data: UpdateProfileImageRequest = {
+    workspaceId,
+    attachmentId,
+  };
+  console.log(data);
+  const response: AxiosResponse<UserProfileResponse> = await userRepoClient.put(
     '/api/profiles/me/image',
     data,
   );
-  return response.data.data;
+  return response.data;
 };
 
 /**
- * 프로필 이미지 업로드 헬퍼 함수 (전체 플로우)
+ * 💡 [수정] 프로필 이미지 업로드 헬퍼 함수 (전체 플로우 중 Attachment 저장까지)
  * 1. Presigned URL 생성
  * 2. S3에 직접 업로드
- * 3. 메타데이터 저장
- * 4. 프로필 업데이트
+ * 3. 메타데이터 저장 -> AttachmentResponse 반환
+ * * @returns AttachmentResponse Attachment ID가 포함된 객체
  */
 export const uploadProfileImage = async (
   file: File,
   workspaceId: string,
-): Promise<UserProfileResponse> => {
+): Promise<AttachmentResponse> => {
   try {
     // 1. Presigned URL 요청
     const presignedData: PresignedUrlRequest = {
@@ -407,7 +387,7 @@ export const uploadProfileImage = async (
       body: file,
     });
 
-    // 3. 첨부파일 메타데이터 저장
+    // 3. 첨부파일 메타데이터 저장 및 Attachment ID 반환
     const attachmentData: SaveAttachmentRequest = {
       fileKey,
       fileName: file.name,
@@ -415,17 +395,17 @@ export const uploadProfileImage = async (
       contentType: file.type,
     };
 
-    await saveProfileAttachmentMetadata(attachmentData);
-
-    // 4. 프로필 이미지 업데이트
-    const updateData: UpdateProfileImageByKeyRequest = {
-      workspaceId,
-      fileKey,
-    };
-
-    return await updateProfileImageByKey(updateData);
+    // AttachmentResponse 반환 (ID 포함)
+    return await saveProfileAttachmentMetadata(attachmentData);
   } catch (error) {
     console.error('프로필 이미지 업로드 실패:', error);
     throw error;
   }
 };
+
+// 🚨 [제거] 기존 updateProfileImageByKey는 updateProfileImage로 대체됨.
+// export const updateProfileImageByKey = async (
+//   data: UpdateProfileImageByKeyRequest,
+// ): Promise<UserProfileResponse> => {
+//   // ... (로직 제거)
+// };

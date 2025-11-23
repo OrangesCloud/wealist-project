@@ -1,9 +1,15 @@
 package OrangeCloud.UserRepo.dto.userprofile;
 
 import OrangeCloud.UserRepo.entity.Attachment;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -12,7 +18,10 @@ import java.util.UUID;
  */
 @Getter
 @Builder
-public class AttachmentResponse {
+@NoArgsConstructor
+@AllArgsConstructor
+public class AttachmentResponse implements Serializable {
+    private static final long serialVersionUID = 1L;
     private UUID attachmentId;
     private String entityType;
     private UUID entityId;
@@ -22,7 +31,13 @@ public class AttachmentResponse {
     private Long fileSize;
     private String contentType;
     private UUID uploadedBy;
+    
+    @JsonSerialize(using = LocalDateTimeSerializer.class)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime uploadedAt;
+    
+    @JsonSerialize(using = LocalDateTimeSerializer.class)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime expiresAt;
 
     /**

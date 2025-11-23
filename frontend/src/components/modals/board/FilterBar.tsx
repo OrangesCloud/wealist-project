@@ -1,5 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, Eye, Table, LayoutGrid, Settings } from 'lucide-react';
+// src/components/modals/board/FilterBar.tsx
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  Search,
+  ChevronDown,
+  Eye,
+  Table,
+  LayoutGrid,
+  UserCheck,
+  Check,
+} from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { FieldOption, TLayout, TView } from '../../../types/board';
 
@@ -18,24 +28,31 @@ interface FilterBarProps {
   stageOptions: FieldOption[];
   roleOptions: FieldOption[];
   importanceOptions: FieldOption[];
+
+  // 💡 [추가] 현재 선택된 필터 상태를 받습니다.
+  currentFilter: string;
 }
+
+// 💡 상수 정의
+const FILTER_ALL = 'all';
+const FILTER_MY_TASKS = 'my_tasks';
 
 export const FilterBar: React.FC<FilterBarProps> = ({
   onSearchChange,
   onViewChange,
-  // onFilterChange,
+  onFilterChange, // 💡 사용
   onLayoutChange,
   onShowCompletedChange,
   currentView,
   currentLayout = 'board',
   showCompleted = false,
+  currentFilter, // 💡 추가
   // stageOptions,
   // roleOptions,
   // importanceOptions,
 }) => {
   const { theme } = useTheme();
   const [searchValue, setSearchValue] = useState('');
-  const [_selectedFilter, _setSelectedFilter] = useState('all');
 
   const [showViewDropdown, setShowViewDropdown] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -54,7 +71,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     setShowViewDropdown(false);
   };
 
-  // 외부 클릭 감지
+  // 💡 [추가] 필터 변경 핸들러 (클릭 시 해제 로직 포함)
+  const handleFilterToggle = (filter: string) => {
+    // 현재 선택된 필터와 동일하면 해제(all)하고, 아니면 선택합니다.
+    const newFilter = currentFilter === filter ? FILTER_ALL : filter;
+    onFilterChange(newFilter);
+    setShowFilterDropdown(false);
+  };
+
+  // 외부 클릭 감지 (기존 로직 유지)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -77,6 +102,17 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     };
   }, [showViewDropdown, showFilterDropdown]);
 
+  // 💡 [추가] 현재 필터 라벨 결정
+  const filterLabel = useMemo(() => {
+    switch (currentFilter) {
+      case FILTER_MY_TASKS:
+        return '나의 일감';
+      case FILTER_ALL:
+      default:
+        return '나만의 필터';
+    }
+  }, [currentFilter]);
+
   return (
     <div
       className={`flex items-center gap-3 p-4 ${theme.colors.card} border-b ${theme.colors.border} flex-shrink-0`}
@@ -93,7 +129,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         />
       </div>
 
-      {/* View Dropdown Button */}
+      {/* View Dropdown Button (기존 로직 유지) */}
       <div className="relative" ref={viewDropdownRef}>
         <button
           onClick={() => {
@@ -219,26 +255,48 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             setShowFilterDropdown(!showFilterDropdown);
             setShowViewDropdown(false);
           }}
-          className={`flex items-center gap-2 px-4 py-2 border ${theme.colors.border} rounded-md ${theme.colors.card} hover:bg-gray-50 transition-colors`}
+          className={`flex items-center gap-2 px-4 py-2 border ${theme.colors.border} rounded-md ${
+            theme.colors.card
+          } hover:bg-gray-50 transition-colors ${
+            currentFilter !== FILTER_ALL ? 'border-blue-500 text-blue-600 bg-blue-50' : ''
+          }`}
         >
-          <span className="text-sm font-medium">필터 준비중~</span>
+          <span className="text-sm font-medium">{filterLabel}</span>
           <ChevronDown className="w-4 h-4" />
         </button>
         {showFilterDropdown && (
           <div
             className={`absolute top-full mt-2 left-0 w-64 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.effects.borderRadius} shadow-lg z-10`}
           >
-            <div className="pt-2 pb-2">
+            <div className="pt-2 pb-2 space-y-1">
+              {/* 💡 [추가] 나의 일감 필터 버튼 */}
+              <button
+                onClick={() => handleFilterToggle(FILTER_MY_TASKS)}
+                className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition ${
+                  currentFilter === FILTER_MY_TASKS
+                    ? 'bg-blue-100 text-blue-700 font-semibold'
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                나의 일감
+                {currentFilter === FILTER_MY_TASKS && (
+                  <Check className="w-4 h-4 ml-auto text-blue-600" />
+                )}
+              </button>
+
+              {/* <div className="border-t border-gray-200 my-2"></div>
+
               <button
                 onClick={() => {
-                  // onManageClick();
+                  onManageClick();
                   setShowFilterDropdown(false);
                 }}
-                className={`w-full px-6 py-2 text-left text-sm flex items-center gap-2 text-blue-500 hover:bg-gray-100 ${theme.effects.borderRadius} transition`}
+                className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 text-blue-500 hover:bg-gray-100 transition`}
               >
                 <Settings className="w-4 h-4" />
                 필드 옵션 관리
-              </button>
+              </button> */}
             </div>
           </div>
         )}
