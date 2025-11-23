@@ -91,6 +91,7 @@ interface BoardDetailModalProps {
     importance?: string;
     dueDate?: string;
     startDate?: string;
+    participantIds?: string[];
     attachments?: AttachmentResponse[];
   }) => void;
   fieldOptionsLookup: {
@@ -549,6 +550,7 @@ export const BoardDetailModal: React.FC<BoardDetailModalProps> = ({
                   role: boardData.selectedRoleId,
                   importance: boardData.selectedImportanceId,
                   assigneeId: boardData.selectedAssigneeId,
+                  participantIds: boardData?.participants?.map((ele) => ele.userId),
                   dueDate: boardData.dueDate,
                   startDate: boardData.startDate,
                   attachments: boardData.attachments,

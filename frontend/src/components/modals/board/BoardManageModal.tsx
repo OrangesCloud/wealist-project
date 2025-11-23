@@ -157,6 +157,42 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
     if (workspaceId) fetchMembers();
   }, [workspaceId]);
 
+  // ✅ editData 변경 시 폼 상태 초기화
+  useEffect(() => {
+    if (editData) {
+      setTitle(editData.title || '');
+      setContent(editData.content || '');
+      setSelectedStageId(editData.stage || fieldOptionsLookup.stages?.[0]?.optionValue || '');
+      setSelectedRoleId(editData.role || fieldOptionsLookup.roles?.[0]?.optionValue || '');
+      setSelectedImportanceId(
+        editData.importance || fieldOptionsLookup.importances?.[0]?.optionValue || '',
+      );
+      setSelectedAssigneeId(editData.assigneeId || '');
+      setSelectedParticipantIds(editData.participantIds || []); // ✅ 핵심
+      setDueDate(editData.dueDate ? editData.dueDate.substring(0, 10) : '');
+      setStartDate(editData.startDate ? editData.startDate.substring(0, 10) : '');
+      setExistingAttachment(editData.attachments?.[0] || null);
+
+      console.log('✅ 보드 수정 데이터 로드:', {
+        boardId: editData.boardId,
+        participantIds: editData.participantIds,
+        participantCount: editData.participantIds?.length || 0,
+      });
+    } else {
+      // Create 모드 초기화
+      setTitle('');
+      setContent('');
+      setSelectedStageId(fieldOptionsLookup.stages?.[0]?.optionValue || '');
+      setSelectedRoleId(fieldOptionsLookup.roles?.[0]?.optionValue || '');
+      setSelectedImportanceId(fieldOptionsLookup.importances?.[0]?.optionValue || '');
+      setSelectedAssigneeId('');
+      setSelectedParticipantIds([]);
+      setDueDate('');
+      setStartDate('');
+      setExistingAttachment(null);
+    }
+  }, [editData, fieldOptionsLookup]);
+
   const toggleParticipant = (userId: string) => {
     setSelectedParticipantIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
