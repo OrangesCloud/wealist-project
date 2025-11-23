@@ -1,6 +1,6 @@
 // src/components/common/FileUploader.tsx
 import React, { useRef } from 'react';
-import { UploadCloud, X, FileText, Image as ImageIcon } from 'lucide-react';
+import { UploadCloud, X, FileText } from 'lucide-react';
 
 interface FileUploaderProps {
   selectedFile: File | null;

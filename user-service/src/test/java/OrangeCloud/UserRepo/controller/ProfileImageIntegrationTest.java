@@ -157,11 +157,11 @@ class ProfileImageIntegrationTest {
     }
 
     @Test
-    @DisplayName("잘못된 fileKey로 프로필 업데이트 실패")
-    void testUpdateProfileWithInvalidFileKey() throws Exception {
+    @DisplayName("잘못된 attachmentId로 프로필 업데이트 실패")
+    void testUpdateProfileWithInvalidAttachmentId() throws Exception {
         UpdateProfileImageByKeyRequest request = new UpdateProfileImageByKeyRequest(
                 testWorkspace.getWorkspaceId(),
-                "board/invalid/path.jpg"
+                UUID.randomUUID() // 존재하지 않는 attachmentId
         );
 
         mockMvc.perform(put("/api/profiles/me/image")
