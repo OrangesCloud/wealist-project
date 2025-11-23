@@ -36,6 +36,7 @@ public class UserProfileService {
     private final UserRepository userRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final AttachmentRepository attachmentRepository;
+    private final AttachmentService attachmentService;
     private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     @Transactional
@@ -197,7 +198,8 @@ public class UserProfileService {
     @Transactional
     @CacheEvict(value = "userProfile", key = "#request.userId")
     public UserProfileResponse updateProfile(UpdateProfileRequest request) {
-        log.info("[CacheEvict] Updating profile for user: userId={}, nickName={}, email={}, imageUrl={}", request.userId(), request.nickName(), request.email(), request.profileImageUrl());
+        log.info("[CacheEvict] Updating profile for user: userId={}, nickName={}, email={}, imageUrl={}, attachmentId={}", 
+                request.userId(), request.nickName(), request.email(), request.profileImageUrl(), request.attachmentId());
 
         // 1. UserProfile 조회
         UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(request.workspaceId(), request.userId())
@@ -215,14 +217,21 @@ public class UserProfileService {
             log.debug("Profile email updated to: {}", request.email().trim());
         }
 
-        // 4. 이미지 URL 업데이트
+        // 4. 첨부파일 확정 (attachmentId가 있는 경우)
+        if (request.attachmentId() != null) {
+            attachmentService.confirmAttachment(request.attachmentId(), profile.getProfileId());
+            log.debug("Attachment confirmed: attachmentId={}, profileId={}", 
+                    request.attachmentId(), profile.getProfileId());
+        }
+
+        // 5. 이미지 URL 업데이트
         if (request.profileImageUrl() != null) {
             String urlToSave = request.profileImageUrl().trim().isEmpty() ? null : request.profileImageUrl().trim();
             profile.updateProfileImageUrl(urlToSave);
             log.debug("Profile image URL updated to: {}", urlToSave);
         }
 
-        // 5. 변경된 프로필 저장
+        // 6. 변경된 프로필 저장
         UserProfile updatedProfile = userProfileRepository.save(profile);
         return UserProfileResponse.from(updatedProfile);
     }

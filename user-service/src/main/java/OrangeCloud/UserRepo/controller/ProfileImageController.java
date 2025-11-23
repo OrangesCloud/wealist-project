@@ -208,7 +208,8 @@ public class ProfileImageController {
                 userId,
                 null,  // nickName은 변경하지 않음
                 null,  // email은 변경하지 않음
-                s3Url  // 프로필 이미지 URL만 업데이트
+                s3Url,  // 프로필 이미지 URL만 업데이트
+                null   // attachmentId는 사용하지 않음 (레거시 방식)
         );
 
         UserProfileResponse response = userProfileService.updateProfile(updateRequest);
