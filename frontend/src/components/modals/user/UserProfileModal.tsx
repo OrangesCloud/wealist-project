@@ -102,22 +102,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
 
   // 💡 [추가] 워크스페이스 변경 시 닉네임 입력 필드 상태 업데이트 (유지)
   useEffect(() => {
-    // if (activeTab === 'workspace') {
-    // const workspace = workspaces?.find((ws) => ws.workspaceId === selectedWorkspaceId);
-
+    // 닉네임 업데이트 로직 (유지)
     setWorkspaceNickName(currentWorkspaceProfile?.nickName || defaultNickName);
-    // if (currentWorkspaceProfile) {
-    //   setWorkspaceNickName(currentWorkspaceProfile.nickName);
-    // } else if (defaultProfile) {
-    //   setWorkspaceNickName(
-    //     `${defaultProfile?.nickName} (${workspace?.workspaceName || '새 조직'})`,
-    //   );
-    // } else {
-    //   setWorkspaceNickName('');
-    // }
-    // }
-  }, [selectedWorkspaceId, activeTab, currentWorkspaceProfile, defaultProfile, workspaces]);
 
+    // ⭐ [추가/수정] 워크스페이스 변경 시 아바타 미리보기를 기존 이미지로 설정
+    if (activeTab === 'workspace' || activeTab === 'default') {
+      const imageToDisplay = currentProfile?.profileImageUrl || null;
+      setAvatarPreviewUrl(imageToDisplay);
+    } else {
+      setAvatarPreviewUrl(null); // 혹시 모를 경우를 대비한 초기화
+    }
+
+    // 의존성 배열 수정: currentProfile 추가 (필요 시)
+  }, [selectedWorkspaceId, activeTab, currentWorkspaceProfile, defaultNickName, currentProfile]);
   // ========================================
   // 이미지 업로드 핸들러 (S3 파일 상태 추가)
   // ========================================
@@ -149,7 +146,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
 
   const handleWorkspaceChange = (workspaceId: string) => {
     setSelectedWorkspaceId(workspaceId);
-    setAvatarPreviewUrl(null); // 워크스페이스 변경 시 미리보기 초기화
   };
 
   // ========================================
