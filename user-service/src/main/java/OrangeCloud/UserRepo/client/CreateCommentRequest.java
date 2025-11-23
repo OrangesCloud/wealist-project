@@ -17,7 +17,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class CreateCommentRequest {
     
-    @JsonProperty("board_id")
+    @JsonProperty("boardId")
     private UUID boardId;
     
     @JsonProperty("content")

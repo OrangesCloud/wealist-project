@@ -51,7 +51,6 @@ public class SampleDataSeederService {
      * @param ownerId 워크스페이스 소유자 ID
      */
     @Async("sampleDataExecutor")
-    @Transactional
     public void seedWorkspaceData(UUID workspaceId, UUID ownerId) {
         try {
             log.info("Starting sample data generation for workspace: {}", workspaceId);
@@ -59,9 +58,19 @@ public class SampleDataSeederService {
 
             // 샘플 사용자 생성 (owner 포함 10명)
             List<UUID> userIds = createSampleUsersWithErrorHandling(workspaceId, ownerId);
+            
+            if (userIds.isEmpty()) {
+                log.error("No users available for workspace {}, cannot create projects/boards", workspaceId);
+                return;
+            }
 
             // 샘플 프로젝트 생성 (2개)
             List<UUID> projectIds = createSampleProjectsWithErrorHandling(workspaceId, ownerId, userIds);
+            
+            if (projectIds.isEmpty()) {
+                log.warn("No projects created for workspace {}, skipping board/comment creation", workspaceId);
+                return;
+            }
 
             // 샘플 보드 생성 (20개)
             List<UUID> boardIds = createSampleBoardsWithErrorHandling(projectIds, userIds, ownerId);
@@ -79,6 +88,47 @@ public class SampleDataSeederService {
     }
 
     /**
+     * 기존 사용자를 워크스페이스에 추가합니다.
+     * UserProfile과 WorkspaceMember를 생성합니다.
+     * 
+     * @param workspaceId 워크스페이스 ID
+     * @param userId 사용자 ID
+     * @param role 워크스페이스 역할
+     * @param email 사용자 이메일
+     * @param nickName 사용자 닉네임
+     */
+    private void addExistingUserToWorkspace(UUID workspaceId, UUID userId, WorkspaceMember.WorkspaceRole role, 
+                                           String email, String nickName) {
+        // UserProfile이 이미 존재하는지 확인
+        Optional<UserProfile> existingProfile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, userId);
+        if (existingProfile.isEmpty()) {
+            UserProfile userProfile = UserProfile.builder()
+                    .workspaceId(workspaceId)
+                    .userId(userId)
+                    .nickName(nickName)
+                    .email(email)
+                    .profileImageUrl(null)
+                    .build();
+            userProfileRepository.save(userProfile);
+            log.debug("Created user profile for existing user: userId={}, nickName={}", userId, nickName);
+        }
+
+        // WorkspaceMember가 이미 존재하는지 확인
+        Optional<WorkspaceMember> existingMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userId);
+        if (existingMember.isEmpty()) {
+            WorkspaceMember workspaceMember = WorkspaceMember.builder()
+                    .workspaceId(workspaceId)
+                    .userId(userId)
+                    .role(role)
+                    .isDefault(false)
+                    .isActive(true)
+                    .build();
+            workspaceMemberRepository.save(workspaceMember);
+            log.debug("Created workspace member for existing user: userId={}, role={}", userId, role);
+        }
+    }
+
+    /**
      * 샘플 사용자 10명을 생성합니다 (owner 포함).
      * 오류 처리를 포함하여 각 사용자 생성 실패 시에도 계속 진행합니다.
      * 
@@ -86,6 +136,7 @@ public class SampleDataSeederService {
      * @param ownerId 워크스페이스 소유자 ID (이미 존재)
      * @return 생성된 사용자 ID 목록 (owner 포함)
      */
+    @Transactional
     private List<UUID> createSampleUsersWithErrorHandling(UUID workspaceId, UUID ownerId) {
         List<UUID> createdUserIds = new ArrayList<>();
         createdUserIds.add(ownerId); // Owner는 이미 존재
@@ -134,8 +185,20 @@ public class SampleDataSeederService {
      */
     private UUID createSingleSampleUser(UUID workspaceId, int index, WorkspaceMember.WorkspaceRole role) {
         // 1. User 엔티티 생성
-        String email = String.format("sample.user%d@example.com", index + 1);
+        // 워크스페이스 ID의 앞 8자리를 사용하여 유니크한 이메일 생성
+        String workspacePrefix = workspaceId.toString().substring(0, 8);
+        String email = String.format("sample.user%d.%s@example.com", index + 1, workspacePrefix);
         String koreanName = sampleDataGenerator.generateKoreanName();
+
+        // 이미 존재하는 이메일인지 확인
+        Optional<User> existingUser = userRepository.findByEmail(email);
+        if (existingUser.isPresent()) {
+            log.warn("User with email {} already exists, skipping creation", email);
+            // 기존 사용자를 워크스페이스 멤버로 추가
+            User user = existingUser.get();
+            addExistingUserToWorkspace(workspaceId, user.getUserId(), role, email, koreanName);
+            return user.getUserId();
+        }
 
         User user = User.builder()
                 .email(email)
@@ -186,23 +249,37 @@ public class SampleDataSeederService {
     private List<UUID> createSampleProjectsWithErrorHandling(UUID workspaceId, UUID ownerId, List<UUID> memberIds) {
         List<UUID> createdProjectIds = new ArrayList<>();
 
-        // 인증 토큰 생성
-        String authToken = authTokenGenerator.generateInternalToken(ownerId);
+        try {
+            // 인증 토큰 생성
+            String authToken = authTokenGenerator.generateInternalToken(ownerId);
+            log.debug("Generated auth token for project creation: ownerId={}", ownerId);
 
-        for (int i = 0; i < PROJECT_COUNT; i++) {
-            try {
-                UUID projectId = createSingleProjectWithRetry(workspaceId, ownerId, i, authToken);
-                if (projectId != null) {
-                    createdProjectIds.add(projectId);
+            for (int i = 0; i < PROJECT_COUNT; i++) {
+                try {
+                    log.info("Attempting to create project {} of {} for workspace {}", 
+                             i + 1, PROJECT_COUNT, workspaceId);
+                    UUID projectId = createSingleProjectWithRetry(workspaceId, ownerId, i, authToken);
+                    if (projectId != null) {
+                        createdProjectIds.add(projectId);
+                        log.info("Successfully created project {} for workspace {}: projectId={}", 
+                                 i + 1, workspaceId, projectId);
+                    } else {
+                        log.warn("Project creation returned null for project {} of workspace {}", 
+                                 i + 1, workspaceId);
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to create sample project {} for workspace {}: {}", 
+                             i + 1, workspaceId, e.getMessage(), e);
+                    // 계속 진행
                 }
-            } catch (Exception e) {
-                log.warn("Failed to create sample project {} for workspace {}: {}", 
-                         i, workspaceId, e.getMessage());
-                // 계속 진행
             }
+        } catch (Exception e) {
+            log.error("Failed to initialize project creation for workspace {}: {}", 
+                     workspaceId, e.getMessage(), e);
         }
 
-        log.info("Created {} sample projects for workspace {}", createdProjectIds.size(), workspaceId);
+        log.info("Created {} out of {} sample projects for workspace {}", 
+                 createdProjectIds.size(), PROJECT_COUNT, workspaceId);
         return createdProjectIds;
     }
 
@@ -331,8 +408,7 @@ public class SampleDataSeederService {
         String title = sampleDataGenerator.generateBoardTitle();
         String content = generateBoardContent(title);
         
-        // 랜덤하게 author와 assignee 선택
-        UUID authorId = userIds.get(new Random().nextInt(userIds.size()));
+        // 랜덤하게 assignee 선택
         UUID assigneeId = userIds.get(new Random().nextInt(userIds.size()));
         
         // 커스텀 필드 생성 (status, priority)
@@ -344,7 +420,6 @@ public class SampleDataSeederService {
 
         CreateBoardRequest request = CreateBoardRequest.builder()
                 .projectId(projectId)
-                .authorId(authorId)
                 .assigneeId(assigneeId)
                 .title(title)
                 .content(content)
