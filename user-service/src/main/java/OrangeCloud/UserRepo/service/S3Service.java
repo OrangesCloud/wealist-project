@@ -77,19 +77,12 @@ public class S3Service {
 
             // MinIO 환경에서 내부 호스트를 외부 호스트로 치환
             // endpoint가 설정된 경우(로컬 개발 환경)에만 치환을 시도합니다.
+            // path-style URL 형식: http://minio:9000/bucket/key -> http://localhost:9000/bucket/key
             if (s3Config.getEndpoint() != null && !s3Config.getEndpoint().isEmpty()) {
-                // 1. MinIO의 내부 서비스 이름 정의
-                final String internalMinIOHost = "minio:9000";
+                // MinIO의 내부 서비스 이름을 localhost로 치환
+                presignedUrl = presignedUrl.replace("http://minio:9000", "http://localhost:9000");
                 
-                // 2. 외부에서 접근 가능한 호스트 (localhost:9000)를 endpoint에서 추출
-                String externalHost = s3Config.getEndpoint()
-                        .replace("http://", "")
-                        .replace("https://", "");
-                
-                // 3. 내부 호스트를 외부 호스트로 치환
-                presignedUrl = presignedUrl.replace(internalMinIOHost, externalHost);
-                
-                logger.debug("Presigned URL 호스트 치환 완료 - {} -> {}", internalMinIOHost, externalHost);
+                logger.debug("Presigned URL 호스트 치환 완료: {}", presignedUrl);
             }
 
             logger.info("Presigned URL 생성 성공 - workspaceId: {}, userId: {}, fileKey: {}",
