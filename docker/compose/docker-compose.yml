@@ -61,6 +61,9 @@ services:
       # Service URLs
       - BOARD_SERVICE_URL=http://board-service:8000
 
+      # Sample Data Configuration
+      - SAMPLE_DATA_ENABLED=${SAMPLE_DATA_ENABLED:-false}
+
       # Java Options
       - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
 
