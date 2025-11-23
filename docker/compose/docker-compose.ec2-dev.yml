@@ -149,6 +149,10 @@ services:
       # Service URLs (include context-path for service-to-service communication)
       - USER_SERVICE_URL=http://user-service:8080/api/users
 
+      # S3 Configuration (IAM Role 사용)
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
+
       # CORS Configuration
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
 
