@@ -75,6 +75,23 @@ public class S3Service {
             PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
             String presignedUrl = presignedRequest.url().toString();
 
+            // MinIO 환경에서 내부 호스트를 외부 호스트로 치환
+            // endpoint가 설정된 경우(로컬 개발 환경)에만 치환을 시도합니다.
+            if (s3Config.getEndpoint() != null && !s3Config.getEndpoint().isEmpty()) {
+                // 1. MinIO의 내부 서비스 이름 정의
+                final String internalMinIOHost = "minio:9000";
+                
+                // 2. 외부에서 접근 가능한 호스트 (localhost:9000)를 endpoint에서 추출
+                String externalHost = s3Config.getEndpoint()
+                        .replace("http://", "")
+                        .replace("https://", "");
+                
+                // 3. 내부 호스트를 외부 호스트로 치환
+                presignedUrl = presignedUrl.replace(internalMinIOHost, externalHost);
+                
+                logger.debug("Presigned URL 호스트 치환 완료 - {} -> {}", internalMinIOHost, externalHost);
+            }
+
             logger.info("Presigned URL 생성 성공 - workspaceId: {}, userId: {}, fileKey: {}",
                     workspaceId, userId, fileKey);
 
@@ -115,6 +132,7 @@ public class S3Service {
 
     /**
      * 파일 키로부터 S3 URL 생성
+     * MinIO 환경과 AWS 환경을 자동으로 감지하여 적절한 URL 형식을 생성합니다.
      *
      * @param fileKey S3 파일 키
      * @return S3 파일 URL
@@ -130,14 +148,33 @@ public class S3Service {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE, "잘못된 파일 키 형식입니다.");
         }
 
-        // S3 URL 생성
-        // 형식: https://{bucket}.s3.{region}.amazonaws.com/{fileKey}
-        String s3Url = String.format("https://%s.s3.%s.amazonaws.com/%s",
-                s3Config.getBucket(),
-                s3Config.getRegion(),
-                fileKey);
+        String s3Url;
+        
+        // MinIO 환경인 경우 (endpoint가 설정된 경우)
+        if (s3Config.getEndpoint() != null && !s3Config.getEndpoint().isEmpty()) {
+            // endpoint에서 프로토콜 제거하여 호스트 추출
+            String endpoint = s3Config.getEndpoint()
+                    .replace("http://", "")
+                    .replace("https://", "");
+            
+            // MinIO URL 형식: http://{endpoint}/{bucket}/{fileKey}
+            s3Url = String.format("http://%s/%s/%s",
+                    endpoint,
+                    s3Config.getBucket(),
+                    fileKey);
+            
+            logger.debug("Generated MinIO URL from fileKey: {} -> {}", fileKey, s3Url);
+        } else {
+            // AWS S3 환경인 경우
+            // 형식: https://{bucket}.s3.{region}.amazonaws.com/{fileKey}
+            s3Url = String.format("https://%s.s3.%s.amazonaws.com/%s",
+                    s3Config.getBucket(),
+                    s3Config.getRegion(),
+                    fileKey);
+            
+            logger.debug("Generated AWS S3 URL from fileKey: {} -> {}", fileKey, s3Url);
+        }
 
-        logger.debug("Generated S3 URL from fileKey: {} -> {}", fileKey, s3Url);
         return s3Url;
     }
 
@@ -192,7 +229,11 @@ public class S3Service {
         private final String fileKey;
         private final int expiresIn;
 
-        public PresignedUrlResponse(String uploadUrl, String fileKey, int expiresIn) {
+        @com.fasterxml.jackson.annotation.JsonCreator
+        public PresignedUrlResponse(
+                @com.fasterxml.jackson.annotation.JsonProperty("uploadUrl") String uploadUrl,
+                @com.fasterxml.jackson.annotation.JsonProperty("fileKey") String fileKey,
+                @com.fasterxml.jackson.annotation.JsonProperty("expiresIn") int expiresIn) {
             this.uploadUrl = uploadUrl;
             this.fileKey = fileKey;
             this.expiresIn = expiresIn;
