@@ -170,7 +170,7 @@ public class ProfileImageController {
 
         AttachmentResponse response = AttachmentResponse.from(attachment);
         log.info("첨부파일 메타데이터 저장 완료 - attachmentId: {}, expiresAt: {}",
-                response.getId(), response.getExpiresAt());
+                response.getAttachmentId(), response.getExpiresAt());
 
         return ResponseEntity.ok(response);
     }
