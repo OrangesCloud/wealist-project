@@ -7,6 +7,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.net.URI;
@@ -78,7 +79,7 @@ public class S3Config {
             // 이렇게 하면 http://localhost:9000/bucket/key 형식의 URL이 생성됨
             // virtual-hosted-style (http://bucket.localhost:9000/key)이 아닌
             builder.serviceConfiguration(
-                software.amazon.awssdk.services.s3.presigner.S3Configuration.builder()
+                S3Configuration.builder()
                     .pathStyleAccessEnabled(true)
                     .build()
             );
