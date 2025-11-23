@@ -51,7 +51,6 @@ public class SampleDataSeederService {
      * @param ownerId 워크스페이스 소유자 ID
      */
     @Async("sampleDataExecutor")
-    @Transactional
     public void seedWorkspaceData(UUID workspaceId, UUID ownerId) {
         try {
             log.info("Starting sample data generation for workspace: {}", workspaceId);
@@ -59,9 +58,19 @@ public class SampleDataSeederService {
 
             // 샘플 사용자 생성 (owner 포함 10명)
             List<UUID> userIds = createSampleUsersWithErrorHandling(workspaceId, ownerId);
+            
+            if (userIds.isEmpty()) {
+                log.error("No users available for workspace {}, cannot create projects/boards", workspaceId);
+                return;
+            }
 
             // 샘플 프로젝트 생성 (2개)
             List<UUID> projectIds = createSampleProjectsWithErrorHandling(workspaceId, ownerId, userIds);
+            
+            if (projectIds.isEmpty()) {
+                log.warn("No projects created for workspace {}, skipping board/comment creation", workspaceId);
+                return;
+            }
 
             // 샘플 보드 생성 (20개)
             List<UUID> boardIds = createSampleBoardsWithErrorHandling(projectIds, userIds, ownerId);
@@ -127,6 +136,7 @@ public class SampleDataSeederService {
      * @param ownerId 워크스페이스 소유자 ID (이미 존재)
      * @return 생성된 사용자 ID 목록 (owner 포함)
      */
+    @Transactional
     private List<UUID> createSampleUsersWithErrorHandling(UUID workspaceId, UUID ownerId) {
         List<UUID> createdUserIds = new ArrayList<>();
         createdUserIds.add(ownerId); // Owner는 이미 존재
@@ -239,23 +249,37 @@ public class SampleDataSeederService {
     private List<UUID> createSampleProjectsWithErrorHandling(UUID workspaceId, UUID ownerId, List<UUID> memberIds) {
         List<UUID> createdProjectIds = new ArrayList<>();
 
-        // 인증 토큰 생성
-        String authToken = authTokenGenerator.generateInternalToken(ownerId);
+        try {
+            // 인증 토큰 생성
+            String authToken = authTokenGenerator.generateInternalToken(ownerId);
+            log.debug("Generated auth token for project creation: ownerId={}", ownerId);
 
-        for (int i = 0; i < PROJECT_COUNT; i++) {
-            try {
-                UUID projectId = createSingleProjectWithRetry(workspaceId, ownerId, i, authToken);
-                if (projectId != null) {
-                    createdProjectIds.add(projectId);
+            for (int i = 0; i < PROJECT_COUNT; i++) {
+                try {
+                    log.info("Attempting to create project {} of {} for workspace {}", 
+                             i + 1, PROJECT_COUNT, workspaceId);
+                    UUID projectId = createSingleProjectWithRetry(workspaceId, ownerId, i, authToken);
+                    if (projectId != null) {
+                        createdProjectIds.add(projectId);
+                        log.info("Successfully created project {} for workspace {}: projectId={}", 
+                                 i + 1, workspaceId, projectId);
+                    } else {
+                        log.warn("Project creation returned null for project {} of workspace {}", 
+                                 i + 1, workspaceId);
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to create sample project {} for workspace {}: {}", 
+                             i + 1, workspaceId, e.getMessage(), e);
+                    // 계속 진행
                 }
-            } catch (Exception e) {
-                log.warn("Failed to create sample project {} for workspace {}: {}", 
-                         i, workspaceId, e.getMessage());
-                // 계속 진행
             }
+        } catch (Exception e) {
+            log.error("Failed to initialize project creation for workspace {}: {}", 
+                     workspaceId, e.getMessage(), e);
         }
 
-        log.info("Created {} sample projects for workspace {}", createdProjectIds.size(), workspaceId);
+        log.info("Created {} out of {} sample projects for workspace {}", 
+                 createdProjectIds.size(), PROJECT_COUNT, workspaceId);
         return createdProjectIds;
     }
 
