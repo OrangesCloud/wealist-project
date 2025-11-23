@@ -176,8 +176,8 @@ public class ProfileImageController {
     }
 
     /**
-     * 프로필 이미지 업데이트 (fileKey 기반)
-     * S3에 업로드된 파일의 fileKey를 받아 프로필 이미지 URL을 업데이트합니다.
+     * 프로필 이미지 업데이트 (attachmentId 기반)
+     * 임시 첨부파일을 확정하고 프로필 이미지 URL을 업데이트합니다.
      *
      * @param request   프로필 이미지 업데이트 요청
      * @param principal 인증된 사용자 정보
@@ -186,8 +186,8 @@ public class ProfileImageController {
     @PutMapping
     @Operation(
             summary = "프로필 이미지 업데이트",
-            description = "S3에 업로드된 파일의 fileKey를 받아 프로필 이미지를 업데이트합니다. " +
-                    "클라이언트는 먼저 Presigned URL을 받아 S3에 직접 업로드한 후, " +
+            description = "임시 첨부파일의 attachmentId를 받아 프로필 이미지를 업데이트합니다. " +
+                    "클라이언트는 먼저 /attachment 엔드포인트로 파일을 업로드하여 attachmentId를 받은 후, " +
                     "이 엔드포인트를 호출하여 프로필을 업데이트해야 합니다."
     )
     public ResponseEntity<UserProfileResponse> updateProfileImage(
@@ -195,20 +195,17 @@ public class ProfileImageController {
             Principal principal) {
 
         UUID userId = extractUserId(principal);
-        log.info("프로필 이미지 업데이트 요청 - userId: {}, workspaceId: {}, fileKey: {}",
-                userId, request.workspaceId(), request.fileKey());
+        log.info("프로필 이미지 업데이트 요청 - userId: {}, workspaceId: {}, attachmentId: {}",
+                userId, request.workspaceId(), request.attachmentId());
 
-        // fileKey로부터 S3 URL 생성
-        String s3Url = s3Service.generateS3Url(request.fileKey());
-        log.debug("Generated S3 URL: {}", s3Url);
-
-        // 프로필 업데이트
+        // 프로필 업데이트 (attachmentId 전달)
         UpdateProfileRequest updateRequest = new UpdateProfileRequest(
                 request.workspaceId(),
                 userId,
                 null,  // nickName은 변경하지 않음
                 null,  // email은 변경하지 않음
-                s3Url  // 프로필 이미지 URL만 업데이트
+                null,  // profileImageUrl은 attachment에서 가져옴
+                request.attachmentId()  // attachmentId로 임시 첨부파일 확정
         );
 
         UserProfileResponse response = userProfileService.updateProfile(updateRequest);
