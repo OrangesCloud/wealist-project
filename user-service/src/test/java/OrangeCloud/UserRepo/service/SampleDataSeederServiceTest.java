@@ -73,6 +73,9 @@ class SampleDataSeederServiceTest {
                 .thenReturn("김철수", "이영희", "박민수", "정수진", "최동욱",
                            "강서연", "윤지호", "임하늘", "한소희");
 
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
+
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> {
                     User user = invocation.getArgument(0);
@@ -101,6 +104,9 @@ class SampleDataSeederServiceTest {
         when(sampleDataGenerator.generateKoreanName())
                 .thenReturn("김철수", "이영희", "박민수", "정수진", "최동욱",
                            "강서연", "윤지호", "임하늘", "한소희");
+
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
 
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> {
@@ -144,6 +150,9 @@ class SampleDataSeederServiceTest {
                 .thenReturn("김철수", "이영희", "박민수", "정수진", "최동욱",
                            "강서연", "윤지호", "임하늘", "한소희");
 
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
+
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> {
                     User user = invocation.getArgument(0);
@@ -182,6 +191,9 @@ class SampleDataSeederServiceTest {
                 .thenReturn("김철수", "이영희", "박민수", "정수진", "최동욱",
                            "강서연", "윤지호", "임하늘", "한소희");
 
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
+
         when(userRepository.save(any(User.class)))
                 .thenThrow(new RuntimeException("Database error"))
                 .thenAnswer(invocation -> {
@@ -204,6 +216,9 @@ class SampleDataSeederServiceTest {
                 .thenReturn("김철수", "이영희", "박민수", "정수진", "최동욱",
                            "강서연", "윤지호", "임하늘", "한소희");
 
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
+
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> {
                     User user = invocation.getArgument(0);
@@ -220,15 +235,16 @@ class SampleDataSeederServiceTest {
         // When
         sampleDataSeederService.seedWorkspaceData(testWorkspaceId, testOwnerId);
 
-        // Then - Verify email format
+        // Then - Verify email format includes workspace prefix
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository, times(9)).save(userCaptor.capture());
 
         List<User> savedUsers = userCaptor.getAllValues();
+        String workspacePrefix = testWorkspaceId.toString().substring(0, 8);
 
-        // All users should have email in format sample.userN@example.com
+        // All users should have email in format sample.userN.{workspacePrefix}@example.com
         for (int i = 0; i < savedUsers.size(); i++) {
-            String expectedEmail = String.format("sample.user%d@example.com", i + 1);
+            String expectedEmail = String.format("sample.user%d.%s@example.com", i + 1, workspacePrefix);
             assertThat(savedUsers.get(i).getEmail()).isEqualTo(expectedEmail);
         }
     }
@@ -238,6 +254,9 @@ class SampleDataSeederServiceTest {
         // Given
         when(sampleDataGenerator.generateKoreanName())
                 .thenReturn("김철수");
+
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
 
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> {
@@ -293,6 +312,9 @@ class SampleDataSeederServiceTest {
                 .thenReturn(LocalDateTime.now());
         when(sampleDataGenerator.generateRandomDate(1, 90))
                 .thenReturn(LocalDateTime.now().plusDays(30));
+
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
 
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> {
@@ -352,6 +374,9 @@ class SampleDataSeederServiceTest {
                 .thenReturn(LocalDateTime.now());
         when(sampleDataGenerator.generateRandomDate(1, 90))
                 .thenReturn(LocalDateTime.now().plusDays(30));
+
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
 
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> {
@@ -421,6 +446,9 @@ class SampleDataSeederServiceTest {
         when(sampleDataGenerator.generateRandomDate(1, 90))
                 .thenReturn(LocalDateTime.now().plusDays(30));
 
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
+
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> {
                     User user = invocation.getArgument(0);
@@ -478,6 +506,9 @@ class SampleDataSeederServiceTest {
                 .thenReturn(LocalDateTime.now());
         when(sampleDataGenerator.generateRandomDate(1, 90))
                 .thenReturn(LocalDateTime.now().plusDays(30));
+
+        when(userRepository.findByEmail(anyString()))
+                .thenReturn(java.util.Optional.empty());
 
         when(userRepository.save(any(User.class)))
                 .thenAnswer(invocation -> {

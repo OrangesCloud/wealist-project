@@ -79,6 +79,47 @@ public class SampleDataSeederService {
     }
 
     /**
+     * 기존 사용자를 워크스페이스에 추가합니다.
+     * UserProfile과 WorkspaceMember를 생성합니다.
+     * 
+     * @param workspaceId 워크스페이스 ID
+     * @param userId 사용자 ID
+     * @param role 워크스페이스 역할
+     * @param email 사용자 이메일
+     * @param nickName 사용자 닉네임
+     */
+    private void addExistingUserToWorkspace(UUID workspaceId, UUID userId, WorkspaceMember.WorkspaceRole role, 
+                                           String email, String nickName) {
+        // UserProfile이 이미 존재하는지 확인
+        Optional<UserProfile> existingProfile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, userId);
+        if (existingProfile.isEmpty()) {
+            UserProfile userProfile = UserProfile.builder()
+                    .workspaceId(workspaceId)
+                    .userId(userId)
+                    .nickName(nickName)
+                    .email(email)
+                    .profileImageUrl(null)
+                    .build();
+            userProfileRepository.save(userProfile);
+            log.debug("Created user profile for existing user: userId={}, nickName={}", userId, nickName);
+        }
+
+        // WorkspaceMember가 이미 존재하는지 확인
+        Optional<WorkspaceMember> existingMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userId);
+        if (existingMember.isEmpty()) {
+            WorkspaceMember workspaceMember = WorkspaceMember.builder()
+                    .workspaceId(workspaceId)
+                    .userId(userId)
+                    .role(role)
+                    .isDefault(false)
+                    .isActive(true)
+                    .build();
+            workspaceMemberRepository.save(workspaceMember);
+            log.debug("Created workspace member for existing user: userId={}, role={}", userId, role);
+        }
+    }
+
+    /**
      * 샘플 사용자 10명을 생성합니다 (owner 포함).
      * 오류 처리를 포함하여 각 사용자 생성 실패 시에도 계속 진행합니다.
      * 
@@ -134,8 +175,20 @@ public class SampleDataSeederService {
      */
     private UUID createSingleSampleUser(UUID workspaceId, int index, WorkspaceMember.WorkspaceRole role) {
         // 1. User 엔티티 생성
-        String email = String.format("sample.user%d@example.com", index + 1);
+        // 워크스페이스 ID의 앞 8자리를 사용하여 유니크한 이메일 생성
+        String workspacePrefix = workspaceId.toString().substring(0, 8);
+        String email = String.format("sample.user%d.%s@example.com", index + 1, workspacePrefix);
         String koreanName = sampleDataGenerator.generateKoreanName();
+
+        // 이미 존재하는 이메일인지 확인
+        Optional<User> existingUser = userRepository.findByEmail(email);
+        if (existingUser.isPresent()) {
+            log.warn("User with email {} already exists, skipping creation", email);
+            // 기존 사용자를 워크스페이스 멤버로 추가
+            User user = existingUser.get();
+            addExistingUserToWorkspace(workspaceId, user.getUserId(), role, email, koreanName);
+            return user.getUserId();
+        }
 
         User user = User.builder()
                 .email(email)
