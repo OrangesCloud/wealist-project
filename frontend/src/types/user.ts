@@ -34,8 +34,10 @@ export interface UserProfileResponse {
  * [API: PUT /api/profiles/me]
  */
 export interface UpdateProfileRequest {
+  workspaceId: string; // ✅ 필수로 변경 (Swagger 명세 기준)
+  userId: string; // ✅ 필수로 변경 (Swagger 명세 기준)
   nickName?: string;
-  email?: string; // DTO에는 없으나, 프론트엔드에서 필요하다면 유지
+  email?: string;
   profileImageUrl?: string;
 }
 
@@ -188,3 +190,63 @@ export interface SetDefaultWorkspaceRequest {
 // // PendingMember (구 버전): JoinRequestResponse로 대체됨
 // // InvitableUser (명세에서 검색 API가 사라짐): 제거함
 // // InviteMemberRequest (구 버전): InviteUserRequest로 대체됨
+// --- 6. 프로필 이미지 업로드 관련 DTO (추가 필요) ---
+
+/**
+ * @summary Presigned URL 생성 요청 DTO
+ * [API: POST /api/profiles/me/image/presigned-url]
+ */
+export interface PresignedUrlRequest {
+  workspaceId: string; // format: uuid
+  fileName: string;
+  fileSize: number; // bytes
+  contentType: string; // e.g., "image/jpeg"
+}
+
+/**
+ * @summary Presigned URL 생성 응답 DTO
+ * [API: POST /api/profiles/me/image/presigned-url]
+ */
+export interface PresignedUrlResponse {
+  uploadUrl: string;
+  fileKey: string;
+  expiresIn: number; // 초 단위
+}
+
+/**
+ * @summary 첨부파일 메타데이터 저장 요청 DTO
+ * [API: POST /api/profiles/me/image/attachment]
+ */
+export interface SaveAttachmentRequest {
+  fileKey: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+}
+
+/**
+ * @summary 첨부파일 메타데이터 저장 응답 DTO
+ * [API: POST /api/profiles/me/image/attachment]
+ */
+export interface AttachmentResponse {
+  id: string; // format: uuid
+  entityType: string;
+  entityId: string | null; // format: uuid
+  status: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  contentType: string;
+  uploadedBy: string; // format: uuid
+  uploadedAt: string; // format: date-time
+  expiresAt: string | null; // format: date-time
+}
+
+/**
+ * @summary 프로필 이미지 업데이트 요청 DTO (fileKey 기반)
+ * [API: PUT /api/profiles/me/image]
+ */
+export interface UpdateProfileImageByKeyRequest {
+  workspaceId: string; // format: uuid
+  fileKey: string;
+}
