@@ -52,14 +52,14 @@ func (s *commentServiceImpl) CreateComment(ctx context.Context, userID uuid.UUID
 		}
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to verify board", err.Error())
 	}
-	
+
 	// Validate and confirm attachments if provided
 	if len(req.AttachmentIDs) > 0 {
 		if err := s.validateAndConfirmAttachments(ctx, req.AttachmentIDs, domain.EntityTypeComment); err != nil {
 			return nil, err
 		}
 	}
-	
+
 	// Create domain model from request
 	comment := &domain.Comment{
 		BoardID: req.BoardID,
@@ -73,13 +73,44 @@ func (s *commentServiceImpl) CreateComment(ctx context.Context, userID uuid.UUID
 	}
 
 	// Confirm attachments after comment creation
+	var createdAttachments []*domain.Attachment
 	if len(req.AttachmentIDs) > 0 {
+		// 에러 발생 시 comment도 롤백
 		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, comment.ID); err != nil {
-			// Log error but don't fail the request
-			// The comment was created successfully
-			return s.toCommentResponse(comment), nil
+			s.logger.Error("Failed to confirm attachments, rolling back comment creation",
+				zap.String("comment_id", comment.ID.String()),
+				zap.Strings("attachment_ids", func() []string {
+					ids := make([]string, len(req.AttachmentIDs))
+					for i, id := range req.AttachmentIDs {
+						ids[i] = id.String()
+					}
+					return ids
+				}()),
+				zap.Error(err))
+
+			// comment 삭제 (롤백)
+			if deleteErr := s.commentRepo.Delete(ctx, comment.ID); deleteErr != nil {
+				s.logger.Error("Failed to rollback comment after attachment confirmation failure",
+					zap.String("comment_id", comment.ID.String()),
+					zap.Error(deleteErr))
+			}
+
+			return nil, response.NewAppError(response.ErrCodeInternal,
+				"Failed to confirm attachments: "+err.Error(),
+				"Please ensure all attachment IDs are valid and not already used")
+		}
+
+		// Confirm 후 Attachments 메타데이터를 조회하여 comment 객체에 할당
+		attachments, err := s.attachmentRepo.FindByIDs(ctx, req.AttachmentIDs)
+		if err != nil {
+			s.logger.Warn("Failed to fetch confirmed attachments for response", zap.Error(err))
+		} else {
+			createdAttachments = attachments
 		}
 	}
+
+	// 생성된 Attachments를 Comment 객체에 할당 (타입 변환 적용)
+	comment.Attachments = toDomainAttachments(createdAttachments)
 
 	// Convert to response DTO
 	return s.toCommentResponse(comment), nil
@@ -100,6 +131,15 @@ func (s *commentServiceImpl) GetComments(ctx context.Context, boardID uuid.UUID)
 	comments, err := s.commentRepo.FindByBoardID(ctx, boardID)
 	if err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch comments", err.Error())
+	}
+
+	// Comment 목록 조회 시 Attachments 로드 (각 comment별로 로드)
+	for _, comment := range comments {
+		attachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeComment, comment.ID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Error("Failed to fetch attachments for comment list", zap.String("comment_id", comment.ID.String()), zap.Error(err))
+		}
+		comment.Attachments = toDomainAttachments(attachments)
 	}
 
 	// Convert to response DTOs
@@ -137,25 +177,35 @@ func (s *commentServiceImpl) UpdateComment(ctx context.Context, commentID uuid.U
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update comment", err.Error())
 	}
 
-	// Confirm attachments after comment update
+	// Attachments 처리 로직 개선 및 Confirm
 	if len(req.AttachmentIDs) > 0 {
+		// 에러 발생 시 업데이트 실패 처리
 		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, comment.ID); err != nil {
-			s.logger.Warn("Failed to confirm attachments during comment update",
+			s.logger.Error("Failed to confirm attachments during comment update",
 				zap.String("comment_id", comment.ID.String()),
+				zap.Strings("attachment_ids", func() []string {
+					ids := make([]string, len(req.AttachmentIDs))
+					for i, id := range req.AttachmentIDs {
+						ids[i] = id.String()
+					}
+					return ids
+				}()),
 				zap.Error(err))
-			// Continue even if attachment confirmation fails
+
+			return nil, response.NewAppError(response.ErrCodeInternal,
+				"Failed to confirm attachments: "+err.Error(),
+				"Please ensure all attachment IDs are valid and not already used")
 		}
-		
-		// Reload comment with attachments to include them in response
-		reloadedComment, err := s.commentRepo.FindByID(ctx, comment.ID)
-		if err != nil {
-			s.logger.Warn("Failed to reload comment with attachments",
-				zap.String("comment_id", comment.ID.String()),
-				zap.Error(err))
-			// Continue with original comment if reload fails
-		} else {
-			comment = reloadedComment
-		}
+	}
+
+	// comment와 연결된 모든 Attachments를 다시 조회합니다. (타입 변환 적용)
+	allAttachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeComment, comment.ID)
+	if err != nil {
+		s.logger.Warn("Failed to fetch all confirmed attachments after update", zap.Error(err))
+		// 치명적인 오류가 아니므로 계속 진행
+	} else {
+		// DB에서 최신 Attachments 목록을 로드하여 comment 객체에 할당
+		comment.Attachments = toDomainAttachments(allAttachments)
 	}
 
 	// Convert to response DTO
@@ -197,21 +247,21 @@ func (s *commentServiceImpl) DeleteComment(ctx context.Context, commentID uuid.U
 
 // toCommentResponse converts domain.Comment to dto.CommentResponse
 func (s *commentServiceImpl) toCommentResponse(comment *domain.Comment) *dto.CommentResponse {
-	// Convert attachments
-	attachments := make([]dto.AttachmentResponse, 0)
-	if comment.Attachments != nil {
-		attachments = make([]dto.AttachmentResponse, len(comment.Attachments))
-		for i, att := range comment.Attachments {
-			attachments[i] = dto.AttachmentResponse{
-				ID:          att.ID,
-				FileName:    att.FileName,
-				FileURL:     att.FileURL,
-				FileSize:    att.FileSize,
-				ContentType: att.ContentType,
-				UploadedBy:  att.UploadedBy,
-				UploadedAt:  att.CreatedAt,
-			}
-		}
+	// Convert attachments to response DTOs with s3Client.GetFileURL
+	attachments := make([]dto.AttachmentResponse, 0, len(comment.Attachments))
+	for _, a := range comment.Attachments {
+		// s3Client.GetFileURL을 사용하여 FileURL 필드 채우기 (DB의 FileURL은 S3 Key)
+		fileURL := s.s3Client.GetFileURL(a.FileURL)
+
+		attachments = append(attachments, dto.AttachmentResponse{
+			ID:          a.ID,
+			FileName:    a.FileName,
+			FileURL:     fileURL, // full URL 반환
+			FileSize:    a.FileSize,
+			ContentType: a.ContentType,
+			UploadedBy:  a.UploadedBy,
+			UploadedAt:  a.CreatedAt,
+		})
 	}
 
 	return &dto.CommentResponse{
@@ -230,38 +280,38 @@ func (s *commentServiceImpl) validateAndConfirmAttachments(ctx context.Context, 
 	if len(attachmentIDs) == 0 {
 		return nil
 	}
-	
+
 	// Fetch attachments by IDs
 	attachments, err := s.attachmentRepo.FindByIDs(ctx, attachmentIDs)
 	if err != nil {
 		return response.NewAppError(response.ErrCodeInternal, "Failed to fetch attachments", err.Error())
 	}
-	
+
 	// Check if all attachments exist
 	if len(attachments) != len(attachmentIDs) {
 		return response.NewAppError(response.ErrCodeValidation, "One or more attachments not found", "")
 	}
-	
+
 	// Validate each attachment
 	for _, attachment := range attachments {
 		// Check if attachment is in TEMP status
 		if attachment.Status != domain.AttachmentStatusTemp {
 			return response.NewAppError(response.ErrCodeValidation, "Attachment is not in temporary status and cannot be reused", "")
 		}
-		
+
 		// Check if attachment entity type matches
 		if attachment.EntityType != entityType {
 			return response.NewAppError(response.ErrCodeValidation, "Attachment entity type does not match", "")
 		}
 	}
-	
+
 	return nil
 }
 
 // deleteAttachmentsWithS3 deletes attachments from both S3 and database
 func (s *commentServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attachments []*domain.Attachment) {
 	attachmentIDs := make([]uuid.UUID, 0, len(attachments))
-	
+
 	// Delete files from S3
 	for _, attachment := range attachments {
 		// Extract S3 key from FileURL
@@ -272,7 +322,7 @@ func (s *commentServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attach
 				zap.String("file_url", attachment.FileURL))
 			continue
 		}
-		
+
 		// Delete from S3
 		if err := s.s3Client.DeleteFile(ctx, fileKey); err != nil {
 			s.logger.Warn("Failed to delete file from S3",
@@ -281,10 +331,10 @@ func (s *commentServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attach
 				zap.Error(err))
 			// Continue even if S3 deletion fails
 		}
-		
+
 		attachmentIDs = append(attachmentIDs, attachment.ID)
 	}
-	
+
 	// Delete from database
 	if len(attachmentIDs) > 0 {
 		if err := s.attachmentRepo.DeleteBatch(ctx, attachmentIDs); err != nil {
