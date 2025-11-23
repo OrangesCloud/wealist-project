@@ -48,6 +48,7 @@ public class S3Config {
                     AwsBasicCredentials.create(accessKey, secretKey)
             ));
             builder.endpointOverride(URI.create(endpoint));
+            builder.forcePathStyle(true); // MinIO는 path-style access 필요
         }
         // AWS 환경에서는 기본 자격증명 체인 사용 (IAM 역할 또는 ~/.aws/credentials)
 
@@ -72,6 +73,15 @@ public class S3Config {
                     AwsBasicCredentials.create(accessKey, secretKey)
             ));
             builder.endpointOverride(URI.create(endpoint));
+            
+            // MinIO는 path-style access 필요
+            // 이렇게 하면 http://localhost:9000/bucket/key 형식의 URL이 생성됨
+            // virtual-hosted-style (http://bucket.localhost:9000/key)이 아닌
+            builder.serviceConfiguration(
+                software.amazon.awssdk.services.s3.presigner.S3Configuration.builder()
+                    .pathStyleAccessEnabled(true)
+                    .build()
+            );
         }
         // AWS 환경에서는 기본 자격증명 체인 사용 (IAM 역할 또는 ~/.aws/credentials)
 
