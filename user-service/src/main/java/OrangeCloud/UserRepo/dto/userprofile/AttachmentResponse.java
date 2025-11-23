@@ -1,6 +1,7 @@
 package OrangeCloud.UserRepo.dto.userprofile;
 
 import OrangeCloud.UserRepo.entity.Attachment;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -28,7 +29,11 @@ public class AttachmentResponse implements Serializable {
     private Long fileSize;
     private String contentType;
     private UUID uploadedBy;
+    
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime uploadedAt;
+    
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime expiresAt;
 
     /**
