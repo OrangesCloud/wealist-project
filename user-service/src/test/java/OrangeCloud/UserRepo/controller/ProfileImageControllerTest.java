@@ -463,17 +463,17 @@ class ProfileImageControllerTest {
     // ========== Task 16.1: 프로필 이미지 업데이트 엔드포인트 테스트 ==========
 
     @Test
-    @DisplayName("유효한 fileKey로 프로필 이미지 업데이트 성공")
+    @DisplayName("유효한 attachmentId로 프로필 이미지 업데이트 성공")
     void updateProfileImage_Success() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
         UUID workspaceId = UUID.randomUUID();
-        String fileKey = "user/" + workspaceId + "/2024/01/" + userId + "_1704326400.jpg";
-        String s3Url = "https://wealist-dev-files.s3.ap-northeast-2.amazonaws.com/" + fileKey;
+        UUID attachmentId = UUID.randomUUID();
+        String s3Url = "https://wealist-dev-files.s3.ap-northeast-2.amazonaws.com/user/" + workspaceId + "/2024/01/" + userId + "_1704326400.jpg";
 
         UpdateProfileImageByKeyRequest request = new UpdateProfileImageByKeyRequest(
                 workspaceId,
-                fileKey
+                attachmentId
         );
 
         UserProfileResponse profileResponse = UserProfileResponse.builder()
@@ -485,7 +485,6 @@ class ProfileImageControllerTest {
                 .profileImageUrl(s3Url)
                 .build();
 
-        when(s3Service.generateS3Url(fileKey)).thenReturn(s3Url);
         when(userProfileService.updateProfile(any(UpdateProfileRequest.class)))
                 .thenReturn(profileResponse);
 
@@ -501,25 +500,24 @@ class ProfileImageControllerTest {
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.workspaceId").value(workspaceId.toString()));
 
-        verify(s3Service, times(1)).generateS3Url(fileKey);
         verify(userProfileService, times(1)).updateProfile(any(UpdateProfileRequest.class));
     }
 
     @Test
-    @DisplayName("잘못된 fileKey 형식 - board/ 로 시작 - 400 에러 반환")
-    void updateProfileImage_InvalidFileKeyFormat_Board_Returns400() throws Exception {
+    @DisplayName("존재하지 않는 attachmentId - 400 에러 반환")
+    void updateProfileImage_InvalidAttachmentId_Returns400() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
         UUID workspaceId = UUID.randomUUID();
-        String invalidFileKey = "board/boards/" + workspaceId + "/2024/01/test.jpg";
+        UUID invalidAttachmentId = UUID.randomUUID();
 
         UpdateProfileImageByKeyRequest request = new UpdateProfileImageByKeyRequest(
                 workspaceId,
-                invalidFileKey
+                invalidAttachmentId
         );
 
-        when(s3Service.generateS3Url(invalidFileKey))
-                .thenThrow(new CustomException(ErrorCode.INVALID_INPUT_VALUE, "잘못된 파일 키 형식입니다."));
+        when(userProfileService.updateProfile(any(UpdateProfileRequest.class)))
+                .thenThrow(new CustomException(ErrorCode.INVALID_INPUT_VALUE, "존재하지 않는 첨부파일입니다."));
 
         Principal principal = createMockPrincipal(userId);
 
@@ -530,35 +528,33 @@ class ProfileImageControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
 
-        verify(s3Service, times(1)).generateS3Url(invalidFileKey);
-        verify(userProfileService, never()).updateProfile(any());
+        verify(userProfileService, times(1)).updateProfile(any());
     }
 
     @Test
-    @DisplayName("빈 fileKey - 400 에러 반환")
-    void updateProfileImage_EmptyFileKey_Returns400() throws Exception {
+    @DisplayName("null attachmentId - 400 에러 반환")
+    void updateProfileImage_NullAttachmentId_Returns400() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
         UUID workspaceId = UUID.randomUUID();
-        String emptyFileKey = "";
-
-        UpdateProfileImageByKeyRequest request = new UpdateProfileImageByKeyRequest(
-                workspaceId,
-                emptyFileKey
-        );
+        String requestJson = String.format("""
+                {
+                    "workspaceId": "%s",
+                    "attachmentId": null
+                }
+                """, workspaceId);
 
         Principal principal = createMockPrincipal(userId);
 
         // When & Then
-        // @NotBlank validation에 의해 400 에러 발생
+        // @NotNull validation에 의해 400 에러 발생
         mockMvc.perform(put("/api/profiles/me/image")
                         .principal(principal)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(requestJson))
                 .andExpect(status().isBadRequest());
 
-        // Validation에서 걸리므로 s3Service는 호출되지 않음
-        verify(s3Service, never()).generateS3Url(any());
+        // Validation에서 걸리므로 userProfileService는 호출되지 않음
         verify(userProfileService, never()).updateProfile(any());
     }
 
@@ -568,15 +564,13 @@ class ProfileImageControllerTest {
         // Given
         UUID userId = UUID.randomUUID();
         UUID workspaceId = UUID.randomUUID();
-        String fileKey = "user/" + workspaceId + "/2024/01/" + userId + "_1704326400.jpg";
-        String s3Url = "https://wealist-dev-files.s3.ap-northeast-2.amazonaws.com/" + fileKey;
+        UUID attachmentId = UUID.randomUUID();
 
         UpdateProfileImageByKeyRequest request = new UpdateProfileImageByKeyRequest(
                 workspaceId,
-                fileKey
+                attachmentId
         );
 
-        when(s3Service.generateS3Url(fileKey)).thenReturn(s3Url);
         when(userProfileService.updateProfile(any(UpdateProfileRequest.class)))
                 .thenThrow(new UserNotFoundException("프로필을 찾을 수 없습니다."));
 
@@ -589,7 +583,6 @@ class ProfileImageControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound());
 
-        verify(s3Service, times(1)).generateS3Url(fileKey);
         verify(userProfileService, times(1)).updateProfile(any(UpdateProfileRequest.class));
     }
 
@@ -598,12 +591,12 @@ class ProfileImageControllerTest {
     void updateProfileImage_MissingWorkspaceId_Returns400() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
-        String fileKey = "user/abc123/2024/01/test.jpg";
+        UUID attachmentId = UUID.randomUUID();
         String requestJson = String.format("""
                 {
-                    "fileKey": "%s"
+                    "attachmentId": "%s"
                 }
-                """, fileKey);
+                """, attachmentId);
 
         Principal principal = createMockPrincipal(userId);
 
@@ -614,13 +607,12 @@ class ProfileImageControllerTest {
                         .content(requestJson))
                 .andExpect(status().isBadRequest());
 
-        verify(s3Service, never()).generateS3Url(any());
         verify(userProfileService, never()).updateProfile(any());
     }
 
     @Test
-    @DisplayName("필수 필드 누락 - fileKey - 400 에러 반환")
-    void updateProfileImage_MissingFileKey_Returns400() throws Exception {
+    @DisplayName("필수 필드 누락 - attachmentId - 400 에러 반환")
+    void updateProfileImage_MissingAttachmentId_Returns400() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
         UUID workspaceId = UUID.randomUUID();
@@ -639,30 +631,30 @@ class ProfileImageControllerTest {
                         .content(requestJson))
                 .andExpect(status().isBadRequest());
 
-        verify(s3Service, never()).generateS3Url(any());
         verify(userProfileService, never()).updateProfile(any());
     }
 
     @Test
-    @DisplayName("다양한 유효한 fileKey 형식 테스트")
-    void updateProfileImage_VariousValidFileKeys_Success() throws Exception {
+    @DisplayName("다양한 유효한 attachmentId로 프로필 업데이트 성공")
+    void updateProfileImage_VariousValidAttachmentIds_Success() throws Exception {
         // Given
         UUID userId = UUID.randomUUID();
         UUID workspaceId = UUID.randomUUID();
 
-        String[] validFileKeys = {
-                "user/" + workspaceId + "/2024/01/" + userId + "_1704326400.jpg",
-                "user/" + workspaceId + "/2024/12/" + userId + "_1704326400.png",
-                "user/" + workspaceId + "/2025/06/" + userId + "_1704326400.gif",
-                "user/" + workspaceId + "/2023/03/" + userId + "_1704326400.webp"
+        // 여러 개의 attachmentId 테스트
+        UUID[] attachmentIds = {
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID()
         };
 
-        for (String fileKey : validFileKeys) {
-            String s3Url = "https://wealist-dev-files.s3.ap-northeast-2.amazonaws.com/" + fileKey;
+        for (UUID attachmentId : attachmentIds) {
+            String s3Url = "https://wealist-dev-files.s3.ap-northeast-2.amazonaws.com/user/" + workspaceId + "/test.jpg";
 
             UpdateProfileImageByKeyRequest request = new UpdateProfileImageByKeyRequest(
                     workspaceId,
-                    fileKey
+                    attachmentId
             );
 
             UserProfileResponse profileResponse = UserProfileResponse.builder()
@@ -674,7 +666,6 @@ class ProfileImageControllerTest {
                     .profileImageUrl(s3Url)
                     .build();
 
-            when(s3Service.generateS3Url(fileKey)).thenReturn(s3Url);
             when(userProfileService.updateProfile(any(UpdateProfileRequest.class)))
                     .thenReturn(profileResponse);
 
@@ -689,7 +680,6 @@ class ProfileImageControllerTest {
                     .andExpect(jsonPath("$.profileImageUrl").value(s3Url));
         }
 
-        verify(s3Service, times(validFileKeys.length)).generateS3Url(any());
-        verify(userProfileService, times(validFileKeys.length)).updateProfile(any(UpdateProfileRequest.class));
+        verify(userProfileService, times(attachmentIds.length)).updateProfile(any(UpdateProfileRequest.class));
     }
 }

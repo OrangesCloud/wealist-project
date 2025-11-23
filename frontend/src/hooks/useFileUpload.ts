@@ -43,7 +43,7 @@ export const useFileUpload = (): UseFileUploadReturn => {
     setAttachmentId(null);
   }, []);
 
-  const setInitialFile = useCallback((fileUrl: string | null, fileName: string | null) => {
+  const setInitialFile = useCallback((fileUrl: string | null) => {
     if (fileUrl) setPreviewUrl(fileUrl); // fileUrl이 곧 미리보기 URL이거나 다운로드 URL이라 가정
   }, []);
 

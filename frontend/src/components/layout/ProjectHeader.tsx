@@ -13,7 +13,6 @@ interface ProjectHeaderProps {
   projects: ProjectResponse[];
   selectedProject: ProjectResponse | null;
   workspaceMembers: WorkspaceMemberResponse[];
-  userRole: IROLES; // 💡 [추가] 사용자 역할 정보 (권한 제어용)
 
   // State Handlers
   setSelectedProject: (project: ProjectResponse | null) => void;
@@ -30,7 +29,6 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
   projects,
   selectedProject,
   workspaceMembers,
-  userRole, // 💡 [추가] userRole
   setSelectedProject,
   setShowCreateProject,
   setShowProjectDetail, // 💡 [추가] Project Detail 핸들러

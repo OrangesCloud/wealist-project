@@ -1,7 +1,7 @@
 // src/components/board/CommentList.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Pencil, Trash2, Check, X, Send, Paperclip } from 'lucide-react';
+import { Pencil, Trash2, X, Send, Paperclip } from 'lucide-react';
 
 import { CommentResponse } from '../../types/board';
 import {
@@ -29,7 +29,6 @@ interface CommentInputProps {
 const CommentInput = ({
   boardId,
   workspaceId,
-  currentUserId,
   onCommentCreated,
 }: CommentInputProps) => {
   const [content, setContent] = useState('');
@@ -202,8 +201,6 @@ const CommentItem = ({
   const handleUpdate = async () => {
     // 기존 파일 이름이 없고(삭제됨), 새 파일도 없고, 내용도 없으면 리턴
     const hasExistingAttachment = !!existingAttachment;
-    const isFileChanged = !!selectedFile;
-    const isContentChanged = editContent.trim() !== comment.content.trim();
 
     // 💡 파일 삭제 로직 추가: 기존 파일이 있었는데, 현재 selectedFile도 없고,
     // useFileUpload 훅이 파일 초기화 상태인 경우 (previewUrl이나 internal state를 직접 확인할 수 없으므로,
@@ -224,7 +221,6 @@ const CommentItem = ({
     setIsLoading(true);
     try {
       let attachmentIds: string[] = [];
-      let isAttachmentRemoved = false;
 
       // 1. 새 파일 업로드 (기존 파일 대체)
       if (selectedFile) {
