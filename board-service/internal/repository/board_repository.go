@@ -37,13 +37,14 @@ func (r *boardRepositoryImpl) Create(ctx context.Context, board *domain.Board) e
 	return nil
 }
 
-// FindByID finds a board by ID with preloaded participants, comments, and attachments
+// FindByID finds a board by ID with preloaded participants and comments
+// ✅ 수정: Preload("Attachments") 제거 - service에서 별도 로드
 func (r *boardRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*domain.Board, error) {
 	var board domain.Board
 	if err := r.db.WithContext(ctx).
 		Preload("Participants").
 		Preload("Comments").
-		Preload("Attachments").
+		// Preload("Attachments"). // ✅ 제거
 		Where("id = ?", id).
 		First(&board).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -55,15 +56,16 @@ func (r *boardRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*doma
 }
 
 // FindByProjectID finds all boards by project ID with optional filters
+// ✅ 수정: Preload("Attachments") 제거 - service에서 별도 로드
 func (r *boardRepositoryImpl) FindByProjectID(ctx context.Context, projectID uuid.UUID, filters interface{}) ([]*domain.Board, error) {
 	var boards []*domain.Board
-	
-	// Start building the query with Participants and Attachments preload
+
+	// Start building the query with Participants preload
 	query := r.db.WithContext(ctx).
 		Preload("Participants").
-		Preload("Attachments").
+		// Preload("Attachments"). // ✅ 제거
 		Where("project_id = ?", projectID)
-	
+
 	// Apply filters if provided
 	if filters != nil {
 		// Type assertion to get customFields map
@@ -75,12 +77,12 @@ func (r *boardRepositoryImpl) FindByProjectID(ctx context.Context, projectID uui
 			}
 		}
 	}
-	
+
 	// Execute the query
 	if err := query.Find(&boards).Error; err != nil {
 		return nil, err
 	}
-	
+
 	return boards, nil
 }
 

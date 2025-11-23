@@ -106,14 +106,33 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to create project", err.Error())
 	}
 
-	// Confirm attachments after project creation
+	// ✅ 수정: Confirm attachments after project creation
 	var createdAttachments []*domain.Attachment
 	if len(req.AttachmentIDs) > 0 {
+		// ✅ 에러 발생 시 프로젝트도 롤백
 		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, project.ID); err != nil {
-			s.logger.Warn("Failed to confirm attachments during project creation",
+			s.logger.Error("Failed to confirm attachments, rolling back project creation",
 				zap.String("project_id", project.ID.String()),
+				zap.Strings("attachment_ids", func() []string {
+					ids := make([]string, len(req.AttachmentIDs))
+					for i, id := range req.AttachmentIDs {
+						ids[i] = id.String()
+					}
+					return ids
+				}()),
 				zap.Error(err))
-			// Continue even if attachment confirmation fails
+
+			// ✅ 프로젝트 삭제 (롤백)
+			if deleteErr := s.projectRepo.Delete(ctx, project.ID); deleteErr != nil {
+				s.logger.Error("Failed to rollback project after attachment confirmation failure",
+					zap.String("project_id", project.ID.String()),
+					zap.Error(deleteErr))
+			}
+
+			// ✅ 에러 반환
+			return nil, response.NewAppError(response.ErrCodeInternal,
+				"Failed to confirm attachments: "+err.Error(),
+				"Please ensure all attachment IDs are valid and not already used")
 		}
 
 		// 💡 [수정] Confirm 후 Attachments 메타데이터를 조회하여 project 객체에 할당
@@ -447,13 +466,25 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update project", err.Error())
 	}
 
-	// 💡 [수정] Attachments 처리 로직 개선 및 Confirm
+	// ✅ 수정: Attachments 처리 로직 개선 및 Confirm
 	if len(req.AttachmentIDs) > 0 {
+		// ✅ 에러 발생 시 업데이트 실패 처리
 		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, project.ID); err != nil {
-			s.logger.Warn("Failed to confirm attachments during project update",
+			s.logger.Error("Failed to confirm attachments during project update",
 				zap.String("project_id", project.ID.String()),
+				zap.Strings("attachment_ids", func() []string {
+					ids := make([]string, len(req.AttachmentIDs))
+					for i, id := range req.AttachmentIDs {
+						ids[i] = id.String()
+					}
+					return ids
+				}()),
 				zap.Error(err))
-			// Continue even if attachment confirmation fails
+
+			// ✅ 에러 반환
+			return nil, response.NewAppError(response.ErrCodeInternal,
+				"Failed to confirm attachments: "+err.Error(),
+				"Please ensure all attachment IDs are valid and not already used")
 		}
 	}
 

@@ -16,8 +16,8 @@ import (
 
 // AttachmentHandler handles attachment-related requests
 type AttachmentHandler struct {
-	s3Client           *client.S3Client
-	attachmentRepo     repository.AttachmentRepository
+	s3Client       *client.S3Client
+	attachmentRepo repository.AttachmentRepository
 }
 
 // NewAttachmentHandler creates a new AttachmentHandler
@@ -41,11 +41,11 @@ var (
 	}
 
 	AllowedDocTypes = map[string]bool{
-		"application/pdf":      true,
-		"text/plain":           true,
-		"application/msword":   true,
-		"application/vnd.openxmlformats-officedocument.wordprocessingml.document":   true, // .docx
-		"application/vnd.ms-excel":                                                  true, // .xls
+		"application/pdf":    true,
+		"text/plain":         true,
+		"application/msword": true,
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true, // .docx
+		"application/vnd.ms-excel": true, // .xls
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         true, // .xlsx
 		"application/vnd.ms-powerpoint":                                             true, // .ppt
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation": true, // .pptx
@@ -181,8 +181,9 @@ func (h *AttachmentHandler) GeneratePresignedURL(c *gin.Context) {
 		return
 	}
 
+	// ✅ 수정: fileURL 생성 삭제 - S3 key만 DB에 저장
 	// Generate file URL from file key
-	fileURL := h.s3Client.GetFileURL(fileKey)
+	// fileURL := h.s3Client.GetFileURL(fileKey)  // ❌ 삭제
 
 	// Create attachment record with temporary status
 	now := time.Now()
@@ -196,7 +197,7 @@ func (h *AttachmentHandler) GeneratePresignedURL(c *gin.Context) {
 		EntityID:    nil, // Will be set when entity is created
 		Status:      domain.AttachmentStatusTemp,
 		FileName:    req.FileName,
-		FileURL:     fileURL,
+		FileURL:     fileKey, // ✅ 수정: S3 key만 저장 (full URL 아님)
 		FileSize:    req.FileSize,
 		ContentType: req.ContentType,
 		UploadedBy:  userID,
@@ -366,8 +367,9 @@ func (h *AttachmentHandler) SaveAttachmentMetadata(c *gin.Context) {
 		return
 	}
 
+	// ✅ 수정: fileURL 생성 삭제 - S3 key만 DB에 저장
 	// Generate file URL from file key
-	fileURL := h.s3Client.GetFileURL(req.FileKey)
+	// fileURL := h.s3Client.GetFileURL(req.FileKey)  // ❌ 삭제
 
 	// Create attachment record with temporary status
 	// Note: EntityID is nil to indicate temporary attachment
@@ -383,7 +385,7 @@ func (h *AttachmentHandler) SaveAttachmentMetadata(c *gin.Context) {
 		EntityID:    nil, // Will be set when entity is created
 		Status:      domain.AttachmentStatusTemp,
 		FileName:    req.FileName,
-		FileURL:     fileURL,
+		FileURL:     req.FileKey, // ✅ 수정: S3 key만 저장
 		FileSize:    req.FileSize,
 		ContentType: req.ContentType,
 		UploadedBy:  userID,
@@ -443,13 +445,16 @@ func (h *AttachmentHandler) GetBoardAttachments(c *gin.Context) {
 	// Convert to response format
 	resp := make([]AttachmentResponse, len(attachments))
 	for i, attachment := range attachments {
+		// ✅ 수정: 조회 시 full URL 생성
+		fileURL := h.s3Client.GetFileURL(attachment.FileURL)
+
 		resp[i] = AttachmentResponse{
 			ID:          attachment.ID,
 			EntityType:  string(attachment.EntityType),
 			EntityID:    attachment.EntityID,
 			Status:      string(attachment.Status),
 			FileName:    attachment.FileName,
-			FileURL:     attachment.FileURL,
+			FileURL:     fileURL, // ✅ 수정: full URL 반환
 			FileSize:    attachment.FileSize,
 			ContentType: attachment.ContentType,
 			UploadedBy:  attachment.UploadedBy,
@@ -490,13 +495,16 @@ func (h *AttachmentHandler) GetCommentAttachments(c *gin.Context) {
 	// Convert to response format
 	resp := make([]AttachmentResponse, len(attachments))
 	for i, attachment := range attachments {
+		// ✅ 수정: 조회 시 full URL 생성
+		fileURL := h.s3Client.GetFileURL(attachment.FileURL)
+
 		resp[i] = AttachmentResponse{
 			ID:          attachment.ID,
 			EntityType:  string(attachment.EntityType),
 			EntityID:    attachment.EntityID,
 			Status:      string(attachment.Status),
 			FileName:    attachment.FileName,
-			FileURL:     attachment.FileURL,
+			FileURL:     fileURL, // ✅ 수정: full URL 반환
 			FileSize:    attachment.FileSize,
 			ContentType: attachment.ContentType,
 			UploadedBy:  attachment.UploadedBy,
@@ -537,13 +545,16 @@ func (h *AttachmentHandler) GetProjectAttachments(c *gin.Context) {
 	// Convert to response format
 	resp := make([]AttachmentResponse, len(attachments))
 	for i, attachment := range attachments {
+		// ✅ 수정: 조회 시 full URL 생성
+		fileURL := h.s3Client.GetFileURL(attachment.FileURL)
+
 		resp[i] = AttachmentResponse{
 			ID:          attachment.ID,
 			EntityType:  string(attachment.EntityType),
 			EntityID:    attachment.EntityID,
 			Status:      string(attachment.Status),
 			FileName:    attachment.FileName,
-			FileURL:     attachment.FileURL,
+			FileURL:     fileURL, // ✅ 수정: full URL 반환
 			FileSize:    attachment.FileSize,
 			ContentType: attachment.ContentType,
 			UploadedBy:  attachment.UploadedBy,
