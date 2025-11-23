@@ -267,9 +267,20 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
   const detailFileName = firstAttachment?.fileName || 'project_file_attachment';
   const hasAttachments = !!firstAttachment;
 
-  // ----------------------------------------------------
-  // 🎨 Detail / Edit Mode 렌더링
-  // ----------------------------------------------------
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  // 💡 삭제: newComment, selectedFile, fileInputRef (CommentList가 담당함)
+  // 이미지 파일 여부 확인
+  const isImageFile = (contentType?: string, fileName?: string): boolean => {
+    if (contentType) {
+      return contentType.startsWith('image/');
+    }
+    if (fileName) {
+      const ext = fileName.split('.').pop()?.toLowerCase();
+      return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '');
+    }
+    return false;
+  };
+
   const renderDetailOrEditContent = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-3 gap-6">
@@ -354,7 +365,20 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
                   <Paperclip className="w-4 h-4 text-blue-500" />
                   첨부 파일
                 </label>
-                <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-sm">
+                <div
+                  className="p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-sm relative"
+                  // 💡 [수정] 마우스 이벤트 추가
+                  onMouseEnter={() => {
+                    if (
+                      detailFileUrl &&
+                      firstAttachment?.contentType &&
+                      isImageFile(firstAttachment.contentType, detailFileName)
+                    ) {
+                      setPreviewImage(detailFileUrl);
+                    }
+                  }}
+                  onMouseLeave={() => setPreviewImage(null)}
+                >
                   <span className="text-gray-700 truncate flex items-center gap-1">
                     {hasAttachments ? (
                       <span className="text-gray-700">{detailFileName}</span>
@@ -362,7 +386,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
                       <span className="text-gray-500">첨부 파일 없음</span>
                     )}
                   </span>
-
                   {hasAttachments ? (
                     <button
                       type="button"
@@ -374,6 +397,19 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
                     </button>
                   ) : (
                     <span className="text-gray-400 text-xs flex-shrink-0">다운로드 불가</span>
+                  )}
+                  {/* 💡 [추가] 이미지 미리보기 툴팁 */}
+                  {previewImage && mode === 'detail' && (
+                    <div className="absolute left-0 bottom-full **mb-6** z-50 pointer-events-none">
+                      <div className="bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-2">
+                        <img
+                          src={previewImage}
+                          alt="미리보기"
+                          className="max-w-xs max-h-64 rounded"
+                          style={{ objectFit: 'contain' }}
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
               </>
