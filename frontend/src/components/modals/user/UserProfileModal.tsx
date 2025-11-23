@@ -1,10 +1,14 @@
+// src/components/modals/board/ProjectManageModal.tsx
+
 /**
  * 사용자 프로필 모달 컴포넌트
  *
  * [최종 로직 목표]
  * 1. 초기 로드 시: GET /api/workspaces/all (워크스페이스 목록) + GET /api/profiles/all/me (모든 프로필)을 호출.
  * 2. 탭 선택 시: 로컬 상태(allProfiles)에서 기본 프로필(workspaceId=null)과 선택된 워크스페이스 프로필을 필터링하여 표시.
- * 3. 저장 시: S3에 이미지를 업로드하고 반환된 URL로 닉네임과 프로필을 업데이트합니다.
+ * 3. 저장 시:
+ * a. 이미지 업로드: S3에 업로드하고 Attachment 메타데이터를 저장(TEMP 상태).
+ * b. 최종 프로필 업데이트: 닉네임 변경 요청 + **Attachment ID**를 사용해 최종 프로필 이미지 URL을 연결.
  */
 
 import React, { useState, useRef, ChangeEvent, useEffect } from 'react';
@@ -14,19 +18,18 @@ import {
   updateMyProfile,
   getAllMyProfiles,
   getMyWorkspaces,
-  uploadProfileImage, // ✅ 추가
+  uploadProfileImage, // S3 업로드 및 Attachment 저장 (TEMP)까지 처리하고 AttachmentResponse를 반환
+  updateProfileImage, // Attachment ID를 사용해 최종 프로필을 업데이트하는 함수
 } from '../../../api/user/userService';
 import {
   UserProfileResponse,
-  // WorkspaceResponse,
   UpdateProfileRequest,
   UserWorkspaceResponse,
+  AttachmentResponse, // AttachmentResponse 타입 사용
 } from '../../../types/user';
 import Portal from '../../common/Portal';
 
 const DEFAULT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000000';
-
-// 💡 [추가] S3 업로드 헬퍼 함수
 
 interface UserProfileModalProps {
   onClose: () => void;
@@ -47,7 +50,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
 
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
 
-  // 💡 [추가] S3에 업로드할 실제 파일 객체 상태
+  // S3에 업로드할 실제 파일 객체 상태
   const [_selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -59,7 +62,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
 
   const defaultProfile = allProfiles?.find((p) => p.workspaceId === DEFAULT_WORKSPACE_ID) || null;
   const currentWorkspaceProfile =
-    allProfiles?.find((p) => p.workspaceId === selectedWorkspaceId) || defaultProfile;
+    allProfiles?.find((p) => p.workspaceId === selectedWorkspaceId) || null;
 
   const currentProfile =
     activeTab === 'default' ? defaultProfile : currentWorkspaceProfile || defaultProfile;
@@ -68,7 +71,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
   const setCurrentNickName = activeTab === 'default' ? setDefaultNickName : setWorkspaceNickName;
 
   // ========================================
-  // 초기 데이터 로드 (유지)
+  // 초기 데이터 로드
   // ========================================
 
   useEffect(() => {
@@ -79,13 +82,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
           getAllMyProfiles(),
           getMyWorkspaces(),
         ]);
-        console.log(allProfs);
+
         setAllProfiles(allProfs);
+
+        // 1. 기본 프로필 닉네임 초기화
         const initialDefaultProfile = allProfs?.find((p) => p.workspaceId === DEFAULT_WORKSPACE_ID);
         if (initialDefaultProfile) {
           setDefaultNickName(initialDefaultProfile?.nickName);
         }
 
+        // 2. 워크스페이스 목록 초기화
         setWorkspaces(workspaceList);
         if (workspaceList.length > 0) {
           setSelectedWorkspaceId(workspaceList[0].workspaceId);
@@ -100,23 +106,32 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
     loadInitialData();
   }, []);
 
-  // 💡 [추가] 워크스페이스 변경 시 닉네임 입력 필드 상태 업데이트 (유지)
+  // 워크스페이스/탭 변경 시 닉네임/아바타 상태 동기화
   useEffect(() => {
-    // 닉네임 업데이트 로직 (유지)
-    setWorkspaceNickName(currentWorkspaceProfile?.nickName || defaultNickName);
+    const profileToSync = currentProfile;
 
-    // ⭐ [추가/수정] 워크스페이스 변경 시 아바타 미리보기를 기존 이미지로 설정
-    if (activeTab === 'workspace' || activeTab === 'default') {
-      const imageToDisplay = currentProfile?.profileImageUrl || null;
-      setAvatarPreviewUrl(imageToDisplay);
-    } else {
-      setAvatarPreviewUrl(null); // 혹시 모를 경우를 대비한 초기화
+    // 1. 닉네임 동기화
+    if (activeTab === 'default') {
+      setDefaultNickName(profileToSync?.nickName || '');
+    } else if (activeTab === 'workspace') {
+      setWorkspaceNickName(currentWorkspaceProfile?.nickName || defaultProfile?.nickName || '');
     }
 
-    // 의존성 배열 수정: currentProfile 추가 (필요 시)
-  }, [selectedWorkspaceId, activeTab, currentWorkspaceProfile, defaultNickName, currentProfile]);
+    // 2. 아바타 미리보기 동기화
+    if (!_selectedFile) {
+      setAvatarPreviewUrl(profileToSync?.profileImageUrl || null);
+    }
+  }, [
+    selectedWorkspaceId,
+    activeTab,
+    defaultProfile,
+    currentWorkspaceProfile,
+    currentProfile,
+    _selectedFile,
+  ]);
+
   // ========================================
-  // 이미지 업로드 핸들러 (S3 파일 상태 추가)
+  // 이미지 업로드 핸들러
   // ========================================
 
   const handleAvatarChangeClick = () => {
@@ -130,26 +145,21 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
         URL.revokeObjectURL(avatarPreviewUrl);
       }
       setAvatarPreviewUrl(URL.createObjectURL(file));
-      // 💡 [추가] 업로드할 파일 객체를 상태에 저장
       setSelectedFile(file);
       console.log(`[File] 새 프로필 사진 선택: ${file.name}`);
     } else {
-      // 파일 선택 취소 시 초기화
       setSelectedFile(null);
-      setAvatarPreviewUrl(null);
+      setAvatarPreviewUrl(currentProfile?.profileImageUrl || null);
     }
   };
 
-  // ========================================
-  // 워크스페이스 변경 핸들러 (변경 없음)
-  // ========================================
-
+  // 💡 [복구된 함수] 워크스페이스 변경 핸들러
   const handleWorkspaceChange = (workspaceId: string) => {
     setSelectedWorkspaceId(workspaceId);
   };
 
   // ========================================
-  // 저장 핸들러 (S3 업로드 로직 포함)
+  // 저장 핸들러 (S3 업로드 및 Attachment ID 사용)
   // ========================================
 
   const handleSave = async () => {
@@ -157,7 +167,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
       setLoading(true);
       setError(null);
 
-      if (!currentNickName?.trim()) {
+      const trimmedNickName = currentNickName?.trim();
+
+      if (!trimmedNickName) {
         setError('닉네임은 필수입니다.');
         setLoading(false);
         return;
@@ -172,45 +184,55 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
         activeTab === 'default' ? DEFAULT_WORKSPACE_ID : selectedWorkspaceId;
       let updatedProfile: UserProfileResponse | undefined = undefined;
 
-      // ✅ 1. 이미지 업로드 처리 (새 파일이 선택된 경우)
+      // 1. 이미지 업로드 처리 (새 파일이 선택된 경우)
       if (_selectedFile) {
         try {
-          // uploadProfileImage 함수가 전체 플로우를 처리함
-          // (Presigned URL → S3 Upload → Metadata Save → Profile Update)
-          updatedProfile = await uploadProfileImage(_selectedFile, targetWorkspaceId);
+          // uploadProfileImage는 AttachmentResponse를 반환합니다.
+          const attachmentResponse: AttachmentResponse = await uploadProfileImage(
+            _selectedFile,
+            targetWorkspaceId,
+          );
+          // 💡 [Attachment ID 획득] 저장된 Attachment의 ID를 추출하여 최종 업데이트에 사용
+          const attachmentId = attachmentResponse.attachmentId;
 
-          // 닉네임도 변경된 경우 추가 업데이트
-          if (updatedProfile.nickName !== currentNickName.trim()) {
-            const updateData: UpdateProfileRequest = {
-              nickName: currentNickName.trim(),
-              workspaceId: targetWorkspaceId,
-              userId: currentUserId,
-            };
-            updatedProfile = await updateMyProfile(updateData);
-          }
+          // 2. Attachment ID를 사용하여 프로필 이미지 최종 연결 (PUT /api/profiles/me/image 호출)
+          // * 이 호출이 attachmentId를 payload로 전달합니다.
+          const finalProfileUpdate = await updateProfileImage(targetWorkspaceId, attachmentId);
+          console.log(finalProfileUpdate)
+          // updatedProfile을 최종 결과로 설정 (이 응답에는 최신 프로필 정보가 포함됨)
+          updatedProfile = finalProfileUpdate;
         } catch (err) {
-          console.error('[Image Upload Error]', err);
-          throw new Error('이미지 업로드에 실패했습니다.');
+          console.error('[Image Upload/Link Error]', err);
+          throw new Error('프로필 이미지 업데이트에 실패했습니다.');
         }
-      } else {
-        // ✅ 2. 닉네임만 변경된 경우
+      }
+
+      // 3. 닉네임 업데이트
+      // 닉네임만 바뀌었거나, 이미지 업데이트는 했지만 닉네임은 업데이트 응답에 포함되지 않았을 경우 (또는 닉네임이 다를 경우)
+      const isNickNameChanged = updatedProfile
+        ? updatedProfile.nickName !== trimmedNickName
+        : currentProfile?.nickName !== trimmedNickName;
+
+      if (isNickNameChanged || !updatedProfile) {
+        // updatedProfile이 null인 경우 (이미지 업데이트를 안 한 경우) 또는 닉네임 변경이 필요한 경우
         const updateData: UpdateProfileRequest = {
-          nickName: currentNickName.trim(),
+          nickName: trimmedNickName,
           workspaceId: targetWorkspaceId,
           userId: currentUserId,
         };
+        // 닉네임 업데이트 결과로 updatedProfile을 갱신합니다.
         updatedProfile = await updateMyProfile(updateData);
       }
 
+      // 4. updatedProfile이 최종적으로 설정되었는지 확인
       if (!updatedProfile) throw new Error('API 응답이 유효하지 않습니다.');
 
-      // ✅ 3. 로컬 상태 업데이트 (allProfiles)
+      // 5. 로컬 상태 업데이트 (allProfiles)
       setAllProfiles((prev) => {
         const index = prev?.findIndex((p) => p.workspaceId === targetWorkspaceId);
 
-        // workspaceId를 명시적으로 설정 (API 응답에 누락될 수 있음)
         const profileToUpdate: UserProfileResponse = {
-          ...updatedProfile,
+          ...updatedProfile!,
           workspaceId: targetWorkspaceId,
         };
 
@@ -222,25 +244,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
         return [...(prev || []), profileToUpdate];
       });
 
-      // ✅ 4. 저장 후 파일 상태 초기화
+      // 6. 저장 후 파일 상태 초기화
       setSelectedFile(null);
-      setAvatarPreviewUrl(null);
 
       alert('✅ 프로필이 저장되었습니다!');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
       console.error('[Profile Save Error]', errorMsg);
+      // 💡 오류 메시지 상세화 (BAD_REQUEST의 경우 백엔드 오류 코드를 그대로 보여줄 수 있음)
       setError(errorMsg || '프로필 저장에 실패했습니다.');
     } finally {
       setLoading(false);
     }
   };
+
   // ========================================
-  // 모달 닫기 핸들러 (변경 없음)
+  // 모달 닫기 핸들러
   // ========================================
 
   const handleClose = () => {
-    if (avatarPreviewUrl) {
+    if (avatarPreviewUrl && _selectedFile) {
       URL.revokeObjectURL(avatarPreviewUrl);
     }
     onClose();
@@ -260,23 +283,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
       </div>
     );
   }
-
-  // if (!defaultProfile && !loading) {
-  //   return (
-  //     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-  //       <div className="bg-white p-8 rounded-xl shadow-lg">
-  //         <p className="text-red-700 font-semibold mb-4">프로필 로드 실패</p>
-  //         <p className="text-sm text-gray-700">기본 프로필 정보를 찾을 수 없습니다.</p>
-  //         <button
-  //           onClick={handleClose}
-  //           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-  //         >
-  //           닫기
-  //         </button>
-  //       </div>
-  //     </div>
-  //   );
-  // }
 
   return (
     <Portal>
@@ -346,6 +352,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
                   value={selectedWorkspaceId}
                   onChange={(e) => handleWorkspaceChange(e.target.value)}
                   className={`w-full px-3 py-2 ${theme.effects.cardBorderWidth} ${theme.colors.border} ${theme.colors.card} ${theme.font.size.xs} ${theme.effects.borderRadius} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  disabled={workspaces.length === 0}
                 >
                   {workspaces.map((workspace) => (
                     <option key={workspace.workspaceId} value={workspace.workspaceId}>
@@ -365,14 +372,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
                 <div className="relative">
                   {avatarPreviewUrl ? (
                     <img
-                      src={avatarPreviewUrl}
+                      src={_selectedFile ? avatarPreviewUrl : currentProfile?.profileImageUrl || ''}
                       alt="프로필 미리보기"
-                      className="w-24 h-24 object-cover border-2 border-gray-300 rounded-full"
-                    />
-                  ) : currentProfile?.profileImageUrl ? (
-                    <img
-                      src={currentProfile.profileImageUrl}
-                      alt="프로필 이미지"
                       className="w-24 h-24 object-cover border-2 border-gray-300 rounded-full"
                     />
                   ) : (

@@ -42,6 +42,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       try {
         // 💡 [수정] 토큰 없이 API 호출 (인터셉터 사용)
         const profile = await getMyProfile();
+        console.log(profile);
         setUserProfile(profile);
       } catch (e) {
         console.error('기본 프로필 로드 실패:', e);

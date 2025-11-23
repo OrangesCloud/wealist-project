@@ -183,14 +183,7 @@ export interface InviteUserRequest {
 export interface SetDefaultWorkspaceRequest {
   workspaceId: string;
 }
-
-// --- 5. 제거된 불필요/구 버전 타입 ---
-
-// // WorkspaceMember (구 버전): WorkspaceMemberResponse로 대체됨
-// // PendingMember (구 버전): JoinRequestResponse로 대체됨
-// // InvitableUser (명세에서 검색 API가 사라짐): 제거함
-// // InviteMemberRequest (구 버전): InviteUserRequest로 대체됨
-// --- 6. 프로필 이미지 업로드 관련 DTO (추가 필요) ---
+// --- 5. 프로필 이미지 업로드 관련 DTO (추가) ---
 
 /**
  * @summary Presigned URL 생성 요청 DTO
@@ -229,12 +222,12 @@ export interface SaveAttachmentRequest {
  * [API: POST /api/profiles/me/image/attachment]
  */
 export interface AttachmentResponse {
-  id: string; // format: uuid
+  attachmentId: string; // format: uuid (첨부파일 ID)
   entityType: string;
   entityId: string | null; // format: uuid
   status: string;
   fileName: string;
-  fileUrl: string;
+  fileUrl: string; // S3 Key (DB 저장 시) 또는 다운로드 URL (응답 시)
   fileSize: number;
   contentType: string;
   uploadedBy: string; // format: uuid
@@ -243,10 +236,11 @@ export interface AttachmentResponse {
 }
 
 /**
- * @summary 프로필 이미지 업데이트 요청 DTO (fileKey 기반)
+ * @summary 프로필 이미지 업데이트 요청 DTO (Attachment ID 기반)
  * [API: PUT /api/profiles/me/image]
+ * 💡 [수정] fileKey 대신 attachmentId를 사용하는 것으로 가정하고 필드명 변경
  */
-export interface UpdateProfileImageByKeyRequest {
+export interface UpdateProfileImageRequest {
   workspaceId: string; // format: uuid
-  fileKey: string;
+  attachmentId: string; // 💡 [핵심 수정] fileKey 대신 Attachment ID 사용
 }
