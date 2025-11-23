@@ -13,6 +13,7 @@ interface ProjectHeaderProps {
   projects: ProjectResponse[];
   selectedProject: ProjectResponse | null;
   workspaceMembers: WorkspaceMemberResponse[];
+  userRole: IROLES;
 
   // State Handlers
   setSelectedProject: (project: ProjectResponse | null) => void;
@@ -29,6 +30,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
   projects,
   selectedProject,
   workspaceMembers,
+  userRole: _userRole,
   setSelectedProject,
   setShowCreateProject,
   setShowProjectDetail, // 💡 [추가] Project Detail 핸들러
