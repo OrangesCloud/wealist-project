@@ -408,8 +408,7 @@ public class SampleDataSeederService {
         String title = sampleDataGenerator.generateBoardTitle();
         String content = generateBoardContent(title);
         
-        // 랜덤하게 author와 assignee 선택
-        UUID authorId = userIds.get(new Random().nextInt(userIds.size()));
+        // 랜덤하게 assignee 선택
         UUID assigneeId = userIds.get(new Random().nextInt(userIds.size()));
         
         // 커스텀 필드 생성 (status, priority)
@@ -421,7 +420,6 @@ public class SampleDataSeederService {
 
         CreateBoardRequest request = CreateBoardRequest.builder()
                 .projectId(projectId)
-                .authorId(authorId)
                 .assigneeId(assigneeId)
                 .title(title)
                 .content(content)

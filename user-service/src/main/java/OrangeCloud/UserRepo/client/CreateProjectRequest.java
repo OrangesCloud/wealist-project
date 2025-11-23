@@ -17,7 +17,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class CreateProjectRequest {
     
-    @JsonProperty("workspace_id")
+    @JsonProperty("workspaceId")
     private UUID workspaceId;
     
     @JsonProperty("name")

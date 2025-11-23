@@ -19,13 +19,10 @@ import java.util.UUID;
 @AllArgsConstructor
 public class CreateBoardRequest {
     
-    @JsonProperty("project_id")
+    @JsonProperty("projectId")
     private UUID projectId;
     
-    @JsonProperty("author_id")
-    private UUID authorId;
-    
-    @JsonProperty("assignee_id")
+    @JsonProperty("assigneeId")
     private UUID assigneeId;
     
     @JsonProperty("title")
@@ -34,12 +31,12 @@ public class CreateBoardRequest {
     @JsonProperty("content")
     private String content;
     
-    @JsonProperty("custom_fields")
+    @JsonProperty("customFields")
     private Map<String, Object> customFields;
     
-    @JsonProperty("start_date")
+    @JsonProperty("startDate")
     private LocalDateTime startDate;
     
-    @JsonProperty("due_date")
+    @JsonProperty("dueDate")
     private LocalDateTime dueDate;
 }
