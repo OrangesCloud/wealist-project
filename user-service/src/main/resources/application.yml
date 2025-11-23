@@ -138,6 +138,7 @@ management:
 sample-data:
   enabled: ${SAMPLE_DATA_ENABLED:false}
 
+# Board service URL configuration
 board-service:
   url: ${BOARD_SERVICE_URL:http://localhost:8081}
 
