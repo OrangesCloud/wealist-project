@@ -1,24 +1,27 @@
 package OrangeCloud.UserRepo.service;
 
+import OrangeCloud.UserRepo.dto.userprofile.AttachmentResponse;
 import OrangeCloud.UserRepo.dto.userprofile.CreateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
+import OrangeCloud.UserRepo.entity.Attachment;
 import OrangeCloud.UserRepo.entity.User;
 import OrangeCloud.UserRepo.entity.UserProfile;
+import OrangeCloud.UserRepo.repository.AttachmentRepository;
 import OrangeCloud.UserRepo.repository.UserProfileRepository;
 import OrangeCloud.UserRepo.repository.UserRepository;
 import OrangeCloud.UserRepo.repository.WorkspaceMemberRepository;
-import OrangeCloud.UserRepo.exception.UserNotFoundException; // ✅ UserNotFoundException을 사용
+import OrangeCloud.UserRepo.exception.UserNotFoundException;
 import OrangeCloud.UserRepo.exception.CustomException;
 import OrangeCloud.UserRepo.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-// import org.springframework.data.crossstore.ChangeSetPersister.NotFoundException; // 🚫 불필요한 임포트 제거
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +35,7 @@ public class UserProfileService {
     private final UserProfileRepository userProfileRepository;
     private final UserRepository userRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
+    private final AttachmentRepository attachmentRepository;
     private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     @Transactional
@@ -63,9 +67,13 @@ public class UserProfileService {
                 // 💡 수정: 정의된 UserNotFoundException을 사용
                 .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
 
+        // 프로필 이미지 첨부파일 조회 (있으면 하나만)
+        AttachmentResponse attachment = getProfileImageAttachment(profile.getProfileId());
+
         // 💡 수정: DTO를 반환하도록 로직을 유지
-        return UserProfileResponse.from(profile);
+        return UserProfileResponse.from(profile, attachment);
     }
+    
     @Transactional(readOnly = true)
     @Cacheable(value = "userProfile", key = "#userId")
     // 💡 수정: 반환 타입을 UserProfileResponse DTO로 변경
@@ -77,8 +85,25 @@ public class UserProfileService {
                 // 💡 수정: 정의된 UserNotFoundException을 사용
                 .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
 
+        // 프로필 이미지 첨부파일 조회 (있으면 하나만)
+        AttachmentResponse attachment = getProfileImageAttachment(profile.getProfileId());
+
         // 💡 수정: DTO를 반환하도록 로직을 유지
-        return UserProfileResponse.from(profile);
+        return UserProfileResponse.from(profile, attachment);
+    }
+    
+    /**
+     * 프로필 이미지 첨부파일 조회
+     * 프로필 이미지는 하나만 존재하므로 첫 번째 것을 반환
+     */
+    private AttachmentResponse getProfileImageAttachment(UUID profileId) {
+        List<Attachment> attachments = attachmentRepository.findByEntityTypeAndEntityIdAndDeletedAtIsNull(
+                Attachment.EntityType.USER_PROFILE,
+                profileId
+        );
+        
+        // 프로필 이미지가 있으면 첫 번째 것 반환, 없으면 null
+        return attachments.isEmpty() ? null : AttachmentResponse.from(attachments.get(0));
     }
 
     /**
