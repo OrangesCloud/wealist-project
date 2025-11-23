@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,7 +67,7 @@ func (r *attachmentRepositoryImpl) FindByIDs(ctx context.Context, ids []uuid.UUI
 	if len(ids) == 0 {
 		return []*domain.Attachment{}, nil
 	}
-	
+
 	var attachments []*domain.Attachment
 	if err := r.db.WithContext(ctx).
 		Where("id IN ?", ids).
@@ -95,21 +96,35 @@ func (r *attachmentRepositoryImpl) FindExpiredTempAttachments(ctx context.Contex
 	return attachments, nil
 }
 
-// ConfirmAttachments changes the status of attachments from TEMP to CONFIRMED and sets the entityId
 func (r *attachmentRepositoryImpl) ConfirmAttachments(ctx context.Context, attachmentIDs []uuid.UUID, entityID uuid.UUID) error {
 	if len(attachmentIDs) == 0 {
 		return nil
 	}
-	
-	if err := r.db.WithContext(ctx).
+
+	// ✅ TEMP 상태만 업데이트, 결과 검증
+	result := r.db.WithContext(ctx).
 		Model(&domain.Attachment{}).
-		Where("id IN ?", attachmentIDs).
+		Where("id IN ? AND status = ?", attachmentIDs, domain.AttachmentStatusTemp). // ✅
 		Updates(map[string]interface{}{
 			"status":    domain.AttachmentStatusConfirmed,
 			"entity_id": entityID,
-		}).Error; err != nil {
-		return err
+		})
+
+	if result.Error != nil {
+		return result.Error
 	}
+
+	// ✅ 업데이트된 행 수 검증
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("no attachments were confirmed: all %d attachment(s) are either not found or already confirmed",
+			len(attachmentIDs))
+	}
+
+	if result.RowsAffected != int64(len(attachmentIDs)) {
+		return fmt.Errorf("expected to confirm %d attachment(s) but only confirmed %d",
+			len(attachmentIDs), result.RowsAffected)
+	}
+
 	return nil
 }
 
@@ -118,7 +133,7 @@ func (r *attachmentRepositoryImpl) DeleteBatch(ctx context.Context, attachmentID
 	if len(attachmentIDs) == 0 {
 		return nil
 	}
-	
+
 	if err := r.db.WithContext(ctx).
 		Where("id IN ?", attachmentIDs).
 		Delete(&domain.Attachment{}).Error; err != nil {
