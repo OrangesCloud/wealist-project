@@ -1,16 +1,17 @@
 // src/components/layout/ProjectContent.tsx
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, Users, User } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { getDefaultColorByIndex } from '../../constants/colors';
-import { AssigneeAvatarStack } from '../common/AvartarStack';
 import { ProjectResponse, BoardResponse, Column, ViewState, FieldOption } from '../../types/board';
 import { getBoardsByProject, moveBoard } from '../../api/board/boardService';
 import { BoardDetailModal } from '../modals/board/BoardDetailModal';
 import { FilterBar } from '../modals/board/FilterBar';
 import { connectWebSocket, disconnectWebSocket, WS_BOARD_MTH } from '../../utils/websocket';
+import { useAuth } from '../../contexts/AuthContext';
+import { AssigneeAvatarStack } from '../common/AvartarStack';
 
 interface ProjectContentProps {
   // Data
@@ -43,6 +44,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
   setShowCreateBoard,
 }) => {
   const { theme } = useTheme();
+  const { userId } = useAuth(); // useAuth 훅 사용 가정
 
   // 💡 [Board Data States]
   const [columns, setColumns] = useState<Column[]>([]);
@@ -264,9 +266,12 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
           ...board,
           stageName: stageOption?.optionLabel || column.title,
           stageColor: (stageOption as any)?.color || column.color,
-          stageId: stageOption?.optionValue || stageId, // 🔥 optionValue 사용
+          stageId: stageOption?.optionValue || stageId,
           roleOption: getRoleOption(roleId),
           importanceOption: getImportanceOption(importanceId),
+          // 💡 현재 사용자 ID가 할당자 또는 참여자인지 확인하는 필터링 기준
+          isAssignedOrParticipant:
+            board.assigneeId === userId || board.participantIds?.includes(userId as string),
         };
       }),
     );
@@ -279,6 +284,12 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
 
       filteredBoardsByCompletion = boardsToProcess.filter(
         (board) => !completedStageIds?.includes(board.stageId),
+      );
+    }
+    // 2. 💡 [추가] '나의 일감' 필터링 로직
+    if (viewState?.filterOption === 'my_tasks' && userId) {
+      filteredBoardsByCompletion = filteredBoardsByCompletion.filter(
+        (board) => board.isAssignedOrParticipant,
       );
     }
 
@@ -341,6 +352,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
     getRoleOption,
     getImportanceOption,
     getStageOption,
+    userId,
   ]);
 
   // 7. 뷰 기준에 따라 컬럼을 재구성 (useMemo)
@@ -555,6 +567,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
         stageOptions={fieldOptionsLookup?.stages || []}
         roleOptions={fieldOptionsLookup?.roles || []}
         importanceOptions={fieldOptionsLookup?.importances || []}
+        currentFilter={viewState.filterOption as string}
       />
 
       {/* Boards or Table View */}
@@ -629,8 +642,24 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                       <span className="text-sm text-gray-500">없음</span>
                     )}
                   </td>
+                  {/* 💡 [수정] 작업자 (Participant) 컬럼 */}
                   <td className="px-4 py-3">
-                    <AssigneeAvatarStack assignees={board.assigneeId || 'Unassigned'} />
+                    <div className="flex items-center gap-2">
+                      {board.participantIds && board.participantIds.length > 0 ? (
+                        <>
+                          {/* AvatarStack 대신 텍스트와 카운트 중심 */}
+                          <Users className="w-4 h-4 text-orange-500" />
+                          <span className="text-sm font-medium text-gray-700">
+                            {board.participantIds.length}명
+                          </span>
+                          {/* 만약 여기서 AvatarStack을 사용하고 싶다면, AvatarStack 컴포넌트가 멤버 객체를 필요로 하므로,
+                                   현재 ProjectContent에서는 멤버를 찾을 수 없기 때문에 시각적으로는 AssigneeAvatarStack을 사용해야 합니다. */}
+                          <AssigneeAvatarStack assignees={board.participantIds || []} />
+                        </>
+                      ) : (
+                        <span className="text-sm text-gray-500">없음</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
                     {board.dueDate ? new Date(board.dueDate).toLocaleDateString('ko-KR') : '없음'}
@@ -779,8 +808,28 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                           >
                             {board.title}
                           </h3>
-                          <div className="flex items-center justify-between">
-                            <AssigneeAvatarStack assignees={board.assigneeId || 'Unassigned'} />
+
+                          {/* 💡 [수정] 아이콘과 함께 표시할 컨테이너 */}
+                          <div className="flex flex-col">
+                            {/* 1. 작업 할당자 (Assignee) */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+                                <User className="w-3 h-3" /> 할당자
+                              </span>
+                              <AssigneeAvatarStack assignees={board.assigneeId || 'Unassigned'} />
+                            </div>
+
+                            {/* 2. 참여자 (Participants) */}
+                            {(board.participantIds?.length || 0) > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+                                  <Users className="w-3 h-3" /> 참여 ({board.participantIds?.length}
+                                  명)
+                                </span>
+                                {/* AssigneeAvatarStack이 ID 배열도 받도록 구성되어 있음 */}
+                                <AssigneeAvatarStack assignees={board.participantIds || []} />
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

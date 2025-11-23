@@ -76,13 +76,30 @@ user_api:
   
   # HTTP request timeout for User API calls (e.g., 5s, 10s, 1m)
   timeout: 5s
+
+# CORS Configuration
+cors:
+  # Allowed origins for CORS (comma-separated)
+  # Use "*" for development, specific domains for production
+  allowed_origins: "*"
   
 # Redis Configuration (실시간 Kanban을 위해 필수!)
-  redis:
-    # Redis 호스트 (docker-compose면 redis, EC2면 localhost 또는 ElastiCache 엔드포인트)
-    host: "redis"
-    port: "6379"
-    password: "${REDIS_PASSWORD}"  # docker-compose.ec2-dev.yml에 있음
-    db: 0
-    tls: false                    # 로컬/테스트용은 false, 나중에 ElastiCache면 true
-    # url: "redis://:password@host:port/0"  # 또는 이 방식으로 한 줄로 줄 수도 있음
+redis:
+  # Redis 호스트 (docker-compose면 redis, EC2면 localhost 또는 ElastiCache 엔드포인트)
+  host: "redis"
+  port: "6379"
+  password: "${REDIS_PASSWORD}"  # docker-compose.ec2-dev.yml에 있음
+  db: 0
+  tls: false                    # 로컬/테스트용은 false, 나중에 ElastiCache면 true
+  # url: "redis://:password@host:port/0"  # 또는 이 방식으로 한 줄로 줄 수도 있음
+
+# S3 Configuration
+# AWS 환경: IAM 역할 사용 (access_key, secret_key 불필요)
+# 로컬 환경: ~/.aws/credentials 사용 (access_key, secret_key 불필요)
+# MinIO 사용 시에만 endpoint, access_key, secret_key 필요
+s3:
+  bucket: "wealist-dev-files"
+  region: "ap-northeast-2"
+  # endpoint: "http://localhost:9000"  # MinIO 사용 시에만 설정
+  # access_key: "minioadmin"           # MinIO 사용 시에만 설정
+  # secret_key: "minioadmin"           # MinIO 사용 시에만 설정

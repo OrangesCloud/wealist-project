@@ -31,6 +31,7 @@ public class WorkspaceService {
     private final WorkspaceJoinRequestRepository workspaceJoinRequestRepository;
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private final Optional<SampleDataSeederService> sampleDataSeederService;
     private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
     // ============================================================================
     // Workspace 생성/수정/삭제
@@ -78,6 +79,12 @@ public class WorkspaceService {
                     log.warn("Profile not found for user: {}", creatorId);
                     return new UserNotFoundException("프로필을 찾을 수 없습니다.");
                 });
+
+        // Trigger sample data generation asynchronously if enabled
+        sampleDataSeederService.ifPresent(seeder -> {
+            log.info("Triggering sample data generation for workspace: {}", savedWorkspace.getWorkspaceId());
+            seeder.seedWorkspaceData(savedWorkspace.getWorkspaceId(), creatorId);
+        });
 
         return convertToWorkspaceResponse(savedWorkspace, creator, creatorProfile);
     }

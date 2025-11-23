@@ -7,22 +7,15 @@ import { WorkspaceMemberResponse } from '../../types/user';
 interface AvatarStackProps {
   members: WorkspaceMemberResponse[];
 }
+export const getColorByIndex = (index: number) => {
+  const colors = ['bg-indigo-500', 'bg-pink-500', 'bg-green-500', 'bg-purple-500', 'bg-yellow-500'];
+  return colors[index % colors.length];
+};
 
 export const AvatarStack: React.FC<AvatarStackProps> = ({ members }) => {
   const displayCount = 3;
   const displayMembers = members?.slice(0, displayCount);
   const remainingCount = members?.length - displayCount;
-
-  const getColorByIndex = (index: number) => {
-    const colors = [
-      'bg-indigo-500',
-      'bg-pink-500',
-      'bg-green-500',
-      'bg-purple-500',
-      'bg-yellow-500',
-    ];
-    return colors[index % colors.length];
-  };
 
   return (
     <div className="flex -space-x-1.5 p-1 pr-0 overflow-hidden">

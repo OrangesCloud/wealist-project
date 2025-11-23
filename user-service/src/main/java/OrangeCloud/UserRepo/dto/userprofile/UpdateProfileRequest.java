@@ -24,8 +24,10 @@ public record UpdateProfileRequest(
     String email,
 
     @Schema(description = "업데이트할 프로필 이미지 URL", example = "https://new.image.url/avatar.jpg", required = false)
-    String profileImageUrl
+    String profileImageUrl,
 
+    @Schema(description = "프로필 이미지 첨부파일 ID (임시 첨부파일을 확정할 때 사용)", example = "123e4567-e89b-12d3-a456-426614174000", required = false)
+    UUID attachmentId
 
 ) {}
 

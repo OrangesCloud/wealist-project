@@ -38,10 +38,11 @@ func (r *commentRepositoryImpl) Create(ctx context.Context, comment *domain.Comm
 }
 
 // FindByID finds a comment by ID
+// ✅ 수정: Preload("Attachments") 제거 - service에서 별도 로드
 func (r *commentRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*domain.Comment, error) {
 	var comment domain.Comment
 	if err := r.db.WithContext(ctx).
-		Preload("Attachments").
+		// Preload("Attachments"). // ✅ 제거
 		Where("id = ?", id).
 		First(&comment).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -53,10 +54,11 @@ func (r *commentRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*do
 }
 
 // FindByBoardID finds all comments by board ID, ordered by creation time
+// ✅ 수정: Preload("Attachments") 제거 - service에서 별도 로드
 func (r *commentRepositoryImpl) FindByBoardID(ctx context.Context, boardID uuid.UUID) ([]*domain.Comment, error) {
 	var comments []*domain.Comment
 	if err := r.db.WithContext(ctx).
-		Preload("Attachments").
+		// Preload("Attachments"). // ✅ 제거
 		Where("board_id = ?", boardID).
 		Order("created_at ASC").
 		Find(&comments).Error; err != nil {

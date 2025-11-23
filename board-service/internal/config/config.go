@@ -19,6 +19,7 @@ type Config struct {
 	UserAPI  UserAPIConfig  `yaml:"user_api"`
 	CORS     CORSConfig     `yaml:"cors"`
 	Redis    RedisConfig    `mapstructure:"redis" yaml:"redis"` // ← Redis 추가
+	S3       S3Config       `yaml:"s3"`                          // ← S3 추가
 }
 
 // ServerConfig holds server configuration
@@ -71,6 +72,15 @@ type RedisConfig struct {
 	DB       int    `mapstructure:"db" yaml:"db"`
 	TLS      bool   `mapstructure:"tls" yaml:"tls"`
 	URL      string `mapstructure:"url" yaml:"url"` // redis:// 형식 지원
+}
+
+// S3Config holds S3 configuration
+type S3Config struct {
+	Bucket    string `yaml:"bucket"`
+	Region    string `yaml:"region"`
+	AccessKey string `yaml:"access_key"` // MinIO용만 필요 (선택적)
+	SecretKey string `yaml:"secret_key"` // MinIO용만 필요 (선택적)
+	Endpoint  string `yaml:"endpoint"`   // 로컬 MinIO용 (선택적)
 }
 
 // Load loads configuration from file and environment variables
@@ -250,6 +260,24 @@ func (c *Config) overrideFromEnv() {
 	}
 	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
 		c.Redis.URL = redisURL
+	}
+
+	// S3 환경변수 오버라이드
+	if s3Bucket := os.Getenv("S3_BUCKET"); s3Bucket != "" {
+		c.S3.Bucket = s3Bucket
+	}
+	if s3Region := os.Getenv("S3_REGION"); s3Region != "" {
+		c.S3.Region = s3Region
+	}
+	// AccessKey/SecretKey는 MinIO 사용 시에만 필요 (선택적)
+	if s3AccessKey := os.Getenv("S3_ACCESS_KEY"); s3AccessKey != "" {
+		c.S3.AccessKey = s3AccessKey
+	}
+	if s3SecretKey := os.Getenv("S3_SECRET_KEY"); s3SecretKey != "" {
+		c.S3.SecretKey = s3SecretKey
+	}
+	if s3Endpoint := os.Getenv("S3_ENDPOINT"); s3Endpoint != "" {
+		c.S3.Endpoint = s3Endpoint
 	}
 }
 

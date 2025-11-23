@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"project-board-api/internal/domain"
@@ -134,10 +135,12 @@ func TestCommentService_CreateComment(t *testing.T) {
 			tt.mockBoard(mockBoardRepo)
 			tt.mockComment(mockCommentRepo)
 
-			service := NewCommentService(mockCommentRepo, mockBoardRepo)
+			logger, _ := zap.NewDevelopment()
+			service := NewCommentService(mockCommentRepo, mockBoardRepo, &MockAttachmentRepository{}, nil, logger)
 
 			// When
-			got, err := service.CreateComment(context.Background(), tt.req)
+			userID := uuid.New()
+			got, err := service.CreateComment(context.Background(), userID, tt.req)
 
 			// Then
 			if tt.wantErr {
@@ -246,7 +249,8 @@ func TestCommentService_GetComments(t *testing.T) {
 			tt.mockBoard(mockBoardRepo)
 			tt.mockComment(mockCommentRepo)
 
-			service := NewCommentService(mockCommentRepo, mockBoardRepo)
+			logger, _ := zap.NewDevelopment()
+			service := NewCommentService(mockCommentRepo, mockBoardRepo, &MockAttachmentRepository{}, nil, logger)
 
 			// When
 			got, err := service.GetComments(context.Background(), tt.boardID)
@@ -352,7 +356,8 @@ func TestCommentService_UpdateComment(t *testing.T) {
 			mockCommentRepo := &MockCommentRepository{}
 			tt.mockComment(mockCommentRepo)
 
-			service := NewCommentService(mockCommentRepo, mockBoardRepo)
+			logger, _ := zap.NewDevelopment()
+			service := NewCommentService(mockCommentRepo, mockBoardRepo, &MockAttachmentRepository{}, nil, logger)
 
 			// When
 			got, err := service.UpdateComment(context.Background(), tt.commentID, tt.req)
@@ -446,7 +451,8 @@ func TestCommentService_DeleteComment(t *testing.T) {
 			mockCommentRepo := &MockCommentRepository{}
 			tt.mockComment(mockCommentRepo)
 
-			service := NewCommentService(mockCommentRepo, mockBoardRepo)
+			logger, _ := zap.NewDevelopment()
+			service := NewCommentService(mockCommentRepo, mockBoardRepo, &MockAttachmentRepository{}, nil, logger)
 
 			// When
 			err := service.DeleteComment(context.Background(), tt.commentID)
@@ -475,7 +481,8 @@ func TestCommentService_DeleteComment(t *testing.T) {
 func TestCommentService_toCommentResponse_Attachments(t *testing.T) {
 	mockCommentRepo := &MockCommentRepository{}
 	mockBoardRepo := &MockBoardRepository{}
-	service := NewCommentService(mockCommentRepo, mockBoardRepo)
+	logger, _ := zap.NewDevelopment()
+			service := NewCommentService(mockCommentRepo, mockBoardRepo, &MockAttachmentRepository{}, nil, logger)
 
 	t.Run("첨부파일 변환: 여러 첨부파일", func(t *testing.T) {
 		commentID := uuid.New()
@@ -500,7 +507,7 @@ func TestCommentService_toCommentResponse_Attachments(t *testing.T) {
 						CreatedAt: time.Now(),
 					},
 					EntityType:  domain.EntityTypeComment,
-					EntityID:    commentID,
+					EntityID:    &commentID,
 					FileName:    "document.pdf",
 					FileURL:     "https://s3.example.com/document.pdf",
 					FileSize:    1024000,
@@ -513,7 +520,7 @@ func TestCommentService_toCommentResponse_Attachments(t *testing.T) {
 						CreatedAt: time.Now(),
 					},
 					EntityType:  domain.EntityTypeComment,
-					EntityID:    commentID,
+					EntityID:    &commentID,
 					FileName:    "image.png",
 					FileURL:     "https://s3.example.com/image.png",
 					FileSize:    512000,

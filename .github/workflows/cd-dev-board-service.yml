@@ -382,6 +382,12 @@ jobs:
           # Service URLs
           export USER_SERVICE_URL=$(load_param "service/user_service_url")
 
+          # S3 Configuration
+          export S3_BUCKET=$(load_param "s3/bucket")
+          export S3_REGION=$(load_param "s3/region")
+          export S3_ACCESS_KEY=$(load_secret "s3/access-key")
+          export S3_SECRET_KEY=$(load_secret "s3/secret-key")
+
           # 환경 변수 검증
           required_vars=(
             "AWS_ACCOUNT_ID"

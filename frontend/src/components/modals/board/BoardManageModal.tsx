@@ -3,9 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
-  Tag,
-  CheckSquare,
-  AlertCircle,
   Plus,
   Settings,
   User,
@@ -22,11 +19,16 @@ import {
   IEditCustomFields,
   UpdateBoardRequest,
 } from '../../../types/board';
-import { createBoard, updateBoard } from '../../../api/board/boardService';
+import {
+  createBoard,
+  updateBoard,
+  uploadAttachment, // 💡 Presigned URL 업로드 함수 임포트
+} from '../../../api/board/boardService';
 import { getWorkspaceMembers } from '../../../api/user/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
 import { AvatarStack } from '../../common/AvartarStack';
 import Portal from '../../common/Portal';
+import { useFileUpload } from '../../../hooks/useFileUpload';
 
 interface BoardManageModalProps {
   projectId: string;
@@ -38,10 +40,18 @@ interface BoardManageModalProps {
     stage: string;
     role: string;
     dueDate: string;
-    startDate: string; // 💡 [추가] startDate
+    startDate: string;
     importance: string;
     assigneeId?: string;
     participantIds?: string[];
+    attachments?: Array<{
+      // 💡 추가
+      id: string;
+      fileName: string;
+      fileUrl: string;
+      fileSize: number;
+      contentType: string;
+    }>;
   } | null;
   workspaceId: string;
   onClose: () => void;
@@ -54,7 +64,6 @@ interface BoardManageModalProps {
   handleCustomField: (editFieldData: IEditCustomFields | null) => void;
 }
 
-// 💡 Assignee, Participant 아바타 표시를 위한 헬퍼 함수
 const getMember = (members: WorkspaceMemberResponse[], userId: string) => {
   return members.find((m) => m.userId === userId);
 };
@@ -90,11 +99,10 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
 
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberResponse[]>([]);
 
-  // 💡 [수정] 마감일 상태
+  // Dates
   const [dueDate, setDueDate] = useState(
     editData?.dueDate ? editData.dueDate.substring(0, 10) : '',
   );
-  // 💡 [추가] 시작일 상태
   const [startDate, setStartDate] = useState(
     editData?.startDate ? editData.startDate.substring(0, 10) : '',
   );
@@ -111,29 +119,32 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [showParticipantDropdown, setShowParticipantDropdown] = useState(false);
 
-  // 💡 [추가] 파일 상태
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // 💡 기존 첨부파일 state 추가
+  const [existingAttachment, setExistingAttachment] = useState<{
+    id: string;
+    fileName: string;
+    fileUrl: string;
+  } | null>(editData?.attachments?.[0] || null);
+
+  // 파일 업로드 훅
+  const { selectedFile, handleFileSelect, handleRemoveFile } = useFileUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 드롭다운 외부 클릭 감지 (기존 로직 유지)
+  // 외부 클릭 감지
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-
       if (!target.closest('.role-dropdown-container')) setShowRoleDropdown(false);
       if (!target.closest('.stage-dropdown-container')) setShowStageDropdown(false);
       if (!target.closest('.importance-dropdown-container')) setShowImportanceDropdown(false);
       if (!target.closest('.assignee-dropdown-container')) setShowAssigneeDropdown(false);
       if (!target.closest('.participant-dropdown-container')) setShowParticipantDropdown(false);
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 워크스페이스 멤버 조회 (기존 로직 유지)
+  // 멤버 조회
   useEffect(() => {
     const fetchMembers = async () => {
       try {
@@ -143,34 +154,54 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         console.error('❌ 워크스페이스 멤버 로드 실패:', err);
       }
     };
-    if (workspaceId) {
-      fetchMembers();
-    }
+    if (workspaceId) fetchMembers();
   }, [workspaceId]);
 
-  // 💡 작업자 다중 선택 토글 핸들러
+  // ✅ editData 변경 시 폼 상태 초기화
+  useEffect(() => {
+    if (editData) {
+      setTitle(editData.title || '');
+      setContent(editData.content || '');
+      setSelectedStageId(editData.stage || fieldOptionsLookup.stages?.[0]?.optionValue || '');
+      setSelectedRoleId(editData.role || fieldOptionsLookup.roles?.[0]?.optionValue || '');
+      setSelectedImportanceId(
+        editData.importance || fieldOptionsLookup.importances?.[0]?.optionValue || '',
+      );
+      setSelectedAssigneeId(editData.assigneeId || '');
+      setSelectedParticipantIds(editData.participantIds || []); // ✅ 핵심
+      setDueDate(editData.dueDate ? editData.dueDate.substring(0, 10) : '');
+      setStartDate(editData.startDate ? editData.startDate.substring(0, 10) : '');
+      setExistingAttachment(editData.attachments?.[0] || null);
+
+      console.log('✅ 보드 수정 데이터 로드:', {
+        boardId: editData.boardId,
+        participantIds: editData.participantIds,
+        participantCount: editData.participantIds?.length || 0,
+      });
+    } else {
+      // Create 모드 초기화
+      setTitle('');
+      setContent('');
+      setSelectedStageId(fieldOptionsLookup.stages?.[0]?.optionValue || '');
+      setSelectedRoleId(fieldOptionsLookup.roles?.[0]?.optionValue || '');
+      setSelectedImportanceId(fieldOptionsLookup.importances?.[0]?.optionValue || '');
+      setSelectedAssigneeId('');
+      setSelectedParticipantIds([]);
+      setDueDate('');
+      setStartDate('');
+      setExistingAttachment(null);
+    }
+  }, [editData, fieldOptionsLookup]);
+
   const toggleParticipant = (userId: string) => {
     setSelectedParticipantIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
     );
   };
 
-  // 💡 파일 선택 핸들러 (20MB 제한)
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      const MAX_SIZE = 20 * 1024 * 1024;
-      if (file.size > MAX_SIZE) {
-        alert('파일 크기는 20MB를 초과할 수 없습니다.');
-        setSelectedFile(null);
-        e.target.value = '';
-        return;
-      }
-      setSelectedFile(file);
-    }
-  };
-
-  // 제출 핸들러
+  // ==========================================================================
+  // 💡 수정된 Submit 핸들러 (Presigned URL 방식 적용)
+  // ==========================================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -179,16 +210,8 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
       setError('보드 제목은 필수입니다.');
       return;
     }
-    if (!selectedStageId) {
-      setError('진행 단계를 선택해주세요.');
-      return;
-    }
-    if (!selectedRoleId) {
-      setError('역할을 선택해주세요.');
-      return;
-    }
-    if (!selectedImportanceId) {
-      setError('중요도를 선택해주세요.');
+    if (!selectedStageId || !selectedRoleId || !selectedImportanceId) {
+      setError('필수 필드(단계, 역할, 중요도)를 선택해주세요.');
       return;
     }
 
@@ -196,7 +219,21 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
     setError(null);
 
     try {
-      const customFields: Record<string, any> = {
+      let attachmentIdsPayload: string[] | undefined = undefined;
+
+      if (selectedFile) {
+        const uploadedAttachment = await uploadAttachment(selectedFile, 'BOARD', workspaceId);
+        attachmentIdsPayload = [uploadedAttachment.id];
+      } else if (
+        editData?.boardId &&
+        !existingAttachment &&
+        editData.attachments &&
+        editData.attachments.length > 0
+      ) {
+        attachmentIdsPayload = [];
+      }
+
+      const customFields = {
         stage: selectedStageId,
         role: selectedRoleId,
         importance: selectedImportanceId,
@@ -204,59 +241,51 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
 
       const isEditing = !!editData?.boardId;
 
-      // 💡 파일이 첨부된 경우와 그렇지 않은 경우를 분리
-      if (selectedFile) {
-        // 파일이 있는 경우: FormData를 사용하여 멀티파트 요청 전송
-        const formData = new FormData();
+      const boardData: CreateBoardRequest | UpdateBoardRequest = {
+        projectId,
+        title: title.trim(),
+        content: content.trim() || undefined,
+        customFields,
+        assigneeId: selectedAssigneeId || undefined,
+        participants: selectedParticipantIds.length > 0 ? selectedParticipantIds : undefined, // ✅ 수정
+        dueDate: dueDate ? `${dueDate}T00:00:00Z` : undefined,
+        startDate: startDate ? `${startDate}T00:00:00Z` : undefined,
+        attachmentIds: attachmentIdsPayload,
+      };
 
-        formData.append('title', title.trim());
-        if (content.trim()) formData.append('content', content.trim());
-        formData.append('projectId', projectId);
-        formData.append('assigneeId', selectedAssigneeId);
-        formData.append('dueDate', dueDate);
-        formData.append('startDate', startDate); // 💡 [추가] StartDate FormData에 추가
-        formData.append('participants', JSON.stringify(selectedParticipantIds));
-        formData.append('customFields', JSON.stringify(customFields));
-        formData.append('file', selectedFile);
+      // ✅ 디버깅 로그 추가
+      console.log('📤 전송할 보드 데이터:', {
+        ...boardData,
+        participantCount: selectedParticipantIds.length,
+        participants: selectedParticipantIds,
+      });
 
-        // 💡 API 호출 (Mock 유지)
-        if (isEditing) {
-          console.warn('Update with file API call is mocked. Using FormData:', formData);
-        } else {
-          console.warn('Create with file API call is mocked. Using FormData:', formData);
-        }
+      if (isEditing) {
+        await updateBoard(editData!.boardId, boardData);
+        alert('✅ 보드가 수정되었습니다!');
       } else {
-        // 파일이 없는 경우: 일반 JSON 요청 전송
-        const boardData: CreateBoardRequest | UpdateBoardRequest = {
-          projectId,
-          title: title.trim(),
-          content: content.trim() || undefined,
-          customFields,
-          assigneeId: selectedAssigneeId || undefined,
-          participants: selectedParticipantIds,
-          dueDate: dueDate || undefined,
-          startDate: startDate || undefined, // 💡 [추가] StartDate Payload에 추가
-        };
-
-        if (isEditing) {
-          await updateBoard(editData!.boardId, boardData);
-        } else {
-          await createBoard(boardData as CreateBoardRequest);
-        }
+        await createBoard(boardData as CreateBoardRequest);
+        alert('✅ 보드가 생성되었습니다!');
       }
 
-      alert(`✅  보드 ${isEditing ? '수정' : '생성'} 완료!`);
       onBoardCreated();
       onClose();
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
-      console.error(`❌ 보드 ${editData?.boardId ? '수정' : '생성'} 실패:`, errorMsg);
-      setError(errorMsg || `보드 ${editData?.boardId ? '수정' : '생성'}에 실패했습니다.`);
+
+      // ✅ 상세 에러 로그 추가
+      console.error('❌ 보드 저장 실패:', {
+        error: err,
+        message: errorMsg,
+        response: err.response?.data,
+        selectedParticipants: selectedParticipantIds,
+      });
+
+      setError(errorMsg || '작업에 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
   };
-  // 현재 선택된 할당자 정보
   const currentAssignee = getMember(workspaceMembers, selectedAssigneeId);
 
   return (
@@ -282,220 +311,211 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
             </button>
           </div>
 
-          {/* Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto px-6">
-            {/* Error Message */}
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto px-6 custom-scrollbar">
             {error && (
-              <div className="mt-4 mb-4 p-3 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm">
+              <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm">
                 {error}
               </div>
             )}
 
-            {/* Loading State */}
             {isLoadingFields ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                  <p className="text-gray-600">커스텀 필드를 불러오는 중...</p>
-                </div>
-              </div>
+              <div className="py-12 text-center text-gray-500">로딩 중...</div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+              <form onSubmit={handleSubmit} className="space-y-5 pb-6">
                 {/* Title */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    보드 제목 <span className="text-red-500">*</span>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    제목 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="예: 사용자 인증 API 구현"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="보드 제목을 입력하세요"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     disabled={isLoading}
                     maxLength={200}
                   />
                 </div>
 
-                {/* Content */}
+                {/* Content & File Upload (Compact Style) */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    설명 (선택)
-                  </label>
-                  <textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="보드에 대한 자세한 설명을 입력하세요"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-                    rows={3}
-                    disabled={isLoading}
-                    maxLength={5000}
-                  />
-                  {/* 💡 파일 첨부 버튼 및 미리보기 */}
-                  <div className="mt-2 flex items-center gap-3">
-                    {/* 숨겨진 파일 Input */}
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                      style={{ display: 'none' }}
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">설명</label>
+                  <div className="relative">
+                    <textarea
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      placeholder="내용을 입력하세요"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none min-h-[100px]"
+                      rows={4}
                       disabled={isLoading}
                     />
 
-                    {/* 파일 선택 버튼 */}
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1 text-sm text-blue-600 font-medium hover:text-blue-700 transition disabled:text-gray-400"
-                      disabled={isLoading}
-                    >
-                      <Paperclip className="w-4 h-4" />
-                      {selectedFile ? '파일 변경' : '파일 첨부 (최대 20MB)'}
-                    </button>
+                    {/* 파일 첨부 영역 */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            handleFileSelect(e as any);
+                            // 💡 새 파일 선택 시 기존 파일 제거
+                            setExistingAttachment(null);
+                          }
+                        }}
+                        className="hidden"
+                        accept="image/*, .pdf, .doc, .docx, .xls, .xlsx"
+                      />
 
-                    {/* 선택된 파일 이름 표시 */}
-                    {selectedFile && (
-                      <div className="flex items-center gap-1 text-xs text-gray-700 p-1 px-2 border border-gray-300 rounded-full bg-gray-50 max-w-[200px] truncate">
-                        {selectedFile.name}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedFile(null);
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}
-                          className="ml-1 text-gray-500 hover:text-gray-700 transition"
-                          disabled={isLoading}
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-1 px-2 py-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition text-xs font-medium"
+                        disabled={isLoading}
+                      >
+                        <Paperclip size={14} />
+                        <span>파일 첨부</span>
+                      </button>
+
+                      {/* 💡 새로 선택한 파일 표시 */}
+                      {selectedFile && (
+                        <div className="flex items-center gap-1 pl-2 pr-1 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-100 max-w-[250px]">
+                          <span className="truncate max-w-[200px]">{selectedFile.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleRemoveFile();
+                              if (fileInputRef.current) fileInputRef.current.value = '';
+                            }}
+                            className="p-0.5 text-blue-400 hover:text-blue-600 hover:bg-blue-100 rounded-full"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 💡 기존 첨부파일 표시 (새 파일이 없을 때만) */}
+                      {!selectedFile && existingAttachment && (
+                        <div className="flex items-center gap-1 pl-2 pr-1 py-0.5 bg-green-50 text-green-700 rounded-full text-xs border border-green-100 max-w-[250px]">
+                          <span className="truncate max-w-[200px]">
+                            {existingAttachment.fileName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setExistingAttachment(null)}
+                            className="p-0.5 text-green-400 hover:text-green-600 hover:bg-green-100 rounded-full"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
+                <hr className="border-gray-100" />
 
-                <hr className="my-4 border-gray-100" />
-
-                {/* 💡 [추가] 시작일 / 마감일 (2컬럼 배치) */}
+                {/* Date Inputs */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* 시작일 캘린더 입력 */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      <Calendar className="w-4 h-4 inline mr-1 text-gray-500" />
-                      시작일 (선택)
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <Calendar className="w-4 h-4 inline mr-1 text-gray-500" /> 시작일
                     </label>
                     <input
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                       disabled={isLoading}
                     />
                   </div>
-
-                  {/* 마감일 캘린더 입력 */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      <Calendar className="w-4 h-4 inline mr-1 text-red-500" />
-                      마감일 (선택)
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <Calendar className="w-4 h-4 inline mr-1 text-red-500" /> 마감일
                     </label>
                     <input
                       type="date"
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                       disabled={isLoading}
                     />
                   </div>
                 </div>
 
-                {/* Assignee / Participants Selection (2컬럼) */}
+                {/* Assignee & Participants */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* 💡 Assignee Selection (단건 선택) */}
+                  {/* Assignee */}
                   <div className="relative assignee-dropdown-container">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      <User className="w-4 h-4 inline mr-1 text-green-500" />
-                      작업 할당자 (Assignee)
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <User className="w-4 h-4 inline mr-1 text-green-500" /> 할당자
                     </label>
                     <button
                       type="button"
                       onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm text-left flex items-center justify-between hover:bg-gray-50"
                       disabled={isLoading}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 truncate">
                         {currentAssignee ? (
                           <>
-                            <div
-                              className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold bg-blue-500 text-white flex-shrink-0`}
-                            >
+                            <div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">
                               {currentAssignee.userName[0]}
                             </div>
                             {currentAssignee.userName}
                           </>
                         ) : (
-                          <span className="text-gray-500">할당자 선택</span>
+                          <span className="text-gray-400">선택 안함</span>
                         )}
                       </span>
                       <ChevronDown className="w-4 h-4 text-gray-400" />
                     </button>
                     {showAssigneeDropdown && (
-                      <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {/* 할당 해제 옵션 */}
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto p-1">
                         <button
                           type="button"
                           onClick={() => {
                             setSelectedAssigneeId('');
                             setShowAssigneeDropdown(false);
                           }}
-                          className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                            selectedAssigneeId === '' ? 'bg-blue-50' : ''
-                          }`}
+                          className="w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-100 rounded-md flex items-center gap-2"
                         >
-                          <X className="w-4 h-4 text-gray-400" /> 할당 해제
+                          <X className="w-4 h-4" /> 할당 해제
                         </button>
-
-                        {workspaceMembers.map((member) => (
+                        {workspaceMembers.map((m) => (
                           <button
-                            key={member.userId}
+                            key={m.userId}
                             type="button"
                             onClick={() => {
-                              setSelectedAssigneeId(member.userId);
+                              setSelectedAssigneeId(m.userId);
                               setShowAssigneeDropdown(false);
                             }}
-                            className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                              selectedAssigneeId === member.userId ? 'bg-blue-50' : ''
+                            className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 rounded-md flex items-center gap-2 ${
+                              selectedAssigneeId === m.userId ? 'bg-blue-50 text-blue-700' : ''
                             }`}
                           >
-                            <div
-                              className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold bg-gray-400 text-white flex-shrink-0`}
-                            >
-                              {member.userName[0]}
+                            <div className="w-5 h-5 rounded-full bg-gray-300 text-white flex items-center justify-center text-xs font-bold">
+                              {m.userName[0]}
                             </div>
-                            {member.userName}
-                            {selectedAssigneeId === member.userId && (
-                              <CheckSquareIcon className="w-4 h-4 ml-auto text-blue-500" />
-                            )}
+                            {m.userName}
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
 
-                  {/* 💡 Participants Selection (다중 선택) */}
+                  {/* Participants */}
                   <div className="relative participant-dropdown-container">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      <Users className="w-4 h-4 inline mr-1 text-orange-500" />
-                      작업자 (Participants)
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <Users className="w-4 h-4 inline mr-1 text-orange-500" /> 작업자
                     </label>
                     <button
                       type="button"
                       onClick={() => setShowParticipantDropdown(!showParticipantDropdown)}
-                      // 💡 [수정] 높이 고정 (h-10) 및 내부 요소 정렬 (items-center)
-                      className="w-full px-3 py-2 h-10 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm text-left flex items-center justify-between hover:bg-gray-50 h-[38px]"
                       disabled={isLoading}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 truncate">
                         {selectedParticipantIds.length > 0 ? (
                           <>
                             <AvatarStack
@@ -503,36 +523,38 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                                 selectedParticipantIds.includes(m.userId),
                               )}
                             />
-                            {selectedParticipantIds.length}명 선택됨
+                            <span>{selectedParticipantIds.length}명</span>
                           </>
                         ) : (
-                          <span className="text-gray-500">작업자 선택</span>
+                          <span className="text-gray-400">선택 안함</span>
                         )}
                       </span>
                       <ChevronDown className="w-4 h-4 text-gray-400" />
                     </button>
                     {showParticipantDropdown && (
-                      <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {workspaceMembers.map((member) => (
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto p-1">
+                        {workspaceMembers.map((m) => (
                           <button
-                            key={member.userId}
+                            key={m.userId}
                             type="button"
                             onClick={(e) => {
-                              e.stopPropagation(); // 다중 선택 시 드롭다운이 닫히지 않도록 이벤트 전파 중단
-                              toggleParticipant(member.userId);
+                              e.stopPropagation();
+                              toggleParticipant(m.userId);
                             }}
-                            className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                              selectedParticipantIds.includes(member.userId) ? 'bg-blue-50' : ''
+                            className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 rounded-md flex items-center gap-2 justify-between ${
+                              selectedParticipantIds.includes(m.userId)
+                                ? 'bg-blue-50 text-blue-700'
+                                : ''
                             }`}
                           >
-                            <div
-                              className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold bg-gray-400 text-white flex-shrink-0`}
-                            >
-                              {member.userName[0]}
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-full bg-gray-300 text-white flex items-center justify-center text-xs font-bold">
+                                {m.userName[0]}
+                              </div>
+                              {m.userName}
                             </div>
-                            {member.userName}
-                            {selectedParticipantIds.includes(member.userId) && (
-                              <CheckSquareIcon className="w-4 h-4 ml-auto text-blue-500" />
+                            {selectedParticipantIds.includes(m.userId) && (
+                              <CheckSquareIcon className="w-4 h-4 text-blue-500" />
                             )}
                           </button>
                         ))}
@@ -541,73 +563,68 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   </div>
                 </div>
 
-                {/* Stage / Role Selection (2컬럼) */}
+                {/* Stage & Role */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Stage Selection (기존 코드 유지) */}
+                  {/* Stage */}
                   <div className="relative stage-dropdown-container">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      <CheckSquare className="w-4 h-4 inline mr-1" />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
                       진행 단계 <span className="text-red-500">*</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => setShowStageDropdown(!showStageDropdown)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm text-left flex items-center justify-between hover:bg-gray-50"
                       disabled={isLoading}
                     >
                       <span className="flex items-center gap-2">
                         {selectedStageId &&
-                          fieldOptionsLookup?.stages?.find(
-                            (s) => s.optionValue === selectedStageId,
-                          ) && (
-                            <>
-                              <span
-                                className="w-3 h-3 rounded-full"
-                                style={{
-                                  backgroundColor:
-                                    (
-                                      fieldOptionsLookup?.stages?.find(
-                                        (s) => s.optionValue === selectedStageId,
-                                      ) as any
-                                    )?.color || '#6B7280',
-                                }}
-                              />
-                              {
-                                fieldOptionsLookup?.stages?.find(
-                                  (s) => s.optionValue === selectedStageId,
-                                )?.optionLabel
-                              }
-                            </>
-                          )}
+                        fieldOptionsLookup?.stages?.find(
+                          (s) => s.optionValue === selectedStageId,
+                        ) ? (
+                          <>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  (
+                                    fieldOptionsLookup.stages.find(
+                                      (s) => s.optionValue === selectedStageId,
+                                    ) as any
+                                  )?.color || '#ccc',
+                              }}
+                            />
+                            {
+                              fieldOptionsLookup.stages.find(
+                                (s) => s.optionValue === selectedStageId,
+                              )?.optionLabel
+                            }
+                          </>
+                        ) : (
+                          '선택'
+                        )}
                       </span>
                       <ChevronDown className="w-4 h-4 text-gray-400" />
                     </button>
                     {showStageDropdown && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {fieldOptionsLookup?.stages?.map((stage) => (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto p-1">
+                        {fieldOptionsLookup?.stages?.map((opt) => (
                           <button
-                            key={stage.optionId}
+                            key={opt.optionId}
                             type="button"
                             onClick={() => {
-                              setSelectedStageId(stage.optionValue);
+                              setSelectedStageId(opt.optionValue);
                               setShowStageDropdown(false);
                             }}
-                            className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                              selectedStageId === stage.optionValue ? 'bg-blue-50' : ''
-                            }`}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 rounded-md flex items-center gap-2"
                           >
                             <span
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: (stage as any).color || '#6B7280' }}
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{ backgroundColor: (opt as any).color }}
                             />
-                            {stage?.optionLabel}
-                            {selectedStageId === stage.optionValue && (
-                              <CheckSquareIcon className="w-4 h-4 ml-auto text-blue-500" />
-                            )}
+                            {opt.optionLabel}
                           </button>
                         ))}
                         <button
-                          type="button"
                           onClick={() => {
                             setShowStageDropdown(false);
                             handleCustomField({
@@ -616,79 +633,71 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                               options: fieldOptionsLookup?.stages,
                             });
                           }}
-                          className="w-full px-3 py-2 text-left transition text-sm text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2 disabled:text-gray-400 disabled:cursor-not-allowed"
+                          className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 rounded-md border-t mt-1 flex items-center gap-2"
                         >
-                          <Settings className="w-4 h-4" /> 진행 단계 관리
+                          <Settings size={14} /> 관리
                         </button>
                       </div>
                     )}
                   </div>
 
-                  {/* Role Selection (기존 코드 유지) */}
+                  {/* Role */}
                   <div className="relative role-dropdown-container">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      <Tag className="w-4 h-4 inline mr-1" />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
                       역할 <span className="text-red-500">*</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm text-left flex items-center justify-between hover:bg-gray-50"
                       disabled={isLoading}
                     >
                       <span className="flex items-center gap-2">
                         {selectedRoleId &&
-                          fieldOptionsLookup?.roles?.find(
-                            (r) => r.optionValue === selectedRoleId,
-                          ) && (
-                            <>
-                              <span
-                                className="w-3 h-3 rounded-full"
-                                style={{
-                                  backgroundColor:
-                                    (
-                                      fieldOptionsLookup.roles.find(
-                                        (r) => r.optionValue === selectedRoleId,
-                                      ) as any
-                                    )?.color || '#6B7280',
-                                }}
-                              />
-                              {
-                                fieldOptionsLookup.roles.find(
-                                  (r) => r.optionValue === selectedRoleId,
-                                )?.optionLabel
-                              }
-                            </>
-                          )}
+                        fieldOptionsLookup?.roles?.find((r) => r.optionValue === selectedRoleId) ? (
+                          <>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  (
+                                    fieldOptionsLookup.roles.find(
+                                      (r) => r.optionValue === selectedRoleId,
+                                    ) as any
+                                  )?.color || '#ccc',
+                              }}
+                            />
+                            {
+                              fieldOptionsLookup.roles.find((r) => r.optionValue === selectedRoleId)
+                                ?.optionLabel
+                            }
+                          </>
+                        ) : (
+                          '선택'
+                        )}
                       </span>
                       <ChevronDown className="w-4 h-4 text-gray-400" />
                     </button>
                     {showRoleDropdown && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {fieldOptionsLookup?.roles?.map((role) => (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto p-1">
+                        {fieldOptionsLookup?.roles?.map((opt) => (
                           <button
-                            key={role.optionId}
+                            key={opt.optionId}
                             type="button"
                             onClick={() => {
-                              setSelectedRoleId(role.optionValue);
+                              setSelectedRoleId(opt.optionValue);
                               setShowRoleDropdown(false);
                             }}
-                            className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                              selectedRoleId === role.optionValue ? 'bg-blue-50' : ''
-                            }`}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 rounded-md flex items-center gap-2"
                           >
                             <span
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: (role as any).color || '#6B7280' }}
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{ backgroundColor: (opt as any).color }}
                             />
-                            {role.optionLabel}
-                            {selectedRoleId === role.optionValue && (
-                              <CheckSquareIcon className="w-4 h-4 ml-auto text-blue-500" />
-                            )}
+                            {opt.optionLabel}
                           </button>
                         ))}
                         <button
-                          type="button"
                           onClick={() => {
                             setShowRoleDropdown(false);
                             handleCustomField({
@@ -697,85 +706,77 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                               options: fieldOptionsLookup?.roles,
                             });
                           }}
-                          className="w-full px-3 py-2 text-left transition text-sm text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2 disabled:text-gray-400 disabled:cursor-not-allowed"
+                          className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 rounded-md border-t mt-1 flex items-center gap-2"
                         >
-                          <Settings className="w-4 h-4" /> 역할 관리
+                          <Settings size={14} /> 관리
                         </button>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Importance and Field Management (2컬럼) */}
+                {/* Importance & Field Add */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Importance Selection (기존 코드 유지) */}
+                  {/* Importance */}
                   <div className="relative importance-dropdown-container">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      <AlertCircle className="w-4 h-4 inline mr-1" />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
                       중요도 <span className="text-red-500">*</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => setShowImportanceDropdown(!showImportanceDropdown)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm text-left flex items-center justify-between hover:bg-gray-50"
                       disabled={isLoading}
                     >
                       <span className="flex items-center gap-2">
-                        {selectedImportanceId ? (
-                          fieldOptionsLookup?.importances?.find(
-                            (i) => i.optionValue === selectedImportanceId,
-                          ) && (
-                            <>
-                              <span
-                                className="w-3 h-3 rounded-full"
-                                style={{
-                                  backgroundColor:
-                                    (
-                                      fieldOptionsLookup.importances.find(
-                                        (i) => i.optionValue === selectedImportanceId,
-                                      ) as any
-                                    )?.color || '#6B7280',
-                                }}
-                              />
-                              {
-                                fieldOptionsLookup.importances.find(
-                                  (i) => i.optionValue === selectedImportanceId,
-                                )?.optionLabel
-                              }
-                            </>
-                          )
+                        {selectedImportanceId &&
+                        fieldOptionsLookup?.importances?.find(
+                          (i) => i.optionValue === selectedImportanceId,
+                        ) ? (
+                          <>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  (
+                                    fieldOptionsLookup.importances.find(
+                                      (i) => i.optionValue === selectedImportanceId,
+                                    ) as any
+                                  )?.color || '#ccc',
+                              }}
+                            />
+                            {
+                              fieldOptionsLookup.importances.find(
+                                (i) => i.optionValue === selectedImportanceId,
+                              )?.optionLabel
+                            }
+                          </>
                         ) : (
-                          <span className="text-gray-500">선택</span>
+                          '선택'
                         )}
                       </span>
                       <ChevronDown className="w-4 h-4 text-gray-400" />
                     </button>
                     {showImportanceDropdown && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {fieldOptionsLookup?.importances?.map((importance) => (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto p-1">
+                        {fieldOptionsLookup?.importances?.map((opt) => (
                           <button
-                            key={importance.optionId}
+                            key={opt.optionId}
                             type="button"
                             onClick={() => {
-                              setSelectedImportanceId(importance.optionValue);
+                              setSelectedImportanceId(opt.optionValue);
                               setShowImportanceDropdown(false);
                             }}
-                            className={`w-full px-3 py-2 text-left hover:bg-gray-100 transition text-sm flex items-center gap-2 ${
-                              selectedImportanceId === importance.optionValue ? 'bg-blue-50' : ''
-                            }`}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 rounded-md flex items-center gap-2"
                           >
                             <span
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: (importance as any).color || '#6B7280' }}
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{ backgroundColor: (opt as any).color }}
                             />
-                            {importance.optionLabel}
-                            {selectedImportanceId === importance.optionValue && (
-                              <CheckSquareIcon className="w-4 h-4 ml-auto text-blue-500" />
-                            )}
+                            {opt.optionLabel}
                           </button>
                         ))}
                         <button
-                          type="button"
                           onClick={() => {
                             setShowImportanceDropdown(false);
                             handleCustomField({
@@ -784,34 +785,32 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                               options: fieldOptionsLookup?.importances,
                             });
                           }}
-                          className="w-full px-3 py-2 text-left transition text-sm text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2 disabled:text-gray-400 disabled:cursor-not-allowed"
+                          className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 rounded-md border-t mt-1 flex items-center gap-2"
                         >
-                          <Settings className="w-4 h-4" /> 중요도 관리
+                          <Settings size={14} /> 관리
                         </button>
                       </div>
                     )}
                   </div>
-
-                  {/* Field Management (기존 코드 유지) */}
+                  {/* Add Field */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      <Plus className="w-4 h-4 inline mr-1" />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
                       필드 추가
                     </label>
                     <button
                       type="button"
                       onClick={() => handleCustomField(null)}
-                      className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-sm text-left flex items-center justify-between font-medium"
+                      className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-blue-600 flex items-center justify-between transition"
                       disabled={isLoading}
                     >
-                      <span className="text-gray-600">필드 생성하기</span>
-                      <Settings className="w-4 h-4 text-gray-400" />
+                      <span>커스텀 필드 생성</span>
+                      <Plus size={16} />
                     </button>
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-3 pt-4 sticky bottom-0 bg-white">
+                {/* Footer Actions */}
+                <div className="flex gap-3 pt-4 sticky bottom-0 bg-white border-t border-gray-100 mt-2">
                   <button
                     type="button"
                     onClick={onClose}
@@ -822,18 +821,10 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className={`flex-1 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition ${
-                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className="flex-1 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition disabled:opacity-50"
                     disabled={isLoading}
                   >
-                    {isLoading
-                      ? editData?.boardId
-                        ? '수정 중...'
-                        : '생성 중...'
-                      : editData?.boardId
-                      ? '보드 수정'
-                      : '보드 만들기'}
+                    {isLoading ? '처리 중...' : editData?.boardId ? '수정 완료' : '생성 하기'}
                   </button>
                 </div>
               </form>
