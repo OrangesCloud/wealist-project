@@ -7,7 +7,6 @@ import {
   Eye,
   Table,
   LayoutGrid,
-  Settings,
   UserCheck,
   Check,
 } from 'lucide-react';
@@ -48,7 +47,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   currentLayout = 'board',
   showCompleted = false,
   currentFilter, // 💡 추가
-  onManageClick, // 💡 사용
   // stageOptions,
   // roleOptions,
   // importanceOptions,
