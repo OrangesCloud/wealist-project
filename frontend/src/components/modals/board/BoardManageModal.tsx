@@ -183,20 +183,20 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
     setError(null);
 
     try {
-      // 1. 파일 업로드 처리
-      let attachmentIds: string[] = [];
+      let attachmentIdsPayload: string[] | undefined = undefined;
 
-      // 💡 새 파일이 선택된 경우
       if (selectedFile) {
         const uploadedAttachment = await uploadAttachment(selectedFile, 'BOARD', workspaceId);
-        attachmentIds.push(uploadedAttachment.id);
-      }
-      // 💡 기존 파일이 있고 삭제하지 않은 경우
-      else if (existingAttachment && editData?.boardId) {
-        attachmentIds.push(existingAttachment.id);
+        attachmentIdsPayload = [uploadedAttachment.id];
+      } else if (
+        editData?.boardId &&
+        !existingAttachment &&
+        editData.attachments &&
+        editData.attachments.length > 0
+      ) {
+        attachmentIdsPayload = [];
       }
 
-      // 2. 보드 데이터 준비
       const customFields = {
         stage: selectedStageId,
         role: selectedRoleId,
@@ -211,13 +211,19 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
         content: content.trim() || undefined,
         customFields,
         assigneeId: selectedAssigneeId || undefined,
-        participants: selectedParticipantIds,
+        participants: selectedParticipantIds.length > 0 ? selectedParticipantIds : undefined, // ✅ 수정
         dueDate: dueDate ? `${dueDate}T00:00:00Z` : undefined,
         startDate: startDate ? `${startDate}T00:00:00Z` : undefined,
-        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+        attachmentIds: attachmentIdsPayload,
       };
 
-      // 3. API 호출
+      // ✅ 디버깅 로그 추가
+      console.log('📤 전송할 보드 데이터:', {
+        ...boardData,
+        participantCount: selectedParticipantIds.length,
+        participants: selectedParticipantIds,
+      });
+
       if (isEditing) {
         await updateBoard(editData!.boardId, boardData);
         alert('✅ 보드가 수정되었습니다!');
@@ -230,8 +236,16 @@ export const BoardManageModal: React.FC<BoardManageModalProps> = ({
       onClose();
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
+
+      // ✅ 상세 에러 로그 추가
+      console.error('❌ 보드 저장 실패:', {
+        error: err,
+        message: errorMsg,
+        response: err.response?.data,
+        selectedParticipants: selectedParticipantIds,
+      });
+
       setError(errorMsg || '작업에 실패했습니다.');
-      console.error('보드 저장 실패:', err);
     } finally {
       setIsLoading(false);
     }

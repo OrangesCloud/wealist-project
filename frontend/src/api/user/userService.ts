@@ -12,6 +12,11 @@ import {
   JoinRequestResponse,
   InviteUserRequest,
   UserWorkspaceResponse,
+  SaveAttachmentRequest,
+  UpdateProfileImageByKeyRequest,
+  PresignedUrlRequest,
+  PresignedUrlResponse,
+  AttachmentResponse,
   // UpdateWorkspaceRequest DTO가 명시되지 않아 임시로 구조를 정의함
 } from '../../types/user';
 import { userRepoClient } from '../apiConfig';
@@ -318,7 +323,6 @@ export const setDefaultWorkspace = async (workspaceId: string): Promise<void> =>
 
 // /**
 //  * [제거됨] 워크스페이스 프로필 생성/수정 (PUT /api/profiles/workspace/{workspaceId})
-//  * @deprecated 이 엔드포인트는 제거되었으며, 백엔드 구현이 필요합니다.
 //  */
 // export const updateWorkspaceProfile = async (
 //   workspaceId: string,
@@ -326,3 +330,102 @@ export const setDefaultWorkspace = async (workspaceId: string): Promise<void> =>
 // ): Promise<UserProfileResponse> => {
 //   throw new Error('워크스페이스별 프로필 업데이트 엔드포인트가 제거되었습니다. (백엔드 구현 필요)');
 // };
+// ========================================
+// Profile Image Upload API Functions (추가 필요)
+// ========================================
+
+/**
+ * 프로필 이미지 업로드를 위한 Presigned URL 생성
+ * [API] POST /api/profiles/me/image/presigned-url
+ */
+export const generateProfilePresignedUrl = async (
+  data: PresignedUrlRequest,
+): Promise<PresignedUrlResponse> => {
+  const response: AxiosResponse<PresignedUrlResponse> = await userRepoClient.post(
+    '/api/profiles/me/image/presigned-url',
+    data,
+  );
+  return response.data;
+};
+
+/**
+ * 프로필 이미지 첨부파일 메타데이터 저장
+ * [API] POST /api/profiles/me/image/attachment
+ */
+export const saveProfileAttachmentMetadata = async (
+  data: SaveAttachmentRequest,
+): Promise<AttachmentResponse> => {
+  const response: AxiosResponse<AttachmentResponse> = await userRepoClient.post(
+    '/api/profiles/me/image/attachment',
+    data,
+  );
+  return response.data;
+};
+
+/**
+ * 프로필 이미지 업데이트 (fileKey 기반)
+ * [API] PUT /api/profiles/me/image
+ */
+export const updateProfileImageByKey = async (
+  data: UpdateProfileImageByKeyRequest,
+): Promise<UserProfileResponse> => {
+  const response: AxiosResponse<{ data: UserProfileResponse }> = await userRepoClient.put(
+    '/api/profiles/me/image',
+    data,
+  );
+  return response.data.data;
+};
+
+/**
+ * 프로필 이미지 업로드 헬퍼 함수 (전체 플로우)
+ * 1. Presigned URL 생성
+ * 2. S3에 직접 업로드
+ * 3. 메타데이터 저장
+ * 4. 프로필 업데이트
+ */
+export const uploadProfileImage = async (
+  file: File,
+  workspaceId: string,
+): Promise<UserProfileResponse> => {
+  try {
+    // 1. Presigned URL 요청
+    const presignedData: PresignedUrlRequest = {
+      workspaceId,
+      fileName: file.name,
+      fileSize: file.size,
+      contentType: file.type,
+    };
+
+    const { uploadUrl, fileKey } = await generateProfilePresignedUrl(presignedData);
+
+    // 2. S3에 파일 업로드
+    await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type,
+      },
+      body: file,
+    });
+
+    // 3. 첨부파일 메타데이터 저장
+    const attachmentData: SaveAttachmentRequest = {
+      fileKey,
+      fileName: file.name,
+      fileSize: file.size,
+      contentType: file.type,
+    };
+
+    await saveProfileAttachmentMetadata(attachmentData);
+
+    // 4. 프로필 이미지 업데이트
+    const updateData: UpdateProfileImageByKeyRequest = {
+      workspaceId,
+      fileKey,
+    };
+
+    return await updateProfileImageByKey(updateData);
+  } catch (error) {
+    console.error('프로필 이미지 업로드 실패:', error);
+    throw error;
+  }
+};

@@ -180,7 +180,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     };
   }, [boards]);
 
-  // 💡 [수정] Submit 핸들러: attachmentId 로직 반영
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -192,34 +191,22 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     setIsLoading(true);
     setError(null);
 
-    let finalAttachmentIds = [...currentAttachmentIds]; // 기본적으로 현재 ID 목록 사용
-    let uploadedAttachmentId: string | null = null;
+    let attachmentIdsPayload: string[] | undefined = undefined; // ✅ 초기값 undefined
 
     try {
-      // 1. 새 파일이 선택되었다면 업로드 수행
+      // 1. 새 파일이 선택된 경우 - 업로드 후 새 ID 사용
       if (selectedFile) {
-        // useFileUpload 훅 내부에서 S3 업로드 후 백엔드에 파일 정보 등록 및 attachmentId 반환
         const uploadResult = await upload(workspaceId, 'project');
-
         if (uploadResult) {
-          uploadedAttachmentId = uploadResult.attachmentId;
-
-          // 🚨 [핵심] 단일 파일 업로드 UI를 따르므로, 새 파일이 올라오면 기존 ID를 모두 대체합니다.
-          finalAttachmentIds = uploadedAttachmentId ? [uploadedAttachmentId] : [];
+          attachmentIdsPayload = [uploadResult.attachmentId];
         }
-      } else if (mode === 'edit' && attachmentId && !previewUrl) {
-        // Edit 모드이고, 기존 파일 ID가 있었는데 (attachmentId), Uploader에서 삭제하여 previewUrl이 사라짐
-        // 단일 파일 기준으로, 기존 ID 목록을 비웁니다.
-        finalAttachmentIds = [];
-      } else if (mode === 'create' && !selectedFile) {
-        // 생성 모드에서 파일이 없다면 ID는 빈 배열
-        finalAttachmentIds = [];
       }
-      // mode === 'edit' && !selectedFile && previewUrl 인 경우는 기존 ID (currentAttachmentIds)를 그대로 유지합니다.
-
-      // 2. API 호출을 위한 Payload 구성
-      // attachmentIds는 배열이 비어있으면 undefined를 전송하여 백엔드에서 null/empty 처리하도록 합니다.
-      const attachmentIdsPayload = finalAttachmentIds.length > 0 ? finalAttachmentIds : undefined;
+      // 2. Edit 모드 + 기존 파일 삭제한 경우 - 빈 배열 전송
+      else if (mode === 'edit' && !previewUrl && currentAttachmentIds.length > 0) {
+        attachmentIdsPayload = [];
+      }
+      // 3. Edit 모드 + 기존 파일 유지 - undefined (전송 안 함)
+      // 4. Create 모드 + 파일 없음 - undefined (전송 안 함)
 
       const projectBaseData = {
         name: name.trim(),
@@ -231,11 +218,10 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
       if (mode === 'edit' && project) {
         const updatePayload: UpdateProjectRequest = {
           ...projectBaseData,
-          attachmentIds: attachmentIdsPayload,
+          attachmentIds: attachmentIdsPayload, // undefined면 필드 자체가 전송되지 않음
         };
 
         await updateProject(project.projectId, updatePayload);
-
         alert(`✅ ${name} 프로젝트가 수정되었습니다!`);
         onProjectSaved();
         setMode('detail');
@@ -245,9 +231,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
           ...projectBaseData,
           attachmentIds: attachmentIdsPayload,
         };
-        console.log(createPayload);
         const newProjectResponse: ProjectResponse = await createProject(createPayload);
-
         alert(`✅ ${name} 프로젝트가 생성되었습니다!`);
         if (newProjectResponse) {
           onProjectCreated?.(newProjectResponse);

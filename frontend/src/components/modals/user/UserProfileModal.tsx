@@ -10,7 +10,12 @@
 import React, { useState, useRef, ChangeEvent, useEffect } from 'react';
 import { X, Camera } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { updateMyProfile, getAllMyProfiles, getMyWorkspaces } from '../../../api/user/userService';
+import {
+  updateMyProfile,
+  getAllMyProfiles,
+  getMyWorkspaces,
+  uploadProfileImage, // ✅ 추가
+} from '../../../api/user/userService';
 import {
   UserProfileResponse,
   // WorkspaceResponse,
@@ -167,39 +172,51 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
         throw new Error('사용자 ID를 찾을 수 없습니다. (재로그인 필요)');
       }
 
-      const targetId = activeTab === 'default' ? DEFAULT_WORKSPACE_ID : selectedWorkspaceId;
-
-      let finalImageUrl: string | null = null;
+      const targetWorkspaceId =
+        activeTab === 'default' ? DEFAULT_WORKSPACE_ID : selectedWorkspaceId;
       let updatedProfile: UserProfileResponse | undefined = undefined;
 
-      // 1. S3 이미지 업로드 (주석 처리된 S3 로직)
-      // if (selectedFile) {
-      //   // newImageUrl = await uploadProfileImage(selectedFile, currentUserId);
-      //   finalImageUrl = 'MOCK_S3_URL_SUCCESS';
-      // } else if (displayImageUrl === null) {
-      //   finalImageUrl = null; // 이미지를 제거한 경우
-      // } else {
-      //   finalImageUrl = displayImageUrl; // 기존 이미지를 유지하는 경우
-      // }
+      // ✅ 1. 이미지 업로드 처리 (새 파일이 선택된 경우)
+      if (_selectedFile) {
+        try {
+          // uploadProfileImage 함수가 전체 플로우를 처리함
+          // (Presigned URL → S3 Upload → Metadata Save → Profile Update)
+          updatedProfile = await uploadProfileImage(_selectedFile, targetWorkspaceId);
 
-      // 2. API 호출 DTO 구성
-      const data: UpdateProfileRequest = {
-        nickName: currentNickName.trim(),
-        profileImageUrl: finalImageUrl || '', // API 스펙에 맞게 string 또는 null 처리
-      };
-
-      // 3. API 호출 및 프로필 갱신
-      updatedProfile = await updateMyProfile(data);
-      alert(`프로필이 저장되었습니다. (⚠️ 조직별 프로필 수정 API 미구현)`);
+          // 닉네임도 변경된 경우 추가 업데이트
+          if (updatedProfile.nickName !== currentNickName.trim()) {
+            const updateData: UpdateProfileRequest = {
+              nickName: currentNickName.trim(),
+              workspaceId: targetWorkspaceId,
+              userId: currentUserId,
+            };
+            updatedProfile = await updateMyProfile(updateData);
+          }
+        } catch (err) {
+          console.error('[Image Upload Error]', err);
+          throw new Error('이미지 업로드에 실패했습니다.');
+        }
+      } else {
+        // ✅ 2. 닉네임만 변경된 경우
+        const updateData: UpdateProfileRequest = {
+          nickName: currentNickName.trim(),
+          workspaceId: targetWorkspaceId,
+          userId: currentUserId,
+        };
+        updatedProfile = await updateMyProfile(updateData);
+      }
 
       if (!updatedProfile) throw new Error('API 응답이 유효하지 않습니다.');
 
-      // 4. 로컬 상태 업데이트 (allProfiles)
+      // ✅ 3. 로컬 상태 업데이트 (allProfiles)
       setAllProfiles((prev) => {
-        const index = prev?.findIndex((p) => p.workspaceId === targetId);
+        const index = prev?.findIndex((p) => p.workspaceId === targetWorkspaceId);
 
-        // 💡 [핵심] API 응답에 누락된 workspaceId를 로컬에서 덮어쓰기
-        const profileToUpdate: UserProfileResponse = { ...updatedProfile, workspaceId: targetId };
+        // workspaceId를 명시적으로 설정 (API 응답에 누락될 수 있음)
+        const profileToUpdate: UserProfileResponse = {
+          ...updatedProfile,
+          workspaceId: targetWorkspaceId,
+        };
 
         if (index !== -1 && prev) {
           const newProfiles = [...prev];
@@ -209,13 +226,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) => {
         return [...(prev || []), profileToUpdate];
       });
 
-      // 5. 저장 후 파일 상태 초기화
-      // setSelectedFile(null);
-      // setAvatarPreviewUrl(null);
+      // ✅ 4. 저장 후 파일 상태 초기화
+      setSelectedFile(null);
+      setAvatarPreviewUrl(null);
+
+      alert('✅ 프로필이 저장되었습니다!');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || err.message;
       console.error('[Profile Save Error]', errorMsg);
-      setError('프로필 저장에 실패했습니다. (S3 업로드 또는 API 문제)');
+      setError(errorMsg || '프로필 저장에 실패했습니다.');
     } finally {
       setLoading(false);
     }
