@@ -927,19 +927,3 @@ func (s *projectServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attach
 		}
 	}
 }
-
-// toDomainAttachments converts []*domain.Attachment (pointer slice) to []domain.Attachment (value slice)
-func toDomainAttachments(attachments []*domain.Attachment) []domain.Attachment {
-	if attachments == nil {
-		return nil
-	}
-	result := make([]domain.Attachment, len(attachments))
-	for i, att := range attachments {
-		// 🚨 포인터 역참조 (*)를 통해 값 복사
-		if att != nil {
-			result[i] = *att
-		}
-		// nil 포인터는 해당 위치를 빈(zero value) domain.Attachment로 남겨둠
-	}
-	return result
-}

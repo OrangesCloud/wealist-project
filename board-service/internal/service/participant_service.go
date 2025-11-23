@@ -60,7 +60,7 @@ func (s *participantServiceImpl) AddParticipants(ctx context.Context, req *dto.A
 
 	// Use shared logic to add participants
 	results := s.addParticipantsShared(ctx, req.BoardID, uniqueUserIDs)
-	
+
 	// Populate response
 	for _, result := range results {
 		resp.Results = append(resp.Results, result)
@@ -80,10 +80,10 @@ func (s *participantServiceImpl) AddParticipants(ctx context.Context, req *dto.A
 func (s *participantServiceImpl) AddParticipantsInternal(ctx context.Context, boardID uuid.UUID, userIDs []uuid.UUID) (int, error) {
 	// Remove duplicates from the user IDs
 	uniqueUserIDs := removeDuplicateUUIDs(userIDs)
-	
+
 	// Use shared logic to add participants
 	results := s.addParticipantsShared(ctx, boardID, uniqueUserIDs)
-	
+
 	// Count successes
 	successCount := 0
 	for _, result := range results {
@@ -91,7 +91,7 @@ func (s *participantServiceImpl) AddParticipantsInternal(ctx context.Context, bo
 			successCount++
 		}
 	}
-	
+
 	return successCount, nil
 }
 
@@ -99,13 +99,13 @@ func (s *participantServiceImpl) AddParticipantsInternal(ctx context.Context, bo
 // Returns a slice of ParticipantResult for each user ID
 func (s *participantServiceImpl) addParticipantsShared(ctx context.Context, boardID uuid.UUID, userIDs []uuid.UUID) []dto.ParticipantResult {
 	results := make([]dto.ParticipantResult, 0, len(userIDs))
-	
+
 	// Process each participant individually
 	for _, userID := range userIDs {
 		result := s.addSingleParticipant(ctx, boardID, userID)
 		results = append(results, result)
 	}
-	
+
 	return results
 }
 
@@ -149,19 +149,19 @@ func (s *participantServiceImpl) addSingleParticipant(ctx context.Context, board
 }
 
 // removeDuplicateUUIDs removes duplicate UUIDs from a slice
-func removeDuplicateUUIDs(uuids []uuid.UUID) []uuid.UUID {
-	seen := make(map[uuid.UUID]bool)
-	result := make([]uuid.UUID, 0, len(uuids))
-	
-	for _, id := range uuids {
-		if !seen[id] {
-			seen[id] = true
-			result = append(result, id)
-		}
-	}
-	
-	return result
-}
+// func removeDuplicateUUIDs(uuids []uuid.UUID) []uuid.UUID {
+// 	seen := make(map[uuid.UUID]bool)
+// 	result := make([]uuid.UUID, 0, len(uuids))
+
+// 	for _, id := range uuids {
+// 		if !seen[id] {
+// 			seen[id] = true
+// 			result = append(result, id)
+// 		}
+// 	}
+
+// 	return result
+// }
 
 // GetParticipants retrieves all participants for a board
 func (s *participantServiceImpl) GetParticipants(ctx context.Context, boardID uuid.UUID) ([]*dto.ParticipantResponse, error) {

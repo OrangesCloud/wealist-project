@@ -187,19 +187,18 @@ export interface UpdateBoardFieldRequest {
 export interface ProjectResponse {
   projectId: string;
   workspaceId: string;
-  name: string;
-  description: string;
   ownerId: string;
-  ownerName: string;
-  ownerEmail: string;
-  isPublic: boolean;
-  createdAt: string;
-  updatedAt: string;
+  ownerEmail?: string;
+  ownerName?: string;
+  name: string;
+  description?: string;
   startDate?: string;
   dueDate?: string;
-  attachments: AttachmentResponse[]; // 💡 [변경] 파일 목록 포함
+  isPublic: boolean;
+  attachments: AttachmentResponse[]; // ✅ 추가: 첨부파일 배열
+  createdAt: string;
+  updatedAt: string;
 }
-
 /**
  * @summary 프로젝트 기본 정보 (dto.ProjectBasicInfo)
  */
