@@ -1,8 +1,8 @@
 # Builder stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25-bookworm AS builder 
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
@@ -13,16 +13,21 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
+# 💡 [필수] 종속성 정리: go.mod에 명시된 버전에 맞춰 모듈을 정리하고, 누락된 의존성을 확보합니다.
+RUN go mod tidy
+
 # Copy source code
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o board-api ./cmd/api
+# 🚨 [최종 수정] -mod=readonly 대신 -mod=mod를 사용하여 빌드 시 종속성 그래프를 다시 확인하도록 강제합니다.
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=mod -ldflags="-w -s" -o board-api ./cmd/api
 
 # Runtime stage
 FROM alpine:latest
 
 # Install runtime dependencies
+# 런타임은 계속 가벼운 Alpine을 사용할 수 있습니다.
 RUN apk --no-cache add ca-certificates tzdata wget
 
 # Create non-root user

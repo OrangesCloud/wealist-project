@@ -4,14 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
+
+	appConfig "project-board-api/internal/config"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
-	appConfig "project-board-api/internal/config"
 )
 
 // S3ClientInterface defines the interface for S3 operations
@@ -23,18 +25,16 @@ type S3ClientInterface interface {
 	GetFileURL(key string) string
 }
 
-// S3Client wraps AWS S3 client
+// S3Client wraps AWS S3 client and implements S3ClientInterface
 type S3Client struct {
-	client         *s3.Client
-	presignClient  *s3.PresignClient
-	bucket         string
-	region         string
+	client        *s3.Client
+	presignClient *s3.PresignClient
+	bucket        string
+	region        string
+	endpoint      string // MinIO 사용 시 로컬 엔드포인트를 저장
 }
 
 // NewS3Client creates a new S3 client
-// Uses AWS SDK default credential chain:
-// - EC2: IAM role credentials (automatic)
-// - Local: ~/.aws/credentials or environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
 func NewS3Client(cfg *appConfig.S3Config) (*S3Client, error) {
 	if cfg.Bucket == "" {
 		return nil, fmt.Errorf("S3 bucket is required")
@@ -53,7 +53,9 @@ func NewS3Client(cfg *appConfig.S3Config) (*S3Client, error) {
 		if cfg.AccessKey == "" || cfg.SecretKey == "" {
 			return nil, fmt.Errorf("access key and secret key are required for MinIO endpoint")
 		}
-		
+
+		// 🚨 [핵심 수정] Deprecated 함수로 복구: config.WithEndpointResolverWithOptions
+		// 빌드 오류를 회피하기 위해, Docker 빌드 환경이 확실히 알고 있는 함수로 되돌립니다.
 		awsCfg, err = config.LoadDefaultConfig(context.TODO(),
 			config.WithRegion(cfg.Region),
 			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
@@ -61,7 +63,7 @@ func NewS3Client(cfg *appConfig.S3Config) (*S3Client, error) {
 				cfg.SecretKey,
 				"",
 			)),
-			config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
+			config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc( // 💡 Deprecated 함수 사용
 				func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 					return aws.Endpoint{
 						URL:               cfg.Endpoint,
@@ -97,6 +99,7 @@ func NewS3Client(cfg *appConfig.S3Config) (*S3Client, error) {
 		presignClient: presignClient,
 		bucket:        cfg.Bucket,
 		region:        cfg.Region,
+		endpoint:      cfg.Endpoint, // Endpoint 값 저장
 	}, nil
 }
 
@@ -159,7 +162,22 @@ func (c *S3Client) GeneratePresignedURL(ctx context.Context, entityType, workspa
 		return "", "", fmt.Errorf("failed to generate presigned URL: %w", err)
 	}
 
-	return presignedReq.URL, fileKey, nil
+	finalURL := presignedReq.URL
+
+	// 💡 [MinIO/Docker 호스트 치환 로직] c.endpoint가 설정된 경우(로컬 개발 환경)에만 치환을 시도합니다.
+	if c.endpoint != "" {
+		// 1. MinIO의 내부 서비스 이름 정의
+		const internalMinIOHost = "minio:9000"
+
+		// 2. 외부에서 접근 가능한 호스트 (localhost:9000)를 c.endpoint에서 추출
+		externalHost := strings.TrimPrefix(strings.TrimPrefix(c.endpoint, "http://"), "https://")
+
+		// strings.Replace를 사용하여 내부 호스트를 외부 호스트로 치환합니다.
+		finalURL = strings.Replace(finalURL, internalMinIOHost, externalHost, 1)
+	}
+
+	// 변경된 finalURL과 fileKey를 반환합니다.
+	return finalURL, fileKey, nil
 }
 
 // UploadFile uploads a file to S3
@@ -192,6 +210,16 @@ func (c *S3Client) DeleteFile(ctx context.Context, key string) error {
 }
 
 // GetFileURL returns the public URL for a file
+// S3 Key를 기반으로 다운로드 가능한 URL을 생성합니다.
 func (c *S3Client) GetFileURL(key string) string {
+	// MinIO 환경인 경우 (endpoint가 설정된 경우)
+	if c.endpoint != "" {
+		// 예: http://localhost:9000/bucket/key
+
+		// c.endpoint는 "http://localhost:9000" 형태
+		return fmt.Sprintf("%s/%s/%s", strings.TrimSuffix(c.endpoint, "/"), c.bucket, key)
+	}
+
+	// AWS S3 환경인 경우 (기본)
 	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", c.bucket, c.region, key)
 }

@@ -13,7 +13,12 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { createProject, updateProject, getBoardsByProject } from '../../../api/board/boardService';
-import { ProjectResponse, BoardResponse } from '../../../types/board';
+import {
+  ProjectResponse,
+  BoardResponse,
+  CreateProjectRequest,
+  UpdateProjectRequest,
+} from '../../../types/board';
 import { IROLES } from '../../../types/common';
 import Portal from '../../common/Portal';
 import { WorkspaceMemberResponse } from '../../../types/user';
@@ -41,12 +46,19 @@ interface ProjectManageModalProps {
 // 파일 다운로드 핸들러 (Detail 모드용)
 const handleFileDownload = (fileUrl: string, fileName: string) => {
   if (!fileUrl) return;
-  const link = document.createElement('a');
-  link.href = fileUrl;
-  link.setAttribute('download', fileName);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  // 🚨 API 명세 변경으로 인해 fileUrl이 S3 Key일 수 있으므로, 실제 다운로드는 백엔드 API를 호출해야 함
+  console.log(
+    `[File Download Attempt] S3 Key: ${fileUrl}, Filename: ${fileName}. Need Backend API for presigned download URL.`,
+  );
+  alert('파일 다운로드는 백엔드의 Presigned Download URL API가 필요합니다.');
+
+  // 기존 코드 (Full URL을 받는 경우):
+  // const link = document.createElement('a');
+  // link.href = fileUrl;
+  // link.setAttribute('download', fileName);
+  // document.body.appendChild(link);
+  // link.click();
+  // document.body.removeChild(link);
 };
 
 export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
@@ -79,8 +91,27 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
   const [projectMembers, setProjectMembers] = useState<WorkspaceMemberResponse[]>();
 
   // 💡 [통합] 파일 업로드 훅 사용
-  const { selectedFile, previewUrl, handleFileSelect, handleRemoveFile, upload, setInitialFile } =
-    useFileUpload();
+  const {
+    selectedFile,
+    previewUrl,
+    handleFileSelect,
+    handleRemoveFile,
+    upload,
+    setInitialFile,
+    attachmentId, // 💡 [추가] 훅에서 관리되는 attachmentId 상태
+    setAttachmentId, // 💡 [추가] attachmentId를 외부에서 설정하기 위한 함수 (필요 시)
+  } = useFileUpload();
+
+  // 💡 [추가] 프로젝트의 기존 첨부파일 ID 목록을 관리할 상태
+  // 프로젝트 DTO에 attachmentIds 필드가 있다면 그 값을 사용해야 합니다.
+  const initialAttachmentIds = useMemo(() => {
+    // 🚨 project.attachmentIds가 없으므로 임시로 빈 배열을 반환합니다.
+    return (project as any)?.attachmentIds || [];
+  }, [project]);
+
+  // 💡 [변경] 현재 프로젝트에 첨부된 파일 ID 목록 (기존 ID + 새로 업로드된 ID)
+  // Edit/Create 모드에서 최종적으로 백엔드로 전송할 ID 목록입니다.
+  const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(initialAttachmentIds);
 
   const canEdit = useMemo(() => {
     return (
@@ -98,13 +129,26 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
       setDueDate(project.dueDate ? project.dueDate.substring(0, 10) : '');
       setProjectMembers(members);
 
-      // 기존 프로젝트의 파일 정보를 훅에 세팅
-      setInitialFile((project as any).fileUrl, (project as any).fileName);
+      // 🚨 기존 프로젝트의 파일 정보 초기화 로직 변경:
+      // DTO에 attachmentIds가 있다면 그 값을 사용해야 합니다.
+      const existingAttachmentIds = (project as any)?.attachmentIds || [];
+      setCurrentAttachmentIds(existingAttachmentIds);
+
+      // useFileUpload 훅 초기화 (첫 번째 첨부파일이 있다면 그 정보로 Uploader UI 초기화)
+      if (existingAttachmentIds.length > 0) {
+        // UI 표시를 위해 기존의 fileUrl/fileName 필드가 DTO에 남아있다고 가정하고 초기화
+        setInitialFile((project as any).fileUrl, (project as any).fileName);
+        setAttachmentId(existingAttachmentIds[0]); // 첫 번째 ID만 UI 상태로 설정 (단일 파일 가정)
+      } else {
+        handleRemoveFile();
+      }
     } else if (mode === 'create') {
       setName('');
       setDescription('');
       setStartDate('');
       setDueDate('');
+      setProjectMembers(undefined);
+      setCurrentAttachmentIds([]);
       // 생성 모드 진입 시 파일 선택 상태 초기화
       handleRemoveFile();
     }
@@ -112,8 +156,9 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
 
     // 🚨 중요: 의존성 배열에서 객체(project, members)를 제거하고
     // 고유 식별자(project.projectId)와 모드(mode)만 바라보게 해야 무한 루프가 멈춥니다.
+    // setInitialFile, handleRemoveFile, setAttachmentId는 useCallback으로 래핑되어야 합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.projectId, mode, setInitialFile, handleRemoveFile]);
+  }, [project?.projectId, mode, setInitialFile, handleRemoveFile, setAttachmentId, members.length]); // members 대신 members.length로 변경 시도 (더 안전함)
 
   const fetchBoards = useCallback(async () => {
     if (!project || mode !== 'detail') {
@@ -147,7 +192,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     };
   }, [boards]);
 
-  // 💡 [수정] Submit 핸들러: 파일 업로드 로직 추가
+  // 💡 [수정] Submit 핸들러: attachmentId 로직 반영
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -159,54 +204,61 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     setIsLoading(true);
     setError(null);
 
-    try {
-      // 1. 파일 업로드 처리
-      // 기존 DB에 저장된 값 (없으면 null)
-      let finalFileUrl = (project as any)?.fileUrl; // 백엔드 DTO 필드명이 fileUrl인지 fileKey인지 확인 필요
-      let finalFileName = (project as any)?.fileName;
+    let finalAttachmentIds = [...currentAttachmentIds]; // 기본적으로 현재 ID 목록 사용
+    let uploadedAttachmentId: string | null = null;
 
-      // 새 파일이 선택되었다면 업로드 수행
+    try {
+      // 1. 새 파일이 선택되었다면 업로드 수행
       if (selectedFile) {
-        // 🚨 여기서 workspaceId를 넘겨줍니다!
+        // useFileUpload 훅 내부에서 S3 업로드 후 백엔드에 파일 정보 등록 및 attachmentId 반환
         const uploadResult = await upload(workspaceId, 'project');
 
         if (uploadResult) {
-          // 백엔드 DB에 저장할 값 (S3 Key)
-          // 참고: 백엔드가 'fileUrl'이라는 필드에 'S3 Key'를 저장하는지, 'Full URL'을 저장하는지에 따라 다릅니다.
-          // 보통 Presigned URL 패턴에서는 Key를 저장합니다.
-          finalFileUrl = uploadResult.fileKey;
-          finalFileName = uploadResult.fileName;
-        }
-      } else if (!previewUrl) {
-        // 파일 삭제됨
-        finalFileUrl = null;
-        finalFileName = null;
-      }
+          uploadedAttachmentId = uploadResult.attachmentId;
 
-      // 2. API 호출
+          // 🚨 [핵심] 단일 파일 업로드 UI를 따르므로, 새 파일이 올라오면 기존 ID를 모두 대체합니다.
+          finalAttachmentIds = uploadedAttachmentId ? [uploadedAttachmentId] : [];
+        }
+      } else if (mode === 'edit' && attachmentId && !previewUrl) {
+        // Edit 모드이고, 기존 파일 ID가 있었는데 (attachmentId), Uploader에서 삭제하여 previewUrl이 사라짐
+        // 단일 파일 기준으로, 기존 ID 목록을 비웁니다.
+        finalAttachmentIds = [];
+      } else if (mode === 'create' && !selectedFile) {
+        // 생성 모드에서 파일이 없다면 ID는 빈 배열
+        finalAttachmentIds = [];
+      }
+      // mode === 'edit' && !selectedFile && previewUrl 인 경우는 기존 ID (currentAttachmentIds)를 그대로 유지합니다.
+
+      // 2. API 호출을 위한 Payload 구성
+      // attachmentIds는 배열이 비어있으면 undefined를 전송하여 백엔드에서 null/empty 처리하도록 합니다.
+      const attachmentIdsPayload = finalAttachmentIds.length > 0 ? finalAttachmentIds : undefined;
+
+      const projectBaseData = {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        startDate: startDate ? `${startDate}T00:00:00Z` : undefined,
+        dueDate: dueDate ? `${dueDate}T00:00:00Z` : undefined,
+      };
+
       if (mode === 'edit' && project) {
-        await updateProject(project.projectId, {
-          name: name.trim(),
-          description: description.trim() || undefined,
-          startDate: startDate ? `${startDate}T00:00:00Z` : undefined,
-          dueDate: dueDate ? `${dueDate}T00:00:00Z` : undefined,
-          fileUrl: finalFileUrl, // 업데이트된 파일 정보 전달
-          fileName: finalFileName, // 업데이트된 파일 정보 전달
-        } as any); // TODO: UpdateProjectRequest 타입에 fileUrl, fileName 추가 필요
+        const updatePayload: UpdateProjectRequest = {
+          ...projectBaseData,
+          attachmentIds: attachmentIdsPayload,
+        };
+
+        await updateProject(project.projectId, updatePayload);
 
         alert(`✅ ${name} 프로젝트가 수정되었습니다!`);
         onProjectSaved();
         setMode('detail');
       } else if (mode === 'create') {
-        const newProjectResponse: ProjectResponse = await createProject({
+        const createPayload: CreateProjectRequest = {
           workspaceId: workspaceId,
-          name: name.trim(),
-          description: description.trim() || undefined,
-          startDate: startDate ? `${startDate}T00:00:00Z` : undefined,
-          dueDate: dueDate ? `${dueDate}T00:00:00Z` : undefined,
-          fileUrl: finalFileUrl, // 파일 정보 전달
-          fileName: finalFileName, // 파일 정보 전달
-        } as any); // TODO: CreateProjectRequest 타입에 fileUrl, fileName 추가 필요
+          ...projectBaseData,
+          attachmentIds: attachmentIdsPayload,
+        };
+        console.log(createPayload);
+        const newProjectResponse: ProjectResponse = await createProject(createPayload);
 
         alert(`✅ ${name} 프로젝트가 생성되었습니다!`);
         if (newProjectResponse) {
@@ -235,9 +287,10 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     }
   }, [mode, project?.name]);
 
-  // 상세 보기용 파일 정보
+  // 상세 보기용 파일 정보 (기존 DTO 필드가 남아있다고 가정하고 UI를 유지)
   const detailFileUrl = (project as any)?.fileUrl;
   const detailFileName = (project as any)?.fileName || 'project_file_attachment';
+  const hasAttachments = detailFileUrl || currentAttachmentIds.length > 0; // 첨부 파일 유무 체크
 
   // ----------------------------------------------------
   // 🎨 Detail / Edit Mode 렌더링
@@ -253,8 +306,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
             </label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={name} // ✅ State 연결
+              onChange={(e) => setName(e.target.value)} // ✅ Handler 연결
               disabled={mode === 'detail' || isLoading}
               className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                 mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
@@ -269,8 +322,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
               <label className="block text-sm font-semibold text-gray-700 mb-2">시작일</label>
               <input
                 type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                value={startDate} // ✅ State 연결
+                onChange={(e) => setStartDate(e.target.value)} // ✅ Handler 연결
                 disabled={mode === 'detail' || isLoading}
                 className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                   mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
@@ -281,8 +334,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
               <label className="block text-sm font-semibold text-gray-700 mb-2">마감일</label>
               <input
                 type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                value={dueDate} // ✅ State 연결
+                onChange={(e) => setDueDate(e.target.value)} // ✅ Handler 연결
                 disabled={mode === 'detail' || isLoading}
                 className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                   mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
@@ -295,8 +348,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">프로젝트 설명</label>
             <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={description} // ✅ State 연결
+              onChange={(e) => setDescription(e.target.value)} // ✅ Handler 연결
               disabled={mode === 'detail' || isLoading}
               className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none ${
                 mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
@@ -328,14 +381,14 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
                 </label>
                 <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-sm">
                   <span className="text-gray-700 truncate flex items-center gap-1">
-                    {detailFileUrl ? (
+                    {hasAttachments ? (
                       <span className="text-gray-700">{detailFileName}</span>
                     ) : (
                       <span className="text-gray-500">첨부 파일 없음</span>
                     )}
                   </span>
 
-                  {detailFileUrl ? (
+                  {hasAttachments ? (
                     <button
                       type="button"
                       onClick={() => handleFileDownload(detailFileUrl, detailFileName)}
@@ -426,7 +479,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3 pt-4 px-6 sticky bottom-0 bg-white">
+      <div className="flex gap-3 pt-4 px-6 sticky bottom-0 bg-white border-t border-gray-300">
         {mode === 'edit' && (
           <button
             type="button"
@@ -482,8 +535,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
             </label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={name} // ✅ State 연결
+              onChange={(e) => setName(e.target.value)} // ✅ Handler 연결
               placeholder="예: Wealist 서비스 개발"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               disabled={isLoading}
@@ -499,8 +552,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
               </label>
               <input
                 type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                value={startDate} // ✅ State 연결
+                onChange={(e) => setStartDate(e.target.value)} // ✅ Handler 연결
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 disabled={isLoading}
               />
@@ -511,8 +564,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
               </label>
               <input
                 type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                value={dueDate} // ✅ State 연결
+                onChange={(e) => setDueDate(e.target.value)} // ✅ Handler 연결
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 disabled={isLoading}
               />
@@ -524,8 +577,8 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
               프로젝트 설명 (선택)
             </label>
             <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={description} // ✅ State 연결
+              onChange={(e) => setDescription(e.target.value)} // ✅ Handler 연결
               placeholder="프로젝트에 대한 간단한 설명을 입력하세요"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
               rows={5}

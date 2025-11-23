@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,16 @@ import (
 	"project-board-api/internal/repository"
 	"project-board-api/internal/response"
 )
+
+// 💡 [추가] S3Client 인터페이스 정의: project_service.go가 이 타입을 사용하므로 정의가 필요합니다.
+// 이는 client.S3ClientInterface가 구현하는 메서드들을 포함해야 합니다.
+type S3Client interface {
+	GenerateFileKey(entityType, workspaceID, fileExt string) (string, error)
+	GeneratePresignedURL(ctx context.Context, entityType, workspaceID, fileName, contentType string) (string, string, error)
+	UploadFile(ctx context.Context, key string, file io.Reader, contentType string) (string, error)
+	DeleteFile(ctx context.Context, key string) error
+	GetFileURL(key string) string // 🚨 [핵심 수정] 이 메서드가 누락되어 오류가 발생했습니다.
+}
 
 // ProjectService defines the interface for project business logic
 type ProjectService interface {
@@ -31,13 +42,13 @@ type ProjectService interface {
 
 // projectServiceImpl is the implementation of ProjectService
 type projectServiceImpl struct {
-	projectRepo       repository.ProjectRepository
-	fieldOptionRepo   repository.FieldOptionRepository
-	attachmentRepo    repository.AttachmentRepository
-	s3Client          S3Client
-	userClient        client.UserClient
-	metrics           *metrics.Metrics
-	logger            *zap.Logger
+	projectRepo     repository.ProjectRepository
+	fieldOptionRepo repository.FieldOptionRepository
+	attachmentRepo  repository.AttachmentRepository
+	s3Client        S3Client // 이 타입 정의가 상단에 추가되었습니다.
+	userClient      client.UserClient
+	metrics         *metrics.Metrics
+	logger          *zap.Logger
 }
 
 // NewProjectService creates a new instance of ProjectService
@@ -96,12 +107,22 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 	}
 
 	// Confirm attachments after project creation
+	var createdAttachments []*domain.Attachment
 	if len(req.AttachmentIDs) > 0 {
 		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, project.ID); err != nil {
 			s.logger.Warn("Failed to confirm attachments during project creation",
 				zap.String("project_id", project.ID.String()),
 				zap.Error(err))
 			// Continue even if attachment confirmation fails
+		}
+
+		// 💡 [수정] Confirm 후 Attachments 메타데이터를 조회하여 project 객체에 할당
+		// FindByIDs는 []*domain.Attachment를 반환한다고 가정합니다.
+		attachments, err := s.attachmentRepo.FindByIDs(ctx, req.AttachmentIDs)
+		if err != nil {
+			s.logger.Warn("Failed to fetch confirmed attachments for response", zap.Error(err))
+		} else {
+			createdAttachments = attachments
 		}
 	}
 
@@ -128,6 +149,8 @@ func (s *projectServiceImpl) CreateProject(ctx context.Context, req *dto.CreateP
 	}
 
 	// Convert to response DTO
+	// 💡 [수정] 생성된 Attachments를 Project 객체에 임시 할당 (타입 변환 적용)
+	project.Attachments = toDomainAttachments(createdAttachments)
 	return s.toProjectResponse(project), nil
 }
 
@@ -163,14 +186,20 @@ func (s *projectServiceImpl) GetProjectsByWorkspace(ctx context.Context, workspa
 		if project == nil {
 			continue
 		}
-		
+
+		// 💡 [추가] Project 목록 조회 시 Attachments 로드 (효율을 위해 bulk load 고려 가능)
+		attachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeProject, project.ID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Error("Failed to fetch attachments for project list", zap.String("project_id", project.ID.String()), zap.Error(err))
+		}
+		project.Attachments = toDomainAttachments(attachments) // 🚨 타입 변환 적용
+
 		// 개별 변환 실패 시 해당 프로젝트만 스킵
 		projectResp := s.toProjectResponseWithProfile(ctx, project, token)
 		if projectResp != nil {
 			responses = append(responses, projectResp)
 		} else {
 			// Log when a project response is nil to help debugging
-			// This should not happen in normal operation
 			_ = i // Avoid unused variable warning
 		}
 	}
@@ -195,10 +224,17 @@ func (s *projectServiceImpl) GetDefaultProject(ctx context.Context, workspaceID,
 	project, err := s.projectRepo.FindDefaultByWorkspaceID(ctx, workspaceID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, response.NewAppError(response.ErrCodeNotFound, "Default project not found", "")
+			return nil, response.NewNotFoundError("Default project not found", "")
 		}
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch default project", err.Error())
 	}
+
+	// 💡 [추가] Attachments 로드 (타입 변환 적용)
+	attachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeProject, project.ID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		s.logger.Error("Failed to fetch attachments for default project", zap.String("project_id", project.ID.String()), zap.Error(err))
+	}
+	project.Attachments = toDomainAttachments(attachments) // 🚨 타입 변환 적용
 
 	// Convert to response DTO with owner profile information
 	return s.toProjectResponseWithProfile(ctx, project, token), nil
@@ -209,17 +245,22 @@ func (s *projectServiceImpl) toProjectResponse(project *domain.Project) *dto.Pro
 	// Convert attachments to response DTOs
 	attachments := make([]dto.AttachmentResponse, 0, len(project.Attachments))
 	for _, a := range project.Attachments {
+
+		// 💡 [수정] s3Client.GetFileURL을 사용하여 FileURL 필드 채우기 (DB의 FileURL은 S3 Key)
+		fileURL := s.s3Client.GetFileURL(a.FileURL)
+
 		attachments = append(attachments, dto.AttachmentResponse{
-			ID:          a.ID,
-			FileName:    a.FileName,
-			FileURL:     a.FileURL,
+			ID:       a.ID,
+			FileName: a.FileName,
+			// 💡 FileURL 필드 채우기: S3 Key를 통해 다운로드 URL 생성
+			FileURL:     fileURL,
 			FileSize:    a.FileSize,
 			ContentType: a.ContentType,
 			UploadedBy:  a.UploadedBy,
 			UploadedAt:  a.CreatedAt,
 		})
 	}
-	
+
 	return &dto.ProjectResponse{
 		ID:          project.ID,
 		WorkspaceID: project.WorkspaceID,
@@ -241,7 +282,7 @@ func (s *projectServiceImpl) toProjectResponseWithProfile(ctx context.Context, p
 	if project == nil {
 		return nil
 	}
-	
+
 	response := s.toProjectResponse(project)
 	// response가 nil이면 nil 반환
 	if response == nil {
@@ -254,7 +295,7 @@ func (s *projectServiceImpl) toProjectResponseWithProfile(ctx context.Context, p
 		// 에러 발생 시 owner 정보 없이 반환 (graceful degradation)
 		return response
 	}
-	
+
 	// profile이 nil이 아닐 때만 정보 추가
 	if profile != nil {
 		response.OwnerEmail = profile.Email
@@ -329,6 +370,14 @@ func (s *projectServiceImpl) GetProject(ctx context.Context, projectID, userID u
 		)
 	}
 
+	// 💡 [추가] Attachments 로드 (타입 변환 적용)
+	attachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeProject, project.ID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		s.logger.Error("Failed to fetch attachments for project", zap.String("project_id", project.ID.String()), zap.Error(err))
+		// Continue with graceful degradation
+	}
+	project.Attachments = toDomainAttachments(attachments) // 🚨 타입 변환 적용
+
 	// Convert to response DTO with owner profile information
 	return s.toProjectResponseWithProfile(ctx, project, token), nil
 }
@@ -359,14 +408,14 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 	// Determine the effective start and due dates for validation
 	effectiveStartDate := project.StartDate
 	effectiveDueDate := project.DueDate
-	
+
 	if req.StartDate != nil {
 		effectiveStartDate = req.StartDate
 	}
 	if req.DueDate != nil {
 		effectiveDueDate = req.DueDate
 	}
-	
+
 	// Validate date range with effective dates
 	if err := validateProjectDateRange(effectiveStartDate, effectiveDueDate); err != nil {
 		return nil, err
@@ -398,7 +447,7 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update project", err.Error())
 	}
 
-	// Confirm attachments after project update
+	// 💡 [수정] Attachments 처리 로직 개선 및 Confirm
 	if len(req.AttachmentIDs) > 0 {
 		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, project.ID); err != nil {
 			s.logger.Warn("Failed to confirm attachments during project update",
@@ -406,17 +455,16 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 				zap.Error(err))
 			// Continue even if attachment confirmation fails
 		}
-		
-		// Reload project with attachments to include them in response
-		reloadedProject, err := s.projectRepo.FindByID(ctx, project.ID)
-		if err != nil {
-			s.logger.Warn("Failed to reload project with attachments",
-				zap.String("project_id", project.ID.String()),
-				zap.Error(err))
-			// Continue with original project if reload fails
-		} else {
-			project = reloadedProject
-		}
+	}
+
+	// 💡 [핵심] 프로젝트와 연결된 모든 Attachments를 다시 조회합니다. (타입 변환 적용)
+	allAttachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeProject, project.ID)
+	if err != nil {
+		s.logger.Warn("Failed to fetch all confirmed attachments after update", zap.Error(err))
+		// 치명적인 오류가 아니므로 계속 진행
+	} else {
+		// DB에서 최신 Attachments 목록을 로드하여 project 객체에 할당
+		project.Attachments = toDomainAttachments(allAttachments) // 🚨 타입 변환 적용
 	}
 
 	// Convert to response DTO
@@ -501,6 +549,14 @@ func (s *projectServiceImpl) SearchProjects(ctx context.Context, workspaceID, us
 	// Convert to response DTOs with owner profile information
 	responses := make([]dto.ProjectResponse, len(projects))
 	for i, project := range projects {
+
+		// 💡 [추가] 검색 목록 조회 시 Attachments 로드 (타입 변환 적용)
+		attachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeProject, project.ID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Error("Failed to fetch attachments for project list", zap.String("project_id", project.ID.String()), zap.Error(err))
+		}
+		project.Attachments = toDomainAttachments(attachments) // 🚨 타입 변환 적용
+
 		responses[i] = *s.toProjectResponseWithProfile(ctx, project, token)
 	}
 
@@ -628,18 +684,18 @@ func (s *projectServiceImpl) GetProjectInitSettings(ctx context.Context, project
 
 	// Build project basic info with workspace and owner details
 	projectInfo := dto.ProjectBasicInfo{
-		ProjectID:        project.ID,
-		WorkspaceID:      project.WorkspaceID,
-		WorkspaceName:    workspace.Name,
-		WorkspaceEmail:   workspace.OwnerEmail,
-		Name:             project.Name,
-		Description:      project.Description,
-		OwnerID:          project.OwnerID,
-		IsPublic:         project.IsPublic,
-		StartDate:        project.StartDate,
-		DueDate:          project.DueDate,
-		CreatedAt:        project.CreatedAt,
-		UpdatedAt:        project.UpdatedAt,
+		ProjectID:      project.ID,
+		WorkspaceID:    project.WorkspaceID,
+		WorkspaceName:  workspace.Name,
+		WorkspaceEmail: workspace.OwnerEmail,
+		Name:           project.Name,
+		Description:    project.Description,
+		OwnerID:        project.OwnerID,
+		IsPublic:       project.IsPublic,
+		StartDate:      project.StartDate,
+		DueDate:        project.DueDate,
+		CreatedAt:      project.CreatedAt,
+		UpdatedAt:      project.UpdatedAt,
 	}
 
 	// Add owner profile information if available
@@ -776,38 +832,38 @@ func (s *projectServiceImpl) validateAndConfirmAttachments(ctx context.Context, 
 	if len(attachmentIDs) == 0 {
 		return nil
 	}
-	
+
 	// Fetch attachments by IDs
 	attachments, err := s.attachmentRepo.FindByIDs(ctx, attachmentIDs)
 	if err != nil {
 		return response.NewAppError(response.ErrCodeInternal, "Failed to fetch attachments", err.Error())
 	}
-	
+
 	// Check if all attachments exist
 	if len(attachments) != len(attachmentIDs) {
 		return response.NewAppError(response.ErrCodeValidation, "One or more attachments not found", "")
 	}
-	
+
 	// Validate each attachment
 	for _, attachment := range attachments {
 		// Check if attachment is in TEMP status
 		if attachment.Status != domain.AttachmentStatusTemp {
 			return response.NewAppError(response.ErrCodeValidation, "Attachment is not in temporary status and cannot be reused", "")
 		}
-		
+
 		// Check if attachment entity type matches
 		if attachment.EntityType != entityType {
 			return response.NewAppError(response.ErrCodeValidation, "Attachment entity type does not match", "")
 		}
 	}
-	
+
 	return nil
 }
 
 // deleteAttachmentsWithS3 deletes attachments from both S3 and database
 func (s *projectServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attachments []*domain.Attachment) {
 	attachmentIDs := make([]uuid.UUID, 0, len(attachments))
-	
+
 	// Delete files from S3
 	for _, attachment := range attachments {
 		// Extract S3 key from FileURL
@@ -818,7 +874,7 @@ func (s *projectServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attach
 				zap.String("file_url", attachment.FileURL))
 			continue
 		}
-		
+
 		// Delete from S3
 		if err := s.s3Client.DeleteFile(ctx, fileKey); err != nil {
 			s.logger.Warn("Failed to delete file from S3",
@@ -827,10 +883,10 @@ func (s *projectServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attach
 				zap.Error(err))
 			// Continue even if S3 deletion fails
 		}
-		
+
 		attachmentIDs = append(attachmentIDs, attachment.ID)
 	}
-	
+
 	// Delete from database
 	if len(attachmentIDs) > 0 {
 		if err := s.attachmentRepo.DeleteBatch(ctx, attachmentIDs); err != nil {
@@ -839,4 +895,20 @@ func (s *projectServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attach
 				zap.Error(err))
 		}
 	}
+}
+
+// toDomainAttachments converts []*domain.Attachment (pointer slice) to []domain.Attachment (value slice)
+func toDomainAttachments(attachments []*domain.Attachment) []domain.Attachment {
+	if attachments == nil {
+		return nil
+	}
+	result := make([]domain.Attachment, len(attachments))
+	for i, att := range attachments {
+		// 🚨 포인터 역참조 (*)를 통해 값 복사
+		if att != nil {
+			result[i] = *att
+		}
+		// nil 포인터는 해당 위치를 빈(zero value) domain.Attachment로 남겨둠
+	}
+	return result
 }
