@@ -40,7 +40,7 @@ func Setup(cfg Config) *gin.Engine {
 		middleware.Logger(cfg.Logger),   // 3. Request logging
 		middleware.CORS(),               // 4. CORS configuration
 	)
-	
+
 	// Add metrics middleware if metrics is configured
 	if cfg.Metrics != nil {
 		router.Use(middleware.Metrics(cfg.Metrics))
@@ -99,11 +99,11 @@ func Setup(cfg Config) *gin.Engine {
 	// Metrics endpoint (no authentication required)
 	// Add metrics endpoint at root level for compatibility
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
-	
+
 	// Also add metrics endpoint under base path if configured
 	if cfg.BasePath != "" {
 		baseGroup.GET("/metrics", gin.WrapH(promhttp.Handler()))
-		cfg.Logger.Info("Metrics endpoint configured at both root and base path", 
+		cfg.Logger.Info("Metrics endpoint configured at both root and base path",
 			zap.String("root_path", "/metrics"),
 			zap.String("base_path", cfg.BasePath+"/metrics"))
 	} else {
@@ -112,15 +112,6 @@ func Setup(cfg Config) *gin.Engine {
 
 	// Setup API routes
 	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler, attachmentHandler)
-
-	// 🔥 [수정] MoveBoard를 /api 그룹 안에 등록
-	// 프론트엔드: PUT /api/boards/api/:boardId/move
-	// 백엔드: PUT /api/boards/api/:boardId/move
-	apiGroup := baseGroup.Group("/api")
-	apiGroup.Use(middleware.Auth(cfg.JWTSecret))
-	{
-		apiGroup.PUT("/:boardId/move", boardHandler.MoveBoard)
-	}
 
 	// 🔥 [중요] WebSocket은 baseGroup을 사용하되 인증 미들웨어 없이 직접 등록
 	// basePath가 /api/boards일 때: /api/boards/api/ws/project/:projectId
@@ -202,7 +193,7 @@ func setupRoutes(
 
 			// Project join request routes
 			projects.GET("/:projectId/join-requests", projectJoinRequestHandler.GetJoinRequests)
-			
+
 			// Attachment routes for projects
 			projects.GET("/:projectId/attachments", attachmentHandler.GetProjectAttachments)
 		}
@@ -225,9 +216,8 @@ func setupRoutes(
 			boards.GET("/project/:projectId", boardHandler.GetBoardsByProject)
 			boards.PUT("/:boardId", boardHandler.UpdateBoard)
 			boards.DELETE("/:boardId", boardHandler.DeleteBoard)
-			// 💡 [제거] boards.PUT("/:boardId/move", boardHandler.MoveBoard)
-			// MoveBoard는 Setup 함수에서 별도로 등록됨
-			
+			boards.PUT("/:boardId/move", boardHandler.MoveBoard) // ✅ 이 라인 추가
+
 			// Attachment routes for boards
 			boards.GET("/:boardId/attachments", attachmentHandler.GetBoardAttachments)
 		}
@@ -250,7 +240,7 @@ func setupRoutes(
 			comments.GET("/board/:boardId", commentHandler.GetComments)
 			comments.PUT("/:commentId", commentHandler.UpdateComment)
 			comments.DELETE("/:commentId", commentHandler.DeleteComment)
-			
+
 			// Attachment routes for comments
 			comments.GET("/:commentId/attachments", attachmentHandler.GetCommentAttachments)
 		}
