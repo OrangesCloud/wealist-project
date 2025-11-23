@@ -401,7 +401,6 @@ func (s *projectServiceImpl) GetProject(ctx context.Context, projectID, userID u
 	return s.toProjectResponseWithProfile(ctx, project, token), nil
 }
 
-// UpdateProject updates a project (OWNER only)
 func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userID uuid.UUID, req *dto.UpdateProjectRequest) (*dto.ProjectResponse, error) {
 	// Fetch project from repository
 	project, err := s.projectRepo.FindByID(ctx, projectID)
@@ -440,13 +439,6 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 		return nil, err
 	}
 
-	// Validate and confirm attachments if provided
-	if len(req.AttachmentIDs) > 0 {
-		if err := s.validateAndConfirmAttachments(ctx, req.AttachmentIDs, domain.EntityTypeProject); err != nil {
-			return nil, err
-		}
-	}
-
 	// Update fields if provided
 	if req.Name != nil {
 		project.Name = *req.Name
@@ -466,39 +458,54 @@ func (s *projectServiceImpl) UpdateProject(ctx context.Context, projectID, userI
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update project", err.Error())
 	}
 
-	// ✅ 수정: Attachments 처리 로직 개선 및 Confirm
-	if len(req.AttachmentIDs) > 0 {
-		// ✅ 에러 발생 시 업데이트 실패 처리
-		if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, project.ID); err != nil {
-			s.logger.Error("Failed to confirm attachments during project update",
+	// 🔥 attachmentIds 처리 (기존 삭제 후 새로 추가)
+	if req.AttachmentIDs != nil {
+		// 1. 기존 attachments 조회
+		existingAttachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeProject, project.ID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Error("Failed to fetch existing attachments for replacement",
 				zap.String("project_id", project.ID.String()),
-				zap.Strings("attachment_ids", func() []string {
-					ids := make([]string, len(req.AttachmentIDs))
-					for i, id := range req.AttachmentIDs {
-						ids[i] = id.String()
-					}
-					return ids
-				}()),
 				zap.Error(err))
+			return nil, response.NewAppError(response.ErrCodeInternal, "Failed to fetch existing attachments", err.Error())
+		}
 
-			// ✅ 에러 반환
-			return nil, response.NewAppError(response.ErrCodeInternal,
-				"Failed to confirm attachments: "+err.Error(),
-				"Please ensure all attachment IDs are valid and not already used")
+		// 2. 🚨 성능 개선: 기존 attachments 삭제 로직을 비동기 고루틴으로 분리
+		// S3 파일 삭제는 네트워크 I/O가 발생하여 응답 시간을 지연시키므로, 응답에 필수적이지 않은 이 작업은 고루틴으로 실행합니다.
+		if len(existingAttachments) > 0 {
+			// Context.Background()를 사용하여 HTTP 요청 Context의 수명과 분리
+			go s.deleteAttachmentsWithS3(context.Background(), existingAttachments)
+			s.logger.Debug("Asynchronously initiated deletion of existing attachments",
+				zap.String("project_id", project.ID.String()),
+				zap.Int("count", len(existingAttachments)))
+		}
+
+		// 3. 새 attachments confirm (ConfirmAttachments 내부에서 TEMP 검증) - DB I/O (응답에 필수)
+		if len(req.AttachmentIDs) > 0 {
+			if err := s.attachmentRepo.ConfirmAttachments(ctx, req.AttachmentIDs, project.ID); err != nil {
+				s.logger.Error("Failed to confirm new attachments during project update",
+					zap.String("project_id", project.ID.String()),
+					zap.Strings("attachment_ids", func() []string {
+						ids := make([]string, len(req.AttachmentIDs))
+						for i, id := range req.AttachmentIDs {
+							ids[i] = id.String()
+						}
+						return ids
+					}()),
+					zap.Error(err))
+				return nil, response.NewAppError(response.ErrCodeInternal,
+					"Failed to confirm attachments: "+err.Error(),
+					"Please ensure all attachment IDs are valid and not already used")
+			}
 		}
 	}
 
-	// 💡 [핵심] 프로젝트와 연결된 모든 Attachments를 다시 조회합니다. (타입 변환 적용)
+	// 4. 최신 attachments 조회 (응답에 필수)
 	allAttachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeProject, project.ID)
-	if err != nil {
-		s.logger.Warn("Failed to fetch all confirmed attachments after update", zap.Error(err))
-		// 치명적인 오류가 아니므로 계속 진행
-	} else {
-		// DB에서 최신 Attachments 목록을 로드하여 project 객체에 할당
-		project.Attachments = toDomainAttachments(allAttachments) // 🚨 타입 변환 적용
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		s.logger.Warn("Failed to fetch all attachments after update", zap.Error(err))
 	}
+	project.Attachments = toDomainAttachments(allAttachments)
 
-	// Convert to response DTO
 	return s.toProjectResponse(project), nil
 }
 
@@ -536,6 +543,10 @@ func (s *projectServiceImpl) DeleteProject(ctx context.Context, projectID, userI
 
 	// Delete attachments from S3 and database
 	if len(attachments) > 0 {
+		// 💡 [수정] DeleteProject에서도 S3 삭제는 비동기로 처리하여 응답 시간을 개선할 수 있으나,
+		// 데이터 정합성 관점에서 (프로젝트가 DB에서 삭제되었으므로 파일 삭제는 필수),
+		// 여기서는 동기적으로 유지하거나 (가장 보수적), 고루틴을 사용하되 waitGroup을 사용해 완료를 기다리는 방식(가장 이상적)이 좋습니다.
+		// 현재는 기존 로직을 유지하여 동기적으로 처리합니다.
 		s.deleteAttachmentsWithS3(ctx, attachments)
 	}
 
@@ -907,6 +918,8 @@ func (s *projectServiceImpl) deleteAttachmentsWithS3(ctx context.Context, attach
 		}
 
 		// Delete from S3
+		// 💡 [개선] S3 파일 삭제도 병렬 처리가 가능하도록 고루틴을 활용할 수 있으나,
+		// 현재는 상위 UpdateProject에서 전체 호출을 비동기화했으므로, 이 함수 자체는 동기적으로 유지해도 됩니다.
 		if err := s.s3Client.DeleteFile(ctx, fileKey); err != nil {
 			s.logger.Warn("Failed to delete file from S3",
 				zap.String("attachment_id", attachment.ID.String()),

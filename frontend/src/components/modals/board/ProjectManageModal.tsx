@@ -18,12 +18,12 @@ import {
   BoardResponse,
   CreateProjectRequest,
   UpdateProjectRequest,
+  AttachmentResponse,
 } from '../../../types/board';
 import { IROLES } from '../../../types/common';
 import Portal from '../../common/Portal';
 import { WorkspaceMemberResponse } from '../../../types/user';
 
-// 💡 [추가] 파일 업로드 관련 Import (경로를 실제 구조에 맞게 확인해주세요)
 import { useFileUpload } from '../../../hooks/useFileUpload';
 import { FileUploader } from '../../common/FileUploader';
 
@@ -47,14 +47,25 @@ interface ProjectManageModalProps {
 const handleFileDownload = (fileUrl: string, fileName: string) => {
   if (!fileUrl) return;
 
-  // ✅ fileUrl은 이미 full URL이므로 바로 사용 가능
   const link = document.createElement('a');
   link.href = fileUrl;
   link.setAttribute('download', fileName);
-  link.setAttribute('target', '_blank'); // 새 탭에서 열기
+  link.setAttribute('target', '_blank');
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+};
+
+// 이미지 파일 여부 확인 함수
+const isImageFile = (contentType?: string, fileName?: string): boolean => {
+  if (contentType) {
+    return contentType.startsWith('image/');
+  }
+  if (fileName) {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '');
+  }
+  return false;
 };
 
 export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
@@ -71,22 +82,36 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
   const isExistingProject = !!project;
   const [mode, setMode] = useState<ProjectModalMode>(isExistingProject ? initialMode : 'create');
 
-  // Form state
-  const [name, setName] = useState(project?.name || '');
-  const [description, setDescription] = useState(project?.description || '');
+  // 💡 [추가] 모달 내에서 프로젝트 데이터의 최신 상태를 관리하기 위한 상태
+  const [currentProject, setCurrentProject] = useState<ProjectResponse | undefined>(project);
+
+  // Form state (currentProject를 기반으로 초기화)
+  const [name, setName] = useState(currentProject?.name || '');
+  const [description, setDescription] = useState(currentProject?.description || '');
   const [startDate, setStartDate] = useState(
-    project?.startDate ? project.startDate.substring(0, 10) : '',
+    currentProject?.startDate ? currentProject.startDate.substring(0, 10) : '',
   );
-  const [dueDate, setDueDate] = useState(project?.dueDate ? project.dueDate.substring(0, 10) : '');
+  const [dueDate, setDueDate] = useState(
+    currentProject?.dueDate ? currentProject.dueDate.substring(0, 10) : '',
+  );
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Board & Member state
   const [boards, setBoards] = useState<BoardResponse[]>([]);
   const [isBoardsLoading, setIsBoardsLoading] = useState(false);
-  const [projectMembers, setProjectMembers] = useState<WorkspaceMemberResponse[]>();
+  const [projectMembers, setProjectMembers] = useState<WorkspaceMemberResponse[]>(members);
 
-  // 💡 파일 업로드 훅 사용
+  // Attachment state (for UI display and hook initialization)
+  const [firstAttachmentState, setFirstAttachmentState] = useState<AttachmentResponse | undefined>(
+    currentProject?.attachments?.[0],
+  );
+  const [currentAttachmentId, setCurrentAttachmentId] = useState<string | undefined>(
+    currentProject?.attachments?.[0]?.id,
+  );
+
+  // File Upload Hook
   const {
     selectedFile,
     previewUrl,
@@ -94,12 +119,11 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     handleRemoveFile,
     upload,
     setInitialFile,
-    attachmentId,
     setAttachmentId,
   } = useFileUpload();
 
-  // ✅ 수정: attachmentIds 배열 관리 (백엔드로 전송용)
-  const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
+  // UI state
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const canEdit = useMemo(() => {
     return (
@@ -108,54 +132,64 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     );
   }, [isExistingProject, userRole]);
 
-  // 💡 [수정] useEffect: 프로젝트 데이터 로드 및 파일 상태 초기화
+  // [오류 해결] members prop이 변경될 때 projectMembers 상태를 갱신합니다. (무한 루프 방지)
   useEffect(() => {
-    if (project) {
-      setName(project.name);
-      setDescription(project.description || '');
-      setStartDate(project.startDate ? project.startDate.substring(0, 10) : '');
-      setDueDate(project.dueDate ? project.dueDate.substring(0, 10) : '');
+    if (members !== projectMembers) {
       setProjectMembers(members);
+    }
+  }, [members, projectMembers]);
 
-      // ✅ attachments 배열에서 ID 추출
-      const existingAttachmentIds = project.attachments?.map((att) => att.id) || [];
-      setCurrentAttachmentIds(existingAttachmentIds);
+  // 프로젝트 데이터 로드 및 파일 상태 초기화 (메인 useEffect)
+  useEffect(() => {
+    // 💡 [수정] project prop 또는 currentProject 로컬 상태를 사용
+    const projectToUse = currentProject || project;
 
-      // ✅ 첫 번째 첨부파일로 UI 초기화
-      if (project.attachments && project.attachments.length > 0) {
-        const firstAttachment = project.attachments[0];
-        setInitialFile(firstAttachment.fileUrl, firstAttachment.fileName);
-        setAttachmentId(firstAttachment.id);
+    if (projectToUse) {
+      setName(projectToUse.name);
+      setDescription(projectToUse.description || '');
+      setStartDate(projectToUse.startDate ? projectToUse.startDate.substring(0, 10) : '');
+      setDueDate(projectToUse.dueDate ? projectToUse.dueDate.substring(0, 10) : '');
+
+      const initialAttachment = projectToUse.attachments?.[0];
+      setFirstAttachmentState(initialAttachment);
+      setCurrentAttachmentId(initialAttachment?.id);
+
+      if (initialAttachment) {
+        setInitialFile(initialAttachment.fileUrl, initialAttachment.fileName);
+        setAttachmentId(initialAttachment.id);
       } else {
         handleRemoveFile();
       }
     } else if (mode === 'create') {
+      // 생성 모드 초기화
       setName('');
       setDescription('');
       setStartDate('');
       setDueDate('');
-      setProjectMembers(undefined);
-      setCurrentAttachmentIds([]);
+      setFirstAttachmentState(undefined);
+      setCurrentAttachmentId(undefined);
       handleRemoveFile();
     }
     setError(null);
   }, [
-    project?.projectId,
+    project,
+    currentProject, // 💡 [추가] currentProject 변경 시 재실행
     mode,
     setInitialFile,
     handleRemoveFile,
     setAttachmentId,
-    members.length,
-    project?.attachments, // ✅ attachments 변경 감지
   ]);
+
   const fetchBoards = useCallback(async () => {
-    if (!project || mode !== 'detail') {
+    // 💡 [수정] currentProject를 사용하거나 project prop을 사용
+    const projectToFetch = currentProject || project;
+    if (!projectToFetch || mode !== 'detail') {
       setBoards([]);
       return;
     }
     setIsBoardsLoading(true);
     try {
-      const response = await getBoardsByProject(project.projectId);
+      const response = await getBoardsByProject(projectToFetch.projectId);
       setBoards(response || []);
     } catch (err) {
       console.error('❌ Failed to fetch boards for statistics:', err);
@@ -163,7 +197,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     } finally {
       setIsBoardsLoading(false);
     }
-  }, [project, mode]);
+  }, [currentProject, project, mode]); // 💡 [수정] currentProject 의존성 추가
 
   useEffect(() => {
     fetchBoards();
@@ -191,22 +225,19 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     setIsLoading(true);
     setError(null);
 
-    let attachmentIdsPayload: string[] | undefined = undefined; // ✅ 초기값 undefined
+    let attachmentIdsPayload: string[] | undefined = undefined;
 
     try {
-      // 1. 새 파일이 선택된 경우 - 업로드 후 새 ID 사용
       if (selectedFile) {
+        // 1. 새 파일 업로드
         const uploadResult = await upload(workspaceId, 'project');
         if (uploadResult) {
           attachmentIdsPayload = [uploadResult.attachmentId];
         }
-      }
-      // 2. Edit 모드 + 기존 파일 삭제한 경우 - 빈 배열 전송
-      else if (mode === 'edit' && !previewUrl && currentAttachmentIds.length > 0) {
+      } else if (mode === 'edit' && !previewUrl && currentAttachmentId) {
+        // 2. 기존 파일 삭제 의도
         attachmentIdsPayload = [];
       }
-      // 3. Edit 모드 + 기존 파일 유지 - undefined (전송 안 함)
-      // 4. Create 모드 + 파일 없음 - undefined (전송 안 함)
 
       const projectBaseData = {
         name: name.trim(),
@@ -218,11 +249,32 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
       if (mode === 'edit' && project) {
         const updatePayload: UpdateProjectRequest = {
           ...projectBaseData,
-          attachmentIds: attachmentIdsPayload, // undefined면 필드 자체가 전송되지 않음
+          attachmentIds: attachmentIdsPayload,
         };
 
-        await updateProject(project.projectId, updatePayload);
+        const updatedProject = await updateProject(project.projectId, updatePayload);
+
         alert(`✅ ${name} 프로젝트가 수정되었습니다!`);
+
+        // 💡 [핵심 수정] 서버 응답으로 로컬 프로젝트 상태를 갱신
+        setCurrentProject(updatedProject);
+
+        // 수정 성공 후, 최신 첨부 파일 정보를 상태에 반영
+        const newAttachment = updatedProject.attachments?.[0];
+        setFirstAttachmentState(newAttachment);
+        setCurrentAttachmentId(newAttachment?.id);
+
+        // 파일 업로드 훅 상태 갱신
+        if (newAttachment) {
+          setInitialFile(newAttachment.fileUrl, newAttachment.fileName);
+          setAttachmentId(newAttachment.id);
+        } else {
+          handleRemoveFile();
+        }
+
+        // 보드 정보 fetch를 통해 상세 보기 모드의 통계 갱신 (currentProject 갱신으로 fetchBoards가 재실행됨)
+        // await fetchBoards(); // currentProject 의존성이 추가되었으므로 불필요
+
         onProjectSaved();
         setMode('detail');
       } else if (mode === 'create') {
@@ -248,104 +300,122 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     }
   };
 
+  // 💡 [추가] 렌더링에 사용할 최종 프로젝트 데이터
+  const projectToDisplay = currentProject || project;
+
   const modalTitle = useMemo(() => {
     switch (mode) {
       case 'create':
         return '새 프로젝트 만들기';
       case 'edit':
-        return `${project?.name || '프로젝트'} 수정`;
+        return `${projectToDisplay?.name || '프로젝트'} 수정`; // 💡 projectToDisplay 사용
       default:
-        return `${project?.name || '프로젝트'} 상세 정보`;
+        return `${projectToDisplay?.name || '프로젝트'} 상세 정보`; // 💡 projectToDisplay 사용
     }
-  }, [mode, project?.name]);
+  }, [mode, projectToDisplay?.name]);
 
-  // ========================================
-  // 🔧 수정 4: 상세 보기용 파일 정보 (attachments 배열 사용)
-  // ========================================
-  const firstAttachment = project?.attachments?.[0];
-  const detailFileUrl = firstAttachment?.fileUrl || '';
-  const detailFileName = firstAttachment?.fileName || 'project_file_attachment';
-  const hasAttachments = !!firstAttachment;
+  // 상세 보기용 파일 정보 (firstAttachmentState 사용)
+  const detailFileUrl = firstAttachmentState?.fileUrl || '';
+  const detailFileName = firstAttachmentState?.fileName || 'project_file_attachment';
+  const hasAttachments = !!firstAttachmentState;
 
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  // 💡 삭제: newComment, selectedFile, fileInputRef (CommentList가 담당함)
-  // 이미지 파일 여부 확인
-  const isImageFile = (contentType?: string, fileName?: string): boolean => {
-    if (contentType) {
-      return contentType.startsWith('image/');
+  // 공통 입력 필드 스타일
+  const inputBaseStyle = `w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm`;
+  const detailInputStyle = `${inputBaseStyle} bg-gray-100 text-gray-700`;
+  const editInputStyle = `${inputBaseStyle} bg-white`;
+
+  // 입력 필드 렌더링 함수 (생략)
+  const renderInputField = (
+    label: string,
+    value: string,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void,
+    type: 'text' | 'date' | 'textarea',
+    required: boolean = false,
+    maxLength?: number,
+    placeholder?: string,
+    rows?: number,
+  ) => {
+    const isDetailMode = mode === 'detail';
+    const inputClass = isDetailMode ? detailInputStyle : editInputStyle;
+
+    const labelElement = (
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+    );
+
+    let inputElement;
+    if (type === 'textarea') {
+      inputElement = (
+        <textarea
+          value={value}
+          onChange={onChange}
+          disabled={isDetailMode || isLoading}
+          className={`${inputClass} resize-none`}
+          rows={rows || 5}
+          maxLength={maxLength}
+          placeholder={placeholder}
+        />
+      );
+    } else {
+      inputElement = (
+        <input
+          type={type}
+          value={value}
+          onChange={onChange}
+          disabled={isDetailMode || isLoading}
+          className={inputClass}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          autoFocus={type === 'text' && mode === 'create'}
+        />
+      );
     }
-    if (fileName) {
-      const ext = fileName.split('.').pop()?.toLowerCase();
-      return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '');
-    }
-    return false;
+
+    return (
+      <div>
+        {labelElement}
+        {inputElement}
+      </div>
+    );
   };
 
+  // ========================================
+  // 🎨 Detail / Edit Mode 렌더링
+  // ========================================
   const renderDetailOrEditContent = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-4">
           {/* Name */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              프로젝트 이름 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={name} // ✅ State 연결
-              onChange={(e) => setName(e.target.value)} // ✅ Handler 연결
-              disabled={mode === 'detail' || isLoading}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
-              }`}
-              maxLength={100}
-            />
-          </div>
+          {renderInputField(
+            '프로젝트 이름',
+            name,
+            (e) => setName(e.target.value),
+            'text',
+            true,
+            100,
+          )}
 
           {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-1">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">시작일</label>
-              <input
-                type="date"
-                value={startDate} // ✅ State 연결
-                onChange={(e) => setStartDate(e.target.value)} // ✅ Handler 연결
-                disabled={mode === 'detail' || isLoading}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                  mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
-                }`}
-              />
-            </div>
-            <div className="col-span-1">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">마감일</label>
-              <input
-                type="date"
-                value={dueDate} // ✅ State 연결
-                onChange={(e) => setDueDate(e.target.value)} // ✅ Handler 연결
-                disabled={mode === 'detail' || isLoading}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                  mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
-                }`}
-              />
-            </div>
+            {renderInputField('시작일', startDate, (e) => setStartDate(e.target.value), 'date')}
+            {renderInputField('마감일', dueDate, (e) => setDueDate(e.target.value), 'date')}
           </div>
 
           {/* Description */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">프로젝트 설명</label>
-            <textarea
-              value={description} // ✅ State 연결
-              onChange={(e) => setDescription(e.target.value)} // ✅ Handler 연결
-              disabled={mode === 'detail' || isLoading}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none ${
-                mode === 'detail' ? 'bg-gray-100 text-gray-700' : 'bg-white'
-              }`}
-              rows={10}
-              maxLength={800}
-            />
-          </div>
+          {renderInputField(
+            '프로젝트 설명',
+            description,
+            (e) => setDescription(e.target.value),
+            'textarea',
+            false,
+            800,
+            undefined,
+            10,
+          )}
 
-          {/* 💡 [수정] Files 섹션: Edit 모드에서는 Uploader, Detail 모드에서는 다운로드 버튼 */}
+          {/* Files 섹션 */}
           <div className="pt-0">
             {mode === 'edit' ? (
               // ✏️ 수정 모드: 파일 업로더 표시
@@ -354,7 +424,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
                 previewUrl={previewUrl}
                 onFileSelect={handleFileSelect}
                 onRemoveFile={handleRemoveFile}
-                existingFileName={firstAttachment?.fileName}
+                existingFileName={firstAttachmentState?.fileName}
                 disabled={isLoading}
                 label="첨부 파일 수정"
               />
@@ -367,12 +437,11 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
                 </label>
                 <div
                   className="p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between text-sm relative"
-                  // 💡 [수정] 마우스 이벤트 추가
                   onMouseEnter={() => {
                     if (
                       detailFileUrl &&
-                      firstAttachment?.contentType &&
-                      isImageFile(firstAttachment.contentType, detailFileName)
+                      firstAttachmentState?.contentType &&
+                      isImageFile(firstAttachmentState.contentType, detailFileName)
                     ) {
                       setPreviewImage(detailFileUrl);
                     }
@@ -398,7 +467,7 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
                   ) : (
                     <span className="text-gray-400 text-xs flex-shrink-0">다운로드 불가</span>
                   )}
-                  {/* 💡 [추가] 이미지 미리보기 툴팁 */}
+                  {/* 이미지 미리보기 툴팁 */}
                   {previewImage && mode === 'detail' && (
                     <div className="absolute left-0 bottom-full **mb-6** z-50 pointer-events-none">
                       <div className="bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-2">
@@ -417,15 +486,18 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
           </div>
         </div>
 
-        {/* Right Section (Same as before) */}
+        {/* Right Section */}
         <div className="col-span-1 space-y-4 divide-y divide-gray-200 pl-4 border-l border-gray-200">
-          {project && (
+          {projectToDisplay && ( // 💡 [수정] projectToDisplay 사용
             <div className="pb-4">
               <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
                 <UserIcon className="w-4 h-4 text-gray-500" />
                 프로젝트 소유자
               </label>
-              <div className="text-sm font-medium text-gray-700 ml-1">{project.ownerName}</div>
+              <div className="text-sm font-medium text-gray-700 ml-1">
+                {projectToDisplay?.ownerName}
+              </div>{' '}
+              {/* 💡 [수정] projectToDisplay 사용 */}
             </div>
           )}
 
@@ -494,7 +566,16 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
         {mode === 'edit' && (
           <button
             type="button"
-            onClick={() => setMode('detail')}
+            onClick={() => {
+              setMode('detail');
+              // 수정 취소 시 폼 상태 및 파일 상태를 project prop 기준으로 재설정
+              if (project) {
+                // 💡 [수정] currentProject를 prop 기준으로 초기화하여 취소 시에도 prop을 따르도록 함
+                setCurrentProject(project);
+
+                // 나머지 폼 상태는 useEffect가 currentProject를 보고 재설정할 것임.
+              }
+            }}
             className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition"
             disabled={isLoading}
           >
@@ -540,65 +621,41 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              프로젝트 이름 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={name} // ✅ State 연결
-              onChange={(e) => setName(e.target.value)} // ✅ Handler 연결
-              placeholder="예: Wealist 서비스 개발"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              disabled={isLoading}
-              maxLength={100}
-              autoFocus
-            />
-          </div>
+          {/* Name */}
+          {renderInputField(
+            '프로젝트 이름',
+            name,
+            (e) => setName(e.target.value),
+            'text',
+            true,
+            100,
+            '예: Wealist 서비스 개발',
+          )}
 
+          {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                시작일 (선택)
-              </label>
-              <input
-                type="date"
-                value={startDate} // ✅ State 연결
-                onChange={(e) => setStartDate(e.target.value)} // ✅ Handler 연결
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                마감일 (선택)
-              </label>
-              <input
-                type="date"
-                value={dueDate} // ✅ State 연결
-                onChange={(e) => setDueDate(e.target.value)} // ✅ Handler 연결
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                disabled={isLoading}
-              />
-            </div>
+            {renderInputField(
+              '시작일 (선택)',
+              startDate,
+              (e) => setStartDate(e.target.value),
+              'date',
+            )}
+            {renderInputField('마감일 (선택)', dueDate, (e) => setDueDate(e.target.value), 'date')}
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              프로젝트 설명 (선택)
-            </label>
-            <textarea
-              value={description} // ✅ State 연결
-              onChange={(e) => setDescription(e.target.value)} // ✅ Handler 연결
-              placeholder="프로젝트에 대한 간단한 설명을 입력하세요"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-              rows={5}
-              disabled={isLoading}
-              maxLength={500}
-            />
-          </div>
+          {/* Description */}
+          {renderInputField(
+            '프로젝트 설명 (선택)',
+            description,
+            (e) => setDescription(e.target.value),
+            'textarea',
+            false,
+            500,
+            '프로젝트에 대한 간단한 설명을 입력하세요',
+            5,
+          )}
 
-          {/* 💡 [추가] Create 모드에도 FileUploader 추가 */}
+          {/* FileUploader */}
           <div>
             <FileUploader
               selectedFile={selectedFile}
@@ -656,7 +713,6 @@ export const ProjectManageModal: React.FC<ProjectManageModalProps> = ({
     </form>
   );
 
-  // Return 구문은 동일 (Portal 등)
   return (
     <Portal>
       <div

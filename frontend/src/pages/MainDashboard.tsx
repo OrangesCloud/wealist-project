@@ -137,10 +137,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     setError(null);
     try {
       const fetchedProjects = await getProjects(currentWorkspaceId);
+      console.log(fetchedProjects);
       setProjects(fetchedProjects);
-      // 💡 [수정] 현재 선택된 프로젝트가 없거나 (초기 로드),
-      //    목록에 프로젝트가 있고, 현재 선택된 프로젝트가 목록에 없는 경우 (생성 후)
-      //    가장 첫 번째 프로젝트(최신 프로젝트)를 선택하도록 변경합니다.
       const shouldSelectNewProject =
         !selectedProject ||
         (fetchedProjects.length > 0 &&
@@ -148,7 +146,10 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
 
       if (fetchedProjects.length > 0 && shouldSelectNewProject) {
         // API가 최신순으로 정렬해서 반환한다고 가정하고 첫 번째 요소를 선택합니다.
-        setSelectedProject(fetchedProjects[0]);
+        setSelectedProject({
+          ...fetchedProjects[0],
+          attachments: [fetchedProjects[0]?.attachments?.[0]],
+        });
       }
       // 💡 [참고] 만약 선택된 프로젝트가 목록에 여전히 있다면, 변경하지 않습니다 (예: 수정 시).
     } catch (err: any) {
