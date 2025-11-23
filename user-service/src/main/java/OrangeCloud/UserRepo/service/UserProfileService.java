@@ -219,13 +219,13 @@ public class UserProfileService {
 
         // 4. 첨부파일 확정 (attachmentId가 있는 경우)
         if (request.attachmentId() != null) {
-            attachmentService.confirmAttachment(request.attachmentId(), profile.getProfileId());
-            log.debug("Attachment confirmed: attachmentId={}, profileId={}", 
-                    request.attachmentId(), profile.getProfileId());
+            Attachment confirmedAttachment = attachmentService.confirmAttachment(request.attachmentId(), profile.getProfileId());
+            profile.updateProfileImageUrl(confirmedAttachment.getFileUrl());
+            log.debug("Attachment confirmed and profile image URL updated: attachmentId={}, profileId={}, fileUrl={}", 
+                    request.attachmentId(), profile.getProfileId(), confirmedAttachment.getFileUrl());
         }
-
-        // 5. 이미지 URL 업데이트
-        if (request.profileImageUrl() != null) {
+        // 5. 이미지 URL 직접 업데이트 (attachmentId가 없고 profileImageUrl이 제공된 경우)
+        else if (request.profileImageUrl() != null) {
             String urlToSave = request.profileImageUrl().trim().isEmpty() ? null : request.profileImageUrl().trim();
             profile.updateProfileImageUrl(urlToSave);
             log.debug("Profile image URL updated to: {}", urlToSave);
