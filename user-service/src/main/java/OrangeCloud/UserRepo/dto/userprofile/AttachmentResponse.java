@@ -13,7 +13,7 @@ import java.util.UUID;
 @Getter
 @Builder
 public class AttachmentResponse {
-    private UUID id;
+    private UUID attachmentId;
     private String entityType;
     private UUID entityId;
     private String status;
@@ -30,7 +30,7 @@ public class AttachmentResponse {
      */
     public static AttachmentResponse from(Attachment attachment) {
         return AttachmentResponse.builder()
-                .id(attachment.getId())
+                .attachmentId(attachment.getId())
                 .entityType(attachment.getEntityType().name())
                 .entityId(attachment.getEntityId())
                 .status(attachment.getStatus().name())
