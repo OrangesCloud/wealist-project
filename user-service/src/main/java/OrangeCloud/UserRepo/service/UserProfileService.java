@@ -37,6 +37,7 @@ public class UserProfileService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final AttachmentRepository attachmentRepository;
     private final AttachmentService attachmentService;
+    private final org.springframework.cache.CacheManager cacheManager;
     private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     @Transactional
@@ -55,41 +56,44 @@ public class UserProfileService {
 
     /**
      * 사용자 프로필을 조회하고 DTO로 반환합니다. (Redis 캐시 적용)
-     * 캐시 이름: "userProfile", 키: userId
+     * 캐시 이름: "userProfile", 키: workspaceId::userId
      */
     @Transactional(readOnly = true)
-    @Cacheable(value = "userProfile", key = "#userId")
-    // 💡 수정: 반환 타입을 UserProfileResponse DTO로 변경
+    @Cacheable(value = "userProfile", key = "T(java.util.UUID).fromString('00000000-0000-0000-0000-000000000000') + '::' + #userId")
     public UserProfileResponse getProfile(UUID userId) {
-        log.info("[Cacheable] Attempting to retrieve profile from DB for user: {}", userId);
-        UUID defaultId = DEFAULT_WORKSPACE_ID;
+        log.info("[Cacheable] Attempting to retrieve profile from DB for user: {}, workspaceId: {}", userId, DEFAULT_WORKSPACE_ID);
         // DB 조회 (UserProfile 엔티티)
-        UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID,userId)
-                // 💡 수정: 정의된 UserNotFoundException을 사용
+        UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, userId)
                 .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
 
         // 프로필 이미지 첨부파일 조회 (있으면 하나만)
         AttachmentResponse attachment = getProfileImageAttachment(profile.getProfileId());
 
-        // 💡 수정: DTO를 반환하도록 로직을 유지
         return UserProfileResponse.from(profile, attachment);
     }
     
     @Transactional(readOnly = true)
-    @Cacheable(value = "userProfile", key = "#userId")
-    // 💡 수정: 반환 타입을 UserProfileResponse DTO로 변경
-    public UserProfileResponse workSpaceIdGetProfile(UUID workspaceId,UUID userId) {
-        log.info("[Cacheable] Attempting to retrieve profile from DB for user: {}", userId);
+    @Cacheable(value = "userProfile", key = "#workspaceId + '::' + #userId")
+    public UserProfileResponse workSpaceIdGetProfile(UUID workspaceId, UUID userId) {
+        log.info("[Cacheable] Attempting to retrieve profile from DB for user: {}, workspaceId: {}", userId, workspaceId);
 
         // DB 조회 (UserProfile 엔티티)
-        UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId,userId)
-                // 💡 수정: 정의된 UserNotFoundException을 사용
+        UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
                 .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
 
         // 프로필 이미지 첨부파일 조회 (있으면 하나만)
         AttachmentResponse attachment = getProfileImageAttachment(profile.getProfileId());
+        
+        // 워크스페이스별 이미지가 없으면 기본 프로필 이미지 사용
+        if (attachment == null && !workspaceId.equals(DEFAULT_WORKSPACE_ID)) {
+            log.debug("No workspace-specific image found, falling back to default profile image for userId: {}", userId);
+            Optional<UserProfile> defaultProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, userId);
+            if (defaultProfile.isPresent()) {
+                attachment = getProfileImageAttachment(defaultProfile.get().getProfileId());
+                log.debug("Using default profile image: {}", attachment != null ? attachment.getFileUrl() : "none");
+            }
+        }
 
-        // 💡 수정: DTO를 반환하도록 로직을 유지
         return UserProfileResponse.from(profile, attachment);
     }
     
@@ -158,13 +162,23 @@ public class UserProfileService {
         
         // 4. 기본 프로필로 UserProfileResponse 생성
         log.info("Returning default profile for user: userId={}, email={}", targetUserId, user.getEmail());
+        
+        // 기본 워크스페이스의 프로필 이미지 조회 (있으면 사용)
+        AttachmentResponse defaultAttachment = null;
+        Optional<UserProfile> defaultProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, targetUserId);
+        if (defaultProfile.isPresent()) {
+            defaultAttachment = getProfileImageAttachment(defaultProfile.get().getProfileId());
+            log.debug("Using default profile image for workspace fallback: {}", defaultAttachment != null ? defaultAttachment.getFileUrl() : "none");
+        }
+        
         return UserProfileResponse.builder()
                 .profileId(null)  // 워크스페이스 전용 프로필 ID 없음
                 .workspaceId(workspaceId)
                 .userId(user.getUserId())
                 .nickName(null)  // 커스텀 닉네임 없음
                 .email(user.getEmail())
-                .profileImageUrl(null)  // 커스텀 프로필 이미지 없음
+                .profileImageUrl(defaultProfile.map(UserProfile::getProfileImageUrl).orElse(null))
+                .profileImageAttachment(defaultAttachment)  // 기본 프로필 이미지 첨부파일
                 .build();
     }
 
@@ -181,9 +195,12 @@ public class UserProfileService {
             throw new UserNotFoundException("사용자의 프로필을 찾을 수 없습니다.");
         }
 
-        // DTO 변환 후 반환
+        // DTO 변환 후 반환 (첨부파일 정보 포함)
         return profiles.stream()
-                .map(UserProfileResponse::from)
+                .map(profile -> {
+                    AttachmentResponse attachment = getProfileImageAttachment(profile.getProfileId());
+                    return UserProfileResponse.from(profile, attachment);
+                })
                 .collect(Collectors.toList());
 
     }
@@ -196,10 +213,10 @@ public class UserProfileService {
      * @return 업데이트된 UserProfile 엔티티 (Service 내부에서 사용되므로 엔티티 반환 유지)
      */
     @Transactional
-    @CacheEvict(value = "userProfile", key = "#request.userId")
+    @CacheEvict(value = "userProfile", key = "#request.workspaceId + '::' + #request.userId")
     public UserProfileResponse updateProfile(UpdateProfileRequest request) {
-        log.info("[CacheEvict] Updating profile for user: userId={}, nickName={}, email={}, imageUrl={}, attachmentId={}", 
-                request.userId(), request.nickName(), request.email(), request.profileImageUrl(), request.attachmentId());
+        log.info("[CacheEvict] Updating profile for user: workspaceId={}, userId={}, nickName={}, email={}, imageUrl={}, attachmentId={}", 
+                request.workspaceId(), request.userId(), request.nickName(), request.email(), request.profileImageUrl(), request.attachmentId());
 
         // 1. UserProfile 조회
         UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(request.workspaceId(), request.userId())
@@ -233,6 +250,14 @@ public class UserProfileService {
 
         // 6. 변경된 프로필 저장
         UserProfile updatedProfile = userProfileRepository.save(profile);
+        
+        // 7. userProfiles 캐시도 무효화 (모든 프로필 목록 갱신)
+        org.springframework.cache.Cache userProfilesCache = cacheManager.getCache("userProfiles");
+        if (userProfilesCache != null) {
+            userProfilesCache.evict(request.userId());
+            log.debug("Evicted userProfiles cache for userId: {}", request.userId());
+        }
+        
         return UserProfileResponse.from(updatedProfile);
     }
 
@@ -243,9 +268,9 @@ public class UserProfileService {
      * @param workspaceId 워크스페이스 ID (UUID)
      */
     @Transactional
-    @CacheEvict(value = "userProfile", key = "#userId")
+    @CacheEvict(value = "userProfile", key = "#workspaceId + '::' + #userId")
     public void deleteProfile(UUID userId, UUID workspaceId) {
-        log.info("[CacheEvict] Deleting profile for user: userId={}, workspaceId={}", userId, workspaceId);
+        log.info("[CacheEvict] Deleting profile for user: workspaceId={}, userId={}", workspaceId, userId);
 
         UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
                 .orElseThrow(() -> new UserNotFoundException("삭제할 프로필을 찾을 수 없습니다."));

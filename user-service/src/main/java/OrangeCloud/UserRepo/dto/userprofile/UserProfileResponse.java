@@ -4,6 +4,7 @@ import OrangeCloud.UserRepo.entity.UserProfile;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 
+import java.io.Serializable;
 import java.util.UUID;
 
 @Getter 
@@ -11,7 +12,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Schema(description = "사용자 프로필 응답 DTO")
-public class UserProfileResponse { 
+public class UserProfileResponse implements Serializable {
+    private static final long serialVersionUID = 1L; 
     
     private UUID profileId;
     private UUID workspaceId;
