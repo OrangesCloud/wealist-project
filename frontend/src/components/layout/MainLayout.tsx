@@ -42,7 +42,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       try {
         // 💡 [수정] 토큰 없이 API 호출 (인터셉터 사용)
         const profile = await getMyProfile();
-        console.log(profile);
         setUserProfile(profile);
       } catch (e) {
         console.error('기본 프로필 로드 실패:', e);
@@ -146,24 +145,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         <div className={`py-3 px-2 border-t border-gray-700`}>
           <button
             onClick={(e) => {
-              e.stopPropagation(); // 💡 [수정] 이벤트 버블링 차단
+              e.stopPropagation();
               setShowUserMenu(!showUserMenu);
             }}
             className={`w-full flex items-center justify-center py-2 text-sm rounded-lg hover:bg-blue-600 transition relative`}
             title="계정 메뉴"
           >
-            <div
-              className={`w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold ring-2 ring-white/50 text-gray-700 overflow-hidden`}
-            >
-              {userProfile?.profileImageUrl ? (
-                <img
-                  src={userProfile.profileImageUrl}
-                  alt={userProfile.nickName}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                userProfile?.nickName[0]?.toUpperCase() || '나'
-              )}
+            {/* 💡 relative 컨테이너로 감싸서 온라인 인디케이터 배치 */}
+            <div className="relative">
+              <div
+                className={`w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold ring-2 ring-white/50 text-gray-700 overflow-hidden`}
+              >
+                {userProfile?.profileImageUrl ? (
+                  <img
+                    src={userProfile.profileImageUrl}
+                    alt={userProfile.nickName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  userProfile?.nickName[0]?.toUpperCase() || '나'
+                )}
+              </div>
+              {/* 💡 온라인 상태 인디케이터 */}
+              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-white"></div>
             </div>
           </button>
         </div>
@@ -181,7 +185,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       {showUserMenu && (
         <div
           ref={userMenuRef}
-          className={`absolute bottom-16 left-12 sm:left-16 w-64 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} z-50 ${theme.effects.borderRadius} shadow-2xl`}
+          className={`fixed bottom-16 left-12 sm:left-16 w-64 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} z-50 ${theme.effects.borderRadius} shadow-2xl`}
           onMouseDown={(e) => e.stopPropagation()} // 💡 [수정] 메뉴 내부 클릭 시 닫히는 현상 방지
         >
           <div className="p-3 pb-3 mb-2 border-b border-gray-200">

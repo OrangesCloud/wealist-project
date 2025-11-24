@@ -257,10 +257,8 @@ export const createJoinRequest = async (workspaceId: string): Promise<JoinReques
  * * Response: { data: UserProfileResponse }
  */
 export const getMyProfile = async (): Promise<UserProfileResponse> => {
-  const response: AxiosResponse<{ data: UserProfileResponse }> = await userRepoClient.get(
-    '/api/profiles/me',
-  );
-  return response.data.data; // data 필드 추출
+  const response: AxiosResponse<UserProfileResponse> = await userRepoClient.get('/api/profiles/me');
+  return response.data; // data 필드 추출
 };
 
 /**
