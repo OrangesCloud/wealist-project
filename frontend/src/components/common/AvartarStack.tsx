@@ -95,50 +95,50 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({ members }) => {
 
 interface AssigneeAvatarStackProps {
   assignees: string | string[];
+  workspaceMembers?: WorkspaceMemberResponse[]; // 💡 추가
 }
 
-export const AssigneeAvatarStack: React.FC<AssigneeAvatarStackProps> = ({ assignees }) => {
-  const assigneeList = Array.isArray(assignees)
-    ? assignees
-    : (assignees as string)
-        .split(',')
-        .map((name) => name.trim())
-        .filter((name) => name.length > 0);
+export const AssigneeAvatarStack: React.FC<AssigneeAvatarStackProps> = ({
+  assignees,
+  workspaceMembers = [],
+}) => {
+  // 💡 assignees를 배열로 변환
+  const assigneeIds = Array.isArray(assignees) ? assignees : [assignees];
 
-  const initials = assigneeList?.map((name) => name[0]).filter((i) => i);
+  // 💡 userId로 멤버 찾기
+  const assigneeMembers = assigneeIds
+    .map((userId) => workspaceMembers.find((m) => m.userId === userId))
+    .filter((m): m is WorkspaceMemberResponse => m !== undefined);
+
   const displayCount = 3;
+  const displayMembers = assigneeMembers.slice(0, displayCount);
+  const remainingCount = assigneeMembers.length - displayCount;
 
-  if (initials.length === 0) {
+  // 💡 멤버 정보가 없으면 기본 UI
+  if (assigneeMembers.length === 0) {
     return (
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ring-1 ring-gray-200 bg-gray-200 text-gray-700`}
-      >
+      <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-1 ring-gray-200 bg-gray-200 text-gray-700">
         ?
       </div>
     );
   }
 
   return (
-    <div className="flex -space-x-1 p-1 pr-0 overflow-hidden">
-      {initials?.slice(0, displayCount)?.map((initial, index) => (
-        <div
-          key={index}
-          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-1 ring-white text-white ${
-            index === 0 ? 'bg-indigo-500' : index === 1 ? 'bg-pink-500' : 'bg-green-500'
-          }`}
-          style={{ zIndex: initials.length - index }}
-          title={assigneeList[index]}
-        >
-          {initial}
-        </div>
+    <div className="flex -space-x-1.5 p-1 pr-0 overflow-hidden">
+      {displayMembers.map((member, index) => (
+        <MemberAvatar
+          key={member.userId}
+          member={member}
+          index={assigneeMembers.length - index}
+          size="sm"
+        />
       ))}
-      {initials?.length > displayCount && (
+      {remainingCount > 0 && (
         <div
-          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-1 ring-white bg-gray-400 text-white`}
+          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ring-1 ring-white bg-gray-400 text-white"
           style={{ zIndex: 0 }}
-          title={`${initials?.length - displayCount}명 외`}
         >
-          +{initials?.length - displayCount}
+          +{remainingCount}
         </div>
       )}
     </div>

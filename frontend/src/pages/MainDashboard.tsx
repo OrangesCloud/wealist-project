@@ -267,6 +267,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           <ProjectContent
             selectedProject={selectedProject}
             workspaceId={currentWorkspaceId}
+            workspaceMembers={workspaceMembers}
             onProjectContentUpdate={handleBoardContentUpdate}
             onManageModalOpen={() => toggleUiState('showManageModal', true)}
             onEditBoard={setEditBoardData}
