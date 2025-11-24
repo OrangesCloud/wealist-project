@@ -72,6 +72,10 @@ services:
       - OAUTH2_CLIENT_REDIRECT_URI=${OAUTH2_CLIENT_REDIRECT_URI}
       - OAUTH2_REDIRECT_URL_ENV=${OAUTH2_REDIRECT_URL_ENV}
 
+      # S3 Configuration (IAM Role 사용)
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
+
       # Java Options (메모리 최적화 - Dev 환경)
       - JAVA_OPTS=-Xms128m -Xmx384m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
 
@@ -144,6 +148,10 @@ services:
 
       # Service URLs (include context-path for service-to-service communication)
       - USER_SERVICE_URL=http://user-service:8080/api/users
+
+      # S3 Configuration (IAM Role 사용)
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
 
       # CORS Configuration
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
