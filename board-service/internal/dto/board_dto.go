@@ -38,6 +38,7 @@ type UpdateBoardRequest struct {
 	AssigneeID    *uuid.UUID              `json:"assigneeId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
 	StartDate     *time.Time              `json:"startDate" example:"2024-01-01T00:00:00Z"`
 	DueDate       *time.Time              `json:"dueDate" example:"2024-12-31T23:59:59Z"`
+	Participants  []uuid.UUID             `json:"participants,omitempty" binding:"omitempty,max=50,dive,uuid"`
 	AttachmentIDs []uuid.UUID             `json:"attachmentIds,omitempty" binding:"omitempty,dive,uuid" example:"f47ac10b-58cc-4372-a567-0e02b2c3d479"`
 }
 
@@ -103,7 +104,6 @@ type BoardDetailResponse struct {
 type BoardFilters struct {
 	CustomFields map[string]interface{} `json:"customFields,omitempty"`
 }
-
 
 // MoveBoardRequest represents the request to move a board
 type MoveBoardRequest struct {

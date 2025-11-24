@@ -12,11 +12,13 @@ import { FilterBar } from '../modals/board/FilterBar';
 import { connectWebSocket, disconnectWebSocket, WS_BOARD_MTH } from '../../utils/websocket';
 import { useAuth } from '../../contexts/AuthContext';
 import { AssigneeAvatarStack } from '../common/AvartarStack';
+import { WorkspaceMemberResponse } from '../../types/user';
 
 interface ProjectContentProps {
   // Data
   selectedProject: ProjectResponse;
   workspaceId: string;
+  workspaceMembers: WorkspaceMemberResponse[]; // 💡 추가
   fieldOptionsLookup: {
     stages?: FieldOption[];
     roles?: FieldOption[];
@@ -36,11 +38,10 @@ interface ProjectContentProps {
 export const ProjectContent: React.FC<ProjectContentProps> = ({
   selectedProject,
   workspaceId,
+  workspaceMembers, // 💡 추가
   fieldOptionsLookup,
-  // onProjectContentUpdate,
   onManageModalOpen,
   onEditBoard,
-  // showCreateBoard,
   setShowCreateBoard,
 }) => {
   const { theme } = useTheme();
@@ -654,7 +655,10 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                           </span>
                           {/* 만약 여기서 AvatarStack을 사용하고 싶다면, AvatarStack 컴포넌트가 멤버 객체를 필요로 하므로,
                                    현재 ProjectContent에서는 멤버를 찾을 수 없기 때문에 시각적으로는 AssigneeAvatarStack을 사용해야 합니다. */}
-                          <AssigneeAvatarStack assignees={board.participantIds || []} />
+                          <AssigneeAvatarStack
+                            assignees={board.participantIds || []}
+                            workspaceMembers={workspaceMembers} // 💡 추가
+                          />
                         </>
                       ) : (
                         <span className="text-sm text-gray-500">없음</span>
@@ -816,7 +820,10 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                               <span className="text-xs font-semibold text-gray-500 flex items-center gap-1">
                                 <User className="w-3 h-3" /> 할당자
                               </span>
-                              <AssigneeAvatarStack assignees={board.assigneeId || 'Unassigned'} />
+                              <AssigneeAvatarStack
+                                assignees={board.assigneeId || 'Unassigned'}
+                                workspaceMembers={workspaceMembers} // 💡 추가
+                              />
                             </div>
 
                             {/* 2. 참여자 (Participants) */}
@@ -827,7 +834,10 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
                                   명)
                                 </span>
                                 {/* AssigneeAvatarStack이 ID 배열도 받도록 구성되어 있음 */}
-                                <AssigneeAvatarStack assignees={board.participantIds || []} />
+                                <AssigneeAvatarStack
+                                  assignees={board.participantIds || []}
+                                  workspaceMembers={workspaceMembers} // 💡 추가
+                                />
                               </div>
                             )}
                           </div>
