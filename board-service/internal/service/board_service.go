@@ -341,7 +341,11 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		board.CustomFields = jsonBytes
 	}
 	if req.AssigneeID != nil {
-		board.AssigneeID = req.AssigneeID
+		if *req.AssigneeID == uuid.Nil {
+			board.AssigneeID = nil
+		} else {
+			board.AssigneeID = req.AssigneeID
+		}
 	}
 	if req.StartDate != nil {
 		board.StartDate = req.StartDate
@@ -350,6 +354,7 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		board.DueDate = req.DueDate
 	}
 
+	// Update board first
 	if err := s.boardRepo.Update(ctx, board); err != nil {
 		return nil, response.NewAppError(response.ErrCodeInternal, "Failed to update board", err.Error())
 	}
@@ -375,13 +380,71 @@ func (s *boardServiceImpl) UpdateBoard(ctx context.Context, boardID uuid.UUID, r
 		}
 	}
 
+	// ✅ [수정] Participants 업데이트 로직 - board 업데이트 후 처리
+	if req.Participants != nil {
+		// 1. 기존 참여자 모두 조회
+		existingParticipants, err := s.participantRepo.FindByBoardID(ctx, boardID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Warn("Failed to fetch existing participants for update",
+				zap.String("board_id", boardID.String()),
+				zap.Error(err))
+		}
+
+		// 2. 기존 참여자 모두 삭제
+		if len(existingParticipants) > 0 {
+			s.logger.Info("Deleting existing participants",
+				zap.String("board_id", boardID.String()),
+				zap.Int("count", len(existingParticipants)))
+
+			for _, p := range existingParticipants {
+				if err := s.participantRepo.Delete(ctx, boardID, p.UserID); err != nil {
+					s.logger.Warn("Failed to delete existing participant",
+						zap.String("board_id", boardID.String()),
+						zap.String("user_id", p.UserID.String()),
+						zap.Error(err))
+				}
+			}
+		}
+
+		// 3. 새로운 참여자 추가
+		if len(req.Participants) > 0 {
+			s.logger.Info("Adding new participants",
+				zap.String("board_id", boardID.String()),
+				zap.Int("count", len(req.Participants)))
+
+			uniqueUserIDs := removeDuplicateUUIDs(req.Participants)
+			for _, userID := range uniqueUserIDs {
+				participant := &domain.Participant{
+					BoardID: boardID,
+					UserID:  userID,
+				}
+				if err := s.participantRepo.Create(ctx, participant); err != nil {
+					s.logger.Warn("Failed to add new participant",
+						zap.String("board_id", boardID.String()),
+						zap.String("user_id", userID.String()),
+						zap.Error(err))
+				}
+			}
+		}
+	}
+
 	// board와 연결된 모든 Attachments를 다시 조회합니다. (타입 변환 적용)
 	allAttachments, err := s.attachmentRepo.FindByEntityID(ctx, domain.EntityTypeBoard, board.ID)
 	if err != nil {
 		s.logger.Warn("Failed to fetch all confirmed attachments after update", zap.Error(err))
-		// 치명적인 오류가 아니므로 계속 진행
 	} else {
-		// DB에서 최신 Attachments 목록을 로드하여 board 객체에 할당
+		board.Attachments = toDomainAttachments(allAttachments)
+	}
+
+	// ✅ [수정] 업데이트된 participants를 다시 로드
+	reloadedBoard, err := s.boardRepo.FindByID(ctx, board.ID)
+	if err != nil {
+		s.logger.Warn("Failed to reload board with participants after update",
+			zap.String("board_id", board.ID.String()),
+			zap.Error(err))
+	} else {
+		board = reloadedBoard
+		// Attachments는 위에서 이미 로드했으므로 다시 할당
 		board.Attachments = toDomainAttachments(allAttachments)
 	}
 

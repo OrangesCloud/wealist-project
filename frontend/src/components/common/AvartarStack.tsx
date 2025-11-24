@@ -1,16 +1,54 @@
-// =============================================================================
-// AvatarStack (변경 없음)
-
 import { WorkspaceMemberResponse } from '../../types/user';
 
 // =============================================================================
-interface AvatarStackProps {
-  members: WorkspaceMemberResponse[];
-}
+// Helper Function
+// =============================================================================
 export const getColorByIndex = (index: number) => {
   const colors = ['bg-indigo-500', 'bg-pink-500', 'bg-green-500', 'bg-purple-500', 'bg-yellow-500'];
   return colors[index % colors.length];
 };
+
+// =============================================================================
+// 💡 개별 멤버 아바타 컴포넌트 (BoardManageModal에서 재사용을 위해 분리)
+// =============================================================================
+interface MemberAvatarProps {
+  member: WorkspaceMemberResponse;
+  index: number;
+  size?: 'sm' | 'md'; // sm: 24px (스택용), md: 28px (모달 드롭다운용 - BoardManageModal에서 사용할 크기)
+}
+
+export const MemberAvatar: React.FC<MemberAvatarProps> = ({ member, index, size = 'sm' }) => {
+  const sizeClasses = size === 'md' ? 'w-7 h-7 text-sm' : 'w-6 h-6 text-xs';
+
+  return (
+    <div
+      key={member.userId}
+      className={`${sizeClasses} rounded-full flex items-center justify-center font-bold ring-1 ring-white overflow-hidden flex-shrink-0`}
+      style={{ zIndex: index }}
+      title={`${member.userName} (${member.roleName})`}
+    >
+      {member?.profileImageUrl ? (
+        <img
+          src={member?.profileImageUrl}
+          alt={member?.userName}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <div
+          className={`w-full h-full flex items-center justify-center text-white ${getColorByIndex(
+            index,
+          )}`}
+        >
+          {member?.userName[0]}
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface AvatarStackProps {
+  members: WorkspaceMemberResponse[];
+}
 
 export const AvatarStack: React.FC<AvatarStackProps> = ({ members }) => {
   const displayCount = 3;
