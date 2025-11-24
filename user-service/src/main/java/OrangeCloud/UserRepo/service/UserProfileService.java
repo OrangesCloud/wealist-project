@@ -77,24 +77,64 @@ public class UserProfileService {
     public UserProfileResponse workSpaceIdGetProfile(UUID workspaceId, UUID userId) {
         log.info("[Cacheable] Attempting to retrieve profile from DB for user: {}, workspaceId: {}", userId, workspaceId);
 
-        // DB 조회 (UserProfile 엔티티)
-        UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
-                .orElseThrow(() -> new UserNotFoundException("프로필을 찾을 수 없습니다."));
-
-        // 프로필 이미지 첨부파일 조회 (있으면 하나만)
-        AttachmentResponse attachment = getProfileImageAttachment(profile.getProfileId());
-        
-        // 워크스페이스별 이미지가 없으면 기본 프로필 이미지 사용
-        if (attachment == null && !workspaceId.equals(DEFAULT_WORKSPACE_ID)) {
-            log.debug("No workspace-specific image found, falling back to default profile image for userId: {}", userId);
-            Optional<UserProfile> defaultProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, userId);
-            if (defaultProfile.isPresent()) {
-                attachment = getProfileImageAttachment(defaultProfile.get().getProfileId());
-                log.debug("Using default profile image: {}", attachment != null ? attachment.getFileUrl() : "none");
+        try {
+            // DB 조회 (UserProfile 엔티티)
+            Optional<UserProfile> profileOpt = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, userId);
+            
+            if (profileOpt.isPresent()) {
+                // 워크스페이스별 프로필이 존재하는 경우
+                UserProfile profile = profileOpt.get();
+                log.debug("Found workspace-specific profile: profileId={}", profile.getProfileId());
+                
+                // 프로필 이미지 첨부파일 조회 (있으면 하나만)
+                AttachmentResponse attachment = getProfileImageAttachment(profile.getProfileId());
+                
+                // 워크스페이스별 이미지가 없으면 기본 프로필 이미지 사용
+                if (attachment == null && !workspaceId.equals(DEFAULT_WORKSPACE_ID)) {
+                    log.debug("No workspace-specific image found, falling back to default profile image for userId: {}", userId);
+                    Optional<UserProfile> defaultProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, userId);
+                    if (defaultProfile.isPresent()) {
+                        attachment = getProfileImageAttachment(defaultProfile.get().getProfileId());
+                        log.debug("Using default profile image: {}", attachment != null ? attachment.getFileUrl() : "none");
+                    }
+                }
+                
+                return UserProfileResponse.from(profile, attachment);
+            } else {
+                // 워크스페이스별 프로필이 없는 경우 - 기본 프로필로 fallback
+                log.debug("Workspace-specific profile not found, falling back to default profile for userId: {}, workspaceId: {}", userId, workspaceId);
+                
+                UserProfile defaultProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, userId)
+                        .orElseThrow(() -> {
+                            log.error("Default profile not found for userId: {}", userId);
+                            return new UserNotFoundException("기본 프로필을 찾을 수 없습니다. 사용자 등록이 완료되지 않았습니다.");
+                        });
+                
+                // 기본 프로필의 첨부파일 조회
+                AttachmentResponse attachment = getProfileImageAttachment(defaultProfile.getProfileId());
+                log.debug("Using default profile with attachment: {}", attachment != null ? attachment.getFileUrl() : "none");
+                
+                // 기본 프로필 값을 사용하되, workspaceId는 요청한 workspaceId로 설정
+                return UserProfileResponse.builder()
+                        .profileId(defaultProfile.getProfileId())
+                        .workspaceId(workspaceId)  // 요청한 workspaceId 사용
+                        .userId(defaultProfile.getUserId())
+                        .nickName(defaultProfile.getNickName())
+                        .email(defaultProfile.getEmail())
+                        .profileImageUrl(defaultProfile.getProfileImageUrl())
+                        .profileImageAttachment(attachment)
+                        .build();
             }
+        } catch (CustomException e) {
+            // Re-throw known exceptions (includes UserNotFoundException)
+            log.error("Profile retrieval failed: workspaceId={}, userId={}, error={}", 
+                    workspaceId, userId, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error while retrieving workspace profile: workspaceId={}, userId={}", 
+                    workspaceId, userId, e);
+            throw new RuntimeException("프로필 조회 중 오류가 발생했습니다.", e);
         }
-
-        return UserProfileResponse.from(profile, attachment);
     }
     
     /**
@@ -208,7 +248,69 @@ public class UserProfileService {
 
 
     /**
+     * 워크스페이스별 프로필을 조회하거나 없으면 기본 프로필에서 복사하여 생성합니다.
+     * 
+     * @param workspaceId 워크스페이스 ID
+     * @param userId 사용자 ID
+     * @return 기존 또는 새로 생성된 워크스페이스 프로필
+     * @throws UserNotFoundException 기본 프로필이 없는 경우
+     * @throws CustomException 워크스페이스 멤버가 아닌 경우
+     */
+    private UserProfile getOrCreateWorkspaceProfile(UUID workspaceId, UUID userId) {
+        log.debug("Getting or creating workspace profile: workspaceId={}, userId={}", workspaceId, userId);
+        
+        try {
+            // 1. 기존 워크스페이스 프로필이 있는지 확인
+            Optional<UserProfile> existingProfile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, userId);
+            if (existingProfile.isPresent()) {
+                log.debug("Found existing workspace profile: profileId={}", existingProfile.get().getProfileId());
+                return existingProfile.get();
+            }
+            
+            // 2. 기본 프로필 조회 (없으면 예외 발생)
+            UserProfile defaultProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, userId)
+                    .orElseThrow(() -> {
+                        log.error("Default profile not found for userId: {}", userId);
+                        return new UserNotFoundException("기본 프로필을 찾을 수 없습니다. 사용자 등록이 완료되지 않았습니다.");
+                    });
+            
+            // 3. 워크스페이스 멤버십 검증
+            boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId);
+            if (!isMember) {
+                log.warn("Access denied: User {} is not a member of workspace {}", userId, workspaceId);
+                throw new CustomException(ErrorCode.HANDLE_ACCESS_DENIED, 
+                        "해당 워크스페이스의 멤버만 프로필을 수정할 수 있습니다.");
+            }
+            
+            // 4. 기본 프로필에서 복사하여 새 워크스페이스 프로필 생성
+            UserProfile newProfile = UserProfile.create(
+                    workspaceId,
+                    userId,
+                    defaultProfile.getNickName(),
+                    defaultProfile.getEmail(),
+                    defaultProfile.getProfileImageUrl()
+            );
+            
+            UserProfile savedProfile = userProfileRepository.save(newProfile);
+            log.info("Created new workspace profile: profileId={}, workspaceId={}, userId={}", 
+                    savedProfile.getProfileId(), workspaceId, userId);
+            
+            return savedProfile;
+        } catch (CustomException e) {
+            // Re-throw known exceptions (includes UserNotFoundException)
+            log.error("Error in getOrCreateWorkspaceProfile: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            // Log and wrap unexpected exceptions
+            log.error("Unexpected error while getting or creating workspace profile: workspaceId={}, userId={}", 
+                    workspaceId, userId, e);
+            throw new RuntimeException("워크스페이스 프로필 생성 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    /**
      * 사용자 프로필 닉네임, 이메일 및 이미지 URL을 통합 업데이트하고 캐시를 무효화합니다.
+     * 워크스페이스별 프로필이 없으면 자동으로 생성합니다 (lazy creation).
      * @param request
      * @return 업데이트된 UserProfile 엔티티 (Service 내부에서 사용되므로 엔티티 반환 유지)
      */
@@ -218,47 +320,60 @@ public class UserProfileService {
         log.info("[CacheEvict] Updating profile for user: workspaceId={}, userId={}, nickName={}, email={}, imageUrl={}, attachmentId={}", 
                 request.workspaceId(), request.userId(), request.nickName(), request.email(), request.profileImageUrl(), request.attachmentId());
 
-        // 1. UserProfile 조회
-        UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(request.workspaceId(), request.userId())
-                .orElseThrow(() -> new UserNotFoundException("프로필 업데이트 대상 사용자를 찾을 수 없습니다."));
+        try {
+            // 1. UserProfile 조회 또는 생성 (lazy creation)
+            UserProfile profile = getOrCreateWorkspaceProfile(request.workspaceId(), request.userId());
 
-        // 2. 닉네임 업데이트 (값이 존재하고 비어있지 않을 경우에만)
-        if (request.nickName() != null && !request.nickName().trim().isEmpty()) {
-            profile.updateNickName(request.nickName().trim());
-            log.debug("Profile nickName updated to: {}", request.nickName().trim());
-        }
+            // 2. 닉네임 업데이트 (값이 존재하고 비어있지 않을 경우에만)
+            if (request.nickName() != null && !request.nickName().trim().isEmpty()) {
+                profile.updateNickName(request.nickName().trim());
+                log.debug("Profile nickName updated to: {}", request.nickName().trim());
+            }
 
-        // 3. 이메일 업데이트 (값이 존재하고 비어있지 않을 경우에만)
-        if (request.email() != null && !request.email().trim().isEmpty()) {
-            profile.updateEmail(request.email().trim());
-            log.debug("Profile email updated to: {}", request.email().trim());
-        }
+            // 3. 이메일 업데이트 (값이 존재하고 비어있지 않을 경우에만)
+            if (request.email() != null && !request.email().trim().isEmpty()) {
+                profile.updateEmail(request.email().trim());
+                log.debug("Profile email updated to: {}", request.email().trim());
+            }
 
-        // 4. 첨부파일 확정 (attachmentId가 있는 경우)
-        if (request.attachmentId() != null) {
-            Attachment confirmedAttachment = attachmentService.confirmAttachment(request.attachmentId(), profile.getProfileId());
-            profile.updateProfileImageUrl(confirmedAttachment.getFileUrl());
-            log.debug("Attachment confirmed and profile image URL updated: attachmentId={}, profileId={}, fileUrl={}", 
-                    request.attachmentId(), profile.getProfileId(), confirmedAttachment.getFileUrl());
-        }
-        // 5. 이미지 URL 직접 업데이트 (attachmentId가 없고 profileImageUrl이 제공된 경우)
-        else if (request.profileImageUrl() != null) {
-            String urlToSave = request.profileImageUrl().trim().isEmpty() ? null : request.profileImageUrl().trim();
-            profile.updateProfileImageUrl(urlToSave);
-            log.debug("Profile image URL updated to: {}", urlToSave);
-        }
+            // 4. 첨부파일 확정 (attachmentId가 있는 경우)
+            if (request.attachmentId() != null) {
+                Attachment confirmedAttachment = attachmentService.confirmAttachment(request.attachmentId(), profile.getProfileId());
+                profile.updateProfileImageUrl(confirmedAttachment.getFileUrl());
+                log.debug("Attachment confirmed and profile image URL updated: attachmentId={}, profileId={}, fileUrl={}", 
+                        request.attachmentId(), profile.getProfileId(), confirmedAttachment.getFileUrl());
+            }
+            // 5. 이미지 URL 직접 업데이트 (attachmentId가 없고 profileImageUrl이 제공된 경우)
+            else if (request.profileImageUrl() != null) {
+                String urlToSave = request.profileImageUrl().trim().isEmpty() ? null : request.profileImageUrl().trim();
+                profile.updateProfileImageUrl(urlToSave);
+                log.debug("Profile image URL updated to: {}", urlToSave);
+            }
 
-        // 6. 변경된 프로필 저장
-        UserProfile updatedProfile = userProfileRepository.save(profile);
-        
-        // 7. userProfiles 캐시도 무효화 (모든 프로필 목록 갱신)
-        org.springframework.cache.Cache userProfilesCache = cacheManager.getCache("userProfiles");
-        if (userProfilesCache != null) {
-            userProfilesCache.evict(request.userId());
-            log.debug("Evicted userProfiles cache for userId: {}", request.userId());
+            // 6. 변경된 프로필 저장
+            UserProfile updatedProfile = userProfileRepository.save(profile);
+            
+            // 7. userProfiles 캐시도 무효화 (모든 프로필 목록 갱신)
+            org.springframework.cache.Cache userProfilesCache = cacheManager.getCache("userProfiles");
+            if (userProfilesCache != null) {
+                userProfilesCache.evict(request.userId());
+                log.debug("Evicted userProfiles cache for userId: {}", request.userId());
+            }
+            
+            log.info("Profile updated successfully: profileId={}, workspaceId={}, userId={}", 
+                    updatedProfile.getProfileId(), request.workspaceId(), request.userId());
+            
+            return UserProfileResponse.from(updatedProfile);
+        } catch (CustomException e) {
+            // Re-throw known exceptions (includes UserNotFoundException)
+            log.error("User profile update failed: workspaceId={}, userId={}, error={}", 
+                    request.workspaceId(), request.userId(), e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error during profile update: workspaceId={}, userId={}", 
+                    request.workspaceId(), request.userId(), e);
+            throw new RuntimeException("프로필 업데이트 중 오류가 발생했습니다.", e);
         }
-        
-        return UserProfileResponse.from(updatedProfile);
     }
 
 
@@ -276,6 +391,63 @@ public class UserProfileService {
                 .orElseThrow(() -> new UserNotFoundException("삭제할 프로필을 찾을 수 없습니다."));
 
         userProfileRepository.delete(profile);
+    }
+
+    /**
+     * 워크스페이스별 프로필을 삭제하고 캐시를 무효화합니다.
+     * 기본 워크스페이스(DEFAULT_WORKSPACE_ID) 프로필은 삭제할 수 없습니다.
+     * 
+     * @param userId 사용자 ID
+     * @param workspaceId 워크스페이스 ID (DEFAULT_WORKSPACE_ID가 아니어야 함)
+     * @throws IllegalArgumentException 기본 프로필 삭제를 시도하는 경우
+     * @throws UserNotFoundException 삭제할 프로필을 찾을 수 없는 경우
+     */
+    @Transactional
+    @CacheEvict(value = "userProfile", key = "#workspaceId + '::' + #userId")
+    public void deleteWorkspaceProfile(UUID userId, UUID workspaceId) {
+        log.info("Attempting to delete workspace profile: workspaceId={}, userId={}", workspaceId, userId);
+        
+        try {
+            // 1. 기본 워크스페이스 프로필 삭제 방지
+            if (DEFAULT_WORKSPACE_ID.equals(workspaceId)) {
+                log.warn("Attempted to delete default profile: userId={}, workspaceId={}", userId, workspaceId);
+                throw new IllegalArgumentException("기본 프로필은 삭제할 수 없습니다.");
+            }
+            
+            // 2. 워크스페이스별 프로필 조회
+            UserProfile profile = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
+                    .orElseThrow(() -> {
+                        log.warn("Workspace profile not found for deletion: workspaceId={}, userId={}", workspaceId, userId);
+                        return new UserNotFoundException("삭제할 워크스페이스 프로필을 찾을 수 없습니다.");
+                    });
+            
+            // 3. 프로필 삭제
+            userProfileRepository.delete(profile);
+            log.info("Successfully deleted workspace profile: profileId={}, workspaceId={}, userId={}", 
+                    profile.getProfileId(), workspaceId, userId);
+            
+            // 4. userProfiles 캐시도 무효화 (모든 프로필 목록 갱신)
+            org.springframework.cache.Cache userProfilesCache = cacheManager.getCache("userProfiles");
+            if (userProfilesCache != null) {
+                userProfilesCache.evict(userId);
+                log.debug("Evicted userProfiles cache for userId: {}", userId);
+            }
+        } catch (IllegalArgumentException e) {
+            // Re-throw validation exceptions
+            log.error("Validation error deleting workspace profile: workspaceId={}, userId={}, error={}", 
+                    workspaceId, userId, e.getMessage());
+            throw e;
+        } catch (CustomException e) {
+            // Re-throw known exceptions (includes UserNotFoundException)
+            log.error("Error deleting workspace profile: workspaceId={}, userId={}, error={}", 
+                    workspaceId, userId, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            // Log and wrap unexpected exceptions
+            log.error("Unexpected error while deleting workspace profile: workspaceId={}, userId={}", 
+                    workspaceId, userId, e);
+            throw new RuntimeException("워크스페이스 프로필 삭제 중 오류가 발생했습니다.", e);
+        }
     }
 
 }
