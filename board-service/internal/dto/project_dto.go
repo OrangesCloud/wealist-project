@@ -7,30 +7,48 @@ import (
 )
 
 // CreateProjectRequest represents the request to create a new project
+// @Description Request body for creating a new project with optional start and due dates
+// @Description startDate and dueDate are optional, but startDate must be before or equal to dueDate if both are provided
+// @Description attachmentIds is an optional array of attachment IDs to link to the project
 type CreateProjectRequest struct {
-	WorkspaceID uuid.UUID `json:"workspaceId" binding:"required"`
-	Name        string    `json:"name" binding:"required,min=2,max=100"`
-	Description string    `json:"description" binding:"max=500"`
+	WorkspaceID   uuid.UUID   `json:"workspaceId" binding:"required" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
+	Name          string      `json:"name" binding:"required,min=2,max=100" example:"Q1 2024 Product Launch"`
+	Description   string      `json:"description" binding:"max=500" example:"Project for launching new product features in Q1 2024"`
+	StartDate     *time.Time  `json:"startDate,omitempty" example:"2024-01-01T00:00:00Z"`
+	DueDate       *time.Time  `json:"dueDate,omitempty" example:"2024-03-31T23:59:59Z"`
+	AttachmentIDs []uuid.UUID `json:"attachmentIds,omitempty" binding:"omitempty,dive,uuid" example:"f47ac10b-58cc-4372-a567-0e02b2c3d479"`
 }
 
 // UpdateProjectRequest represents the request to update a project
+// @Description Request body for updating a project. All fields are optional.
+// @Description startDate must be before or equal to dueDate if both are provided
+// @Description attachmentIds is an optional array of attachment IDs to add to the project
 type UpdateProjectRequest struct {
-	Name        *string `json:"name" binding:"omitempty,min=2,max=100"`
-	Description *string `json:"description" binding:"omitempty,max=500"`
+	Name          *string     `json:"name" binding:"omitempty,min=2,max=100" example:"Q1 2024 Product Launch - Updated"`
+	Description   *string     `json:"description" binding:"omitempty,max=500" example:"Updated project description"`
+	StartDate     *time.Time  `json:"startDate,omitempty" example:"2024-01-15T00:00:00Z"`
+	DueDate       *time.Time  `json:"dueDate,omitempty" example:"2024-04-15T23:59:59Z"`
+	AttachmentIDs []uuid.UUID `json:"attachmentIds,omitempty" binding:"omitempty,dive,uuid" example:"f47ac10b-58cc-4372-a567-0e02b2c3d479"`
 }
 
 // ProjectResponse represents the project response
+// @Description Project response with optional start/due dates and attachments
+// @Description startDate and dueDate are included only if they were set
+// @Description attachments is an array of file metadata (empty array if no attachments)
 type ProjectResponse struct {
-	ID          uuid.UUID `json:"projectId"`
-	WorkspaceID uuid.UUID `json:"workspaceId"`
-	OwnerID     uuid.UUID `json:"ownerId"`
-	OwnerEmail  string    `json:"ownerEmail,omitempty"`
-	OwnerName   string    `json:"ownerName,omitempty"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	IsPublic    bool      `json:"isPublic"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID          uuid.UUID            `json:"projectId" example:"539167fb-b599-41ba-9ead-344a6d0b3a2f"`
+	WorkspaceID uuid.UUID            `json:"workspaceId" example:"a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
+	OwnerID     uuid.UUID            `json:"ownerId" example:"b2c3d4e5-f6a7-8901-bcde-f12345678901"`
+	OwnerEmail  string               `json:"ownerEmail,omitempty" example:"owner@example.com"`
+	OwnerName   string               `json:"ownerName,omitempty" example:"John Doe"`
+	Name        string               `json:"name" example:"Q1 2024 Product Launch"`
+	Description string               `json:"description" example:"Project for launching new product features in Q1 2024"`
+	IsPublic    bool                 `json:"isPublic" example:"true"`
+	StartDate   *time.Time           `json:"startDate,omitempty" example:"2024-01-01T00:00:00Z"`
+	DueDate     *time.Time           `json:"dueDate,omitempty" example:"2024-03-31T23:59:59Z"`
+	Attachments []AttachmentResponse `json:"attachments"`
+	CreatedAt   time.Time            `json:"createdAt" example:"2024-01-15T10:30:00Z"`
+	UpdatedAt   time.Time            `json:"updatedAt" example:"2024-01-15T14:20:00Z"`
 }
 
 // ProjectMemberResponse represents a project member
@@ -89,18 +107,20 @@ type ProjectInitSettingsResponse struct {
 
 // ProjectBasicInfo represents basic project information
 type ProjectBasicInfo struct {
-	ProjectID      uuid.UUID `json:"projectId"`
-	WorkspaceID    uuid.UUID `json:"workspaceId"`
-	WorkspaceName  string    `json:"workspaceName,omitempty"`
-	WorkspaceEmail string    `json:"workspaceEmail,omitempty"`
-	Name           string    `json:"name"`
-	Description    string    `json:"description"`
-	OwnerID        uuid.UUID `json:"ownerId"`
-	OwnerEmail     string    `json:"ownerEmail,omitempty"`
-	OwnerName      string    `json:"ownerName,omitempty"`
-	IsPublic       bool      `json:"isPublic"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	ProjectID      uuid.UUID  `json:"projectId"`
+	WorkspaceID    uuid.UUID  `json:"workspaceId"`
+	WorkspaceName  string     `json:"workspaceName,omitempty"`
+	WorkspaceEmail string     `json:"workspaceEmail,omitempty"`
+	Name           string     `json:"name"`
+	Description    string     `json:"description"`
+	OwnerID        uuid.UUID  `json:"ownerId"`
+	OwnerEmail     string     `json:"ownerEmail,omitempty"`
+	OwnerName      string     `json:"ownerName,omitempty"`
+	IsPublic       bool       `json:"isPublic"`
+	StartDate      *time.Time `json:"startDate,omitempty"`
+	DueDate        *time.Time `json:"dueDate,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
 }
 
 // FieldWithOptionsResponse represents a field definition with its options

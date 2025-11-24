@@ -1,14 +1,15 @@
 // src/components/layout/MainLayout.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { UserProfileResponse, WorkspaceMemberResponse } from '../../types/user';
 import { getMyProfile } from '../../api/userService';
 import { createOrGetDMChat } from '../../api/chatService';
 import { Sidebar } from './Sidebar';
-import { UserMenu } from './UserMenu';
-import { ChatPanel } from '../chat/chatPanel';
+// import { ChatPanel } from '../chat/chatPanel';
 import { ChatListPanel } from '../chat/ChatListPanel';
+import { ChatPanel } from '../chat/ChatPanel';
+import { LogOut, UserIcon } from 'lucide-react';
 
 interface MainLayoutProps {
   onLogout: () => void;
@@ -30,12 +31,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 
   // States
   const [userProfile, setUserProfile] = useState<UserProfileResponse | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
 
+  // Ref
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const sidebarWidth = 'w-16 sm:w-20';
   const chatPanelWidth = '20rem'; // 320px
 
@@ -154,7 +157,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         </div>
       )}
 
-      {/* 메인 콘텐츠 */}
+      {/* 메인 콘텐츠 영역 */}
       <main
         className="flex-grow flex flex-col relative z-10 transition-all duration-300"
         style={{
@@ -165,15 +168,59 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         {children}
       </main>
 
-      {/* 유저 메뉴 */}
+      {/* 유저 메뉴 드롭다운 (사이드바 위에 팝업) */}
       {showUserMenu && (
-        <div data-user-menu>
-          <UserMenu
-            userProfile={userProfile}
-            onProfileModalOpen={onProfileModalOpen}
-            onLogout={onLogout}
-            onClose={() => setShowUserMenu(false)}
-          />
+        <div
+          ref={userMenuRef}
+          className={`absolute bottom-16 left-12 sm:left-16 w-64 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} z-50 ${theme.effects.borderRadius} shadow-2xl`}
+          onMouseDown={(e) => e.stopPropagation()} // 💡 [수정] 메뉴 내부 클릭 시 닫히는 현상 방지
+        >
+          <div className="p-3 pb-3 mb-2 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 ${theme.colors.primary} flex items-center justify-center text-white text-base font-bold rounded-md overflow-hidden`}
+              >
+                {userProfile?.profileImageUrl ? (
+                  <img
+                    src={userProfile?.profileImageUrl}
+                    alt={userProfile?.nickName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  userProfile?.nickName[0]?.toUpperCase() || 'U'
+                )}
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-gray-900">{userProfile?.nickName}</h3>
+                <div className="flex items-center text-green-600 text-xs mt-1">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                  대화 가능
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1 p-2 pt-0">
+            <button
+              onClick={() => {
+                // 💡 [수정] MainDashboard의 Setter를 호출하여 모달을 엽니다.
+                onProfileModalOpen();
+                setShowUserMenu(false);
+              }}
+              className="w-full text-left px-2 py-1.5 text-sm text-gray-800 hover:bg-blue-50 hover:text-blue-700 rounded transition flex items-center gap-2"
+            >
+              <UserIcon className="w-4 h-4" /> 프로필 설정
+            </button>
+          </div>
+
+          <div className="pt-2 pb-2 border-t border-gray-200 mx-2">
+            <button
+              onClick={onLogout}
+              className="w-full text-left px-2 py-1.5 text-sm text-gray-800 hover:bg-red-50 hover:text-red-700 rounded transition flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" /> 로그아웃
+            </button>
+          </div>
         </div>
       )}
 

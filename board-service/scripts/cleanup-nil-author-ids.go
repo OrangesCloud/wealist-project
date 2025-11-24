@@ -43,7 +43,7 @@ func main() {
 	// Check for dry-run mode
 	if len(os.Args) > 1 && (os.Args[1] == "--dry-run" || os.Args[1] == "-n") {
 		fmt.Println("Running in DRY-RUN mode (no database connection required)")
-		fmt.Println("This mode demonstrates the script functionality without connecting to a database.\n")
+		fmt.Println("This mode demonstrates the script functionality without connecting to a database.")
 		runDryRunDemo()
 		return
 	}
@@ -215,7 +215,7 @@ func getEnv(key, defaultValue string) string {
 
 // runDryRunDemo demonstrates the script functionality without a database connection
 func runDryRunDemo() {
-	fmt.Println("=== 데모: nil UUID author_id를 가진 보드 검색 ===\n")
+	fmt.Println("=== 데모: nil UUID author_id를 가진 보드 검색 ===")
 	
 	// Simulate finding boards with nil UUID
 	demoBoards := []struct {

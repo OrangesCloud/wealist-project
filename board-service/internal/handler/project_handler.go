@@ -25,6 +25,7 @@ func NewProjectHandler(projectService service.ProjectService) *ProjectHandler {
 // CreateProject godoc
 // @Summary      Project 생성
 // @Description  새로운 Project를 생성합니다
+// @Description  startDate와 dueDate는 선택 사항이며, startDate는 dueDate보다 이전이어야 합니다
 // @Tags         projects
 // @Accept       json
 // @Produce      json
@@ -76,6 +77,7 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 // GetProjectsByWorkspace godoc
 // @Summary      Workspace의 Project 목록 조회
 // @Description  특정 Workspace에 속한 모든 Project를 조회합니다
+// @Description  각 프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다
 // @Tags         projects
 // @Produce      json
 // @Param        workspaceId path string true "Workspace ID (UUID)"
@@ -127,6 +129,7 @@ func (h *ProjectHandler) GetProjectsByWorkspace(c *gin.Context) {
 // GetProjectsByWorkspaceQuery godoc
 // @Summary      Workspace의 Project 목록 조회 (쿼리 파라미터 방식)
 // @Description  특정 Workspace에 속한 모든 Project를 조회합니다. 프론트엔드 호환용 엔드포인트
+// @Description  각 프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다
 // @Tags         projects
 // @Produce      json
 // @Param        workspaceId query string true "Workspace ID (UUID)"
@@ -198,6 +201,7 @@ func (h *ProjectHandler) GetProjectsByWorkspaceQuery(c *gin.Context) {
 // GetDefaultProject godoc
 // @Summary      Workspace의 기본 Project 조회
 // @Description  특정 Workspace의 기본(default) Project를 조회합니다
+// @Description  프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다
 // @Tags         projects
 // @Produce      json
 // @Param        workspaceId path string true "Workspace ID (UUID)"
@@ -250,6 +254,7 @@ func (h *ProjectHandler) GetDefaultProject(c *gin.Context) {
 // GetProject godoc
 // @Summary      Project 상세 조회
 // @Description  특정 Project의 상세 정보를 조회합니다
+// @Description  프로젝트는 startDate, dueDate (설정된 경우), attachments (첨부파일 메타데이터 배열)를 포함합니다
 // @Tags         projects
 // @Produce      json
 // @Param        projectId path string true "Project ID (UUID)"
@@ -300,7 +305,8 @@ func (h *ProjectHandler) GetProject(c *gin.Context) {
 
 // UpdateProject godoc
 // @Summary      Project 수정
-// @Description  Project의 이름과 설명을 수정합니다 (OWNER만 가능)
+// @Description  Project의 이름, 설명, 날짜를 수정합니다 (OWNER만 가능)
+// @Description  startDate와 dueDate를 수정할 수 있으며, startDate는 dueDate보다 이전이어야 합니다
 // @Tags         projects
 // @Accept       json
 // @Produce      json

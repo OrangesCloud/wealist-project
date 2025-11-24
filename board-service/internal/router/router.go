@@ -25,6 +25,7 @@ type Config struct {
 	BasePath           string
 	UserServiceBaseURL string
 	Metrics            *metrics.Metrics
+	S3Client           *client.S3Client
 }
 
 // Setup initializes the router with all dependencies and routes
@@ -39,7 +40,7 @@ func Setup(cfg Config) *gin.Engine {
 		middleware.Logger(cfg.Logger),   // 3. Request logging
 		middleware.CORS(),               // 4. CORS configuration
 	)
-	
+
 	// Add metrics middleware if metrics is configured
 	if cfg.Metrics != nil {
 		router.Use(middleware.Metrics(cfg.Metrics))
@@ -52,15 +53,16 @@ func Setup(cfg Config) *gin.Engine {
 	participantRepo := repository.NewParticipantRepository(cfg.DB)
 	commentRepo := repository.NewCommentRepository(cfg.DB)
 	fieldOptionRepo := repository.NewFieldOptionRepository(cfg.DB)
+	attachmentRepo := repository.NewAttachmentRepository(cfg.DB)
 
 	// Initialize converters
 	fieldOptionConverter := converter.NewFieldOptionConverter(fieldOptionRepo)
 
 	// Initialize services with repository dependencies
-	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, cfg.UserClient, cfg.Metrics, cfg.Logger)
-	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, fieldOptionConverter, cfg.Metrics)
+	projectService := service.NewProjectService(projectRepo, fieldOptionRepo, attachmentRepo, cfg.S3Client, cfg.UserClient, cfg.Metrics, cfg.Logger)
+	boardService := service.NewBoardService(boardRepo, projectRepo, fieldOptionRepo, participantRepo, attachmentRepo, cfg.S3Client, fieldOptionConverter, cfg.Metrics, cfg.Logger)
 	participantService := service.NewParticipantService(participantRepo, boardRepo)
-	commentService := service.NewCommentService(commentRepo, boardRepo)
+	commentService := service.NewCommentService(commentRepo, boardRepo, attachmentRepo, cfg.S3Client, cfg.Logger)
 	fieldOptionService := service.NewFieldOptionService(fieldOptionRepo)
 	projectMemberService := service.NewProjectMemberService(projectRepo, cfg.UserClient)
 	projectJoinRequestService := service.NewProjectJoinRequestService(projectRepo, cfg.UserClient)
@@ -73,6 +75,7 @@ func Setup(cfg Config) *gin.Engine {
 	fieldOptionHandler := handler.NewFieldOptionHandler(fieldOptionService)
 	projectMemberHandler := handler.NewProjectMemberHandler(projectMemberService)
 	projectJoinRequestHandler := handler.NewProjectJoinRequestHandler(projectJoinRequestService)
+	attachmentHandler := handler.NewAttachmentHandler(cfg.S3Client, attachmentRepo)
 
 	// 💡 WebSocket Handler 초기화
 	wsHandler := handler.NewWSHandler(cfg.Logger, cfg.UserClient)
@@ -96,11 +99,11 @@ func Setup(cfg Config) *gin.Engine {
 	// Metrics endpoint (no authentication required)
 	// Add metrics endpoint at root level for compatibility
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
-	
+
 	// Also add metrics endpoint under base path if configured
 	if cfg.BasePath != "" {
 		baseGroup.GET("/metrics", gin.WrapH(promhttp.Handler()))
-		cfg.Logger.Info("Metrics endpoint configured at both root and base path", 
+		cfg.Logger.Info("Metrics endpoint configured at both root and base path",
 			zap.String("root_path", "/metrics"),
 			zap.String("base_path", cfg.BasePath+"/metrics"))
 	} else {
@@ -108,16 +111,7 @@ func Setup(cfg Config) *gin.Engine {
 	}
 
 	// Setup API routes
-	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler)
-
-	// 🔥 [수정] MoveBoard를 /api 그룹 안에 등록
-	// 프론트엔드: PUT /api/boards/api/:boardId/move
-	// 백엔드: PUT /api/boards/api/:boardId/move
-	apiGroup := baseGroup.Group("/api")
-	apiGroup.Use(middleware.Auth(cfg.JWTSecret))
-	{
-		apiGroup.PUT("/:boardId/move", boardHandler.MoveBoard)
-	}
+	setupRoutes(baseGroup, cfg.JWTSecret, projectHandler, boardHandler, participantHandler, commentHandler, fieldOptionHandler, projectMemberHandler, projectJoinRequestHandler, attachmentHandler)
 
 	// 🔥 [중요] WebSocket은 baseGroup을 사용하되 인증 미들웨어 없이 직접 등록
 	// basePath가 /api/boards일 때: /api/boards/api/ws/project/:projectId
@@ -168,6 +162,7 @@ func setupRoutes(
 	fieldOptionHandler *handler.FieldOptionHandler,
 	projectMemberHandler *handler.ProjectMemberHandler,
 	projectJoinRequestHandler *handler.ProjectJoinRequestHandler,
+	attachmentHandler *handler.AttachmentHandler,
 ) {
 	// API group with authentication
 	api := baseGroup.Group("/api")
@@ -198,6 +193,9 @@ func setupRoutes(
 
 			// Project join request routes
 			projects.GET("/:projectId/join-requests", projectJoinRequestHandler.GetJoinRequests)
+
+			// Attachment routes for projects
+			projects.GET("/:projectId/attachments", attachmentHandler.GetProjectAttachments)
 		}
 
 		// Join request routes (not nested under project)
@@ -218,14 +216,16 @@ func setupRoutes(
 			boards.GET("/project/:projectId", boardHandler.GetBoardsByProject)
 			boards.PUT("/:boardId", boardHandler.UpdateBoard)
 			boards.DELETE("/:boardId", boardHandler.DeleteBoard)
-			// 💡 [제거] boards.PUT("/:boardId/move", boardHandler.MoveBoard)
-			// MoveBoard는 Setup 함수에서 별도로 등록됨
+			boards.PUT("/:boardId/move", boardHandler.MoveBoard) // ✅ 이 라인 추가
+
+			// Attachment routes for boards
+			boards.GET("/:boardId/attachments", attachmentHandler.GetBoardAttachments)
 		}
 
 		// Participant routes
 		participants := api.Group("/participants")
 		{
-			participants.POST("", participantHandler.AddParticipant)
+			participants.POST("", participantHandler.AddParticipants)
 			participants.GET("/board/:boardId", participantHandler.GetParticipants)
 			participants.DELETE("/board/:boardId/user/:userId", participantHandler.RemoveParticipant)
 		}
@@ -240,6 +240,9 @@ func setupRoutes(
 			comments.GET("/board/:boardId", commentHandler.GetComments)
 			comments.PUT("/:commentId", commentHandler.UpdateComment)
 			comments.DELETE("/:commentId", commentHandler.DeleteComment)
+
+			// Attachment routes for comments
+			comments.GET("/:commentId/attachments", attachmentHandler.GetCommentAttachments)
 		}
 
 		// Field option routes
@@ -249,6 +252,17 @@ func setupRoutes(
 			fieldOptions.POST("", fieldOptionHandler.CreateFieldOption)
 			fieldOptions.PATCH("/:optionId", fieldOptionHandler.UpdateFieldOption)
 			fieldOptions.DELETE("/:optionId", fieldOptionHandler.DeleteFieldOption)
+		}
+
+		// Attachment routes (Presigned URL approach)
+		attachments := api.Group("/attachments")
+		{
+			// Generate presigned URL for direct S3 upload
+			attachments.POST("/presigned-url", attachmentHandler.GeneratePresignedURL)
+			// Save attachment metadata after successful S3 upload
+			attachments.POST("", attachmentHandler.SaveAttachmentMetadata)
+			// Delete attachment
+			attachments.DELETE("/:attachmentId", attachmentHandler.DeleteAttachment)
 		}
 	}
 }

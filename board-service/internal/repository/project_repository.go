@@ -19,7 +19,7 @@ type ProjectRepository interface {
 	Search(ctx context.Context, workspaceID uuid.UUID, query string, page, limit int) ([]*domain.Project, int64, error)
 	Update(ctx context.Context, project *domain.Project) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	
+
 	// Member management
 	AddMember(ctx context.Context, member *domain.ProjectMember) error
 	FindMembersByProjectID(ctx context.Context, projectID uuid.UUID) ([]*domain.ProjectMember, error)
@@ -27,7 +27,7 @@ type ProjectRepository interface {
 	UpdateMemberRole(ctx context.Context, memberID uuid.UUID, role domain.ProjectRole) error
 	RemoveMember(ctx context.Context, memberID uuid.UUID) error
 	IsProjectMember(ctx context.Context, projectID, userID uuid.UUID) (bool, error)
-	
+
 	// Join request management
 	CreateJoinRequest(ctx context.Context, request *domain.ProjectJoinRequest) error
 	FindJoinRequestsByProjectID(ctx context.Context, projectID uuid.UUID, status *domain.ProjectJoinRequestStatus) ([]*domain.ProjectJoinRequest, error)
@@ -55,9 +55,13 @@ func (r *projectRepositoryImpl) Create(ctx context.Context, project *domain.Proj
 }
 
 // FindByID finds a project by ID
+// ✅ 수정: Preload("Attachments") 제거 - service에서 별도 로드
 func (r *projectRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*domain.Project, error) {
 	var project domain.Project
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&project).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		// Preload("Attachments"). // ✅ 제거
+		Where("id = ?", id).
+		First(&project).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
@@ -67,10 +71,14 @@ func (r *projectRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*do
 }
 
 // FindByWorkspaceID finds all projects by workspace ID
+// ✅ 수정: Preload("Attachments") 제거 - service에서 별도 로드
 func (r *projectRepositoryImpl) FindByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]*domain.Project, error) {
 	// Explicitly initialize empty array to prevent nil return
 	projects := make([]*domain.Project, 0)
-	if err := r.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).Find(&projects).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		// Preload("Attachments"). // ✅ 제거
+		Where("workspace_id = ?", workspaceID).
+		Find(&projects).Error; err != nil {
 		return nil, err
 	}
 	return projects, nil
@@ -110,25 +118,25 @@ func (r *projectRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error 
 func (r *projectRepositoryImpl) Search(ctx context.Context, workspaceID uuid.UUID, query string, page, limit int) ([]*domain.Project, int64, error) {
 	var projects []*domain.Project
 	var total int64
-	
+
 	db := r.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
-	
+
 	if query != "" {
 		searchPattern := "%" + query + "%"
 		db = db.Where("name ILIKE ? OR description ILIKE ?", searchPattern, searchPattern)
 	}
-	
+
 	// Count total
 	if err := db.Model(&domain.Project{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	// Get paginated results
 	offset := (page - 1) * limit
 	if err := db.Offset(offset).Limit(limit).Find(&projects).Error; err != nil {
 		return nil, 0, err
 	}
-	
+
 	return projects, total, nil
 }
 
@@ -194,11 +202,11 @@ func (r *projectRepositoryImpl) CreateJoinRequest(ctx context.Context, request *
 func (r *projectRepositoryImpl) FindJoinRequestsByProjectID(ctx context.Context, projectID uuid.UUID, status *domain.ProjectJoinRequestStatus) ([]*domain.ProjectJoinRequest, error) {
 	var requests []*domain.ProjectJoinRequest
 	db := r.db.WithContext(ctx).Where("project_id = ?", projectID)
-	
+
 	if status != nil {
 		db = db.Where("status = ?", *status)
 	}
-	
+
 	if err := db.Find(&requests).Error; err != nil {
 		return nil, err
 	}

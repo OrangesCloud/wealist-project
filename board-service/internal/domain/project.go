@@ -9,15 +9,19 @@ import (
 // Project represents a project entity within a workspace
 type Project struct {
 	BaseModel
-	WorkspaceID uuid.UUID        `gorm:"type:uuid;not null;index:idx_projects_workspace_id" json:"workspace_id"`
-	OwnerID     uuid.UUID        `gorm:"type:uuid;not null;index:idx_projects_owner_id" json:"owner_id"`
-	Name        string           `gorm:"type:varchar(255);not null" json:"name"`
-	Description string           `gorm:"type:text" json:"description"`
-	IsDefault   bool             `gorm:"default:false;index:idx_projects_is_default" json:"is_default"`
-	IsPublic    bool             `gorm:"default:false" json:"is_public"`
-	Boards      []Board          `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"boards,omitempty"`
-	Members     []ProjectMember  `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"members,omitempty"`
+	WorkspaceID  uuid.UUID            `gorm:"type:uuid;not null;index:idx_projects_workspace_id" json:"workspace_id"`
+	OwnerID      uuid.UUID            `gorm:"type:uuid;not null;index:idx_projects_owner_id" json:"owner_id"`
+	Name         string               `gorm:"type:varchar(255);not null" json:"name"`
+	Description  string               `gorm:"type:text" json:"description"`
+	StartDate    *time.Time           `gorm:"type:timestamp" json:"start_date,omitempty"`
+	DueDate      *time.Time           `gorm:"type:timestamp" json:"due_date,omitempty"`
+	IsDefault    bool                 `gorm:"default:false;index:idx_projects_is_default" json:"is_default"`
+	IsPublic     bool                 `gorm:"default:false" json:"is_public"`
+	Boards       []Board              `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"boards,omitempty"`
+	Members      []ProjectMember      `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"members,omitempty"`
 	JoinRequests []ProjectJoinRequest `gorm:"foreignKey:ProjectID;constraint:OnDelete:CASCADE" json:"join_requests,omitempty"`
+	// ✅ 수정: Attachments는 다형성 관계이므로 FK 제거, Repository에서 별도 조회
+	Attachments []Attachment `gorm:"-" json:"attachments,omitempty"`
 }
 
 // ProjectRole represents the role of a project member

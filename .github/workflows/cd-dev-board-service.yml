@@ -382,6 +382,28 @@ jobs:
           # Service URLs
           export USER_SERVICE_URL=$(load_param "service/user_service_url")
 
+          # S3 Configuration (IAM Role 사용 - Access Key 불필요)
+          echo "📦 Loading S3 configuration..."
+          export S3_BUCKET=$(load_param "s3/bucket")
+          export S3_REGION=$(load_param "s3/region")
+          
+          if [ -z "$S3_BUCKET" ]; then
+            echo "❌ ERROR: S3_BUCKET is empty after loading from Parameter Store" >&2
+            echo "Please verify the parameter exists:" >&2
+            echo "  aws ssm get-parameter --name '${PARAMETER_PREFIX}/s3/bucket' --region ${AWS_REGION}" >&2
+            exit 1
+          fi
+          
+          if [ -z "$S3_REGION" ]; then
+            echo "❌ ERROR: S3_REGION is empty after loading from Parameter Store" >&2
+            echo "Please verify the parameter exists:" >&2
+            echo "  aws ssm get-parameter --name '${PARAMETER_PREFIX}/s3/region' --region ${AWS_REGION}" >&2
+            exit 1
+          fi
+          
+          echo "  ✅ S3_BUCKET: ${S3_BUCKET}"
+          echo "  ✅ S3_REGION: ${S3_REGION}"
+
           # 환경 변수 검증
           required_vars=(
             "AWS_ACCOUNT_ID"
@@ -393,6 +415,8 @@ jobs:
             "REDIS_PASSWORD"
             "JWT_SECRET"
             "USER_SERVICE_URL"
+            "S3_BUCKET"
+            "S3_REGION"
           )
 
           for var in "${required_vars[@]}"; do
@@ -426,6 +450,8 @@ jobs:
           echo "   - OAUTH2_REDIRECT_URL_ENV: ${OAUTH2_REDIRECT_URL_ENV}"
           echo "   - OAUTH2_CLIENT_REDIRECT_URI: ${OAUTH2_CLIENT_REDIRECT_URI}"
           echo "   - USER_SERVICE_URL: ${USER_SERVICE_URL}"
+          echo "   - S3_BUCKET: ${S3_BUCKET}"
+          echo "   - S3_REGION: ${S3_REGION}"
           echo ""
 
           # =============================================================================
@@ -672,6 +698,13 @@ jobs:
           
           # board-service 재시작
           echo "  🔄 Recreating board-service..."
+          echo "  📋 Environment variables for board-service:"
+          echo "     - S3_BUCKET: ${S3_BUCKET}"
+          echo "     - S3_REGION: ${S3_REGION}"
+          echo "     - AWS_ACCOUNT_ID: ${AWS_ACCOUNT_ID}"
+          echo "     - AWS_REGION: ${AWS_REGION}"
+          echo ""
+          
           restart_error=$(mktemp)
           if ! $COMPOSE_CMD -f ${COMPOSE_FILE} up -d --force-recreate board-service 2>&1 | tee "$restart_error"; then
             echo "  ❌ Failed to restart board-service" >&2

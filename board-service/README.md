@@ -198,6 +198,25 @@ Swagger UI에서는 다음 기능을 제공합니다:
 - API 직접 테스트 (Try it out)
 - 예시 요청/응답 확인
 
+### Presigned URL 기반 파일 업로드 API
+
+Board, Comment, Project에 파일을 첨부할 수 있는 Presigned URL 기반 업로드 API를 제공합니다.
+
+**주요 특징:**
+- 클라이언트가 S3에 직접 업로드하여 서버 부하 최소화
+- 이미지 및 문서 파일 지원 (최대 20MB)
+- 임시 파일 자동 정리 (1시간 후)
+
+**지원 파일 형식:**
+- 이미지: jpg, jpeg, png, gif, webp
+- 문서: pdf, txt, doc, docx, xls, xlsx, ppt, pptx
+
+**API 엔드포인트:**
+- `POST /api/attachments/presigned-url` - Presigned URL 생성
+- `POST /api/attachments` - 첨부파일 메타데이터 저장
+
+**상세 가이드:** [docs/PRESIGNED_URL_API_GUIDE.md](docs/PRESIGNED_URL_API_GUIDE.md)를 참조하세요.
+
 ### API 마이그레이션 가이드
 
 API 표준화 작업으로 인해 엔드포인트와 필드명이 변경되었습니다. 자세한 내용은 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)를 참조하세요.
@@ -449,6 +468,13 @@ CORS_ORIGINS=http://localhost:3000
 
 # Logger Configuration
 LOG_LEVEL=info                # 로그 레벨: debug, info, warn, error
+
+# S3 Configuration
+S3_BUCKET=wealist-dev-files   # S3 버킷 이름
+S3_REGION=ap-northeast-2      # S3 리전
+# S3_ENDPOINT=http://localhost:9000  # MinIO 사용 시에만 설정
+# S3_ACCESS_KEY=minioadmin           # MinIO 사용 시에만 설정
+# S3_SECRET_KEY=minioadmin           # MinIO 사용 시에만 설정
 ```
 
 **현재 형식 (하위 호환성):**
@@ -479,6 +505,43 @@ USER_API_BASE_URL=http://user-service:8080
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS=http://localhost:3000
+
+# S3 Configuration
+S3_BUCKET=wealist-dev-files   # S3 버킷 이름
+S3_REGION=ap-northeast-2      # S3 리전
+# S3_ENDPOINT=http://localhost:9000  # MinIO 사용 시에만 설정
+# S3_ACCESS_KEY=minioadmin           # MinIO 사용 시에만 설정
+# S3_SECRET_KEY=minioadmin           # MinIO 사용 시에만 설정
+```
+
+### S3 자격증명 설정
+
+**AWS 환경 (EC2):**
+- IAM 역할 사용 (자격증명 불필요)
+- EC2 인스턴스에 S3 접근 권한이 있는 IAM 역할 할당
+
+**로컬 환경:**
+- `~/.aws/credentials` 파일 사용 (권장)
+- 또는 환경 변수 사용: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+
+```bash
+# ~/.aws/credentials 파일 설정
+[default]
+aws_access_key_id = YOUR_ACCESS_KEY
+aws_secret_access_key = YOUR_SECRET_KEY
+
+# ~/.aws/config 파일 설정
+[default]
+region = ap-northeast-2
+```
+
+**MinIO 사용 (로컬 테스트):**
+- `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` 환경 변수 설정 필요
+
+```bash
+S3_ENDPOINT=http://localhost:9000
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
 ```
 
 ### 설정 우선순위
@@ -559,6 +622,7 @@ board-service는 user-service와 통신하기 위해 올바른 base URL 설정�
 
 **자세한 설정 가이드**: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)를 참조하세요.
 
+
 ## 개발
 
 ### 사용 가능한 Make 명령어
@@ -595,7 +659,6 @@ make test-coverage-text # 테스트 커버리지 (텍스트)
 ./board-service/scripts/quick-test.sh projects
 ```
 
-자세한 내용은 [TESTING_GUIDE_KR.md](TESTING_GUIDE_KR.md)를 참조하세요.
 
 ### 코드 품질
 

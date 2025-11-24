@@ -34,13 +34,25 @@ func NewCommentHandler(commentService service.CommentService) *CommentHandler {
 // @Failure      500 {object} response.ErrorResponse "서버 에러"
 // @Router       /comments [post]
 func (h *CommentHandler) CreateComment(c *gin.Context) {
+	// Extract user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "User ID not found in context")
+		return
+	}
+	userUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		response.SendError(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "Invalid user ID format")
+		return
+	}
+
 	var req dto.CreateCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.SendError(c, http.StatusBadRequest, response.ErrCodeValidation, "Invalid request body")
 		return
 	}
 
-	comment, err := h.commentService.CreateComment(c.Request.Context(), &req)
+	comment, err := h.commentService.CreateComment(c.Request.Context(), userUUID, &req)
 	if err != nil {
 		handleServiceError(c, err)
 		return

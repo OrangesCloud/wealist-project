@@ -57,7 +57,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const currentWorkspaceId = workspaceId || '';
   const location = useLocation(); // 💡 useLocation 훅 추가
-
   const { theme } = useTheme(); // 💡 [추가] location.state에서 userRole 추출 (기본값 설정 필요)
   // 타입 가정이 필요하거나, location.state를 명시적으로 타입 캐스팅해야 할 수 있습니다.
   const passedRole = ((location.state as any)?.userRole as IROLES) || 'GUEST'; // GUEST 등 기본값 설정
@@ -65,7 +64,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
   // 💡 currentRole을 useRef 대신 state로 관리하거나, Props로 전달해야 함.
   // 여기서는 currentRole.current를 passedRole로 대체할 수 있습니다.
   const currentRole = useRef<IROLES>(passedRole); // 초기 로드 시점의 역할 설정
-  const canAccessSettings = currentRole.current === 'OWNER' || currentRole.current === 'ADMIN';
 
   // [핵심 상태]
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
@@ -139,10 +137,8 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     setError(null);
     try {
       const fetchedProjects = await getProjects(currentWorkspaceId);
+      console.log(fetchedProjects);
       setProjects(fetchedProjects);
-      // 💡 [수정] 현재 선택된 프로젝트가 없거나 (초기 로드),
-      //    목록에 프로젝트가 있고, 현재 선택된 프로젝트가 목록에 없는 경우 (생성 후)
-      //    가장 첫 번째 프로젝트(최신 프로젝트)를 선택하도록 변경합니다.
       const shouldSelectNewProject =
         !selectedProject ||
         (fetchedProjects.length > 0 &&
@@ -150,7 +146,10 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
 
       if (fetchedProjects.length > 0 && shouldSelectNewProject) {
         // API가 최신순으로 정렬해서 반환한다고 가정하고 첫 번째 요소를 선택합니다.
-        setSelectedProject(fetchedProjects[0]);
+        setSelectedProject({
+          ...fetchedProjects[0],
+          attachments: [fetchedProjects[0]?.attachments?.[0]],
+        });
       }
       // 💡 [참고] 만약 선택된 프로젝트가 목록에 여전히 있다면, 변경하지 않습니다 (예: 수정 시).
     } catch (err: any) {
@@ -191,7 +190,6 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
     try {
       // 💡 [API 호출] GET /api/projects/{projectId}/init-settings
       const initData = await getProjectInitSettings(selectedProject.projectId);
-
       // 2. 필드 옵션 룩업 테이블 생성
       const fieldLookup = mapFieldOptions(initData.fields);
       setFieldTypesLookup(initData.fieldTypes);
@@ -270,6 +268,7 @@ const MainDashboard: React.FC<MainDashboardProps> = ({ onLogout }) => {
           <ProjectContent
             selectedProject={selectedProject}
             workspaceId={currentWorkspaceId}
+            workspaceMembers={workspaceMembers}
             onProjectContentUpdate={handleBoardContentUpdate}
             onManageModalOpen={() => toggleUiState('showManageModal', true)}
             onEditBoard={setEditBoardData}

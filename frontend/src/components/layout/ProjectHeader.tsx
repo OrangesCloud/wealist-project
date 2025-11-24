@@ -31,7 +31,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
   projects,
   selectedProject,
   workspaceMembers,
-  userRole, // 💡 [추가] userRole
+  userRole: _userRole,
   setSelectedProject,
   setShowCreateProject,
   setShowProjectDetail, // 💡 [추가] Project Detail 핸들러

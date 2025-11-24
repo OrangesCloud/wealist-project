@@ -3,6 +3,7 @@ package OrangeCloud.UserRepo.controller;
 import OrangeCloud.UserRepo.dto.userprofile.CreateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
+import OrangeCloud.UserRepo.exception.UserNotFoundException;
 import OrangeCloud.UserRepo.service.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -136,6 +137,44 @@ public class UserProfileController {
         log.info("Deleting profile for user: {} in workspace: {}", userId, workspaceId);
         userProfileService.deleteProfile(userId, workspaceId);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/workspace/{workspaceId}")
+    @Operation(
+        summary = "워크스페이스별 프로필 삭제", 
+        description = "워크스페이스별 프로필을 삭제하고 기본 프로필로 되돌립니다. 기본 워크스페이스 프로필은 삭제할 수 없습니다."
+    )
+    public ResponseEntity<Void> deleteWorkspaceProfile(
+            @Parameter(description = "워크스페이스 ID") @PathVariable UUID workspaceId,
+            Principal principal) {
+        UUID userId = extractUserId(principal);
+        
+        try {
+            // DEFAULT_WORKSPACE_ID 검증
+            UUID defaultWorkspaceId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+            if (defaultWorkspaceId.equals(workspaceId)) {
+                log.warn("Attempted to delete default workspace profile: userId={}, workspaceId={}", userId, workspaceId);
+                throw new IllegalArgumentException("기본 워크스페이스 프로필은 삭제할 수 없습니다.");
+            }
+            
+            log.info("Deleting workspace profile: userId={}, workspaceId={}", userId, workspaceId);
+            userProfileService.deleteWorkspaceProfile(userId, workspaceId);
+            log.info("Successfully deleted workspace profile: userId={}, workspaceId={}", userId, workspaceId);
+            
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            log.error("Validation error deleting workspace profile: userId={}, workspaceId={}, error={}", 
+                    userId, workspaceId, e.getMessage());
+            throw e;
+        } catch (UserNotFoundException e) {
+            log.error("Failed to delete workspace profile - not found: userId={}, workspaceId={}, error={}", 
+                    userId, workspaceId, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error while deleting workspace profile: userId={}, workspaceId={}", 
+                    userId, workspaceId, e);
+            throw new RuntimeException("워크스페이스 프로필 삭제 중 오류가 발생했습니다.", e);
+        }
     }
 
 }
