@@ -42,7 +42,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       try {
         // 💡 [수정] 토큰 없이 API 호출 (인터셉터 사용)
         const profile = await getMyProfile();
-        console.log(profile);
         setUserProfile(profile);
       } catch (e) {
         console.error('기본 프로필 로드 실패:', e);
@@ -186,7 +185,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       {showUserMenu && (
         <div
           ref={userMenuRef}
-          className={`absolute bottom-16 left-12 sm:left-16 w-64 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} z-50 ${theme.effects.borderRadius} shadow-2xl`}
+          className={`fixed bottom-16 left-12 sm:left-16 w-64 ${theme.colors.card} ${theme.effects.cardBorderWidth} ${theme.colors.border} z-50 ${theme.effects.borderRadius} shadow-2xl`}
           onMouseDown={(e) => e.stopPropagation()} // 💡 [수정] 메뉴 내부 클릭 시 닫히는 현상 방지
         >
           <div className="p-3 pb-3 mb-2 border-b border-gray-200">
