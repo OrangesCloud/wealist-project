@@ -1,5 +1,3 @@
-// src/components/layout/Sidebar.tsx
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, MessageSquare, Bell, File } from 'lucide-react';
