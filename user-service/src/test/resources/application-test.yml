@@ -14,6 +14,9 @@ spring:
         format_sql: false
         dialect: org.hibernate.dialect.H2Dialect
   
+  cache:
+    type: none  # Disable caching for tests
+  
   data:
     redis:
       host: localhost
