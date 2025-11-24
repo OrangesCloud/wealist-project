@@ -43,6 +43,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+        return new ResponseEntity<>(
+                ErrorResponse.builder()
+                        .code(ErrorCode.INVALID_INPUT_VALUE.getCode())
+                        .message(ex.getMessage())
+                        .status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
+                        .build(),
+                ErrorCode.INVALID_INPUT_VALUE.getStatus()
+        );
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex) {
         return new ResponseEntity<>(

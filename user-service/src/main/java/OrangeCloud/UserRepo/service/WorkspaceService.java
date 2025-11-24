@@ -462,12 +462,22 @@ public class WorkspaceService {
         return members.stream()
                 .<WorkspaceMemberResponse>map(member -> {
                     Optional<User> userOpt = userRepository.findById(member.getUserId());
-                    Optional<UserProfile> profileOpt = userProfileRepository.findByUserId(member.getUserId());
+                    // 워크스페이스별 프로필 조회 (워크스페이스 ID와 사용자 ID로 조회)
+                    Optional<UserProfile> profileOpt = userProfileRepository.findByWorkspaceIdAndUserId(workspaceId, member.getUserId());
 
                     User user = userOpt.orElseGet(
                             () -> User.builder().userId(member.getUserId()).email("unknown@user.com").build());
-                    UserProfile profile = profileOpt.orElseGet(
-                            () -> UserProfile.builder().nickName("Deleted User").userId(member.getUserId()).build());
+                    
+                    // 워크스페이스별 프로필이 없으면 기본 워크스페이스 프로필을 fallback으로 사용
+                    UserProfile profile = profileOpt.orElseGet(() -> {
+                        log.debug("Workspace-specific profile not found for userId={}, workspaceId={}. Falling back to default profile.", 
+                                member.getUserId(), workspaceId);
+                        return userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, member.getUserId())
+                                .orElseGet(() -> UserProfile.builder()
+                                        .nickName("Deleted User")
+                                        .userId(member.getUserId())
+                                        .build());
+                    });
 
                     return convertToWorkspaceMemberResponse(
                             member,
