@@ -23,8 +23,8 @@ import {
   createBoard,
   updateBoard,
   uploadAttachment, // 💡 Presigned URL 업로드 함수 임포트
-} from '../../../api/board/boardService';
-import { getWorkspaceMembers } from '../../../api/user/userService';
+} from '../../../api/boardService';
+import { getWorkspaceMembers } from '../../../api/userService';
 import { WorkspaceMemberResponse } from '../../../types/user';
 import { AvatarStack } from '../../common/AvartarStack';
 import Portal from '../../common/Portal';

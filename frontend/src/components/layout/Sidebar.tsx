@@ -12,7 +12,7 @@ interface SidebarProps {
   isChatActive: boolean;
   onChatToggle: () => void;
   onUserMenuToggle: () => void;
-  onStartChat?: (member: WorkspaceMemberResponse) => Promise<void>; 
+  onStartChat?: (member: WorkspaceMemberResponse) => Promise<void>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -86,25 +86,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* 하단 유저 메뉴 버튼 */}
-      <div className="py-3 px-2 border-t border-gray-700">
+      <div className={`py-3 px-2 border-t border-gray-700`}>
         <button
           onClick={(e) => {
             e.stopPropagation();
             onUserMenuToggle();
           }}
-          className="w-full flex items-center justify-center py-2 text-sm rounded-lg hover:bg-blue-600 transition relative"
+          className={`w-full flex items-center justify-center py-2 text-sm rounded-lg hover:bg-blue-600 transition relative`}
           title="계정 메뉴"
         >
-          <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold ring-2 ring-white/50 text-gray-700 overflow-hidden">
-            {userProfile?.profileImageUrl ? (
-              <img
-                src={userProfile.profileImageUrl}
-                alt={userProfile.nickName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              userProfile?.nickName[0]?.toUpperCase() || '나'
-            )}
+          {/* 💡 relative 컨테이너로 감싸서 온라인 인디케이터 배치 */}
+          <div className="relative">
+            <div
+              className={`w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold ring-2 ring-white/50 text-gray-700 overflow-hidden`}
+            >
+              {userProfile?.profileImageUrl ? (
+                <img
+                  src={userProfile.profileImageUrl}
+                  alt={userProfile.nickName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                userProfile?.nickName[0]?.toUpperCase() || '나'
+              )}
+            </div>
+            {/* 💡 온라인 상태 인디케이터 */}
+            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-white"></div>
           </div>
         </button>
       </div>

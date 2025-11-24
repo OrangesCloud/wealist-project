@@ -9,7 +9,7 @@ import {
   updateComment,
   createComment,
   uploadAttachment,
-} from '../../api/board/boardService';
+} from '../../api/boardService';
 
 import { WorkspaceMemberResponse } from '../../types/user';
 import { useUserLookup } from '../../hooks/useUserLookup';
@@ -26,11 +26,7 @@ interface CommentInputProps {
   onCommentCreated: () => void;
 }
 
-const CommentInput = ({
-  boardId,
-  workspaceId,
-  onCommentCreated,
-}: CommentInputProps) => {
+const CommentInput = ({ boardId, workspaceId, onCommentCreated }: CommentInputProps) => {
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);

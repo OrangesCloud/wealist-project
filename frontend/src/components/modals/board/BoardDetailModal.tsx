@@ -28,8 +28,8 @@ import {
   deleteBoard,
   getCommentsByBoard,
   // createComment 삭제 (CommentList 내부에서 처리)
-} from '../../../api/board/boardService'; // apis/board 경로 확인 필요
-import { getWorkspaceMembers } from '../../../api/user/userService'; // apis/user 경로 확인 필요
+} from '../../../api/boardService'; // apis/board 경로 확인 필요
+import { getWorkspaceMembers } from '../../../api/userService'; // apis/user 경로 확인 필요
 import { WorkspaceMemberResponse } from '../../../types/user';
 import { AvatarStack } from '../../common/AvartarStack';
 import { formatDate } from '../../../utils/date';

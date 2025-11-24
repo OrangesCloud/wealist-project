@@ -12,7 +12,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { createProject, updateProject, getBoardsByProject } from '../../../api/board/boardService';
+import { createProject, updateProject, getBoardsByProject } from '../../../api/boardService';
 import {
   ProjectResponse,
   BoardResponse,

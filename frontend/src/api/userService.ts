@@ -1,4 +1,4 @@
-// src/api/user/userService.ts
+// src/api/userService.ts
 
 import {
   CreateWorkspaceRequest,
@@ -18,8 +18,8 @@ import {
   PresignedUrlRequest,
   PresignedUrlResponse,
   AttachmentResponse,
-} from '../../types/user';
-import { userRepoClient } from '../apiConfig';
+} from '../types/user';
+import { userRepoClient } from './apiConfig';
 import { AxiosResponse } from 'axios';
 
 // ========================================

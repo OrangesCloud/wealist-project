@@ -1,6 +1,6 @@
 // src/apis/board/index.ts
 
-import { boardServiceClient } from '../apiConfig'; // 프로젝트 설정에 맞게 경로 확인
+import { boardServiceClient } from './apiConfig'; // 프로젝트 설정에 맞게 경로 확인
 import axios, { AxiosResponse } from 'axios';
 
 import {
@@ -34,7 +34,7 @@ import {
   PresignedURLRequest, // 추가
   PresignedURLResponse, // 추가
   SaveAttachmentMetadataRequest, // 추가
-} from '../../types/board';
+} from '../types/board';
 
 /**
  * ========================================
