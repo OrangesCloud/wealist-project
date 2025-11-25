@@ -1,0 +1,30 @@
+version: 0.0
+os: linux
+files:
+  # Board Service 스크립트 파일 복사 (전략적으로 디렉토리 구조 유지)
+  - source: /board-service/deploy.script
+    destination: /home/ubuntu/wealist/board-service/deploy.script
+  # Docker Compose 파일 복사 (루트에 위치하여 /home/ubuntu/wealist/ 에 복사)
+  - source: /docker-compose.ec2-prod.yml
+    destination: /home/ubuntu/wealist/
+permissions:
+  - object: /home/ubuntu/wealist/
+    pattern: "**"
+    owner: ubuntu
+    group: ubuntu
+hooks:
+  BeforeInstall:
+    # 1. 기존 컨테이너 중지 및 이미지 정리
+    - location: board-service/deploy.script/deploy-cleanup.sh
+      timeout: 60
+      runas: ubuntu
+  ApplicationStart:
+    # 2. SSM 변수 로드 후 Docker Compose 실행 (핵심 배포 로직)
+    - location: board-service/deploy.script/deploy-app-start.sh
+      timeout: 300
+      runas: ubuntu
+  ValidateService:
+    # 3. 헬스 체크
+    - location: board-service/deploy.script/deploy-health-check.sh
+      timeout: 180
+      runas: ubuntu
