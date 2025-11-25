@@ -55,27 +55,29 @@ COMMAND=${1:-up}
 case $COMMAND in
     up)
         echo -e "${BLUE}📊 모니터링 스택을 시작합니다 (환경: $ENV)...${NC}"
-        docker compose $ENV_FILE_OPTION $COMPOSE_FILES up -d prometheus grafana redis-exporter postgres-exporter node-exporter
+        docker compose $ENV_FILE_OPTION $COMPOSE_FILES up -d prometheus grafana loki promtail redis-exporter postgres-exporter node-exporter
         echo -e "${GREEN}✅ 모니터링 스택이 시작되었습니다.${NC}"
         echo ""
         echo -e "${BLUE}📊 모니터링 서비스 접속 정보:${NC}"
         echo -e "   - Prometheus:  http://localhost:9090"
         echo -e "   - Grafana:     http://localhost:3001"
+        echo -e "   - Loki:        http://localhost:3100"
         echo -e "   - Grafana 기본 계정: admin / admin"
         echo ""
-        echo -e "${YELLOW}💡 Grafana에서 Prometheus 데이터소스를 추가하세요:${NC}"
-        echo -e "   URL: http://prometheus:9090"
+        echo -e "${YELLOW}💡 Grafana에서 Prometheus, Loki 데이터소스를 추가하세요:${NC}"
+        echo -e "   - Prometheus URL: http://prometheus:9090"
+        echo -e "   - Loki URL: http://loki:3100"
         ;;
 
     down)
         echo -e "${YELLOW}⏹️  모니터링 스택을 중지합니다...${NC}"
-        docker compose $ENV_FILE_OPTION $COMPOSE_FILES stop prometheus grafana redis-exporter postgres-exporter node-exporter
+        docker compose $ENV_FILE_OPTION $COMPOSE_FILES stop prometheus grafana loki promtail redis-exporter postgres-exporter node-exporter
         echo -e "${GREEN}✅ 모니터링 스택이 중지되었습니다.${NC}"
         ;;
 
     restart)
         echo -e "${YELLOW}🔄 모니터링 스택을 재시작합니다...${NC}"
-        docker compose $ENV_FILE_OPTION $COMPOSE_FILES restart prometheus grafana redis-exporter postgres-exporter node-exporter
+        docker compose $ENV_FILE_OPTION $COMPOSE_FILES restart prometheus grafana loki promtail redis-exporter postgres-exporter node-exporter
         echo -e "${GREEN}✅ 모니터링 스택이 재시작되었습니다.${NC}"
         ;;
 
@@ -86,7 +88,7 @@ case $COMMAND in
 
     status)
         echo -e "${BLUE}📊 모니터링 서비스 상태:${NC}"
-        docker compose $ENV_FILE_OPTION $COMPOSE_FILES ps prometheus grafana redis-exporter postgres-exporter node-exporter
+        docker compose $ENV_FILE_OPTION $COMPOSE_FILES ps prometheus grafana loki promtail redis-exporter postgres-exporter node-exporter
         ;;
 
     *)
