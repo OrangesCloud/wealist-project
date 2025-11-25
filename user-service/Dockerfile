@@ -1,41 +1,33 @@
-# Build stage
-FROM gradle:8-jdk21 AS builder
-WORKDIR /home/gradle/src
+# syntax=docker/dockerfile:1
+FROM gradle:8-jdk21-alpine AS builder
 
-# 캐시 무효화를 위한 ARG 추가
-ARG CACHEBUST=1
-
-# Use Gradle Wrapper for consistent builds
-# Copy wrapper files
-COPY --chown=gradle:gradle gradlew build.gradle settings.gradle ./
-COPY --chown=gradle:gradle gradle ./gradle
-
-# Download dependencies to a separate layer for caching
-RUN ./gradlew dependencies --no-daemon
-
-# Copy source code and build the application
-COPY --chown=gradle:gradle src ./src
-RUN echo "Cache bust: ${CACHEBUST}"
-RUN ./gradlew bootJar --no-daemon
-
-# Runtime stage
-FROM eclipse-temurin:21-jre-jammy as final
-ENV TZ=Asia/Seoul
-
-# Create a non-root user
-RUN groupadd -r spring && useradd -r -g spring spring
 WORKDIR /app
-RUN mkdir -p /app/upload && chown -R spring:spring /app/upload
-USER spring:spring
-# Copy the application JAR from the build stage
-COPY --from=builder --chown=spring:spring /home/gradle/src/build/libs/*.jar app.jar
 
-# Set up health check to use the actuator endpoint
-# wget is included in the base image, no need to install curl
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget -q --spider http://localhost:8080/actuator/health || exit 1
+# 의존성 캐싱을 위한 파일들
+COPY build.gradle settings.gradle gradle.properties* ./
+COPY gradle ./gradle
+
+# GitHub Actions 캐시 디렉토리 활용
+RUN --mount=type=cache,target=/home/gradle/.gradle,sharing=locked \
+    mkdir -p src/main/java && \
+    echo "class Temp{}" > src/main/java/Temp.java && \
+    gradle build --no-daemon -x test || true && \
+    rm -rf src/
+
+# 실제 소스 빌드
+COPY src ./src
+RUN --mount=type=cache,target=/home/gradle/.gradle,sharing=locked \
+    gradle bootJar -x test --no-daemon --build-cache
+
+FROM eclipse-temurin:21-jre-alpine AS final
+
+RUN apk add --no-cache tzdata && \
+    addgroup -S spring && adduser -S spring -G spring
+
+WORKDIR /app
+USER spring
+
+COPY --from=builder /app/build/libs/*.jar app.jar
 
 EXPOSE 8080
-
-# Run the application
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

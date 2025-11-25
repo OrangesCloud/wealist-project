@@ -1,0 +1,14 @@
+.git
+.gitignore
+README.md
+.dockerignore
+build/
+.gradle
+*.log
+target/
+*.md
+docs/
+scripts/
+*_error.log
+node_modules
+.idea
