@@ -626,41 +626,99 @@ jobs:
           echo ""
 
           # =============================================================================
-          # 데이터베이스 확인 및 권한 설정 (인프라 시작 후)
+          # 데이터베이스 유저 및 데이터베이스 생성
           # =============================================================================
-          echo "🗄️  Checking database and permissions..."
-          echo "  📍 Database: ${BOARD_DB_NAME}"
-          echo "  📍 User: ${BOARD_DB_USER}"
+          echo "🗄️  Setting up database users and databases..."
           
-          # 데이터베이스 존재 여부 확인
-          echo "  🔍 Checking if database exists..."
-          DB_EXISTS=$(docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${BOARD_DB_NAME}';" 2>&1)
+          # Board DB 유저 생성 (이미 존재하면 무시)
+          echo "  👤 Creating database user: ${BOARD_DB_USER}"
+          docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "
+          DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${BOARD_DB_USER}') THEN
+              CREATE ROLE ${BOARD_DB_USER} WITH LOGIN PASSWORD '${BOARD_DB_PASSWORD}';
+              RAISE NOTICE 'User ${BOARD_DB_USER} created';
+            ELSE
+              RAISE NOTICE 'User ${BOARD_DB_USER} already exists';
+            END IF;
+          END
+          \$\$;
+          " 2>&1
+          echo "  ✅ User ${BOARD_DB_USER} ready"
           
-          if [ "$DB_EXISTS" = "1" ]; then
-            echo "  ✅ Database already exists - preserving existing data"
+          # User DB 유저 생성 (이미 존재하면 무시)
+          echo "  👤 Creating database user: ${USER_DB_USER}"
+          docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "
+          DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${USER_DB_USER}') THEN
+              CREATE ROLE ${USER_DB_USER} WITH LOGIN PASSWORD '${USER_DB_PASSWORD}';
+              RAISE NOTICE 'User ${USER_DB_USER} created';
+            ELSE
+              RAISE NOTICE 'User ${USER_DB_USER} already exists';
+            END IF;
+          END
+          \$\$;
+          " 2>&1
+          echo "  ✅ User ${USER_DB_USER} ready"
+          
+          # Board 데이터베이스 확인 및 생성
+          echo "  🗄️  Checking Board database: ${BOARD_DB_NAME}"
+          BOARD_DB_EXISTS=$(docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${BOARD_DB_NAME}';" 2>&1)
+          
+          if [ "$BOARD_DB_EXISTS" = "1" ]; then
+            echo "  ✅ Board database already exists - preserving existing data"
             
             # 권한만 확인/설정
-            echo "  🔐 Ensuring proper permissions..."
+            echo "  🔐 Ensuring proper permissions for ${BOARD_DB_USER}..."
             docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "
             GRANT ALL PRIVILEGES ON DATABASE ${BOARD_DB_NAME} TO ${BOARD_DB_USER};
             " 2>&1
             
-            echo "  ✅ Database permissions verified"
+            echo "  ✅ Board database permissions verified"
           else
-            echo "  📦 Database does not exist - creating new database..."
+            echo "  📦 Creating Board database..."
             
             # 데이터베이스 생성 (OWNER 설정으로 모든 권한 자동 부여)
             docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "CREATE DATABASE ${BOARD_DB_NAME} OWNER ${BOARD_DB_USER};" 2>&1
             
             if [ $? -eq 0 ]; then
-              echo "  ✅ Database created successfully with owner ${BOARD_DB_USER}"
+              echo "  ✅ Board database created successfully with owner ${BOARD_DB_USER}"
             else
-              echo "  ❌ Failed to create database" >&2
+              echo "  ❌ Failed to create Board database" >&2
               exit 1
             fi
           fi
           
-          echo "✅ Database ready (GORM will handle schema migrations)"
+          # User 데이터베이스 확인 및 생성
+          echo "  🗄️  Checking User database: ${USER_DB_NAME}"
+          USER_DB_EXISTS=$(docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${USER_DB_NAME}';" 2>&1)
+          
+          if [ "$USER_DB_EXISTS" = "1" ]; then
+            echo "  ✅ User database already exists - preserving existing data"
+            
+            # 권한만 확인/설정
+            echo "  🔐 Ensuring proper permissions for ${USER_DB_USER}..."
+            docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "
+            GRANT ALL PRIVILEGES ON DATABASE ${USER_DB_NAME} TO ${USER_DB_USER};
+            " 2>&1
+            
+            echo "  ✅ User database permissions verified"
+          else
+            echo "  📦 Creating User database..."
+            
+            # 데이터베이스 생성 (OWNER 설정으로 모든 권한 자동 부여)
+            docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "CREATE DATABASE ${USER_DB_NAME} OWNER ${USER_DB_USER};" 2>&1
+            
+            if [ $? -eq 0 ]; then
+              echo "  ✅ User database created successfully with owner ${USER_DB_USER}"
+            else
+              echo "  ❌ Failed to create User database" >&2
+              exit 1
+            fi
+          fi
+          
+          echo "✅ All databases ready (GORM will handle schema migrations)"
           echo ""
 
           # =============================================================================
