@@ -1,0 +1,32 @@
+# wealist-project2/user-service/appspec.yml
+
+version: 0.0
+os: linux
+
+files:
+  # 1. user-service Dockerfile
+  - source: /user-service/Dockerfile
+    destination: /home/ubuntu/wealist-app/user-service/
+
+  # 2. CI/CD 스크립트 (경로: deploy.script/ 하위)
+  - source: /user-service/deploy.script/deploy-app-start.sh
+    destination: /home/ubuntu/wealist-app/user-service/deploy.script/
+  - source: /user-service/deploy.script/deploy-health-check.sh
+    destination: /home/ubuntu/wealist-app/user-service/deploy.script/
+
+  # 3. Docker Compose 오버라이드 파일 (공유)
+  - source: /docker/compose/docker-compose.ec2-dev.yml
+    destination: /home/ubuntu/wealist-app/docker/compose/
+
+hooks:
+  # 환경 변수 로드, ECR Pull, Docker Compose 실행 및 DB 설정
+  ApplicationStart:
+    - location: user-service/deploy.script/deploy-app-start.sh
+      timeout: 420
+      runas: ubuntu
+
+  # 서비스가 정상적으로 시작되었는지 확인 (Actuator 사용)
+  ValidateService:
+    - location: user-service/deploy.script/deploy-health-check.sh
+      timeout: 180
+      runas: ubuntu

@@ -1,0 +1,167 @@
+# .github/workflows/cd-dev-user-service.yml
+
+name: CD - Dev User Service (CodeDeploy)
+
+on:
+  # 1. CI 완료 후 자동 실행 (workflow_run)
+  workflow_run:
+    workflows: ["CI - Dev User Service"]
+    types:
+      - completed
+  # 2. 인프라 변경 시 직접 실행
+  push:
+    branches:
+      - deploy-dev
+    paths:
+      - "docker/compose/docker-compose.ec2-prod.yml"
+      - ".github/workflows/cd-prod-user-service.yml"
+      - "user-service/appspec.yml"
+      - "user-service/deploy.script/**" # 스크립트 폴더 경로 변경 반영
+  # 3. 수동 실행
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "배포 사유 (선택)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy User Service to EC2 via CodeDeploy
+    runs-on: ubuntu-latest
+    environment: development
+    if: |
+      github.event_name == 'push' || 
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'workflow_run' && 
+       github.event.workflow_run.conclusion == 'success' && 
+       github.event.workflow_run.head_branch == 'deploy-dev')
+
+    steps:
+      # ============================================
+      # 1. 코드 체크아웃 (CodeDeploy 전송용)
+      # ============================================
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      # ============================================
+      # 2. AWS Credentials 설정
+      # ============================================
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      # ============================================
+      # 3. CodeDeploy 배포에 필요한 파라미터 로드
+      # ============================================
+      - name: 📥 Load CodeDeploy Configuration
+        id: codedeploy_config
+        run: |
+          # SSM에서 CodeDeploy 앱 이름, 배포 그룹 이름, S3 버킷 로드
+          APP_NAME=$(aws ssm get-parameter --name "/wealist/dev/cd/codedeploy_app_user" --query 'Parameter.Value' --output text --region ap-northeast-2)
+          DG_NAME=$(aws ssm get-parameter --name "/wealist/dev/cd/codedeploy_dg_user" --query 'Parameter.Value' --output text --region ap-northeast-2)
+          S3_BUCKET=$(aws ssm get-parameter --name "/wealist/dev/cd/s3_bucket_codedeploy" --query 'Parameter.Value' --output text --region ap-northeast-2)
+
+          echo "codedeploy-application-name=${APP_NAME}" >> $GITHUB_OUTPUT
+          echo "codedeploy-deployment-group-name=${DG_NAME}" >> $GITHUB_OUTPUT
+          echo "s3-bucket-name=${S3_BUCKET}" >> $GITHUB_OUTPUT
+          echo "✅ User Service CodeDeploy Config loaded: ${APP_NAME}/${DG_NAME}"
+
+      # ============================================
+      # 4. 소스 압축 및 S3 업로드 (CodeDeploy Revision 생성)
+      # ============================================
+      - name: 📦 Prepare & Upload Deployment Bundle
+        id: upload
+        run: |
+          S3_BUCKET_NAME="${{ steps.codedeploy_config.outputs.s3-bucket-name }}"
+          REVISION_NAME="user-service-${{ github.sha }}.zip"
+
+          echo "📦 Zipping source files..."
+          # 압축은 모든 파일을 포함 (appspec.yml과 스크립트 포함)
+          zip -r deployment_bundle.zip . \
+            -x "*.git*" "node_modules/*" "*.DS_Store" "*.idea" "target/*" "build/*"
+
+          echo "📤 Uploading to s3://${S3_BUCKET_NAME}/${REVISION_NAME}..."
+          aws s3 cp deployment_bundle.zip s3://${S3_BUCKET_NAME}/${REVISION_NAME}
+
+          echo "s3-location=s3://${S3_BUCKET_NAME}/${REVISION_NAME}" >> $GITHUB_OUTPUT
+          echo "revision-name=${REVISION_NAME}" >> $GITHUB_OUTPUT
+          echo "✅ Upload complete"
+
+      # ============================================
+      # 5. AWS CodeDeploy 배포 생성
+      # ============================================
+      - name: 🚀 Create CodeDeploy Deployment
+        id: codedeploy
+        run: |
+          S3_BUCKET_NAME="${{ steps.codedeploy_config.outputs.s3-bucket-name }}"
+          REVISION_NAME="${{ steps.upload.outputs.revision-name }}"
+
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name ${{ steps.codedeploy_config.outputs.codedeploy-application-name }} \
+            --deployment-group-name ${{ steps.codedeploy_config.outputs.codedeploy-deployment-group-name }} \
+            --revision "revisionType=S3,s3Location={bucket=${S3_BUCKET_NAME},key=${REVISION_NAME},bundleType=zip}" \
+            --deployment-config-name CodeDeployDefault.OneAtATime \
+            --description "GitHub Actions Deployment for User Service ${{ github.sha }}" \
+            --output text \
+            --query "deploymentId")
+
+          echo "deployment-id=${DEPLOYMENT_ID}" >> $GITHUB_OUTPUT
+          echo "✅ CodeDeploy Deployment created: ${DEPLOYMENT_ID}"
+
+      # ============================================
+      # 6. 배포 결과 대기 및 확인
+      # ============================================
+      - name: ⏳ Wait for CodeDeploy Deployment
+        run: |
+          DEPLOYMENT_ID="${{ steps.codedeploy.outputs.deployment-id }}"
+          echo "⏳ Waiting for deployment ${DEPLOYMENT_ID} to complete..."
+
+          if ! aws deploy wait deployment-successful --deployment-id ${DEPLOYMENT_ID}; then
+            echo "❌ CodeDeploy deployment failed or timed out."
+            echo "📋 Retrieving failure details..."
+            aws deploy get-deployment --deployment-id ${DEPLOYMENT_ID} --query "deploymentInfo.errorInformation" --output json
+            exit 1
+          fi
+
+          echo "✅ CodeDeploy deployment successful!"
+
+      # ============================================
+      # 7. Summary
+      # ============================================
+      - name: 📊 Deployment Summary
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          DEPLOYMENT_ID="${{ steps.codedeploy.outputs.deployment-id }}"
+          APP_NAME="${{ steps.codedeploy_config.outputs.codedeploy-application-name }}"
+
+          if [ "$STATUS" = "success" ]; then
+            ICON="✅"
+            TITLE="User Service Deployed Successfully"
+          else
+            ICON="❌"
+            TITLE="User Service Deployment Failed"
+          fi
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ### ${ICON} ${TITLE}
+
+          - **Commit:** \`${{ github.sha }}\`
+          - **CodeDeploy App:** \`${APP_NAME}\`
+          - **Deployment ID:** \`${DEPLOYMENT_ID}\`
+          - **Status:** ${STATUS}
+          - **Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+          #### Quick Links
+          - [View in AWS CodeDeploy Console](${{ env.AWS_REGION }}/codedeploy/home?region=${{ env.AWS_REGION }}#/deployments/${DEPLOYMENT_ID}) 
+          - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          EOF

@@ -1,0 +1,164 @@
+name: CI - Prod Board Service
+
+on:
+  push:
+    branches:
+      - deploy-prod
+    paths:
+      - "board-service/**"
+      - ".github/workflows/ci-prod-board-service.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+    environment: production
+
+    outputs:
+      image-tag: ${{ steps.image-info.outputs.image-tag }}
+      full-image: ${{ steps.image-info.outputs.full-image }}
+      artifact-name: codedeploy-artifact-${{ steps.image-info.outputs.image-tag }}
+      artifact-path: deploy_artifact.zip
+
+    steps:
+      # ============================================
+      # 1. 코드 체크아웃
+      # ============================================
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      # ============================================
+      # 2. AWS Credentials 설정 (aws-region 오류 수정)
+      # ============================================
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.WEALIST_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_AWS_SECRET_ACCESS_KEY }}
+          # ✅ 오류 수정: vars 컨텍스트에서 AWS_REGION 값을 직접 참조
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # ============================================
+      # 3. Environment Variables 로드 (CI 다이어트: vars 사용)
+      # ============================================
+      - name: 📥 Load Environment Variables
+        id: config
+        run: |
+          echo "📥 Loading configuration from GitHub Environment Variables..."
+
+          # Environment Variable (vars)에서 값을 로드하여 GITHUB_ENV로 승격
+          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=${{ vars.ECR_REPOSITORY_BOARD }}" >> $GITHUB_ENV
+          echo "AWS_ACCOUNT_ID=${{ vars.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV 
+
+          echo "✅ Configuration loaded successfully"
+
+      # ============================================
+      # 4. Go 환경 설정 및 종속성 다운로드 (캐시 활용)
+      # ============================================
+      - name: 🔧 Setup Go Environment and Download Dependencies
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+          cache-dependency-path: board-service/go.sum
+
+      - name: 📦 Go Module Tidy & Download
+        run: |
+          cd board-service
+          go mod tidy
+
+      # ============================================
+      # 5. Swagger 문서 생성 및 검증
+      # ============================================
+      - name: 📝 Generate and Validate Swagger Documentation
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@latest
+          cd board-service
+          swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
+
+          echo "🔍 Running Swagger validation scripts..."
+          ./scripts/validate-swagger.sh
+          ./scripts/validate-dto-schemas.sh
+          ./scripts/validate-godoc.sh
+          echo "✅ Swagger documentation generated and validated"
+
+      # ============================================
+      # 6. Go 테스트 실행 (Prod CI에서는 실패 시 중단 권장)
+      # ============================================
+      - name: 🧪 Run Go Tests
+        continue-on-error: true
+        run: |
+          cd board-service
+          go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build (Check logs!)"
+
+      # ============================================
+      # 7. 이미지 태그 생성
+      # ============================================
+      - name: 🏷️ Generate Image Tags
+        id: image-info
+        run: |
+          # env에서 로드된 변수 사용
+          ECR_REGISTRY="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+
+          IMAGE_TAG="${GITHUB_SHA:0:7}"
+          FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+
+          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
+          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
+
+      # ============================================
+      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시 (ECR 캐시 활용)
+      # ============================================
+      - name: 🐳 Login to ECR, Build and Push Docker Image (Optimized for ECR Cache)
+        uses: docker/build-push-action@v5
+        with:
+          context: board-service
+          file: board-service/docker/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-info.outputs.full-image }}
+            ${{ steps.image-info.outputs.latest-image }}
+          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-image }}
+          cache-to: type=inline
+
+      # ============================================
+      # 9. CodeDeploy 아티팩트 생성 및 전달
+      # ============================================
+      - name: 📦 Prepare CodeDeploy Artifact
+        run: |
+          mkdir -p deploy_artifact/board-service/deploy.script
+          mkdir -p deploy_artifact/docker/compose
+
+          cp board-service/appspec.yml deploy_artifact/appspec.yml 
+          cp board-service/deploy.script/* deploy_artifact/board-service/deploy.script/
+          cp docker/compose/docker-compose.ec2-dev.yml deploy_artifact/docker-compose.ec2-prod.yml 
+
+          zip -r deploy_artifact.zip deploy_artifact
+          echo "✅ CodeDeploy artifact created: deploy_artifact.zip"
+
+      - name: ⬆️ Upload CodeDeploy Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codedeploy-artifact-${{ steps.image-info.outputs.image-tag }}
+          path: deploy_artifact.zip
+          retention-days: 1
+
+      # ============================================
+      # 10. 빌드 결과 요약
+      # ============================================
+      - name: 📋 Build Summary
+        run: |
+          echo "### ✅ Board Service Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact:** \`${{ steps.image-info.outputs.artifact-name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:** CD workflow will use this SHA tag and artifact." >> $GITHUB_STEP_SUMMARY

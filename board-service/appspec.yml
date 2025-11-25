@@ -1,0 +1,39 @@
+# wealist-project2/board-service/appspec.yml
+
+version: 0.0
+os: linux
+files:
+  # 1. board-service Dockerfile (이미지 빌드에 필요)
+  - source: /board-service/docker/Dockerfile
+    destination: /home/ubuntu/wealist-app/board-service/docker/
+
+  # 2. CI/CD 스크립트 (LifeCycle Hook에 의해 실행됨)
+  - source: /board-service/scripts/deploy-app-start.sh
+    destination: /home/ubuntu/wealist-app/board-service/scripts/
+  - source: /board-service/scripts/deploy-health-check.sh
+    destination: /home/ubuntu/wealist-app/board-service/scripts/
+
+  # 3. Docker Compose 오버라이드 파일 (배포 환경 정의)
+  #    주의: 이 경로는 프로젝트 루트 기준이 아닌, appspec이 위치한 board-service 기준이 아닌,
+  #         CodeDeploy 아티팩트(zip) 파일 내부 경로 기준입니다.
+  #         만약 zip 파일이 프로젝트 루트에서 생성된다면, 경로는 'docker/compose/...' 입니다.
+  #         (CodeDeploy는 파일을 복사만 하므로, 실제 EC2의 경로를 지정해야 합니다.)
+  - source: /docker/compose/docker-compose.ec2-dev.yml
+    destination: /home/ubuntu/wealist-app/docker/compose/
+
+hooks:
+  # 배포 전 환경 준비 (예: 기존 파일 삭제, 디렉토리 권한 설정)
+  # 파일 복사 후 권한 설정 등을 하려면 AfterInstall을 고려할 수 있으나,
+  # 여기서는 바로 ApplicationStart에서 모든 것을 처리하겠습니다.
+
+  # 핵심 스크립트 실행: 환경변수 로드, ECR Pull, Docker Compose 실행, DB 설정
+  ApplicationStart:
+    - location: board-service/scripts/deploy-app-start.sh
+      timeout: 300 # 5분 (파라미터 로드 및 DB 초기화 시간 포함)
+      runas: ubuntu # EC2에서 도커를 실행할 사용자
+
+  # 서비스가 정상적으로 시작되었는지 확인
+  ValidateService:
+    - location: board-service/scripts/deploy-health-check.sh
+      timeout: 180 # 3분
+      runas: ubuntu

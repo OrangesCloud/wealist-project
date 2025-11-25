@@ -1,0 +1,315 @@
+# docker/compose/docker-compose.ec2-prod.yml (Production EC2 Environment)
+
+# =============================================================================
+# weAlist Project - EC2 Prod Environment (Final Draft)
+# 🚨 특징: 포트 노출 금지, DDL AUTO=validate, Prod ECR 이미지 참조
+# =============================================================================
+
+version: "3.8" # Docker Compose Spec 버전
+
+services:
+  # ===========================================================================
+  # Backend Services
+  # ===========================================================================
+
+  # User Service (Spring Boot)
+  user-service:
+    # 🚨 Production ECR 경로 및 Production 버전 사용
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-prod-user-service:${USER_SERVICE_VERSION:-latest}
+    container_name: wealist-user-service
+    hostname: user-service
+
+    environment:
+      # 🚨 Production Profile 및 DDL 방지 설정
+      - SPRING_PROFILES_ACTIVE=prod-aws
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate # Prod 안정성 확보
+      - SPRING_JPA_SHOW_SQL=false
+      - SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=false
+      - LOG_LEVEL=info
+      - CORS_ORIGINS=https://wealist.co.kr,https://www.wealist.co.kr
+      - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseContainerSupport -XX:MaxRAMPercentage=80.0 # 메모리 최적화
+
+      # 🚨 SSM에서 로드될 모든 환경 변수 (ENV FILE 대체)
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${USER_DB_NAME}
+      - SPRING_DATASOURCE_USERNAME=${USER_DB_USER}
+      - SPRING_DATASOURCE_PASSWORD=${USER_DB_PASSWORD}
+      - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - OAUTH2_CLIENT_REDIRECT_URI=${OAUTH2_CLIENT_REDIRECT_URI}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
+
+    # ports: # 🚨 Production 환경이므로 포트 노출 섹션 제거 (보안 강화)
+
+    networks:
+      - wealist-prod-net
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--spider",
+          "http://localhost:8080/api/users/actuator/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+    restart: unless-stopped
+
+    deploy:
+      resources: # 🚨 Production 리소스 상향 조정 (예시)
+        limits:
+          cpus: "1.0"
+          memory: 1536M
+        reservations:
+          cpus: "0.5"
+          memory: 768M
+
+  # Board Service (Go)
+  board-service:
+    # 🚨 Prod ECR 경로 및 Production 버전 사용
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-prod-board-service:${BOARD_SERVICE_VERSION:-latest}
+    container_name: wealist-board-service
+    hostname: board-service
+
+    environment:
+      - ENV=prod # 🚨 prod 환경 설정
+      - LOG_LEVEL=info # 로그 레벨 info로 변경
+      - CORS_ORIGINS=https://wealist.co.kr,https://www.wealist.co.kr
+      - SERVER_BASE_PATH=/api/boards
+      - USER_SERVICE_URL=http://user-service:8080/api/users # 내부 통신 경로
+
+      # 🚨 SSM에서 로드될 모든 환경 변수 (ENV FILE 대체)
+      - DATABASE_URL=postgresql://${BOARD_DB_USER}:${BOARD_DB_PASSWORD}@postgres:5432/${BOARD_DB_NAME}?sslmode=disable
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - SECRET_KEY=${JWT_SECRET}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
+
+    # ports: # 🚨 Production 환경이므로 포트 노출 섹션 제거
+
+    networks:
+      - wealist-prod-net
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "-O",
+          "/dev/null",
+          "http://localhost:8000/api/boards/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    restart: unless-stopped
+
+    deploy:
+      resources: # 🚨 Production 리소스 상향 조정 (예시)
+        limits:
+          cpus: "0.6"
+          memory: 512M
+        reservations:
+          cpus: "0.3"
+          memory: 256M
+
+  # ===========================================================================
+  # Infrastructure Services
+  # ===========================================================================
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:17-alpine
+    container_name: wealist-postgres
+    hostname: postgres
+
+    environment:
+      # 🚨 SSM에서 로드될 DB 유저/비밀 값 변수
+      - POSTGRES_USER=${POSTGRES_SUPERUSER}
+      - POSTGRES_PASSWORD=${POSTGRES_SUPERUSER_PASSWORD}
+      - USER_DB_NAME=${USER_DB_NAME}
+      - USER_DB_USER=${USER_DB_USER}
+      - USER_DB_PASSWORD=${USER_DB_PASSWORD}
+      - BOARD_DB_NAME=${BOARD_DB_NAME}
+      - BOARD_DB_USER=${BOARD_DB_USER}
+      - BOARD_DB_PASSWORD=${BOARD_DB_PASSWORD}
+      # ... (기타 DB 관련 변수)
+
+    # ports: # 🚨 포트 노출 제거
+    volumes:
+      - postgres-prod-data:/var/lib/postgresql/data # 🚨 Volume 이름 Prod 전용 사용
+      - ../../docker/init/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+
+    networks:
+      - wealist-prod-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    restart: unless-stopped
+
+    deploy:
+      resources: # 🚨 Production 리소스 상향 조정
+        limits:
+          cpus: "0.8"
+          memory: 768M
+        reservations:
+          cpus: "0.4"
+          memory: 512M
+
+  # Redis Cache
+  redis:
+    image: redis:7.2-alpine
+    container_name: wealist-redis
+    hostname: redis
+
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD} # 🚨 SSM에서 로드
+      --databases 16
+      --maxmemory 1024mb # 🚨 메모리 증설
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+      --appendfsync everysec
+
+    # ports: # 🚨 포트 노출 제거
+    volumes:
+      - redis-prod-data:/data # 🚨 Volume 이름 Prod 전용 사용
+
+    networks:
+      - wealist-prod-net
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "--no-auth-warning",
+          "-a",
+          "${REDIS_PASSWORD}",
+          "ping",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+    restart: unless-stopped
+
+    deploy:
+      resources: # 🚨 Production 리소스 상향 조정
+        limits:
+          cpus: "0.3"
+          memory: 512M
+        reservations:
+          cpus: "0.15"
+          memory: 256M
+
+  # ===========================================================================
+  # Monitoring Services (Prometheus, Grafana, Exporters...)
+  # 🚨 포트 노출 제거 및 Prod 네트워크 사용
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: wealist-prometheus
+    # ...
+    # ports: # 🚨 포트 노출 제거
+    volumes:
+      - ../../prometheus/config:/etc/prometheus:ro
+      - prometheus-prod-data:/prometheus # 🚨 Volume 이름 Prod 전용 사용
+    networks:
+      - wealist-prod-net
+    # ... (deploy 리소스 조정)
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: wealist-grafana
+    # ...
+    # ports: # 🚨 포트 노출 제거
+    volumes:
+      - grafana-prod-storage:/var/lib/grafana # 🚨 Volume 이름 Prod 전용 사용
+      - grafana-prod-logs:/var/log/grafana
+    networks:
+      - wealist-prod-net
+    # ... (deploy 리소스 조정)
+
+  redis-exporter:
+    # ...
+    # ports: # 🚨 포트 노출 제거
+    networks:
+      - wealist-prod-net
+    # ... (deploy 리소스 조정)
+
+  postgres-exporter:
+    # ...
+    # ports: # 🚨 포트 노출 제거
+    networks:
+      - wealist-prod-net
+    # ... (deploy 리소스 조정)
+
+  node-exporter:
+    # ...
+    # ports: # 🚨 포트 노출 제거
+    networks:
+      - wealist-prod-net
+    # ... (deploy 리소스 조정)
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  # 🚨 Production 전용 네트워크 이름 사용 및 정의
+  wealist-prod-net:
+    driver: bridge
+    name: wealist-prod-net
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # 🚨 Production 전용 Volumes 이름 사용 및 정의
+  postgres-prod-data:
+    name: wealist-prod-postgres-data
+    driver: local
+  redis-prod-data:
+    name: wealist-prod-redis-data
+    driver: local
+  prometheus-prod-data:
+    name: wealist-prod-prometheus-data
+    driver: local
+  grafana-prod-storage:
+    name: wealist-prod-grafana-storage
+    driver: local
+  grafana-prod-logs:
+    name: wealist-prod-grafana-logs
+    driver: local
