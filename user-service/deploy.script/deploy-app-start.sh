@@ -1,229 +1,120 @@
-# wealist-project2/user-service/deploy.script/deploy-app-start.sh
 #!/bin/bash
-
 # =============================================================================
-# CodeDeploy ApplicationStart Hook Script (User Service)
-# 역할: Parameter Store에서 환경 변수 로드, ECR 로그인, 인프라 및 서비스 재시작
+# CodeDeploy Hook: ApplicationStart
+# SSM Parameter Store에서 Prod 환경 변수를 로드하고 Docker Compose를 실행합니다.
 # =============================================================================
 
-# 에러 발생 시 즉시 중단
 set -euo pipefail
 
-# -----------------------------------------------------------------------------
-# 1. 초기 설정 및 경로 정의
-# -----------------------------------------------------------------------------
-PROJECT_ROOT="/home/ubuntu/wealist-app"
+# 1. 상수 정의
+# CodeDeploy Agent는 /opt/codedeploy-agent/deployment-root/deployment-group-id/.../deployment-id/deployment-archive 에 파일을 복사합니다.
+# 하지만 appspec.yml에서 /home/ubuntu/wealist/로 복사했으므로 그 경로를 사용합니다.
+PROJECT_ROOT="/home/ubuntu/wealist"
 COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-prod.yml"
-PARAMETER_PREFIX="/wealist/dev" 
-AWS_REGION="ap-northeast-2" 
-CONTAINER_NAME="wealist-user-service"
+SERVICE_NAME="user-service" # 배포할 서비스 이름
 
-echo "🚀 Starting User Service Deployment via CodeDeploy..."
-echo "📅 Started at: $(date '+%Y-%m-%d %H:%M:%S')"
+# SSM 경로 접두사 (Terraform에서 정의된)
+PARAMETER_BASE_PATH="/wealist/prod"
+AWS_REGION="ap-northeast-2" # SSM 호출을 위해 리전 하드코딩 (또는 Instance Metadata 사용)
 
-# -----------------------------------------------------------------------------
-# 2. SSM 파라미터 로드 함수 (EC2 인스턴스 IAM 역할을 사용)
-# -----------------------------------------------------------------------------
+echo "🚀 User Service Production Deployment Start"
+echo "Project Root: ${PROJECT_ROOT}"
+
+# 2. SSM Parameter 로드 함수 정의
+# String 타입 로드
 load_param() {
-    local param_name="$1"
-    local full_param_path="${PARAMETER_PREFIX}/${param_name}"
-    local value
-    
-    value=$(aws ssm get-parameter \
-      --name "${full_param_path}" \
-      --query 'Parameter.Value' \
-      --output text \
-      --region ${AWS_REGION} 2>/dev/null)
-    local exit_code=$?
-    
-    if [ $exit_code -ne 0 ] || [ -z "$value" ] || [ "$value" = "None" ]; then
-      echo "❌ Failed to load parameter: ${full_param_path}" >&2
-      exit 1
-    fi
-    echo "$value"
+    local name="$1"
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text --region "${AWS_REGION}"
 }
 
+# SecureString 타입 로드
 load_secret() {
-    local param_name="$1"
-    local full_param_path="${PARAMETER_PREFIX}/${param_name}"
-    local value
-    
-    value=$(aws ssm get-parameter \
-      --name "${full_param_path}" \
-      --with-decryption \
-      --query 'Parameter.Value' \
-      --output text \
-      --region ${AWS_REGION} 2>/dev/null)
-    local exit_code=$?
-    
-    if [ $exit_code -ne 0 ] || [ -z "$value" ] || [ "$value" = "None" ]; then
-      echo "❌ Failed to load secret parameter: ${full_param_path}" >&2
-      exit 1
-    fi
-    echo "$value"
+    local name="$1"
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}"
 }
 
-# -----------------------------------------------------------------------------
-# 3. 환경 변수 로드 및 Export
-# -----------------------------------------------------------------------------
-echo "📥 Loading environment variables for User Service..."
+# 3. 인프라 및 시크릿 환경 변수 로드 및 Export
+echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 
-# ECR 이미지 정보
-export AWS_ACCOUNT_ID=$(load_param "ci/aws_account_id")
-export ECR_REPOSITORY_USER=$(load_param "ci/ecr_repository_user")
-export AWS_REGION="${AWS_REGION}"
-export VERSION="latest" 
-export JPA_DDL_AUTO="update"
+# --- 인프라 및 DB 정보 (String) ---
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export AWS_REGION="${AWS_REGION}" # for Docker Image reference
 
-# DB 및 기타 비밀 값 로드 (기존 CD 스크립트와 동일)
-export POSTGRES_SUPERUSER=$(load_param "db/postgres_superuser")
-export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/postgres_superuser_password")
+# DB/Cache 엔드포인트
+export RDS_HOST=$(load_param "db/rds_host")
+export REDIS_HOST=$(load_param "cache/redis_host")
 
+# DB 이름 및 사용자
+export POSTGRES_SUPERUSER=$(load_param "db/rds_master_username") # RDS 마스터 사용자 이름
 export USER_DB_NAME=$(load_param "db/user_db_name")
-export USER_DB_USER=$(load_param "db/user_db_user")
-export USER_DB_PASSWORD=$(load_secret "db/user_db_password")
-
 export BOARD_DB_NAME=$(load_param "db/board_db_name")
-export BOARD_DB_USER=$(load_param "db/board_db_user")
+
+# --- 시크릿 정보 (SecureString) ---
+export JWT_SECRET=$(load_secret "jwt/jwt_secret")
+export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/rds_master_password")
+export REDIS_PASSWORD=$(load_secret "cache/redis_auth_token")
+
+# User Service DB 접속 시크릿
+export USER_DB_USER="wealist_user" # SSM에 저장된 경우 로드 필요
+export USER_DB_PASSWORD=$(load_secret "db/user_db_password") 
+
+# Board Service DB 접속 시크릿 (User Service에는 필요 없지만 Compose 파일 전체 실행을 위해 로드)
+export BOARD_DB_USER="board_service" # SSM에 저장된 경우 로드 필요
 export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 
-export REDIS_PASSWORD=$(load_secret "cache/redis_password")
-export JWT_SECRET=$(load_secret "jwt/jwt_secret")
-export JWT_ACCESS_TOKEN_EXPIRATION_MS="1800000"
-export JWT_REFRESH_TOKEN_EXPIRATION_MS="604800000"
-
-export GOOGLE_CLIENT_ID=$(load_secret "oauth/google_client_id")
+# OAuth 및 S3 설정
+export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
 export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google-client-secret")
-export OAUTH2_CLIENT_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
+export OAUTH2_CLIENT_REDIRECT_URI=$(load_param "url/oauth2_client_redirect_base")/api/users/login/oauth2/code/google # Base URL로 조합
 export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
-export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH2_CLIENT_REDIRECT_BASE}/api/users/login/oauth2/code/google"
-export USER_SERVICE_URL=$(load_param "service/user_service_url")
 export S3_BUCKET=$(load_param "s3/bucket")
-export S3_REGION=$(load_param "s3/region")
-export LOG_LEVEL="info"
-export ENVIRONMENT="dev"
-export CORS_ORIGINS="*" 
-export APP_NAME="wealist"
+export S3_REGION="${AWS_REGION}"
 
-echo "✅ Environment variables loaded successfully"
-echo "📋 Loaded variables summary (Redacted):"
-echo "   - AWS_ACCOUNT_ID: ${AWS_ACCOUNT_ID}"
-echo "   - POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}"
-echo "   - USER_DB_NAME: ${USER_DB_NAME}"
-echo "   - BOARD_DB_NAME: ${BOARD_DB_NAME}"
-echo "   - S3_BUCKET: ${S3_BUCKET}"
+# --- Exporter Ports (하드코딩된 경우 SSM 로드 필요 없음) ---
+export POSTGRES_EXPORTER_PORT=9187
+export REDIS_EXPORTER_PORT=9121
+export NODE_EXPORTER_PORT=9100
 
-# -----------------------------------------------------------------------------
-# 4. ECR 로그인 및 최신 이미지 Pull (user-service)
-# -----------------------------------------------------------------------------
-ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-USER_IMAGE_NAME="${ECR_REGISTRY}/${ECR_REPOSITORY_USER}:latest"
+# 4. 이미지 버전 환경 변수 설정
+# CodeDeploy는 배포 시점에 아티팩트 내의 appspec.yml 및 스크립트를 사용합니다.
+# Docker Compose는 pull을 사용하여 최신/특정 태그를 가져와야 합니다.
+# CodeDeploy는 SHA 태그를 사용하므로, 스크립트에서 SHA 태그를 가져와 사용해야 합니다.
+# 🚨 CodeDeploy 아티팩트 내에 이미지 태그 정보를 포함시키는 것이 가장 확실합니다.
+# 여기서는 편의상 "latest" 태그를 사용하지만, 실제 Production에서는 SHA 태그를 사용해야 합니다.
+export USER_SERVICE_VERSION="latest" # CodeDeploy가 사용하는 SHA Tag로 대체되어야 함
+export BOARD_SERVICE_VERSION="latest" # CodeDeploy가 사용하는 SHA Tag로 대체되어야 함
 
-echo "🔑 Logging into Amazon ECR..."
-aws ecr get-login-password --region ${AWS_REGION} | \
-  docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-echo "📥 Pulling latest user-service image: ${USER_IMAGE_NAME}..."
-docker pull ${USER_IMAGE_NAME} 
-echo "✅ Image pulled successfully"
+echo "✅ Parameters loaded. Starting Docker Compose..."
+echo "RDS Host: ${RDS_HOST}"
+echo "Redis Host: ${REDIS_HOST}"
+# echo "JWT Secret: ${JWT_SECRET}" # 시크릿 값은 출력하지 않습니다.
 
-# -----------------------------------------------------------------------------
-# 5. Docker Compose 명령어 감지 및 인프라 서비스 확인/시작
-# -----------------------------------------------------------------------------
-if command -v docker-compose &> /dev/null; then
-  COMPOSE_CMD="docker-compose"
-elif docker compose version &> /dev/null 2>&1; then
+# 5. Docker Compose 실행
+# Docker Compose 명령어 결정
+if docker compose version &> /dev/null; then
   COMPOSE_CMD="docker compose"
 else
-  echo "  ❌ Docker Compose not found" >&2
-  exit 1
+  COMPOSE_CMD="docker-compose"
 fi
 
-echo "🔍 Ensuring infrastructure services (Postgres, Redis) are running..."
-$COMPOSE_CMD --env-file <(printenv) -f ${COMPOSE_FILE} up -d postgres redis
+# ECR 로그인 (EC2 인스턴스 IAM Role에 권한이 있어야 함)
+aws ecr get-login-password --region ${AWS_REGION} | \
+  docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
-# PostgreSQL 헬스체크
-echo "🏥 Checking PostgreSQL health..."
-POSTGRES_READY=false
-for i in {1..6}; do
-  if docker exec wealist-postgres pg_isready -U ${POSTGRES_SUPERUSER} > /dev/null 2>&1; then
-    echo "  ✅ PostgreSQL is ready (attempt $i/6)"
-    POSTGRES_READY=true
-    break
-  fi
-  sleep 5
-done
-[ "$POSTGRES_READY" = false ] && { echo "  ❌ PostgreSQL failed to become ready" >&2; exit 1; }
+# 6. 최신 이미지 Pull (user-service만)
+echo "🐳 Pulling latest image for ${SERVICE_NAME}..."
+$COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
 
-# Redis 헬스체크
-echo "🏥 Checking Redis health..."
-REDIS_READY=false
-for i in {1..6}; do
-  if docker exec wealist-redis redis-cli -a "${REDIS_PASSWORD}" ping > /dev/null 2>&1; then
-    echo "  ✅ Redis is ready (attempt $i/6)"
-    REDIS_READY=true
-    break
-  fi
-  sleep 5
-done
-[ "$REDIS_READY" = false ] && { echo "  ❌ Redis failed to become ready" >&2; exit 1; }
-echo "✅ Infrastructure services are ready"
+# 7. Docker Compose 실행 (user-service와 Exporter들 재시작)
+# Prod 환경에서는 user-service, board-service, exporter들을 모두 관리해야 합니다.
+# user-service와 board-service는 종속성(depends_on)을 통해 순서대로 재시작됩니다.
+echo "🔄 Starting services defined in ${COMPOSE_FILE}..."
+$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "${SERVICE_NAME}" # user-service
+$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "postgres-exporter" 
+$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "redis-exporter" 
+$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "node-exporter" 
 
-# -----------------------------------------------------------------------------
-# 6. 데이터베이스 유저 및 데이터베이스 생성 
-# -----------------------------------------------------------------------------
-echo "🗄️  Setting up database users and databases..."
+echo "✅ Deployment initiated. CodeDeploy will now run ValidateService."
 
-# Board DB 유저 생성 (이미 존재하면 무시)
-docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "
-DO \$\$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${BOARD_DB_USER}') THEN
-    CREATE ROLE ${BOARD_DB_USER} WITH LOGIN PASSWORD '${BOARD_DB_PASSWORD}';
-  END IF;
-END
-\$\$;
-" 2>&1
-
-# User DB 유저 생성 (이미 존재하면 무시)
-docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "
-DO \$\$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${USER_DB_USER}') THEN
-    CREATE ROLE ${USER_DB_USER} WITH LOGIN PASSWORD '${USER_DB_PASSWORD}';
-  END IF;
-END
-\$\$;
-" 2>&1
-
-# Board 데이터베이스 확인 및 생성
-BOARD_DB_EXISTS=$(docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${BOARD_DB_NAME}';" 2>&1)
-if [ "$BOARD_DB_EXISTS" != "1" ]; then
-  docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "CREATE DATABASE ${BOARD_DB_NAME} OWNER ${BOARD_DB_USER};" 2>&1
-else
-  docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE ${BOARD_DB_NAME} TO ${BOARD_DB_USER};" 2>&1
-fi
-
-# User 데이터베이스 확인 및 생성
-USER_DB_EXISTS=$(docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${USER_DB_NAME}';" 2>&1)
-if [ "$USER_DB_EXISTS" != "1" ]; then
-  docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "CREATE DATABASE ${USER_DB_NAME} OWNER ${USER_DB_USER};" 2>&1
-else
-  docker exec wealist-postgres psql -U ${POSTGRES_SUPERUSER} -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE ${USER_DB_NAME} TO ${USER_DB_USER};" 2>&1
-fi
-
-echo "✅ All databases ready"
-
-# -----------------------------------------------------------------------------
-# 7. User Service 재시작 (Core Deployment)
-# -----------------------------------------------------------------------------
-echo "🔄 Restarting user-service..."
-cd "${PROJECT_ROOT}"
-
-if ! $COMPOSE_CMD --env-file <(printenv) -f ${COMPOSE_FILE} up -d --force-recreate user-service; then
-    echo "❌ Failed to restart user-service via Docker Compose" >&2
-    $COMPOSE_CMD -f ${COMPOSE_FILE} logs --tail=50 user-service 2>&1 >&2
-    exit 1
-fi
-echo "✅ User service container recreated successfully"
-echo "✅ ApplicationStart completed."
+# Note: 이 스크립트가 성공적으로 종료되면 CodeDeploy는 ValidateService Hook을 실행합니다.

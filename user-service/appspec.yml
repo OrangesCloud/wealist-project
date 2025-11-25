@@ -1,32 +1,31 @@
-# wealist-project2/user-service/appspec.yml
-
 version: 0.0
 os: linux
-
 files:
-  # 1. user-service Dockerfile
-  - source: /user-service/Dockerfile
-    destination: /home/ubuntu/wealist-app/user-service/
-
-  # 2. CI/CD 스크립트 (경로: deploy.script/ 하위)
-  - source: /user-service/deploy.script/deploy-app-start.sh
-    destination: /home/ubuntu/wealist-app/user-service/deploy.script/
-  - source: /user-service/deploy.script/deploy-health-check.sh
-    destination: /home/ubuntu/wealist-app/user-service/deploy.script/
-
-  # 3. Docker Compose 오버라이드 파일 (공유)
-  - source: /docker/compose/docker-compose.ec2-dev.yml
-    destination: /home/ubuntu/wealist-app/docker/compose/
-
+  # 프로젝트 루트 디렉토리를 /home/ubuntu/wealist/ 에 복사합니다.
+  - source: /appspec.yml
+    destination: /home/ubuntu/wealist/user-service/
+  - source: /user-service/deploy.script/
+    destination: /home/ubuntu/wealist/user-service/deploy.script/
+  - source: /docker/compose/docker-compose.ec2-prod.yml
+    destination: /home/ubuntu/wealist/docker/compose/
+permissions:
+  - object: /home/ubuntu/wealist/
+    pattern: "**"
+    owner: ubuntu
+    group: ubuntu
 hooks:
-  # 환경 변수 로드, ECR Pull, Docker Compose 실행 및 DB 설정
-  ApplicationStart:
-    - location: user-service/deploy.script/deploy-app-start.sh
-      timeout: 420
+  BeforeInstall:
+    # 1. 기존 컨테이너 중지 및 이미지 정리
+    - location: user-service/deploy.script/deploy-cleanup.sh
+      timeout: 60
       runas: ubuntu
-
-  # 서비스가 정상적으로 시작되었는지 확인 (Actuator 사용)
+  ApplicationStart:
+    # 2. SSM 변수 로드 후 Docker Compose 실행 (핵심 배포 로직)
+    - location: user-service/deploy.script/deploy-app-start.sh
+      timeout: 300
+      runas: ubuntu
   ValidateService:
+    # 3. 헬스 체크
     - location: user-service/deploy.script/deploy-health-check.sh
       timeout: 180
       runas: ubuntu

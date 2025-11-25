@@ -1,196 +1,105 @@
-# wealist-project2/board-service/scripts/deploy-app-start.sh
 #!/bin/bash
-
 # =============================================================================
-# CodeDeploy ApplicationStart Hook Script
+# CodeDeploy Hook: ApplicationStart (Board Service)
+# SSM Parameter Store에서 Prod 환경 변수를 로드하고 Docker Compose를 실행합니다.
 # =============================================================================
 
-# 에러 발생 시 즉시 중단
 set -euo pipefail
 
-# -----------------------------------------------------------------------------
-# 1. 초기 설정 및 경로 정의
-# -----------------------------------------------------------------------------
-PROJECT_ROOT="/home/ubuntu/wealist-app"
-COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-dev.yml"
-PARAMETER_PREFIX="/wealist/dev" 
-AWS_REGION="ap-northeast-2" 
+# 1. 상수 정의
+PROJECT_ROOT="/home/ubuntu/wealist"
+COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.ec2-prod.yml" # appspec에서 루트에 복사했으므로 경로 수정
+SERVICE_NAME="board-service" # 배포할 서비스 이름
 
-echo "🚀 Starting Board Service Deployment via CodeDeploy..."
-echo "📅 Started at: $(date '+%Y-%m-%d %H:%M:%S')"
+# SSM 경로 접두사 및 리전
+PARAMETER_BASE_PATH="/wealist/prod"
+AWS_REGION="ap-northeast-2"
 
-# -----------------------------------------------------------------------------
-# 2. SSM 파라미터 로드 함수 (EC2 인스턴스 IAM 역할을 사용)
-# -----------------------------------------------------------------------------
+echo "🚀 Board Service Production Deployment Start"
+echo "Project Root: ${PROJECT_ROOT}"
+
+# 2. SSM Parameter 로드 함수 정의
+# String 타입 로드
 load_param() {
-    local param_name="$1"
-    local full_param_path="${PARAMETER_PREFIX}/${param_name}"
-    local value
-    
-    value=$(aws ssm get-parameter \
-      --name "${full_param_path}" \
-      --query 'Parameter.Value' \
-      --output text \
-      --region ${AWS_REGION} 2>/dev/null)
-    local exit_code=$?
-    
-    if [ $exit_code -ne 0 ] || [ -z "$value" ] || [ "$value" = "None" ]; then
-      echo "❌ Failed to load parameter: ${full_param_path}" >&2
-      exit 1
-    fi
-    echo "$value"
+    local name="$1"
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text --region "${AWS_REGION}"
 }
 
+# SecureString 타입 로드
 load_secret() {
-    local param_name="$1"
-    local full_param_path="${PARAMETER_PREFIX}/${param_name}"
-    local value
-    
-    value=$(aws ssm get-parameter \
-      --name "${full_param_path}" \
-      --with-decryption \
-      --query 'Parameter.Value' \
-      --output text \
-      --region ${AWS_REGION} 2>/dev/null)
-    local exit_code=$?
-    
-    if [ $exit_code -ne 0 ] || [ -z "$value" ] || [ "$value" = "None" ]; then
-      echo "❌ Failed to load secret parameter: ${full_param_path}" >&2
-      exit 1
-    fi
-    echo "$value"
+    local name="$1"
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}"
 }
 
-# -----------------------------------------------------------------------------
-# 3. 환경 변수 로드 및 Export
-# -----------------------------------------------------------------------------
-echo "📥 Loading environment variables from Parameter Store..."
+# 3. 인프라 및 시크릿 환경 변수 로드 및 Export (Compose 파일 실행을 위해 모든 변수 필요)
+echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 
-# ECR 이미지 정보
-export AWS_ACCOUNT_ID=$(load_param "ci/aws_account_id")
-export ECR_REPOSITORY_BOARD=$(load_param "ci/ecr_repository_board")
-export AWS_REGION="${AWS_REGION}"
-export VERSION="latest" 
-export JPA_DDL_AUTO="update" # (예시) user-service에서 GORM auto-migration 대신 JPA를 사용
+# --- 인프라 및 DB 정보 (String) ---
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export AWS_REGION="${AWS_REGION}" 
 
-# DB 및 기타 비밀 값 로드 (기존 스크립트에서 로드했던 모든 변수)
-export POSTGRES_SUPERUSER=$(load_param "db/postgres_superuser")
-export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/postgres_superuser_password")
+# DB/Cache 엔드포인트
+export RDS_HOST=$(load_param "db/rds_host")
+export REDIS_HOST=$(load_param "cache/redis_host")
+
+# DB 이름 및 사용자
+export POSTGRES_SUPERUSER=$(load_param "db/rds_master_username")
 export USER_DB_NAME=$(load_param "db/user_db_name")
-export USER_DB_USER=$(load_param "db/user_db_user")
-export USER_DB_PASSWORD=$(load_secret "db/user_db_password")
 export BOARD_DB_NAME=$(load_param "db/board_db_name")
-export BOARD_DB_USER=$(load_param "db/board_db_user")
-export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
-export REDIS_PASSWORD=$(load_secret "cache/redis_password")
+
+# --- 시크릿 정보 (SecureString) ---
 export JWT_SECRET=$(load_secret "jwt/jwt_secret")
-export JWT_ACCESS_TOKEN_EXPIRATION_MS="1800000"
-export JWT_REFRESH_TOKEN_EXPIRATION_MS="604800000"
-export GOOGLE_CLIENT_ID=$(load_secret "oauth/google_client_id")
+export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/rds_master_password")
+export REDIS_PASSWORD=$(load_secret "cache/redis_auth_token")
+
+# User Service DB 접속 시크릿
+export USER_DB_USER="wealist_user"
+export USER_DB_PASSWORD=$(load_secret "db/user_db_password") 
+
+# Board Service DB 접속 시크릿
+export BOARD_DB_USER="board_service"
+export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
+
+# OAuth 및 S3 설정
+export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
 export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google-client-secret")
-export OAUTH2_CLIENT_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
+export OAUTH2_CLIENT_REDIRECT_URI=$(load_param "url/oauth2_client_redirect_base")/api/users/login/oauth2/code/google 
 export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
-export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH2_CLIENT_REDIRECT_BASE}/api/users/login/oauth2/code/google"
-export USER_SERVICE_URL=$(load_param "service/user_service_url")
 export S3_BUCKET=$(load_param "s3/bucket")
-export S3_REGION=$(load_param "s3/region")
-export LOG_LEVEL="info"
-export ENVIRONMENT="dev"
-export CORS_ORIGINS="*" # EC2 환경에 맞게 조정 필요
-export APP_NAME="wealist"
+export S3_REGION="${AWS_REGION}"
 
-echo "✅ Environment variables loaded successfully"
-# echo "   - AWS_ACCOUNT_ID: ${AWS_ACCOUNT_ID}"
-# ... (나머지 변수 요약 출력 생략)
+# --- Exporter Ports ---
+export POSTGRES_EXPORTER_PORT=9187
+export REDIS_EXPORTER_PORT=9121
+export NODE_EXPORTER_PORT=9100
 
-# -----------------------------------------------------------------------------
-# 4. ECR 로그인 및 최신 이미지 Pull (board-service)
-# -----------------------------------------------------------------------------
-ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-IMAGE_NAME="${ECR_REGISTRY}/${ECR_REPOSITORY_BOARD}:latest"
+# 4. 이미지 버전 환경 변수 설정
+# 🚨 CodeDeploy 아티팩트 내에 실제 SHA 태그가 포함되어야 하지만, 현재는 latest로 가정합니다.
+export USER_SERVICE_VERSION="latest" 
+export BOARD_SERVICE_VERSION="latest" # Board Service의 배포 태그를 사용
 
-echo "🔑 Logging into Amazon ECR..."
-aws ecr get-login-password --region ${AWS_REGION} | \
-  docker login --username AWS --password-stdin ${ECR_REGISTRY}
+echo "✅ Parameters loaded. Starting Docker Compose..."
 
-echo "📥 Pulling latest image: ${IMAGE_NAME}..."
-docker pull ${IMAGE_NAME} 
-echo "✅ Image pulled successfully"
-
-# -----------------------------------------------------------------------------
-# 5. Docker Compose 명령어 감지
-# -----------------------------------------------------------------------------
-if command -v docker-compose &> /dev/null; then
-  COMPOSE_CMD="docker-compose"
-elif docker compose version &> /dev/null 2>&1; then
+# 5. Docker Compose 명령어 결정 및 ECR 로그인
+if docker compose version &> /dev/null; then
   COMPOSE_CMD="docker compose"
 else
-  echo "  ❌ Docker Compose not found" >&2
-  exit 1
+  COMPOSE_CMD="docker-compose"
 fi
-echo "  📦 Using Docker Compose: ${COMPOSE_CMD}"
 
-# -----------------------------------------------------------------------------
-# 6. 인프라 서비스 확인 및 시작 (Postgres, Redis)
-# -----------------------------------------------------------------------------
-echo "🔍 Checking infrastructure services..."
+aws ecr get-login-password --region ${AWS_REGION} | \
+  docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
-# 인프라 서비스 시작
-$COMPOSE_CMD --env-file <(printenv) -f ${COMPOSE_FILE} up -d postgres redis
-echo "✅ Infrastructure services started/ensured"
+# 6. 최신 이미지 Pull (board-service만)
+echo "🐳 Pulling latest image for ${SERVICE_NAME}..."
+$COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
 
-# PostgreSQL 헬스체크 (기존 스크립트 로직 활용)
-echo "🏥 Checking PostgreSQL health..."
-POSTGRES_READY=false
-for i in {1..6}; do
-  if docker exec wealist-postgres pg_isready -U ${POSTGRES_SUPERUSER} > /dev/null 2>&1; then
-    echo "  ✅ PostgreSQL is ready (attempt $i/6)"
-    POSTGRES_READY=true
-    break
-  fi
-  echo "  ⏳ Waiting for PostgreSQL... (attempt $i/6)"
-  sleep 5
-done
-[ "$POSTGRES_READY" = false ] && { echo "  ❌ PostgreSQL failed to become ready" >&2; exit 1; }
+# 7. Docker Compose 실행 (board-service와 Exporter들 재시작)
+# user-service는 board-service의 depends_on 조건에 의해 영향을 받지 않도록 --no-deps를 사용합니다.
+echo "🔄 Starting services defined in ${COMPOSE_FILE}..."
+$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "${SERVICE_NAME}" # board-service
+$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "postgres-exporter" 
+$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "redis-exporter" 
+$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "node-exporter" 
 
-# Redis 헬스체크 (기존 스크립트 로직 활용)
-echo "🏥 Checking Redis health..."
-REDIS_READY=false
-for i in {1..6}; do
-  if docker exec wealist-redis redis-cli -a "${REDIS_PASSWORD}" ping > /dev/null 2>&1; then
-    echo "  ✅ Redis is ready (attempt $i/6)"
-    REDIS_READY=true
-    break
-  fi
-  echo "  ⏳ Waiting for Redis... (attempt $i/6)"
-  sleep 5
-done
-[ "$REDIS_READY" = false ] && { echo "  ❌ Redis failed to become ready" >&2; exit 1; }
-
-echo "✅ All infrastructure services are healthy and ready"
-
-# -----------------------------------------------------------------------------
-# 7. 데이터베이스 유저 및 데이터베이스 생성 (기존 스크립트 로직 활용)
-# -----------------------------------------------------------------------------
-echo "🗄️  Setting up database users and databases..."
-# 이 부분에 기존 CD 스크립트의 **Board DB 유저 생성**, **User DB 유저 생성**, 
-# **Board/User 데이터베이스 확인 및 생성** 로직을 그대로 복사하여 삽입해야 합니다.
-# (스크립트 길이를 위해 여기서는 주석으로 대체)
-# ... (기존 CD 스크립트의 DB 생성 및 권한 설정 로직 삽입)
-echo "✅ All databases ready"
-
-# -----------------------------------------------------------------------------
-# 8. Board Service 재시작 (Core Deployment)
-# -----------------------------------------------------------------------------
-echo "🔄 Restarting board-service..."
-cd "${PROJECT_ROOT}"
-
-# board-service만 강제 재시작 (업데이트된 이미지와 환경변수를 사용)
-# --env-file <(printenv)를 통해 SSM에서 로드한 모든 환경 변수 전달
-if ! $COMPOSE_CMD --env-file <(printenv) -f ${COMPOSE_FILE} up -d --force-recreate board-service; then
-    echo "❌ Failed to restart board-service via Docker Compose" >&2
-    $COMPOSE_CMD -f ${COMPOSE_FILE} logs --tail=50 board-service 2>&1 >&2
-    exit 1
-fi
-echo "✅ Board service container recreated successfully"
-echo "✅ ApplicationStart completed."
+echo "✅ Deployment initiated. CodeDeploy will now run ValidateService."
