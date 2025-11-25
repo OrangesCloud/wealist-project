@@ -45,14 +45,64 @@ COMPOSE_FILES="-f docker/compose/docker-compose.yml -f docker/compose/docker-com
 ENV_FILE_OPTION="--env-file $ENV_FILE"
 
 # =============================================================================
-# [⭐️ 핵심 변경 사항]: 로컬 환경 API Base URL 강제 오버라이드
-# 
-# 프론트엔드 컨테이너의 환경 변수 VITE_API_BASE_URL을 
-# .env 파일 내용과 관계없이 localhost로 강제 설정합니다.
-# 이 쉘 변수는 docker compose 실행 시 .env 내용을 덮어씁니다.
+# [⭐️ 핵심 추가] 공통 네트워크 검사 및 생성 (프론트엔드 연결용)
 # =============================================================================
-export VITE_API_BASE_URL="http://localhost"
-echo -e "${BLUE}⚙️  로컬 개발 환경 설정: VITE_API_BASE_URL=${VITE_API_BASE_URL}${NC}"
+NETWORK_NAME="wealist-net"
+EXPECTED_LABEL="com.docker.compose.network=${NETWORK_NAME}"
+
+# 'up' 명령어 계열이거나 명령어가 생략되었을 때만 네트워크를 확인하고 생성합니다.
+if [ "$1" == "up" ] || [ "$1" == "up-fg" ] || [ -z "$1" ]; then
+    echo -e "${BLUE}🔗 공통 네트워크 ${NETWORK_NAME} 검사 중...${NC}"
+    
+    NETWORK_ID=$(docker network ls -q -f name=^${NETWORK_NAME}$)
+    
+    if [ -n "$NETWORK_ID" ]; then
+        NETWORK_LABELS=$(docker network inspect $NETWORK_ID --format '{{json .Labels}}')
+        
+        # Docker Compose에서 기대하는 레이블을 포함하고 있는지 확인
+        if echo "$NETWORK_LABELS" | grep -q "\"${EXPECTED_LABEL}\""; then
+            echo -e "${BLUE}✅ 공통 네트워크 ${NETWORK_NAME} 이미 존재하고 레이블이 올바름.${NC}"
+        else
+            # 💡 [핵심 수정] 레이블이 잘못된 경우, 먼저 모든 컨테이너를 강제 중지/제거하고 네트워크를 삭제합니다.
+            echo -e "${RED}❌ 공통 네트워크 ${NETWORK_NAME}의 레이블이 올바르지 않습니다.${NC}"
+            
+            # 네트워크에 연결된 모든 컨테이너 목록 조회
+            CONTAINERS=$(docker network inspect ${NETWORK_NAME} --format '{{range .Containers}}{{.Name}} {{end}}')
+            
+            if [ -n "$CONTAINERS" ]; then
+                echo -e "${YELLOW}   ⚠️ 네트워크에 연결된 컨테이너 (${CONTAINERS})를 강제 중지 및 제거합니다.${NC}"
+                # 컨테이너 강제 중지 및 제거 (다른 프로젝트 컨테이너도 포함될 수 있으므로 주의)
+                docker rm -f $CONTAINERS || true 
+            fi
+            
+            echo -e "${YELLOW}   잘못된 레이블의 네트워크를 삭제 후 재생성합니다.${NC}"
+            docker network rm ${NETWORK_NAME} || true # 삭제 실패해도 계속 진행 (이 단계에서는 대부분 성공해야 함)
+            NETWORK_ID="" # 네트워크 ID 초기화하여 아래 로직으로 이동
+        fi
+    fi
+    
+    # 네트워크 ID가 비어있으면 (존재하지 않거나 방금 삭제된 경우) 생성
+    if [ -z "$NETWORK_ID" ]; then
+        echo -e "${GREEN}✅ 공통 네트워크 ${NETWORK_NAME} 생성.${NC}"
+        
+        # 💡 [핵심] 레이블을 명시적으로 부여하여 프론트엔드 Docker Compose가 인식하도록 합니다.
+        docker network create \
+            --driver bridge \
+            --label ${EXPECTED_LABEL} \
+            ${NETWORK_NAME} 
+            
+    fi
+    echo ""
+fi
+# =============================================================================
+
+
+# =============================================================================
+# 로컬 환경 API Base URL 강제 오버라이드 (프론트엔드 컨테이너에서 필요)
+# =============================================================================
+# 이 설정은 프론트엔드 레포지토리의 .env 파일에만 필요하므로, 이 백엔드 스크립트에서는 제거합니다.
+# 대신 프론트엔드 컨테이너가 http://nginx 로 통신하도록 합니다.
+# =============================================================================
 
 # 커맨드 처리
 COMMAND=${1:-up}
@@ -60,11 +110,13 @@ COMMAND=${1:-up}
 case $COMMAND in
     up)
         echo -e "${BLUE}🚀 개발 환경을 백그라운드로 시작합니다...${NC}"
-        docker compose $ENV_FILE_OPTION $COMPOSE_FILES up -d --build
+        # --build 옵션 제거 (up 시 자동으로 build 필요한지 검사함)
+        docker compose $ENV_FILE_OPTION $COMPOSE_FILES up -d 
         echo -e "${GREEN}✅ 개발 환경이 시작되었습니다.${NC}"
         echo -e "${BLUE}📊 서비스 접속 정보:${NC}"
         echo "   - User API:    http://localhost:8080"
         echo "   - Board API:   http://localhost:8000"
+        echo "   - NGINX/Frontend API Gateway: http://localhost:80 (프론트엔드 접속 주소)"
         echo "   - PostgreSQL:  localhost:5432"
         echo "   - Redis:       localhost:6379"
         echo "   - User API swagger:    http://localhost:8080/swagger-ui/index.html"

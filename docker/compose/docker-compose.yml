@@ -262,6 +262,11 @@ networks:
     driver: bridge
     name: wealist-database-net
     internal: true # 외부 접근 차단
+  # 💡 [추가] Frontend와의 통신을 위한 외부 네트워크
+  wealist-net:
+    driver: bridge
+    name: wealist-net
+    # external: true # ⬅️ 이 네트워크는 수동으로 생성될 것임 (docker.sh에서)
 
 # =============================================================================
 # Volumes
@@ -273,8 +278,3 @@ volumes:
   redis-data:
     name: wealist-redis-data
     driver: local
-  # 💡 [추가] Frontend와의 통신을 위한 외부 네트워크
-  wealist-net:
-    driver: bridge
-    name: wealist-net
-    external: true # ⬅️ 이 네트워크는 수동으로 생성될 것임 (docker.sh에서)
