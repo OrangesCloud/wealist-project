@@ -1,23 +1,13 @@
-# .github/workflows/cd-dev-user-service.yml
-
-name: CD - Dev User Service (CodeDeploy)
+name: CD - Prod User Service
 
 on:
-  # 1. CI 완료 후 자동 실행 (workflow_run)
+  # 1. CI 완료 후 자동 실행: CI에서 생성한 아티팩트를 사용합니다.
   workflow_run:
-    workflows: ["CI - Dev User Service"]
+    workflows: ["CI - Prod User Service"]
     types:
       - completed
-  # 2. 인프라 변경 시 직접 실행
-  push:
-    branches:
-      - deploy-dev
-    paths:
-      - "docker/compose/docker-compose.ec2-prod.yml"
-      - ".github/workflows/cd-prod-user-service.yml"
-      - "user-service/appspec.yml"
-      - "user-service/deploy.script/**" # 스크립트 폴더 경로 변경 반영
-  # 3. 수동 실행
+    
+  # 2. 수동 실행 (강제 재배포)
   workflow_dispatch:
     inputs:
       reason:
@@ -27,141 +17,207 @@ on:
 
 permissions:
   contents: read
+  # CI에서 업로드된 아티팩트를 다운로드하기 위한 권한입니다.
+  actions: read 
+  # S3 및 CodeDeploy 접근을 위해 id-token 권한이 필요할 수 있으나, 
+  # 현재는 secrets 기반 AWS Credential을 사용하므로 생략합니다.
 
 jobs:
   deploy:
-    name: Deploy User Service to EC2 via CodeDeploy
+    name: Deploy to EC2 via CodeDeploy
     runs-on: ubuntu-latest
-    environment: development
+    environment: production
+    
+    # workflow_run으로 트리거된 경우, CI가 성공했고 deploy-prod 브랜치일 때만 실행
     if: |
       github.event_name == 'push' || 
       github.event_name == 'workflow_dispatch' || 
       (github.event_name == 'workflow_run' && 
        github.event.workflow_run.conclusion == 'success' && 
-       github.event.workflow_run.head_branch == 'deploy-dev')
+       github.event.workflow_run.head_branch == 'deploy-prod')
 
     steps:
       # ============================================
-      # 1. 코드 체크아웃 (CodeDeploy 전송용)
-      # ============================================
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-
-      # ============================================
-      # 2. AWS Credentials 설정
+      # 1. AWS Credentials 설정
       # ============================================
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
+          aws-access-key-id: ${{ secrets.WEALIST_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }} # vars 컨텍스트에서 AWS_REGION 값을 직접 참조
 
       # ============================================
-      # 3. CodeDeploy 배포에 필요한 파라미터 로드
+      # 2. CodeDeploy 설정 변수 로드 (S3 버킷 이름 로드)
       # ============================================
       - name: 📥 Load CodeDeploy Configuration
-        id: codedeploy_config
+        id: config
         run: |
-          # SSM에서 CodeDeploy 앱 이름, 배포 그룹 이름, S3 버킷 로드
-          APP_NAME=$(aws ssm get-parameter --name "/wealist/dev/cd/codedeploy_app_user" --query 'Parameter.Value' --output text --region ap-northeast-2)
-          DG_NAME=$(aws ssm get-parameter --name "/wealist/dev/cd/codedeploy_dg_user" --query 'Parameter.Value' --output text --region ap-northeast-2)
-          S3_BUCKET=$(aws ssm get-parameter --name "/wealist/dev/cd/s3_bucket_codedeploy" --query 'Parameter.Value' --output text --region ap-northeast-2)
-
-          echo "codedeploy-application-name=${APP_NAME}" >> $GITHUB_OUTPUT
-          echo "codedeploy-deployment-group-name=${DG_NAME}" >> $GITHUB_OUTPUT
-          echo "s3-bucket-name=${S3_BUCKET}" >> $GITHUB_OUTPUT
-          echo "✅ User Service CodeDeploy Config loaded: ${APP_NAME}/${DG_NAME}"
+          # CodeDeploy Application 및 Deployment Group 이름은 하드코딩 또는 vars/secrets 사용
+          echo "COEDEPLOY_APP_NAME=Wealist-Prod-App" >> $GITHUB_ENV
+          echo "COEDEPLOY_GROUP_NAME=Wealist-Prod-User-Group" >> $GITHUB_ENV
+          
+          # S3 버킷 이름은 Terraform Output을 Parameter Store에 저장했다고 가정하고 로드
+          S3_BUCKET=$(aws ssm get-parameter \
+            --name "/wealist/prod/cd/codedeploy_s3_bucket" \
+            --query 'Parameter.Value' \
+            --output text)
+          
+          if [ -z "$S3_BUCKET" ]; then
+            echo "❌ Fatal: S3 Bucket parameter not found in Parameter Store."
+            exit 1
+          fi
+          
+          echo "S3_BUCKET=$S3_BUCKET" >> $GITHUB_ENV
 
       # ============================================
-      # 4. 소스 압축 및 S3 업로드 (CodeDeploy Revision 생성)
+      # 3. CI 아티팩트 다운로드 및 정보 추출
       # ============================================
-      - name: 📦 Prepare & Upload Deployment Bundle
-        id: upload
+      - name: ⬇️ Download CodeDeploy Artifact
+        uses: actions/github-script@v7
+        id: download
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // 1. CI 워크플로우 실행 정보 찾기
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci-prod-user-service.yml',
+              branch: 'deploy-prod',
+              per_page: 1,
+              status: 'success'
+            });
+            const latestRun = runs.workflow_runs[0];
+            
+            if (!latestRun) {
+                console.log('No successful CI run found. Aborting.');
+                core.setFailed('No successful CI run found.');
+                return;
+            }
+            
+            // 2. SHA 태그와 아티팩트 이름 추출
+            const shaTag = latestRun.head_sha.substring(0, 7);
+            const artifactName = `codedeploy-artifact-${shaTag}`;
+            
+            core.setOutput('sha_tag', shaTag);
+            core.setOutput('artifact_name', artifactName);
+            
+            // 3. 아티팩트 ID 찾기
+            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: latestRun.id,
+            });
+            const artifactToDownload = artifacts.artifacts.find(a => a.name === artifactName);
+
+            if (!artifactToDownload) {
+                console.log(`Artifact ${artifactName} not found.`);
+                core.setFailed(`Artifact ${artifactName} not found.`);
+                return;
+            }
+
+            // 4. 아티팩트 다운로드
+            const download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifactToDownload.id,
+                archive_format: 'zip',
+            });
+            
+            // 5. 다운로드된 ZIP 파일을 현재 작업 디렉토리에 저장
+            fs.writeFileSync('deploy_artifact.zip', Buffer.from(download.data));
+            
+            console.log(`✅ Downloaded artifact: ${artifactName}`);
+
+      # ============================================
+      # 4. S3에 CodeDeploy 아티팩트 업로드
+      # ============================================
+      - name: ⬆️ Upload Artifact to S3
+        id: upload_s3
         run: |
-          S3_BUCKET_NAME="${{ steps.codedeploy_config.outputs.s3-bucket-name }}"
-          REVISION_NAME="user-service-${{ github.sha }}.zip"
-
-          echo "📦 Zipping source files..."
-          # 압축은 모든 파일을 포함 (appspec.yml과 스크립트 포함)
-          zip -r deployment_bundle.zip . \
-            -x "*.git*" "node_modules/*" "*.DS_Store" "*.idea" "target/*" "build/*"
-
-          echo "📤 Uploading to s3://${S3_BUCKET_NAME}/${REVISION_NAME}..."
-          aws s3 cp deployment_bundle.zip s3://${S3_BUCKET_NAME}/${REVISION_NAME}
-
-          echo "s3-location=s3://${S3_BUCKET_NAME}/${REVISION_NAME}" >> $GITHUB_OUTPUT
-          echo "revision-name=${REVISION_NAME}" >> $GITHUB_OUTPUT
-          echo "✅ Upload complete"
+          # S3에 저장될 파일명 (CodeDeploy가 이 경로를 사용)
+          ARTIFACT_FILENAME="user-service-${{ steps.download.outputs.sha_tag }}.zip"
+          S3_KEY="user-service/${ARTIFACT_FILENAME}"
+          
+          # AWS S3에 업로드
+          aws s3 cp deploy_artifact.zip s3://${{ env.S3_BUCKET }}/${S3_KEY}
+          
+          echo "S3_KEY_OUTPUT=$S3_KEY" >> $GITHUB_OUTPUT
+          
+          echo "✅ Artifact uploaded to s3://${{ env.S3_BUCKET }}/${S3_KEY}"
 
       # ============================================
-      # 5. AWS CodeDeploy 배포 생성
+      # 5. CodeDeploy 배포 트리거
       # ============================================
-      - name: 🚀 Create CodeDeploy Deployment
-        id: codedeploy
+      - name: 🚀 Trigger CodeDeploy Deployment
+        id: deploy_trigger
         run: |
-          S3_BUCKET_NAME="${{ steps.codedeploy_config.outputs.s3-bucket-name }}"
-          REVISION_NAME="${{ steps.upload.outputs.revision-name }}"
-
           DEPLOYMENT_ID=$(aws deploy create-deployment \
-            --application-name ${{ steps.codedeploy_config.outputs.codedeploy-application-name }} \
-            --deployment-group-name ${{ steps.codedeploy_config.outputs.codedeploy-deployment-group-name }} \
-            --revision "revisionType=S3,s3Location={bucket=${S3_BUCKET_NAME},key=${REVISION_NAME},bundleType=zip}" \
+            --application-name ${{ env.COEDEPLOY_APP_NAME }} \
+            --deployment-group-name ${{ env.COEDEPLOY_GROUP_NAME }} \
             --deployment-config-name CodeDeployDefault.OneAtATime \
-            --description "GitHub Actions Deployment for User Service ${{ github.sha }}" \
-            --output text \
-            --query "deploymentId")
-
-          echo "deployment-id=${DEPLOYMENT_ID}" >> $GITHUB_OUTPUT
-          echo "✅ CodeDeploy Deployment created: ${DEPLOYMENT_ID}"
-
-      # ============================================
-      # 6. 배포 결과 대기 및 확인
-      # ============================================
-      - name: ⏳ Wait for CodeDeploy Deployment
-        run: |
-          DEPLOYMENT_ID="${{ steps.codedeploy.outputs.deployment-id }}"
-          echo "⏳ Waiting for deployment ${DEPLOYMENT_ID} to complete..."
-
-          if ! aws deploy wait deployment-successful --deployment-id ${DEPLOYMENT_ID}; then
-            echo "❌ CodeDeploy deployment failed or timed out."
-            echo "📋 Retrieving failure details..."
-            aws deploy get-deployment --deployment-id ${DEPLOYMENT_ID} --query "deploymentInfo.errorInformation" --output json
+            --description "User Service Deployment ${{ steps.download.outputs.sha_tag }}" \
+            --s3-location bucket=${{ env.S3_BUCKET }},key=${{ steps.upload_s3.outputs.S3_KEY_OUTPUT }},bundleType=zip \
+            --query "deploymentId" \
+            --output text)
+            
+          echo "DEPLOYMENT_ID=$DEPLOYMENT_ID" >> $GITHUB_ENV
+          
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            echo "❌ Failed to create CodeDeploy deployment."
             exit 1
           fi
 
-          echo "✅ CodeDeploy deployment successful!"
+          echo "✅ CodeDeploy Deployment ID: $DEPLOYMENT_ID"
 
       # ============================================
-      # 7. Summary
+      # 6. 배포 결과 대기 및 상태 확인
       # ============================================
-      - name: 📊 Deployment Summary
+      - name: ⏳ Wait for CodeDeploy Completion
+        run: |
+          echo "⏳ Waiting for deployment ${{ env.DEPLOYMENT_ID }} to complete..."
+          
+          # AWS CLI의 deploy wait 명령어로 배포 종료까지 대기
+          # 성공할 때까지 기다립니다. 실패/타임아웃 시 이 명령어 자체가 실패(exit code 255)합니다.
+          aws deploy wait deployment-successful --deployment-id ${{ env.DEPLOYMENT_ID }}
+          
+          echo "✅ Deployment successful!"
+          
+      # ============================================
+      # 7. 최종 상태 확인 및 요약
+      # ============================================
+      - name: 📊 Get Final Status and Summarize
         if: always()
         run: |
-          STATUS="${{ job.status }}"
-          DEPLOYMENT_ID="${{ steps.codedeploy.outputs.deployment-id }}"
-          APP_NAME="${{ steps.codedeploy_config.outputs.codedeploy-application-name }}"
-
-          if [ "$STATUS" = "success" ]; then
+          STATUS=$(aws deploy get-deployment --deployment-id ${{ env.DEPLOYMENT_ID }} --query "deploymentInfo.status" --output text)
+          
+          if [ "$STATUS" == "Succeeded" ]; then
             ICON="✅"
-            TITLE="User Service Deployed Successfully"
+            TITLE="Deployment Successful"
           else
             ICON="❌"
-            TITLE="User Service Deployment Failed"
+            TITLE="Deployment Failed (${STATUS})"
+            exit_code=1
           fi
 
           cat >> $GITHUB_STEP_SUMMARY << EOF
           ### ${ICON} ${TITLE}
 
-          - **Commit:** \`${{ github.sha }}\`
-          - **CodeDeploy App:** \`${APP_NAME}\`
-          - **Deployment ID:** \`${DEPLOYMENT_ID}\`
-          - **Status:** ${STATUS}
+          - **Service:** User Service
+          - **Tag:** \`${{ steps.download.outputs.sha_tag }}\`
+          - **Deployment ID:** \`${{ env.DEPLOYMENT_ID }}\`
+          - **S3 Location:** \`s3://${{ env.S3_BUCKET }}/${{ steps.upload_s3.outputs.S3_KEY_OUTPUT }}\`
+          - **Status:** **${STATUS}**
           - **Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-
-          #### Quick Links
-          - [View in AWS CodeDeploy Console](${{ env.AWS_REGION }}/codedeploy/home?region=${{ env.AWS_REGION }}#/deployments/${DEPLOYMENT_ID}) 
-          - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          EOF
+          
+          #### CodeDeploy Links
+          - [View Deployment in AWS]
+            EOF
+          
+          # 배포가 성공하지 않았다면 워크플로우를 실패 상태로 종료
+          if [ "$STATUS" != "Succeeded" ]; then
+              exit 1
+          fi
