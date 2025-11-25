@@ -63,7 +63,6 @@ case $COMMAND in
         docker compose $ENV_FILE_OPTION $COMPOSE_FILES up -d --build
         echo -e "${GREEN}✅ 개발 환경이 시작되었습니다.${NC}"
         echo -e "${BLUE}📊 서비스 접속 정보:${NC}"
-        echo "   - Frontend:    http://localhost:3000"
         echo "   - User API:    http://localhost:8080"
         echo "   - Board API:   http://localhost:8000"
         echo "   - PostgreSQL:  localhost:5432"
