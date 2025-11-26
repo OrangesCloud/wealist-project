@@ -35,7 +35,13 @@ jobs:
 
     steps:
       # ============================================
-      # 0. Environment Variables 로드 (AWS_REGION을 먼저 로드)
+      # 0. Checkout 코드 (OIDC 인증을 위해 가장 먼저 실행)
+      # ============================================
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ============================================
+      # 1. Environment Variables 로드 (AWS_REGION을 먼저 로드)
       # ============================================
       - name: 📥 Load AWS Region Variable
         id: config_region
@@ -44,7 +50,7 @@ jobs:
           echo "✅ AWS Region loaded: ${{ vars.AWS_REGION }}"
 
       # ============================================
-      # 1. AWS Credentials 설정 (OIDC Role 기반으로 수정)
+      # 2. AWS Credentials 설정 (OIDC Role 기반으로 수정)
       # ============================================
       - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,7 +60,7 @@ jobs:
           role-session-name: github-cd-${{ github.run_id }}
 
       # ============================================
-      # 2. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
+      # 3. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
       # ============================================
       - name: 📥 Load CodeDeploy Configuration
         id: config_codedeploy
@@ -69,11 +75,8 @@ jobs:
           echo "✅ CodeDeploy configuration loaded. S3 Bucket: ${{ env.S3_BUCKET }}"
 
       # ============================================
-      # 3. CI 정보 추출 및 S3 Key 계산 (CI에서 S3로 업로드된 파일 위치 계산)
+      # 4. CI 정보 추출 및 S3 Key 계산 (CI에서 S3로 업로드된 파일 위치 계산)
       # ============================================
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: 🔍 Get CI Info and Calculate S3 Key
         uses: actions/github-script@v7
         id: calculate_key
@@ -104,7 +107,7 @@ jobs:
             console.log(`✅ Calculated S3 Key: ${s3Key}`);
 
       # ============================================
-      # 4. CodeDeploy 배포 트리거
+      # 5. CodeDeploy 배포 트리거
       # ============================================
       - name: 🚀 Trigger CodeDeploy Deployment
         id: deploy_trigger
@@ -129,7 +132,7 @@ jobs:
           echo "✅ CodeDeploy Deployment ID: $DEPLOYMENT_ID"
 
       # ============================================
-      # 5. 배포 결과 대기 및 상태 확인
+      # 6. 배포 결과 대기 및 상태 확인
       # ============================================
       - name: ⏳ Wait for CodeDeploy Completion
         run: |
@@ -138,7 +141,7 @@ jobs:
           echo "✅ Deployment successful!"
 
       # ============================================
-      # 6. 최종 상태 확인 및 요약
+      # 7. 최종 상태 확인 및 요약
       # ============================================
       - name: 📊 Get Final Status and Summarize
         run: |
@@ -171,7 +174,7 @@ jobs:
               exit 1
           fi
       # ============================================
-      # 7. 💾 SSM에 배포 버전 태그 기록 (성공 시에만 실행)
+      # 8. 💾 SSM에 배포 버전 태그 기록 (성공 시에만 실행)
       # ============================================
       - name: 💾 Save Deployed Version Tag to SSM
         # 이전 Step 6까지 성공했으므로 실행
