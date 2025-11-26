@@ -20,9 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     # environment: production
 
-    # ✅ 디버그 환경 변수 추가
-    env:
-      ACTIONS_STEP_DEBUG: true
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
       full-image: ${{ steps.image-info.outputs.full-image }}
