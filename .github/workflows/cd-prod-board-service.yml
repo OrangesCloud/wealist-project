@@ -2,10 +2,10 @@ name: CD - Prod Board Service
 
 on:
   # 1. CI 완료 후 자동 실행: CI에서 생성한 아티팩트를 S3에 업로드했습니다.
-  workflow_run:
-    workflows: ["CI - Prod Board Service"]
-    types:
-      - completed
+  # workflow_run:
+  #   workflows: ["CI - Prod Board Service"]
+  #   types:
+  #     - completed
 
   # 2. 수동 실행 (강제 재배포)
   workflow_dispatch:
@@ -18,6 +18,7 @@ on:
 permissions:
   contents: read
   actions: read
+  id-token: write
 
 jobs:
   deploy:
@@ -26,12 +27,15 @@ jobs:
     # environment: production
 
     # workflow_run으로 트리거된 경우, CI가 성공했고 deploy-prod 브랜치일 때만 실행
-    if: |
-      github.event_name == 'push' || 
-      github.event_name == 'workflow_dispatch' || 
-      (github.event_name == 'workflow_run' && 
-       github.event.workflow_run.conclusion == 'success' && 
-       github.event.workflow_run.head_branch == 'deploy-prod')
+    # if: |
+    #   github.event_name == 'push' ||
+    #   github.event_name == 'workflow_dispatch' ||
+    #   (github.event_name == 'workflow_run' &&
+    #    github.event.workflow_run.conclusion == 'success' &&
+    #    github.event.workflow_run.head_branch == 'deploy-prod')
+
+    # 수정: 수동 실행 (workflow_dispatch)만 남깁니다.
+    if: github.event_name == 'workflow_dispatch'
 
     steps:
       # ============================================
@@ -40,8 +44,7 @@ jobs:
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.WEALIST_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
@@ -71,7 +74,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'ci-prod-board-service.yml', 
-              branch: 'deploy-prod',
+              branch: 'develop',
               per_page: 1,
               status: 'success'
             });
