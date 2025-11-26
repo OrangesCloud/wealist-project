@@ -20,6 +20,10 @@ fi
 $COMPOSE_CMD -f "${COMPOSE_FILE}" stop user-service || true
 $COMPOSE_CMD -f "${COMPOSE_FILE}" rm -f user-service || true
 
+# 기존 docker-compose 파일 삭제 (CodeDeploy 파일 복사를 위해)
+echo "🧹 Removing old docker-compose file to allow new deployment..."
+rm -f "${COMPOSE_FILE}" || true
+
 
 # 2. 🧹 임시 헬스체크 컨테이너 정리 (추가된 부분)
 echo "🧹 Cleaning up temporary health check containers to prevent port conflicts..."

@@ -5,7 +5,7 @@
 set +e # 오류가 나도 계속 진행 (컨테이너가 없을 수 있음)
 
 PROJECT_ROOT="/home/ec2-user/wealist"
-COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.ec2-prod.yml"
+COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-prod.yml"
 echo "🧹 Cleaning up old board-service containers..."
 
 # 1. Docker Compose 명령어가 무엇인지 확인합니다.
@@ -19,6 +19,10 @@ fi
 # [수정] 모든 Compose 명령 앞에 sudo 추가
 sudo $COMPOSE_CMD -f "${COMPOSE_FILE}" stop board-service || true
 sudo $COMPOSE_CMD -f "${COMPOSE_FILE}" rm -f board-service || true
+
+# 기존 docker-compose 파일 삭제 (CodeDeploy 파일 복사를 위해)
+echo "🧹 Removing old docker-compose file to allow new deployment..."
+rm -f "${COMPOSE_FILE}" || true
 
 # 3. 🧹 임시 헬스체크 컨테이너 정리
 echo "🧹 Cleaning up temporary health check containers to prevent port conflicts..."
