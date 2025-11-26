@@ -4,9 +4,9 @@ files:
   # Board Service 스크립트 디렉토리 전체 복사
   - source: /board-service/deploy.script
     destination: /home/ec2-user/wealist/board-service/deploy.script
-  # [수정] Docker Compose 파일을 /home/ec2-user/wealist/board-service/ 에 복사합니다.
+  # Docker Compose 파일을 /home/ec2-user/wealist/docker/compose/ 에 복사
   - source: /docker-compose.ec2-prod.yml
-    destination: /home/ec2-user/wealist/board-service/
+    destination: /home/ec2-user/wealist/docker/compose/
 permissions:
   # /home/ec2-user/wealist/ 아래 모든 파일의 소유권 변경
   - object: /home/ec2-user/wealist/
