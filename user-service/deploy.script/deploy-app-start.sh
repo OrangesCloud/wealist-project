@@ -34,7 +34,7 @@ load_secret() {
 echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 
 # --- 인프라 및 DB 정보 (String) ---
-# [수정] AWS_ACCOUNT_ID 추출 및 검증 강화
+# AWS_ACCOUNT_ID 추출 및 검증 강화 (첫 번째 정의만 사용)
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
 if [ -z "$AWS_ACCOUNT_ID" ] || [ "$AWS_ACCOUNT_ID" == "null" ]; then
     echo "❌ FATAL: Could not retrieve AWS Account ID using STS."
@@ -44,8 +44,7 @@ export AWS_REGION="${AWS_REGION}"
 
 echo "✅ AWS Account ID loaded: ${AWS_ACCOUNT_ID}"
 
-# --- 인프라 및 DB 정보 (String) ---
-export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+# [삭제된 부분: 중복된 AWS_ACCOUNT_ID 재정의 로직 제거]
 
 # DB/Cache 엔드포인트
 export RDS_HOST=$(load_param "db/rds_host")
@@ -113,7 +112,7 @@ fi
 
 # ECR 로그인
 echo "🐳 Logging into ECR..."
-# [수정] aws ecr 명령에 sudo는 필요 없지만, docker login 앞에 sudo를 추가해야 안전합니다.
+# [수정] docker login 앞에 sudo 추가
 aws ecr get-login-password --region ${AWS_REGION} | \
   sudo docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
