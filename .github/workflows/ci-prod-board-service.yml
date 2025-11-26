@@ -181,4 +181,4 @@ jobs:
               workflow_id: 'cd-prod-board-service.yml',
               ref: 'deploy-prod'
             });
-            console.log('✅ CD workflow triggered successfully');
+            console.log('✅ CD Board workflow triggered successfully');

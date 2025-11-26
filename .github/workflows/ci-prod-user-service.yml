@@ -11,19 +11,17 @@ on:
 
 permissions:
   contents: read
-  # ✅ OIDC 토큰을 요청하기 위해 'id-token: write' 권한 추가 (필수)
   id-token: write
+  actions: write # CD 워크플로우 트리거를 위해 추가
 
 jobs:
   build-and-push:
     name: Build & Push to ECR
     runs-on: ubuntu-latest
-    # environment: production ❌ 제거된 상태 유지
 
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
-      # full-image: ${{ steps.image-info.outputs.full-image }} ❌ 아래에서 직접 조합하므로 제거
-      artifact-path: deploy_artifact.zip
+      full-image: ${{ steps.image-info.outputs.full-tag }}
 
     steps:
       # ============================================
@@ -68,7 +66,6 @@ jobs:
       - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # ✅ OIDC Role ARN을 직접 사용하여 권한 위임
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ vars.AWS_REGION }}
 
@@ -94,9 +91,10 @@ jobs:
           IMAGE_TAG="${GITHUB_SHA:0:7}"
           IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}"
 
-          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT 
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "full-tag=${IMAGE_URI}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "latest-tag=${IMAGE_URI}:latest" >> $GITHUB_OUTPUT
 
       # ============================================
       # 8-1. Amazon ECR 로그인
@@ -110,10 +108,11 @@ jobs:
       - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: user-service
+          context: board-service
+          file: board-service/docker/Dockerfile
           push: true
-          tags: ${{ steps.image-info.outputs.image-uri }}:${{ steps.image-info.outputs.image-tag }},${{ steps.image-info.outputs.image-uri }}:latest
-          cache-from: type=registry,ref=${{ steps.image-info.outputs.image-uri }}:latest
+          tags: ${{ steps.image-info.outputs.full-tag }},${{ steps.image-info.outputs.latest-tag }}
+          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-tag }}
           cache-to: type=inline
           build-args: CACHEBUST=${{ github.run_id }}
 
@@ -156,3 +155,19 @@ jobs:
           echo "**S3 Key:** \`${{ steps.s3_upload.outputs.S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Next Steps:** CD workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
+
+      # ============================================
+      # 11. 🚀 CD 워크플로우 트리거 (workflow_dispatch)
+      # ============================================
+      - name: 🚀 Trigger CD Workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'cd-prod-user-service.yml',
+              ref: 'deploy-prod'
+            });
+            console.log('✅ CD User workflow triggered successfully');
