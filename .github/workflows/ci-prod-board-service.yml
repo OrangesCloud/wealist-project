@@ -165,7 +165,7 @@ jobs:
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**S3 Key:** \`${{ steps.s3_upload.outputs.S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next Steps:** CD workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:** CD Board workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
 
       # ============================================
       # 11. 🚀 CD 워크플로우 트리거 (workflow_dispatch)
