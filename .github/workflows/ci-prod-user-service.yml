@@ -18,11 +18,11 @@ jobs:
   build-and-push:
     name: Build & Push to ECR
     runs-on: ubuntu-latest
-    # environment: production
+    # environment: production ❌ 제거된 상태 유지
 
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
-      full-image: ${{ steps.image-info.outputs.full-image }}
+      # full-image: ${{ steps.image-info.outputs.full-image }} ❌ 아래에서 직접 조합하므로 제거
       artifact-path: deploy_artifact.zip
 
     steps:
@@ -85,35 +85,39 @@ jobs:
           echo "✅ Configuration loaded successfully"
 
       # ============================================
-      # 7. 이미지 태그 생성
+      # 7. 이미지 태그 생성 (FULL_IMAGE 변수 생성 방식을 변경)
       # ============================================
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
           ECR_REGISTRY="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
-          FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
-          LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
 
-          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
+          # ❌ FULL_IMAGE, LATEST_IMAGE 변수 정의 제거 (Step 8에서 직접 조합)
+          # ECR_REGISTRY만 출력 변수로 사용
+          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT 
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
-          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
+          # echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT ❌ 제거
+          # echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT ❌ 제거
 
       # ============================================
-      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시
+      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시 (태그 직접 조합하여 전달)
       # ============================================
       - name: 🐳 Login to ECR, Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: user-service
           push: true
-          # ✅ 이중 따옴표를 사용하여 하나의 깨끗한 문자열로 강제합니다.
-          tags: "${{ steps.image-info.outputs.full-image }},${{ steps.image-info.outputs.latest-image }}"
+          # ✅ 최종 수정: 각 태그를 완전한 이미지명 형태로 배열로 전달
+          tags: |
+            ${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-info.outputs.image-tag }}
+            ${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}:latest
+
           cache-to: type=inline
           build-args: |
             CACHEBUST=$(date +%s)
-          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-image }}
+          # cache-from도 직접 조합하여 전달해야 함
+          cache-from: type=registry,ref=${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}:latest
 
       # ============================================
       # 9. CodeDeploy 아티팩트 생성 및 S3 업로드
@@ -150,7 +154,6 @@ jobs:
       - name: 📋 Build Summary
         run: |
           echo "### ✅ User Service Build Complete" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**S3 Key:** \`${{ steps.s3_upload.outputs.S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
