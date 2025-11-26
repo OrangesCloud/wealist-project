@@ -11,6 +11,8 @@ on:
 
 permissions:
   contents: read
+  # ✅ OIDC 토큰을 요청하기 위해 'id-token: write' 권한 추가 (필수)
+  id-token: write
 
 jobs:
   build-and-push:
@@ -21,7 +23,7 @@ jobs:
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
       full-image: ${{ steps.image-info.outputs.full-image }}
-      artifact-path: deploy_artifact.zip # 아티팩트 파일명은 CI 내부에서 사용
+      artifact-path: deploy_artifact.zip
 
     steps:
       # ============================================
@@ -61,13 +63,13 @@ jobs:
           retention-days: 7
 
       # ============================================
-      # 5. AWS Credentials 설정
+      # 5. AWS Credentials 설정 (OIDC Role 기반으로 수정)
       # ============================================
-      - name: 🔐 Configure AWS Credentials
+      - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.WEALIST_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_AWS_SECRET_ACCESS_KEY }}
+          # ✅ OIDC Role ARN을 직접 사용하여 권한 위임
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
@@ -115,7 +117,7 @@ jobs:
             CACHEBUST=$(date +%s)
 
       # ============================================
-      # 9. CodeDeploy 아티팩트 생성 및 S3 업로드 (수정됨: S3 직접 업로드)
+      # 9. CodeDeploy 아티팩트 생성 및 S3 업로드
       # ============================================
       - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
         id: s3_upload
