@@ -165,3 +165,19 @@ jobs:
           echo "**S3 Key:** \`${{ steps.s3_upload.outputs.S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Next Steps:** CD workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
+
+      # ============================================
+      # 11. 🚀 CD 워크플로우 트리거 (workflow_dispatch)
+      # ============================================
+      - name: 🚀 Trigger CD Workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'cd-prod-board-service.yml',
+              ref: 'deploy-prod'
+            });
+            console.log('✅ CD workflow triggered successfully');
