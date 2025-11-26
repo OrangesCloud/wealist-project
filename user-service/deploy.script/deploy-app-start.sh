@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # 1. 상수 정의
-PROJECT_ROOT="/home/ubuntu/wealist"
+PROJECT_ROOT="/home/ec2-user/wealist"
 COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-prod.yml"
 SERVICE_NAME="user-service" # 배포할 서비스 이름
 AWS_REGION="ap-northeast-2" 

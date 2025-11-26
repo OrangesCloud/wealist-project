@@ -4,7 +4,8 @@
 
 set +e # 오류가 나도 계속 진행 (컨테이너가 없을 수 있음)
 
-PROJECT_ROOT="/home/ubuntu/wealist"
+# [수정 필요] 경로를 /home/ec2-user/wealist로 변경
+PROJECT_ROOT="/home/ec2-user/wealist"
 COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-prod.yml"
 
 echo "🧹 Cleaning up old containers..."
