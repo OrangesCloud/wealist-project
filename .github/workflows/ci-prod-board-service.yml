@@ -64,7 +64,6 @@ jobs:
       # ============================================
       - name: 🧪 Run Go Tests
         if: false
-        continue-on-error: true
         run: |
           cd board-service
           go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build (Check logs!)"
