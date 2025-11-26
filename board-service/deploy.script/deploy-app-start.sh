@@ -123,7 +123,15 @@ echo "🔄 Starting Board Service and Exporters defined in ${COMPOSE_FILE}..."
 
 SERVICES_TO_RESTART="board-service postgres-exporter redis-exporter node-exporter"
 
-# 🚨 --no-deps --force-recreate 를 사용하여 Board Service와 Exporter들만 재시작
-sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
+# 기존 컨테이너 중지 및 제거 (포트 충돌 방지)
+echo "🛑 Stopping and removing existing containers..."
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" stop ${SERVICES_TO_RESTART} 2>/dev/null || true
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" rm -f ${SERVICES_TO_RESTART} 2>/dev/null || true
+
+# 컨테이너 정리 대기
+sleep 3
+
+# 🚨 --no-deps 를 사용하여 Board Service와 Exporter들만 재시작
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps ${SERVICES_TO_RESTART}
 
 echo "✅ Deployment initiated. CodeDeploy will now run ValidateService."
