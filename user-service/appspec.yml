@@ -1,31 +1,34 @@
 version: 0.0
 os: linux
 files:
-  # 프로젝트 루트 디렉토리를 /home/ubuntu/wealist/ 에 복사합니다.
+  # [수정] destination 경로를 /home/ec2-user/ 로 변경했습니다.
   - source: /appspec.yml
-    destination: /home/ubuntu/wealist/user-service/
+    destination: /home/ec2-user/wealist/user-service/ # /home/ec2-user/wealist/user-service/ 에 복사
+  # User Service 스크립트 파일 복사 (전략적으로 디렉토리 구조 유지)
   - source: /user-service/deploy.script/
-    destination: /home/ubuntu/wealist/user-service/deploy.script/
+    destination: /home/ec2-user/wealist/user-service/deploy.script/
+  # Docker Compose 파일 복사
   - source: /docker/compose/docker-compose.ec2-prod.yml
-    destination: /home/ubuntu/wealist/docker/compose/
+    destination: /home/ec2-user/wealist/docker/compose/
 permissions:
-  - object: /home/ubuntu/wealist/
+  # [수정] owner와 group을 ec2-user로 변경했습니다.
+  - object: /home/ec2-user/wealist/
     pattern: "**"
-    owner: ubuntu
-    group: ubuntu
+    owner: ec2-user # ← 소유자 변경 (필수)
+    group: ec2-user # ← 그룹 변경 (필수)
 hooks:
   BeforeInstall:
     # 1. 기존 컨테이너 중지 및 이미지 정리
     - location: user-service/deploy.script/deploy-cleanup.sh
       timeout: 60
-      runas: ubuntu
+      runas: ec2-user
   ApplicationStart:
     # 2. SSM 변수 로드 후 Docker Compose 실행 (핵심 배포 로직)
     - location: user-service/deploy.script/deploy-app-start.sh
       timeout: 300
-      runas: ubuntu
+      runas: ec2-user
   ValidateService:
     # 3. 헬스 체크
     - location: user-service/deploy.script/deploy-health-check.sh
       timeout: 180
-      runas: ubuntu
+      runas: ec2-user
