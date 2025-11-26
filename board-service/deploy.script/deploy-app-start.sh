@@ -47,7 +47,6 @@ echo "✅ AWS Account ID loaded: ${AWS_ACCOUNT_ID}"
 
 # --- 인프라 및 DB 정보 (String) ---
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export AWS_REGION="${AWS_REGION}" 
 
 # DB/Cache 엔드포인트
 export RDS_HOST=$(load_param "db/rds_host")
