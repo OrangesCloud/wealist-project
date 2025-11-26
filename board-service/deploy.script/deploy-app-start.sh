@@ -8,13 +8,20 @@
 set -euo pipefail
 # 1. 상수 정의
 PROJECT_ROOT="/home/ec2-user/wealist" 
-COMPOSE_FILE="${PROJECT_ROOT}/board-service/docker-compose.ec2-prod.yml" 
+COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-prod.yml" 
 SERVICE_NAME="board-service"
 AWS_REGION="ap-northeast-2" 
 PARAMETER_BASE_PATH="/wealist/prod"
 
 echo "🚀 Board Service Production Deployment Start"
 echo "Project Root: ${PROJECT_ROOT}"
+
+# Docker Compose 파일 존재 확인
+if [ ! -f "${COMPOSE_FILE}" ]; then
+    echo "❌ ERROR: Docker Compose file not found at ${COMPOSE_FILE}"
+    exit 1
+fi
+echo "✅ Docker Compose file found: ${COMPOSE_FILE}"
 
 # [추가된 부분] AWS CLI가 SSM 및 기타 API 호출에 사용할 기본 리전 환경 변수 강제 설정
 export AWS_DEFAULT_REGION="${AWS_REGION}" 
