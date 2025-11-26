@@ -12,6 +12,7 @@ import OrangeCloud.UserRepo.repository.UserRepository;
 import OrangeCloud.UserRepo.repository.WorkspaceJoinRequestRepository;
 import OrangeCloud.UserRepo.repository.WorkspaceMemberRepository;
 import OrangeCloud.UserRepo.repository.WorkspaceRepository;
+import io.micrometer.core.instrument.Counter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class WorkspaceService {
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final Optional<SampleDataSeederService> sampleDataSeederService;
+    private final Counter workspaceCreatedTotalCounter;
     private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
     // ============================================================================
     // Workspace 생성/수정/삭제
@@ -62,6 +64,7 @@ public class WorkspaceService {
 
         Workspace savedWorkspace = workspaceRepository.save(workspace);
         log.info("Workspace created: workspaceId={}", savedWorkspace.getWorkspaceId());
+        workspaceCreatedTotalCounter.increment();
 
         WorkspaceMember ownerMember = WorkspaceMember.builder()
                 .workspaceId(savedWorkspace.getWorkspaceId())

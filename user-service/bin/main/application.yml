@@ -5,7 +5,7 @@ spring:
   
   main:
     allow-circular-references: true
-#    lazy-initialization: true
+    lazy-initialization: true
 
   jackson:
     serialization:
