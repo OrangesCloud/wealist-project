@@ -54,22 +54,22 @@ echo "✅ AWS Account ID loaded: ${AWS_ACCOUNT_ID}"
 export RDS_HOST=$(load_param "db/rds_host")
 export REDIS_HOST=$(load_param "cache/redis_host")
 
-# DB 이름 및 사용자
-export POSTGRES_SUPERUSER=$(load_param "db/rds_master_username")
-export USER_DB_NAME=$(load_param "db/user_db_name")
-export BOARD_DB_NAME=$(load_param "db/board_db_name")
+# DB 이름
+export USER_DB_NAME=$(load_secret "db/user_db_name")
+export BOARD_DB_NAME=$(load_secret "db/board_db_name")
 
 # --- 시크릿 정보 (SecureString) ---
 export JWT_SECRET=$(load_secret "jwt/jwt_secret")
+export POSTGRES_SUPERUSER=$(load_param "db/rds_master_username")
 export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/rds_master_password")
 export REDIS_PASSWORD=$(load_secret "cache/redis_auth_token")
 
 # User Service DB 접속 시크릿
-export USER_DB_USER="wealist_user"
+export USER_DB_USER=$(load_secret "db/user_db_user")
 export USER_DB_PASSWORD=$(load_secret "db/user_db_password")
 
 # Board Service DB 접속 시크릿
-export BOARD_DB_USER="board_service"
+export BOARD_DB_USER=$(load_secret "db/board_db_user")
 export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 
 # OAuth 및 S3 설정
