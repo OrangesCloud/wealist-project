@@ -18,7 +18,7 @@ jobs:
   build-and-push:
     name: Build & Push to ECR
     runs-on: ubuntu-latest
-    environment: production
+    # environment: production
 
     # ✅ 디버그 환경 변수 추가
     env:
