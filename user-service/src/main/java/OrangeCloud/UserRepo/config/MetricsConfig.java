@@ -8,6 +8,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 @Configuration
 public class MetricsConfig {
@@ -54,14 +55,14 @@ public class MetricsConfig {
                 .description("Total number of workspace creations.")
                 .register(meterRegistry);
     }
-
+    @Lazy(false)
     @Bean
     public Gauge usersTotalGauge(MeterRegistry meterRegistry, UserRepository userRepository) {
         return Gauge.builder("user_service_users_total", userRepository, ur -> (double) ur.count())
                 .description("Total number of users.")
                 .register(meterRegistry);
     }
-
+    @Lazy(false)
     @Bean
     public Gauge workspacesTotalGauge(MeterRegistry meterRegistry, WorkspaceRepository workspaceRepository) {
         return Gauge.builder("user_service_workspaces_total", workspaceRepository, wr -> (double) wr.count())

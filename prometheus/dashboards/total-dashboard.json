@@ -148,7 +148,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "500은 없음",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -271,8 +271,8 @@
             "type": "prometheus",
             "uid": "cf58shlhkf56oa"
           },
-          "editorMode": "builder",
-          "expr": "sum(increase(board_service_http_requests_total{status=~\"\"}[5m]))",
+          "editorMode": "code",
+          "expr": "sum(rate(board_service_http_requests_total{status=\"5xx\"}[5m]))",
           "hide": false,
           "instant": false,
           "legendFormat": "Board 5xx Rate",
@@ -1403,7 +1403,7 @@
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 25,
+            "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -1441,8 +1441,7 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "percent"
+          }
         },
         "overrides": []
       },
@@ -1455,8 +1454,11 @@
       "id": 8,
       "options": {
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
@@ -1464,43 +1466,148 @@
           "hideZeros": false,
           "mode": "single",
           "sort": "none"
-        },
-        "yAxi": {
-          "label": "사용률(%)"
         }
       },
       "pluginVersion": "12.3.0",
       "targets": [
         {
-          "expr": "board_service_db_connections_in_use / board_service_db_connections_max * 100",
+          "editorMode": "code",
+          "expr": "rate(board_service_db_query_duration_seconds_sum[5m]) / rate(board_service_db_query_duration_seconds_count[5m])",
+          "hide": false,
           "legendFormat": "Board DB Pool Usage (%)",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "보드 DB 쿼리 평균 실행 시간 - 임계값: 100ms",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ef59k9vbl3rpcb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 35
+      },
+      "id": 309,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "hikaricp_connections_active{application=\"wealist-api-dev\"}",
+          "legendFormat": "__auto",
+          "range": true,
           "refId": "A"
         },
         {
-          "expr": "rate(board_service_db_connection_wait_total[5m]) * 100",
-          "legendFormat": "Board DB Wait Rate (RPS)",
-          "refId": "B",
-          "unit": "none",
-          "yAxis": 2
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ef59k9vbl3rpcb"
+          },
+          "editorMode": "code",
+          "expr": "hikaricp_connections_idle{application=\"wealist-api-dev\"}",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
         },
         {
-          "expr": "hikaricp_connections_active{application=\"wealist-api-dev\"} / hikaricp_connections_max{application=\"wealist-api-dev\"} * 100",
-          "legendFormat": "User DB Pool Usage (%)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ef59k9vbl3rpcb"
+          },
+          "editorMode": "code",
+          "expr": "hikaricp_connections_max{application=\"wealist-api-dev\"}",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
           "refId": "C"
-        },
-        {
-          "expr": "rate(hikaricp_connections_pending{application=\"wealist-api-dev\"}[5m]) * 100",
-          "legendFormat": "User DB Wait Rate (RPS)",
-          "refId": "D",
-          "unit": "none",
-          "yAxis": 2
         }
       ],
-      "title": "🔗 User/Board DB 커넥션 풀 & 대기 이벤트",
+      "title": "유저 DB 커넥션 풀 상태",
       "type": "timeseries"
     }
   ],
   "preload": false,
+  "refresh": "10s",
   "schemaVersion": 42,
   "tags": [
     "integrated",
@@ -1513,12 +1620,12 @@
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "통합 서비스 핵심 지표 (Golden Signals)",
   "uid": "integrated-v3sdd",
-  "version": 19
+  "version": 24
 }
