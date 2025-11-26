@@ -70,7 +70,7 @@ services:
           "wget",
           "-q",
           "--spider",
-          "http://localhost:8080/api/users/actuator/health",
+          "http://localhost:8080/api/users/health",
         ]
       interval: 30s
       timeout: 10s
