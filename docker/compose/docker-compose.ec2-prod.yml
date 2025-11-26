@@ -38,7 +38,9 @@ services:
       - SPRING_REDIS_DATABASE=0
 
       # JPA: Prod에서는 DDL_AUTO는 validate/none 권장
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+      # ⚠️ TEMPORARY: Changed to 'update' to create missing attachments table
+      # TODO: Revert to 'validate' after table is created
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_JPA_SHOW_SQL=false
       - SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=false
       - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
