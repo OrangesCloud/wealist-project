@@ -133,34 +133,29 @@ jobs:
       - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
         id: s3_upload
         run: |
-          # 기존 (문제 원인)
-          # cp board-service/appspec.yml .    ← 이 줄이 범인!
+          # 1. CD 배포에 필요한 파일들을 임시 디렉토리에 복사 (flat structure)
+          mkdir -p artifact_temp/deploy.script
 
-          # 수정 후 (이 줄 삭제하거나 주석 처리!)
-          # cp board-service/appspec.yml .    ← 삭제!!!
+          cp board-service/appspec.yml artifact_temp/appspec.yml 
+          cp board-service/deploy.script/* artifact_temp/deploy.script/
+          cp docker/compose/docker-compose.ec2-prod.yml artifact_temp/docker-compose.ec2-prod.yml
 
-          cp docker/compose/docker-compose.ec2-prod.yml .
-          # .env 파일 생성
-          echo "🏷️ Creating .env file with version information..."
-          cat > .env << EOF
-          BOARD_SERVICE_VERSION=${{ steps.image-info.outputs.image-tag }}
-          USER_SERVICE_VERSION=latest
-          EOF
-
-          # ZIP 생성 (현재 디렉터리 전체 압축)
-          zip -r deploy_artifact.zip .
+          # 2. 아티팩트 ZIP 생성 (artifact_temp 내부 파일들만 압축)
+          cd artifact_temp
+          zip -r ../deploy_artifact.zip .
+          cd ..
 
           # 3. S3 정보 설정
           S3_BUCKET="wealist-codedeploy-artifacts"
           ARTIFACT_FILENAME="board-service-${{ steps.image-info.outputs.image-tag }}.zip"
           S3_KEY="board-service/${ARTIFACT_FILENAME}"
 
-          # 4. AWS S3에 업로드
+          # 4. AWS S3에 직접 업로드
           aws s3 cp deploy_artifact.zip s3://${S3_BUCKET}/${S3_KEY}
 
           echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT
 
-          echo "✅ CodeDeploy artifact with .env uploaded: s3://${S3_BUCKET}/${S3_KEY}"
+          echo "✅ CodeDeploy artifact uploaded: s3://${S3_BUCKET}/${S3_KEY}"
 
       # ============================================
       # 10. 빌드 결과 요약

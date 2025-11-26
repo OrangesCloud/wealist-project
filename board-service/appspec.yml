@@ -2,9 +2,12 @@ version: 0.0
 os: linux
 
 files:
-  # 폴더 안의 모든 파일을 대상 디렉터리로 복사
-  - source: /
-    destination: /home/ec2-user/wealist/
+  # Board Service 스크립트 파일 복사
+  - source: /deploy.script/
+    destination: /home/ec2-user/wealist/board-service/deploy.script/
+  # Docker Compose 파일 복사
+  - source: /docker-compose.ec2-prod.yml
+    destination: /home/ec2-user/wealist/docker/compose/
 
 permissions:
   - object: /home/ec2-user/wealist/
@@ -18,16 +21,16 @@ permissions:
 
 hooks:
   BeforeInstall:
-    - location: board-service/deploy.script/deploy-cleanup.sh
+    - location: deploy.script/deploy-cleanup.sh
       timeout: 600
       runas: ec2-user
 
   ApplicationStart:
-    - location: board-service/deploy.script/deploy-app-start.sh
+    - location: deploy.script/deploy-app-start.sh
       timeout: 600
       runas: ec2-user
 
   ValidateService:
-    - location: board-service/deploy.script/deploy-health-check.sh
+    - location: deploy.script/deploy-health-check.sh
       timeout: 300
       runas: ec2-user
