@@ -16,11 +16,15 @@ PARAMETER_BASE_PATH="/wealist/prod"
 echo "🚀 Board Service Production Deployment Start"
 echo "Project Root: ${PROJECT_ROOT}"
 
+# [추가된 부분] AWS CLI가 SSM 및 기타 API 호출에 사용할 기본 리전 환경 변수 강제 설정
+export AWS_DEFAULT_REGION="${AWS_REGION}" 
+
 # 2. SSM Parameter 로드 함수 정의
 # String 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
 load_param() {
     local name="$1"
     # 파라미터가 없을 경우 빈 문자열 반환
+    # AWS_REGION은 이제 SSM 호출에 필요 없지만, 함수 정의를 위해 유지
     aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text --region "${AWS_REGION}" 2>/dev/null || echo "" 
 }
 
@@ -41,6 +45,7 @@ if [ -z "$AWS_ACCOUNT_ID" ] || [ "$AWS_ACCOUNT_ID" == "null" ]; then
     echo "❌ FATAL: Could not retrieve AWS Account ID using STS."
     exit 1
 fi
+# AWS_REGION은 이미 AWS_DEFAULT_REGION으로 설정되었지만, 다른 변수 사용을 위해 유지
 export AWS_REGION="${AWS_REGION}" 
 
 echo "✅ AWS Account ID loaded: ${AWS_ACCOUNT_ID}"

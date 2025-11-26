@@ -16,6 +16,9 @@ PARAMETER_BASE_PATH="/wealist/prod"
 echo "🚀 User Service Production Deployment Start"
 echo "Project Root: ${PROJECT_ROOT}"
 
+# [추가된 부분] AWS CLI가 SSM 및 기타 API 호출에 사용할 기본 리전 환경 변수 강제 설정
+export AWS_DEFAULT_REGION="${AWS_REGION}" 
+
 # 2. SSM Parameter 로드 함수 정의
 # String 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
 load_param() {
@@ -37,7 +40,7 @@ echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 # AWS_ACCOUNT_ID 추출 및 검증 강화 (ECR 로그인 필수 요소 확보)
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
 if [ -z "$AWS_ACCOUNT_ID" ] || [ "$AWS_ACCOUNT_ID" == "null" ]; then
-    echo "❌ FATAL: Could not retrieve AWS Account ID using STS. Check IAM Role permissions."
+    echo "❌ FATAL: Could not retrieve AWS Account ID using STS."
     exit 1
 fi
 export AWS_REGION="${AWS_REGION}" 

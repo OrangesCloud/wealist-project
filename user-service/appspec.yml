@@ -8,7 +8,7 @@ files:
   - source: /user-service/deploy.script/
     destination: /home/ec2-user/wealist/user-service/deploy.script/
   # Docker Compose 파일 복사
-  - source: /docker/compose/docker-compose.ec2-prod.yml
+  - source: /docker-compose.ec2-prod.yml
     destination: /home/ec2-user/wealist/docker/compose/
 permissions:
   # [수정] owner와 group을 ec2-user로 변경했습니다.
