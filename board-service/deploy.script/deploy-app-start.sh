@@ -23,8 +23,8 @@ export AWS_DEFAULT_REGION="${AWS_REGION}"
 # String 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
 load_param() {
     local name="$1"
-    # 파라미터가 없을 경우 빈 문자열 반환
-    # AWS_REGION은 이제 SSM 호출에 필요 없지만, 함수 정의를 위해 유지
+    # AWS_DEFAULT_REGION이 설정되었으므로 --region 플래그를 유지해도 작동하지만, 
+    # 코드가 더 명확하도록 유지하거나 제거할 수 있습니다. (현재 스크립트와 동일하게 유지)
     aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text --region "${AWS_REGION}" 2>/dev/null || echo "" 
 }
 
@@ -34,17 +34,22 @@ load_secret() {
     aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}" 2>/dev/null || echo ""
 }
 
-# 3. 인프라 및 시크릿 환경 변수 로드 및 Export
+# 3. IMDS 로드 대기 및 인프라 환경 변수 로드
+echo "⏳ Waiting for IAM Role credentials to load via IMDS (15s delay)..."
+sleep 15  # <--- [핵심 수정: sts 호출 이전에 15초 대기]
+
 echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 
 
 # --- 인프라 및 DB 정보 (String) ---
 # AWS_ACCOUNT_ID 추출 및 검증 강화 (ECR 로그인 필수 요소 확보)
+# [수정] 대기 후 sts 호출
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
 if [ -z "$AWS_ACCOUNT_ID" ] || [ "$AWS_ACCOUNT_ID" == "null" ]; then
     echo "❌ FATAL: Could not retrieve AWS Account ID using STS."
     exit 1
 fi
+
 # AWS_REGION은 이미 AWS_DEFAULT_REGION으로 설정되었지만, 다른 변수 사용을 위해 유지
 export AWS_REGION="${AWS_REGION}" 
 
