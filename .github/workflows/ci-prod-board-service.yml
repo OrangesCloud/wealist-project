@@ -136,9 +136,6 @@ jobs:
 
           cp board-service/appspec.yml deploy_artifact/appspec.yml 
           cp board-service/deploy.script/* deploy_artifact/board-service/deploy.script/
-          # 🚨 주의: board-service는 docker-compose.ec2-dev.yml을 사용하고 있었으나,
-          # 현재는 PROD 배포이므로 user-service와 동일하게 이름을 복사합니다. 
-          # (만약 파일 내용이 다르다면 별도 확인이 필요합니다.)
           cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml 
 
           # 2. 아티팩트 ZIP 생성
