@@ -12,7 +12,7 @@ on:
 permissions:
   contents: read
   id-token: write
-  actions: write # CD 워크플로우 트리거를 위해 추가
+  actions: write
 
 jobs:
   build-and-push:
@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ============================================
-      # 2. Go 환경 설정 및 종속성 다운로드 (빌드 전 준비)
+      # 2. Go 환경 설정 및 종속성 다운로드
       # ============================================
       - name: 🔧 Setup Go Environment and Download Dependencies
         uses: actions/setup-go@v5
@@ -46,7 +46,7 @@ jobs:
           go mod tidy
 
       # ============================================
-      # 3. Swagger 문서 생성 및 검증 (빌드/테스트 전)
+      # 3. Swagger 문서 생성 및 검증
       # ============================================
       - name: 📝 Generate and Validate Swagger Documentation
         run: |
@@ -61,7 +61,7 @@ jobs:
           echo "✅ Swagger documentation generated and validated"
 
       # ============================================
-      # 4. Go 테스트 실행 (조기 실패 감지)
+      # 4. Go 테스트 실행
       # ============================================
       - name: 🧪 Run Go Tests
         if: false
@@ -70,7 +70,7 @@ jobs:
           go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build (Check logs!)"
 
       # ============================================
-      # 5. AWS Credentials 설정 (OIDC Role 기반으로 수정)
+      # 5. AWS Credentials 설정
       # ============================================
       - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -79,7 +79,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
-      # 6. Environment Variables 로드 (ECR 관련)
+      # 6. Environment Variables 로드
       # ============================================
       - name: 📥 Load Environment Variables
         id: config
@@ -133,35 +133,36 @@ jobs:
       - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
         id: s3_upload
         run: |
-          # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
-          mkdir -p deploy_artifact/board-service/deploy.script
+          # 1. 배포에 필요한 파일들을 새 폴더에 복사
+          mkdir -p board-service/deploy.script
+          cp board-service/appspec.yml .
+          cp board-service/deploy.script/* board-service/deploy.script/
+          cp docker/compose/docker-compose.ec2-prod.yml .
 
-          cp board-service/appspec.yml deploy_artifact/appspec.yml 
-          cp board-service/deploy.script/* deploy_artifact/board-service/deploy.script/
+          # ✅ .env 파일 생성 - 버전 정보 포함
+          echo "🏷️ Creating .env file with version information..."
+          cat > .env << EOF
+          BOARD_SERVICE_VERSION=${{ steps.image-info.outputs.image-tag }}
+          USER_SERVICE_VERSION=latest
+          EOF
 
-          # [수정 필요] Docker Compose 파일을 아티팩트 루트가 아닌, 
-          # appspec.yml이 기대하는 상대 경로로 복사합니다.
-          # 현재 appspec.yml은 ZIP 루트에 docker-compose.ec2-prod.yml 파일을 기대합니다.
-
-          # CI가 파일을 ZIP 루트에 복사하는 것이 맞습니다.
-          # ZIP 루트에 복사 (현재 CI 스크립트대로 진행)
-          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml
-
+          cat .env
+          echo "✅ .env file created"
 
           # 2. 아티팩트 ZIP 생성
-          zip -r deploy_artifact.zip deploy_artifact
+          zip -r deploy_artifact.zip .
 
           # 3. S3 정보 설정
           S3_BUCKET="wealist-codedeploy-artifacts"
           ARTIFACT_FILENAME="board-service-${{ steps.image-info.outputs.image-tag }}.zip"
           S3_KEY="board-service/${ARTIFACT_FILENAME}"
 
-          # 4. AWS S3에 직접 업로드
+          # 4. AWS S3에 업로드
           aws s3 cp deploy_artifact.zip s3://${S3_BUCKET}/${S3_KEY}
 
           echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT
 
-          echo "✅ CodeDeploy artifact uploaded: s3://${S3_BUCKET}/${S3_KEY}"
+          echo "✅ CodeDeploy artifact with .env uploaded: s3://${S3_BUCKET}/${S3_KEY}"
 
       # ============================================
       # 10. 빌드 결과 요약
@@ -175,7 +176,7 @@ jobs:
           echo "**Next Steps:** CD Board workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
 
       # ============================================
-      # 11. 🚀 CD 워크플로우 트리거 (workflow_dispatch)
+      # 11. 🚀 CD 워크플로우 트리거
       # ============================================
       - name: 🚀 Trigger CD Workflow
         uses: actions/github-script@v7

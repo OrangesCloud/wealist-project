@@ -1,7 +1,6 @@
 name: CD - Prod Board Service
 
 on:
-  # 수동 실행 (강제 재배포 또는 CI에서 트리거)
   workflow_dispatch:
     inputs:
       reason:
@@ -12,7 +11,7 @@ on:
 permissions:
   contents: read
   actions: read
-  id-token: write # OIDC 인증을 위해 필수
+  id-token: write
 
 jobs:
   deploy:
@@ -27,16 +26,15 @@ jobs:
         uses: actions/checkout@v4
 
       # ============================================
-      # 1. Environment Variables 로드 (AWS_REGION을 먼저 로드)
+      # 1. Environment Variables 로드
       # ============================================
       - name: 📥 Load AWS Region Variable
         id: config_region
         run: |
-          # AWS_REGION 변수를 환경 변수로 먼저 설정합니다.
           echo "✅ AWS Region loaded: ${{ vars.AWS_REGION }}"
 
       # ============================================
-      # 2. AWS Credentials 설정 (OIDC Role 기반으로 수정)
+      # 2. AWS Credentials 설정
       # ============================================
       - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -45,22 +43,19 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
-      # 3. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
+      # 3. CodeDeploy 설정 변수 로드
       # ============================================
       - name: 📥 Load CodeDeploy Configuration
         id: config_codedeploy
         run: |
-          # CodeDeploy Application 및 Deployment Group 이름은 하드코딩
           echo "CODEDEPLOY_APP_NAME=wealist-board-app-codeDeploy" >> $GITHUB_ENV
           echo "CODEDEPLOY_GROUP_NAME=wealist-board-app-codeDeploy-tg" >> $GITHUB_ENV 
-
-          # CodeDeploy 전용 S3 버킷을 직접 사용
           echo "S3_BUCKET=wealist-codedeploy-artifacts" >> $GITHUB_ENV
 
           echo "✅ CodeDeploy configuration loaded. S3 Bucket: ${{ env.S3_BUCKET }}"
 
       # ============================================
-      # 4. CI 정보 추출 및 S3 Key 계산 (CI에서 S3로 업로드된 파일 위치 계산)
+      # 4. CI 정보 추출 및 S3 Key 계산
       # ============================================
       - name: 🔍 Get CI Info and Calculate S3 Key
         uses: actions/github-script@v7
@@ -97,7 +92,6 @@ jobs:
       - name: 🚀 Trigger CodeDeploy Deployment
         id: deploy_trigger
         run: |
-          # DEPLOYMENT_ID 할당 시 오류가 발생하면 즉시 exit 1
           DEPLOYMENT_ID=$(aws deploy create-deployment \
             --application-name ${{ env.CODEDEPLOY_APP_NAME }} \
             --deployment-group-name ${{ env.CODEDEPLOY_GROUP_NAME }} \
@@ -130,7 +124,6 @@ jobs:
       # ============================================
       - name: 📊 Get Final Status and Summarize
         run: |
-          # Step 5가 성공한 경우, DEPLOYMENT_ID는 유효함을 가정합니다.
           STATUS=$(aws deploy get-deployment --deployment-id ${{ env.DEPLOYMENT_ID }} --query "deploymentInfo.status" --output text)
 
           ICON="❌"
@@ -152,24 +145,22 @@ jobs:
 
           #### CodeDeploy Links
           - [View Deployment in AWS]
-            EOF
+          EOF
 
-          # 배포가 성공하지 않았다면 워크플로우를 실패 상태로 종료
           if [ "$STATUS" != "Succeeded" ]; then
               exit 1
           fi
 
       # ============================================
-      # 8. 💾 SSM에 배포 버전 태그 기록 (성공 시에만 실행)
+      # 8. 💾 SSM에 배포 버전 기록 (히스토리 추적용)
       # ============================================
-      - name: 💾 Save Deployed Version Tag to SSM
-        # 이전 Step 6까지 성공했으므로 실행
+      - name: 💾 Save Deployed Version to SSM (for history tracking)
         if: success()
         run: |
           DEPLOYED_TAG="${{ steps.calculate_key.outputs.sha_tag }}"
           SSM_PARAM_NAME="/wealist/prod/version/board_service"
 
-          echo "Writing deployed tag ${DEPLOYED_TAG} to SSM parameter: ${SSM_PARAM_NAME}"
+          echo "📝 Recording deployed version ${DEPLOYED_TAG} to SSM (for history tracking only)"
 
           aws ssm put-parameter \
             --name "${SSM_PARAM_NAME}" \
@@ -178,4 +169,4 @@ jobs:
             --overwrite \
             --region ${{ vars.AWS_REGION }}
 
-          echo "✅ Board Service version saved to SSM."
+          echo "✅ Version history saved to SSM (not used for deployment)"

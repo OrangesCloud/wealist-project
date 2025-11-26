@@ -1,31 +1,33 @@
 version: 0.0
 os: linux
+
 files:
-  # Board Service 스크립트 디렉토리 전체 복사
-  - source: /board-service/deploy.script
-    destination: /home/ec2-user/wealist/board-service/deploy.script
-  # Docker Compose 파일을 /home/ec2-user/wealist/docker/compose/ 에 복사
-  - source: /docker-compose.ec2-prod.yml
-    destination: /home/ec2-user/wealist/docker/compose/
+  # 폴더 안의 모든 파일을 대상 디렉터리로 복사
+  - source: /
+    destination: /home/ec2-user/wealist/
+
 permissions:
-  # /home/ec2-user/wealist/ 아래 모든 파일의 소유권 변경
   - object: /home/ec2-user/wealist/
     pattern: "**"
-    owner: ec2-user # Amazon Linux 표준 사용자
-    group: ec2-user # Amazon Linux 표준 그룹
+    owner: ec2-user
+    group: ec2-user
+    mode: 755
+    type:
+      - file
+      - directory
+
 hooks:
   BeforeInstall:
-    # 1. 기존 컨테이너 중지 및 이미지 정리
     - location: board-service/deploy.script/deploy-cleanup.sh
-      timeout: 300
+      timeout: 600
       runas: ec2-user
+
   ApplicationStart:
-    # 2. SSM 변수 로드 후 Docker Compose 실행 (핵심 배포 로직)
     - location: board-service/deploy.script/deploy-app-start.sh
-      timeout: 300
+      timeout: 600
       runas: ec2-user
+
   ValidateService:
-    # 3. 헬스 체크
     - location: board-service/deploy.script/deploy-health-check.sh
       timeout: 300
       runas: ec2-user
