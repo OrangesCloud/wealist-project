@@ -1,13 +1,6 @@
 name: CD - Prod Board Service
 
 on:
-  # 1. CI 완료 후 자동 실행: CI에서 생성한 아티팩트를 S3에 업로드했습니다.
-  # workflow_run:
-  #   workflows: ["CI - Prod Board Service"]
-  #   types:
-  #     - completed
-
-  # 2. 수동 실행 (강제 재배포)
   workflow_dispatch:
     inputs:
       reason:
@@ -24,46 +17,45 @@ jobs:
   deploy:
     name: Deploy to EC2 via CodeDeploy
     runs-on: ubuntu-latest
-    # environment: production
-
-    # workflow_run으로 트리거된 경우, CI가 성공했고 deploy-prod 브랜치일 때만 실행
-    # if: |
-    #   github.event_name == 'push' ||
-    #   github.event_name == 'workflow_dispatch' ||
-    #   (github.event_name == 'workflow_run' &&
-    #    github.event.workflow_run.conclusion == 'success' &&
-    #    github.event.workflow_run.head_branch == 'deploy-prod')
-
-    # 수정: 수동 실행 (workflow_dispatch)만 남깁니다.
-    if: github.event_name == 'workflow_dispatch'
 
     steps:
       # ============================================
-      # 1. AWS Credentials 설정
+      # 0. Checkout 코드
       # ============================================
-      - name: 🔐 Configure AWS Credentials
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ============================================
+      # 1. Environment Variables 로드
+      # ============================================
+      - name: 📥 Load AWS Region Variable
+        id: config_region
+        run: |
+          echo "✅ AWS Region loaded: ${{ vars.AWS_REGION }}"
+
+      # ============================================
+      # 2. AWS Credentials 설정
+      # ============================================
+      - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
-      # 2. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
+      # 3. CodeDeploy 설정 변수 로드
       # ============================================
       - name: 📥 Load CodeDeploy Configuration
-        id: config
+        id: config_codedeploy
         run: |
-          # CodeDeploy Application 및 Deployment Group 이름은 하드코딩
-          echo "COEDEPLOY_APP_NAME=wealist-board-app-codeDeploy" >> $GITHUB_ENV
-          echo "COEDEPLOY_GROUP_NAME=wealist-board-app-codeDeploy-tg" >> $GITHUB_ENV 
-
-          # ✅ 변경 사항: CodeDeploy 전용 S3 버킷을 직접 사용 (SSM 로직 제거)
+          echo "CODEDEPLOY_APP_NAME=wealist-board-app-codeDeploy" >> $GITHUB_ENV
+          echo "CODEDEPLOY_GROUP_NAME=wealist-board-app-codeDeploy-tg" >> $GITHUB_ENV 
           echo "S3_BUCKET=wealist-codedeploy-artifacts" >> $GITHUB_ENV
 
           echo "✅ CodeDeploy configuration loaded. S3 Bucket: ${{ env.S3_BUCKET }}"
 
       # ============================================
-      # 3. CI 정보 추출 및 S3 Key 계산 (수정됨: 다운로드 로직 제거)
+      # 4. CI 정보 추출 및 S3 Key 계산
       # ============================================
       - name: 🔍 Get CI Info and Calculate S3 Key
         uses: actions/github-script@v7
@@ -86,8 +78,8 @@ jobs:
             }
 
             const shaTag = latestRun.head_sha.substring(0, 7);
-            const artifactFilename = `board-service-${shaTag}.zip`; # 🚨 파일명 변경
-            const s3Key = `board-service/${artifactFilename}`; # 🚨 S3 Key 경로 변경
+            const artifactFilename = `board-service-${shaTag}.zip`;
+            const s3Key = `board-service/${artifactFilename}`; 
 
             core.setOutput('sha_tag', shaTag);
             core.setOutput('s3_key', s3Key);
@@ -95,14 +87,14 @@ jobs:
             console.log(`✅ Calculated S3 Key: ${s3Key}`);
 
       # ============================================
-      # 4. CodeDeploy 배포 트리거
+      # 5. CodeDeploy 배포 트리거
       # ============================================
       - name: 🚀 Trigger CodeDeploy Deployment
         id: deploy_trigger
         run: |
           DEPLOYMENT_ID=$(aws deploy create-deployment \
-            --application-name ${{ env.COEDEPLOY_APP_NAME }} \
-            --deployment-group-name ${{ env.COEDEPLOY_GROUP_NAME }} \
+            --application-name ${{ env.CODEDEPLOY_APP_NAME }} \
+            --deployment-group-name ${{ env.CODEDEPLOY_GROUP_NAME }} \
             --deployment-config-name CodeDeployDefault.OneAtATime \
             --description "Board Service Deployment ${{ steps.calculate_key.outputs.sha_tag }}" \
             --s3-location bucket=${{ env.S3_BUCKET }},key=${{ steps.calculate_key.outputs.s3_key }},bundleType=zip \
@@ -119,7 +111,7 @@ jobs:
           echo "✅ CodeDeploy Deployment ID: $DEPLOYMENT_ID"
 
       # ============================================
-      # 5. 배포 결과 대기 및 상태 확인
+      # 6. 배포 결과 대기 및 상태 확인
       # ============================================
       - name: ⏳ Wait for CodeDeploy Completion
         run: |
@@ -128,10 +120,9 @@ jobs:
           echo "✅ Deployment successful!"
 
       # ============================================
-      # 6. 최종 상태 확인 및 요약
+      # 7. 최종 상태 확인 및 요약
       # ============================================
       - name: 📊 Get Final Status and Summarize
-        if: always()
         run: |
           STATUS=$(aws deploy get-deployment --deployment-id ${{ env.DEPLOYMENT_ID }} --query "deploymentInfo.status" --output text)
 
@@ -154,23 +145,22 @@ jobs:
 
           #### CodeDeploy Links
           - [View Deployment in AWS]
-            EOF
+          EOF
 
-          # 배포가 성공하지 않았다면 워크플로우를 실패 상태로 종료
           if [ "$STATUS" != "Succeeded" ]; then
               exit 1
           fi
+
       # ============================================
-      # 7. 💾 SSM에 배포 버전 태그 기록 (성공 시에만 실행)
+      # 8. 💾 SSM에 배포 버전 기록 (히스토리 추적용)
       # ============================================
-      - name: 💾 Save Deployed Version Tag to SSM
-        # 이전 Step 6에서 exit 1로 실패하지 않았을 경우 (즉, 성공했을 경우) 실행
+      - name: 💾 Save Deployed Version to SSM (for history tracking)
         if: success()
         run: |
           DEPLOYED_TAG="${{ steps.calculate_key.outputs.sha_tag }}"
           SSM_PARAM_NAME="/wealist/prod/version/board_service"
 
-          echo "Writing deployed tag ${DEPLOYED_TAG} to SSM parameter: ${SSM_PARAM_NAME}"
+          echo "📝 Recording deployed version ${DEPLOYED_TAG} to SSM (for history tracking only)"
 
           aws ssm put-parameter \
             --name "${SSM_PARAM_NAME}" \
@@ -179,4 +169,4 @@ jobs:
             --overwrite \
             --region ${{ vars.AWS_REGION }}
 
-          echo "✅ Board Service version saved to SSM."
+          echo "✅ Version history saved to SSM (not used for deployment)"

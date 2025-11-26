@@ -11,18 +11,17 @@ on:
 
 permissions:
   contents: read
-  # OIDC 토큰을 요청하기 위해 필수
   id-token: write
+  actions: write
 
 jobs:
   build-and-push:
     name: Build & Push to ECR
     runs-on: ubuntu-latest
-    # environment: production
 
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
-      full-image: ${{ steps.image-info.outputs.full-image }}
+      full-image: ${{ steps.image-info.outputs.full-tag }}
 
     steps:
       # ============================================
@@ -32,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ============================================
-      # 2. Go 환경 설정 및 종속성 다운로드 (빌드 전 준비)
+      # 2. Go 환경 설정 및 종속성 다운로드
       # ============================================
       - name: 🔧 Setup Go Environment and Download Dependencies
         uses: actions/setup-go@v5
@@ -47,7 +46,7 @@ jobs:
           go mod tidy
 
       # ============================================
-      # 3. Swagger 문서 생성 및 검증 (빌드/테스트 전)
+      # 3. Swagger 문서 생성 및 검증
       # ============================================
       - name: 📝 Generate and Validate Swagger Documentation
         run: |
@@ -62,19 +61,16 @@ jobs:
           echo "✅ Swagger documentation generated and validated"
 
       # ============================================
-      # 4. Go 테스트 실행 (조기 실패 감지)
+      # 4. Go 테스트 실행
       # ============================================
       - name: 🧪 Run Go Tests
         if: false
-        continue-on-error: true # 테스트 실패 시 빌드 계속 진행 여부 (Production CI에서는 false 권장)
         run: |
           cd board-service
           go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build (Check logs!)"
 
-      # --- [효율성 개선] 테스트 성공 시에만 AWS 연동 시작 ---
-
       # ============================================
-      # 5. AWS Credentials 설정 (OIDC Role 기반으로 수정)
+      # 5. AWS Credentials 설정
       # ============================================
       - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -83,7 +79,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
-      # 6. Environment Variables 로드 (ECR 관련)
+      # 6. Environment Variables 로드
       # ============================================
       - name: 📥 Load Environment Variables
         id: config
@@ -104,36 +100,32 @@ jobs:
         run: |
           ECR_REGISTRY="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
-          FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
-          LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}"
 
-          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
-          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
+          echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "full-tag=${IMAGE_URI}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "latest-tag=${IMAGE_URI}:latest" >> $GITHUB_OUTPUT
 
       # ============================================
-      # 7-1. Amazon ECR 로그인 (추가) 👈 이 스텝이 ECR 인증 문제를 해결합니다.
+      # 8-1. Amazon ECR 로그인
       # ============================================
-      - name: 🐳 Login to Amazon ECR
+      - name: 🔐 Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
-        # Step 5에서 OIDC를 통해 AWS 자격 증명이 설정되었기 때문에,
-        # 이 Action은 ECR 레지스트리에 도커 클라이언트를 인증시켜 줍니다.
 
       # ============================================
-      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시
+      # 8-2. Docker 이미지 빌드 & 푸시
       # ============================================
-      - name: 🐳 Login to ECR, Build and Push Docker Image
+      - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: board-service
           file: board-service/docker/Dockerfile
           push: true
-          tags: |
-            ${{ steps.image-info.outputs.full-image }}
-            ${{ steps.image-info.outputs.latest-image }}
-          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-image }}
+          tags: ${{ steps.image-info.outputs.full-tag }},${{ steps.image-info.outputs.latest-tag }}
+          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-tag }}
           cache-to: type=inline
+          build-args: CACHEBUST=${{ github.run_id }}
 
       # ============================================
       # 9. CodeDeploy 아티팩트 생성 및 S3 업로드
@@ -141,18 +133,19 @@ jobs:
       - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
         id: s3_upload
         run: |
-          # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
-          mkdir -p deploy_artifact/board-service/deploy.script
-          mkdir -p deploy_artifact/docker/compose
+          # 1. CD 배포에 필요한 파일들을 임시 디렉토리에 복사 (flat structure)
+          mkdir -p artifact_temp/deploy.script
 
-          cp board-service/appspec.yml deploy_artifact/appspec.yml 
-          cp board-service/deploy.script/* deploy_artifact/board-service/deploy.script/
-          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml 
+          cp board-service/appspec.yml artifact_temp/appspec.yml 
+          cp board-service/deploy.script/* artifact_temp/deploy.script/
+          cp docker/compose/docker-compose.ec2-prod.yml artifact_temp/docker-compose.ec2-prod.yml
 
-          # 2. 아티팩트 ZIP 생성
-          zip -r deploy_artifact.zip deploy_artifact
+          # 2. 아티팩트 ZIP 생성 (artifact_temp 내부 파일들만 압축)
+          cd artifact_temp
+          zip -r ../deploy_artifact.zip .
+          cd ..
 
-          # 3. S3 정보 설정 (CodeDeploy 버킷 사용)
+          # 3. S3 정보 설정
           S3_BUCKET="wealist-codedeploy-artifacts"
           ARTIFACT_FILENAME="board-service-${{ steps.image-info.outputs.image-tag }}.zip"
           S3_KEY="board-service/${ARTIFACT_FILENAME}"
@@ -160,7 +153,7 @@ jobs:
           # 4. AWS S3에 직접 업로드
           aws s3 cp deploy_artifact.zip s3://${S3_BUCKET}/${S3_KEY}
 
-          echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT 
+          echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT
 
           echo "✅ CodeDeploy artifact uploaded: s3://${S3_BUCKET}/${S3_KEY}"
 
@@ -170,8 +163,36 @@ jobs:
       - name: 📋 Build Summary
         run: |
           echo "### ✅ Board Service Build Complete" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**S3 Key:** \`${{ steps.s3_upload.outputs.S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next Steps:** CD workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:** CD Board workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
+
+      # ============================================
+      # 11. 🚀 CD 워크플로우 트리거
+      # ============================================
+      - name: 🚀 Trigger CD Workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'cd-prod-board-service.yml',
+              ref: 'deploy-prod'
+            });
+            console.log('✅ CD Board workflow triggered successfully');
+
+      # ============================================
+      # 12. SSM에 배포된 Board Service 버전 기록
+      # ============================================
+      - name: 💾 Record Deployed Board Service Version to SSM
+        run: |
+          aws ssm put-parameter \
+            --name "/wealist/prod/version/board_service" \
+            --value "${{ steps.image-info.outputs.image-tag }}" \
+            --type String \
+            --overwrite \
+            --region ${{ env.AWS_REGION }}
+          echo "✅ Board Service version ${{ steps.image-info.outputs.image-tag }} recorded to SSM"
