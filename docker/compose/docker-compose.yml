@@ -266,7 +266,7 @@ networks:
   wealist-net:
     driver: bridge
     name: wealist-net
-    # external: true # ⬅️ 이 네트워크는 수동으로 생성될 것임 (docker.sh에서)
+    external: true # ⬅️ 이 네트워크는 수동으로 생성될 것임 (docker.sh에서)
 
 # =============================================================================
 # Volumes
