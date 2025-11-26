@@ -122,8 +122,8 @@ aws ecr get-login-password --region ${AWS_REGION} | \
 
 # 6. 최신 이미지 Pull (user-service만)
 echo "🐳 Pulling image: ${SERVICE_NAME}:${USER_SERVICE_VERSION}"
-# [수정] pull 명령 앞에 sudo 추가
-sudo $COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
+# [수정] sudo -E를 사용하여 환경 변수 보존
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
 
 # 7. Docker Compose 실행 (user-service와 Exporter들 재시작)
 echo "🔄 Starting User Service and Exporters defined in ${COMPOSE_FILE}..."
@@ -131,7 +131,7 @@ echo "🔄 Starting User Service and Exporters defined in ${COMPOSE_FILE}..."
 SERVICES_TO_RESTART="user-service postgres-exporter redis-exporter node-exporter"
 
 # 🚨 --no-deps --force-recreate 를 사용하여 User Service와 Exporter들만 재시작
-# [수정] up 명령 앞에 sudo 추가
-sudo $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
+# [수정] sudo -E를 사용하여 환경 변수 보존
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
 
 echo "✅ Deployment initiated. CodeDeploy will now run ValidateService."
