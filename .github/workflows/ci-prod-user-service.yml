@@ -116,9 +116,9 @@ jobs:
           cache-to: type=inline
           build-args: |
             CACHEBUST=$(date +%s)
-          # cache-from도 직접 조합하여 전달해야 함
-          cache-from: type=registry,ref=${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}:latest
-
+          # ✅ 수정 2: cache-from도 | (파이프)를 사용하여 명확하게 배열로 분리
+          cache-from: |
+            type=registry,ref=${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}:latest
       # ============================================
       # 9. CodeDeploy 아티팩트 생성 및 S3 업로드
       # ============================================
