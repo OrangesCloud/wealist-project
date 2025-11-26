@@ -50,9 +50,9 @@ jobs:
       - name: 📥 Load CodeDeploy Configuration
         id: config
         run: |
-          # CodeDeploy Application 및 Deployment Group 이름은 하드코딩 또는 vars/secrets 사용
-          echo "COEDEPLOY_APP_NAME=Wealist-Prod-App" >> $GITHUB_ENV
-          echo "COEDEPLOY_GROUP_NAME=Wealist-Prod-Board-Group" >> $GITHUB_ENV # 🚨 Board Service 그룹 이름으로 변경
+          # CodeDeploy Application 및 Deployment Group 이름은 하드코딩
+          echo "COEDEPLOY_APP_NAME=wealist-board-app-codeDeploy" >> $GITHUB_ENV
+          echo "COEDEPLOY_GROUP_NAME=wealist-board-app-codeDeploy-tg" >> $GITHUB_ENV # 🚨 Board Service 그룹 이름으로 변경
 
           # S3 버킷 이름은 Parameter Store에서 로드
           S3_BUCKET=$(aws ssm get-parameter \
