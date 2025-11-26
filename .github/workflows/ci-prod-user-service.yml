@@ -108,10 +108,8 @@ jobs:
         with:
           context: user-service
           push: true
-          tags: |
-            ${{ steps.image-info.outputs.full-image }}
-            ${{ steps.image-info.outputs.latest-image }}
-          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-image }}
+          # ✅ 수정: 파이프(|)와 여러 줄을 제거하고 쉼표(,)로 연결하여 한 줄로 만듭니다.
+          tags: "${{ steps.image-info.outputs.full-image }},${{ steps.image-info.outputs.latest-image }}"
           cache-to: type=inline
           build-args: |
             CACHEBUST=$(date +%s)
