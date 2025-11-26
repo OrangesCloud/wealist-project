@@ -12,6 +12,7 @@ on:
 permissions:
   contents: read
   id-token: write
+  actions: write # CD 워크플로우 트리거를 위해 추가
 
 jobs:
   build-and-push:
