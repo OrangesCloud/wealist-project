@@ -6,10 +6,9 @@
 
 # 오류 발생 시 즉시 종료하고, 파이프라인의 마지막 명령 외에는 상태 코드를 체크합니다.
 set -euo pipefail
-
 # 1. 상수 정의
-PROJECT_ROOT="/home/ubuntu/wealist"
-COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.ec2-prod.yml" 
+PROJECT_ROOT="/home/ec2-user/wealist" 
+COMPOSE_FILE="${PROJECT_ROOT}/board-service/docker-compose.ec2-prod.yml" 
 SERVICE_NAME="board-service"
 AWS_REGION="ap-northeast-2" 
 PARAMETER_BASE_PATH="/wealist/prod"

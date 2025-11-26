@@ -4,8 +4,10 @@
 
 set +e # 오류가 나도 계속 진행 (컨테이너가 없을 수 있음)
 
-PROJECT_ROOT="/home/ubuntu/wealist"
-COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.ec2-prod.yml"
+# [수정 필요] 경로를 /home/ec2-user/wealist로 변경
+PROJECT_ROOT="/home/ec2-user/wealist"
+# [수정 필요] docker-compose.ec2-prod.yml의 위치를 board-service 디렉토리 내로 지정
+COMPOSE_FILE="${PROJECT_ROOT}/board-service/docker-compose.ec2-prod.yml"
 
 echo "🧹 Cleaning up old board-service containers..."
 
