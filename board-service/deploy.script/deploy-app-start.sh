@@ -4,34 +4,34 @@
 # SSM Parameter Store에서 Prod 환경 변수를 로드하고 Docker Compose를 실행합니다.
 # =============================================================================
 
+# 오류 발생 시 즉시 종료하고, 파이프라인의 마지막 명령 외에는 상태 코드를 체크합니다.
 set -euo pipefail
 
 # 1. 상수 정의
 PROJECT_ROOT="/home/ubuntu/wealist"
-COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.ec2-prod.yml" # appspec에서 루트에 복사했으므로 경로 수정
-SERVICE_NAME="board-service" # 배포할 서비스 이름
-
-# SSM 경로 접두사 및 리전
+COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.ec2-prod.yml" 
+SERVICE_NAME="board-service"
+AWS_REGION="ap-northeast-2" 
 PARAMETER_BASE_PATH="/wealist/prod"
-AWS_REGION="ap-northeast-2"
 
 echo "🚀 Board Service Production Deployment Start"
 echo "Project Root: ${PROJECT_ROOT}"
 
 # 2. SSM Parameter 로드 함수 정의
-# String 타입 로드
+# String 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
 load_param() {
     local name="$1"
-    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text --region "${AWS_REGION}"
+    # 파라미터가 없을 경우 빈 문자열 반환
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text --region "${AWS_REGION}" 2>/dev/null || echo "" 
 }
 
-# SecureString 타입 로드
+# SecureString 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
 load_secret() {
     local name="$1"
-    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}"
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}" 2>/dev/null || echo ""
 }
 
-# 3. 인프라 및 시크릿 환경 변수 로드 및 Export (Compose 파일 실행을 위해 모든 변수 필요)
+# 3. 인프라 및 시크릿 환경 변수 로드 및 Export
 echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 
 # --- 인프라 및 DB 정보 (String) ---
@@ -63,7 +63,8 @@ export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 # OAuth 및 S3 설정
 export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
 export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google-client-secret")
-export OAUTH2_CLIENT_REDIRECT_URI=$(load_param "url/oauth2_client_redirect_base")/api/users/login/oauth2/code/google 
+OAUTH_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base") 
+export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google" 
 export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
 export S3_BUCKET=$(load_param "s3/bucket")
 export S3_REGION="${AWS_REGION}"
@@ -73,12 +74,24 @@ export POSTGRES_EXPORTER_PORT=9187
 export REDIS_EXPORTER_PORT=9121
 export NODE_EXPORTER_PORT=9100
 
-# 4. 이미지 버전 환경 변수 설정
-# 🚨 CodeDeploy 아티팩트 내에 실제 SHA 태그가 포함되어야 하지만, 현재는 latest로 가정합니다.
-export USER_SERVICE_VERSION="latest" 
-export BOARD_SERVICE_VERSION="latest" # Board Service의 배포 태그를 사용
+# 4. 이미지 버전 환경 변수 설정 (SSM에서 동적 로드)
+echo "🏷️ Loading image versions from SSM Parameter Store..."
 
-echo "✅ Parameters loaded. Starting Docker Compose..."
+# User Service 버전은 현재 Prod에 배포된 버전을 사용합니다.
+export USER_SERVICE_VERSION=$(load_param "version/user_service") 
+if [ -z "$USER_SERVICE_VERSION" ]; then 
+  echo "⚠️ User Service version not found in SSM. Using latest tag."
+  export USER_SERVICE_VERSION="latest"; 
+fi
+
+# Board Service 버전 (현재 배포할 버전)
+export BOARD_SERVICE_VERSION=$(load_param "version/board_service")
+if [ -z "$BOARD_SERVICE_VERSION" ]; then 
+  echo "⚠️ Board Service version not found in SSM. Using latest tag."
+  export BOARD_SERVICE_VERSION="latest"; 
+fi
+
+echo "Board Service Tag: ${BOARD_SERVICE_VERSION}, User Service Tag: ${USER_SERVICE_VERSION}"
 
 # 5. Docker Compose 명령어 결정 및 ECR 로그인
 if docker compose version &> /dev/null; then
@@ -87,19 +100,20 @@ else
   COMPOSE_CMD="docker-compose"
 fi
 
+echo "🐳 Logging into ECR..."
 aws ecr get-login-password --region ${AWS_REGION} | \
   docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
 # 6. 최신 이미지 Pull (board-service만)
-echo "🐳 Pulling latest image for ${SERVICE_NAME}..."
+echo "🐳 Pulling image: ${SERVICE_NAME}:${BOARD_SERVICE_VERSION}"
 $COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
 
-# 7. Docker Compose 실행 (board-service와 Exporter들 재시작)
-# user-service는 board-service의 depends_on 조건에 의해 영향을 받지 않도록 --no-deps를 사용합니다.
-echo "🔄 Starting services defined in ${COMPOSE_FILE}..."
-$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "${SERVICE_NAME}" # board-service
-$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "postgres-exporter" 
-$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "redis-exporter" 
-$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate "node-exporter" 
+# 7. Docker Compose 실행 (board-service와 Exporter들만 재시작)
+echo "🔄 Starting Board Service and Exporters defined in ${COMPOSE_FILE}..."
+
+SERVICES_TO_RESTART="board-service postgres-exporter redis-exporter node-exporter"
+
+# 🚨 --no-deps --force-recreate 를 사용하여 Board Service와 Exporter들만 재시작
+$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
 
 echo "✅ Deployment initiated. CodeDeploy will now run ValidateService."
