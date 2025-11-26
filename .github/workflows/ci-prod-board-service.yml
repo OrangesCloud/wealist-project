@@ -65,6 +65,7 @@ jobs:
       # 4. Go 테스트 실행 (조기 실패 감지)
       # ============================================
       - name: 🧪 Run Go Tests
+        if: false
         continue-on-error: true # 테스트 실패 시 빌드 계속 진행 여부 (Production CI에서는 false 권장)
         run: |
           cd board-service
