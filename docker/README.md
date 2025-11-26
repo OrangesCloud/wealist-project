@@ -6,6 +6,7 @@ weAlist 프로젝트의 Docker 환경 설정 가이드입니다.
 
 ## 디렉토리 구조
 
+
 ```
 docker/
 ├── compose/                   # Docker Compose 파일

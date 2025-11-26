@@ -14,7 +14,6 @@
 - **Presigned URL 기반 프로필 이미지 업로드**
 
 
-
 ## API 문서
 
 ### Swagger UI
