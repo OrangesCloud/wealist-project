@@ -119,6 +119,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: board-service
+          file: board-service/docker/Dockerfile
           push: true
           tags: ${{ steps.image-info.outputs.full-tag }},${{ steps.image-info.outputs.latest-tag }}
           cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-tag }}
