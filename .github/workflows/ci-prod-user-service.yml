@@ -113,6 +113,7 @@ jobs:
           cache-to: type=inline
           build-args: |
             CACHEBUST=$(date +%s)
+          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-image }}
 
       # ============================================
       # 9. CodeDeploy 아티팩트 생성 및 S3 업로드
