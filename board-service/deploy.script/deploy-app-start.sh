@@ -33,6 +33,18 @@ load_secret() {
 # 3. 인프라 및 시크릿 환경 변수 로드 및 Export
 echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 
+
+# --- 인프라 및 DB 정보 (String) ---
+# [수정] AWS_ACCOUNT_ID 추출 및 검증 강화
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+if [ -z "$AWS_ACCOUNT_ID" ] || [ "$AWS_ACCOUNT_ID" == "null" ]; then
+    echo "❌ FATAL: Could not retrieve AWS Account ID using STS."
+    exit 1
+fi
+export AWS_REGION="${AWS_REGION}" 
+
+echo "✅ AWS Account ID loaded: ${AWS_ACCOUNT_ID}"
+
 # --- 인프라 및 DB 정보 (String) ---
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export AWS_REGION="${AWS_REGION}" 
