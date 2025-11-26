@@ -60,8 +60,8 @@ jobs:
         id: config_codedeploy
         run: |
           # CodeDeploy Application 및 Deployment Group 이름은 하드코딩
-          echo "COEDEPLOY_APP_NAME=wealist-board-app-codeDeploy" >> $GITHUB_ENV
-          echo "COEDEPLOY_GROUP_NAME=wealist-board-app-codeDeploy-tg" >> $GITHUB_ENV 
+          echo "CODEDEPLOY_APP_NAME=wealist-board-app-codeDeploy" >> $GITHUB_ENV
+          echo "CODEDEPLOY_GROUP_NAME=wealist-board-app-codeDeploy-tg" >> $GITHUB_ENV 
 
           # CodeDeploy 전용 S3 버킷을 직접 사용
           echo "S3_BUCKET=wealist-codedeploy-artifacts" >> $GITHUB_ENV
@@ -108,8 +108,8 @@ jobs:
         run: |
           # DEPLOYMENT_ID 할당 시 오류가 발생하면 즉시 exit 1
           DEPLOYMENT_ID=$(aws deploy create-deployment \
-            --application-name ${{ env.COEDEPLOY_APP_NAME }} \
-            --deployment-group-name ${{ env.COEDEPLOY_GROUP_NAME }} \
+            --application-name ${{ env.CODEDEPLOY_APP_NAME }} \
+            --deployment-group-name ${{ env.CODEDEPLOY_GROUP_NAME }} \
             --deployment-config-name CodeDeployDefault.OneAtATime \
             --description "Board Service Deployment ${{ steps.calculate_key.outputs.sha_tag }}" \
             --s3-location bucket=${{ env.S3_BUCKET }},key=${{ steps.calculate_key.outputs.s3_key }},bundleType=zip \
