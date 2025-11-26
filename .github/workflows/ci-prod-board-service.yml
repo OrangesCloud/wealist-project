@@ -3,7 +3,7 @@ name: CI - Prod Board Service
 on:
   push:
     branches:
-      - develop
+      - deploy-prod
     paths:
       - "board-service/**"
       - ".github/workflows/ci-prod-board-service.yml"

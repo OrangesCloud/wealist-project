@@ -74,7 +74,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'ci-prod-board-service.yml', 
-              branch: 'develop',
+              branch: 'deploy-prod',
               per_page: 1,
               status: 'success'
             });
