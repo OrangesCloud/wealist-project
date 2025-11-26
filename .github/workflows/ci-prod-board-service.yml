@@ -20,7 +20,7 @@ jobs:
 
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
-      full-image: ${{ steps.image-info.outputs.full-image }}
+      full-image: ${{ steps.image-info.outputs.full-tag }}
 
     steps:
       # ============================================
@@ -101,9 +101,10 @@ jobs:
           IMAGE_TAG="${GITHUB_SHA:0:7}"
           IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}"
 
-          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT 
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "full-tag=${IMAGE_URI}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "latest-tag=${IMAGE_URI}:latest" >> $GITHUB_OUTPUT
 
       # ============================================
       # 8-1. Amazon ECR 로그인
@@ -119,8 +120,8 @@ jobs:
         with:
           context: board-service
           push: true
-          tags: ${{ steps.image-info.outputs.image-uri }}:${{ steps.image-info.outputs.image-tag }},${{ steps.image-info.outputs.image-uri }}:latest
-          cache-from: type=registry,ref=${{ steps.image-info.outputs.image-uri }}:latest
+          tags: ${{ steps.image-info.outputs.full-tag }},${{ steps.image-info.outputs.latest-tag }}
+          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-tag }}
           cache-to: type=inline
           build-args: CACHEBUST=${{ github.run_id }}
 
@@ -133,16 +134,33 @@ jobs:
           # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
           mkdir -p deploy_artifact/board-service/deploy.script
           mkdir -p deploy_artifact/docker/compose
-          # ... (생략된 파일 복사 명령어)
+
+          cp board-service/appspec.yml deploy_artifact/appspec.yml 
+          cp board-service/deploy.script/* deploy_artifact/board-service/deploy.script/
+          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml 
+
+          # 2. 아티팩트 ZIP 생성
+          zip -r deploy_artifact.zip deploy_artifact
+
+          # 3. S3 정보 설정
+          S3_BUCKET="wealist-codedeploy-artifacts"
+          ARTIFACT_FILENAME="board-service-${{ steps.image-info.outputs.image-tag }}.zip"
+          S3_KEY="board-service/${ARTIFACT_FILENAME}"
+
           # 4. AWS S3에 직접 업로드
           aws s3 cp deploy_artifact.zip s3://${S3_BUCKET}/${S3_KEY}
-          # ... (생략된 출력 명령어)
+
+          echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT
+
+          echo "✅ CodeDeploy artifact uploaded: s3://${S3_BUCKET}/${S3_KEY}"
 
       # ============================================
       # 10. 빌드 결과 요약
       # ============================================
       - name: 📋 Build Summary
         run: |
-          echo "### ✅ Board Service Build Check Complete" >> $GITHUB_STEP_SUMMARY
-          echo "**OIDC Check:** Completed step 5." >> $GITHUB_STEP_SUMMARY
-          echo "**Action:** Next, remove the 'if: false' conditions." >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Board Service Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Key:** \`${{ steps.s3_upload.outputs.S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:** CD workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
