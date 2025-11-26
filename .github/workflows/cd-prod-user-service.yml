@@ -151,3 +151,23 @@ jobs:
           if [ "$STATUS" != "Succeeded" ]; then
               exit 1
           fi
+      # ============================================
+      # 7. 💾 SSM에 배포 버전 태그 기록 (성공 시에만 실행)
+      # ============================================
+      - name: 💾 Save Deployed Version Tag to SSM
+        # Step 6에서 exit 1로 실패하지 않았을 경우 (즉, 성공했을 경우) 실행
+        if: success()
+        run: |
+          DEPLOYED_TAG="${{ steps.calculate_key.outputs.sha_tag }}"
+          SSM_PARAM_NAME="/wealist/prod/version/user_service" # 🚨 User Service의 파라미터 경로 사용
+
+          echo "Writing deployed tag ${DEPLOYED_TAG} to SSM parameter: ${SSM_PARAM_NAME}"
+
+          aws ssm put-parameter \
+            --name "${SSM_PARAM_NAME}" \
+            --value "${DEPLOYED_TAG}" \
+            --type "String" \
+            --overwrite \
+            --region ${{ vars.AWS_REGION }}
+
+          echo "✅ User Service version saved to SSM."
