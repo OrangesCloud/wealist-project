@@ -24,6 +24,7 @@ jobs:
   deploy:
     name: Deploy to EC2 via CodeDeploy
     runs-on: ubuntu-latest
+    # environment: production ❌ 제거된 상태 유지
 
     # workflow_run으로 트리거된 경우, CI가 성공했고 deploy-prod 브랜치일 때만 실행
     if: |
@@ -41,6 +42,7 @@ jobs:
         id: config_region
         run: |
           # AWS_REGION 변수를 환경 변수로 먼저 설정합니다.
+          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_ENV
           echo "✅ AWS Region loaded: ${{ vars.AWS_REGION }}"
 
       # ============================================
@@ -49,9 +51,10 @@ jobs:
       - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
+          # ✅ 이 부분의 들여쓰기를 with: 블록 안에 정확히 맞춥니다.
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
-          aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: github-cd-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-cd-${{ github.run_id }} # 디버깅 및 보안 강화를 위해 추가
 
       # ============================================
       # 2. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
@@ -184,6 +187,6 @@ jobs:
             --value "${DEPLOYED_TAG}" \
             --type "String" \
             --overwrite \
-            --region ${{ vars.AWS_REGION }}
+            --region ${{ env.AWS_REGION }}
 
           echo "✅ Board Service version saved to SSM."
