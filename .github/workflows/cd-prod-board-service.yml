@@ -50,9 +50,11 @@ jobs:
       - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # ✅ OIDC Role ARN을 직접 사용하여 권한 위임
+          # 🚨 핵심 수정: role-to-assume을 with: 블록 안으로 이동합니다.
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
+          # 디버깅을 돕기 위해 세션 이름을 추가합니다.
+          role-session-name: github-cd-${{ github.run_id }}
 
       # ============================================
       # 2. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
