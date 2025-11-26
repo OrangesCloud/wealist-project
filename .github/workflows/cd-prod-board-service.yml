@@ -18,12 +18,14 @@ on:
 permissions:
   contents: read
   actions: read
+  # ✅ OIDC 인증을 위해 추가
+  id-token: write
 
 jobs:
   deploy:
     name: Deploy to EC2 via CodeDeploy
     runs-on: ubuntu-latest
-    # environment: production
+    # environment: production ❌ 환경 보호 규칙 문제 해결을 위해 제거됨
 
     # workflow_run으로 트리거된 경우, CI가 성공했고 deploy-prod 브랜치일 때만 실행
     if: |
@@ -35,13 +37,13 @@ jobs:
 
     steps:
       # ============================================
-      # 1. AWS Credentials 설정
+      # 1. AWS Credentials 설정 (OIDC Role 기반으로 수정)
       # ============================================
-      - name: 🔐 Configure AWS Credentials
+      - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.WEALIST_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_AWS_SECRET_ACCESS_KEY }}
+          # ✅ OIDC Role ARN을 직접 사용하여 권한 위임
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
@@ -60,7 +62,7 @@ jobs:
           echo "✅ CodeDeploy configuration loaded. S3 Bucket: ${{ env.S3_BUCKET }}"
 
       # ============================================
-      # 3. CI 정보 추출 및 S3 Key 계산 (수정됨: 다운로드 로직 제거)
+      # 3. CI 정보 추출 및 S3 Key 계산 (CI에서 S3로 업로드된 파일 위치 계산)
       # ============================================
       - name: 🔍 Get CI Info and Calculate S3 Key
         uses: actions/github-script@v7
@@ -83,8 +85,8 @@ jobs:
             }
 
             const shaTag = latestRun.head_sha.substring(0, 7);
-            const artifactFilename = `board-service-${shaTag}.zip`; # 🚨 파일명 변경
-            const s3Key = `board-service/${artifactFilename}`; # 🚨 S3 Key 경로 변경
+            const artifactFilename = `board-service-${shaTag}.zip`; 
+            const s3Key = `board-service/${artifactFilename}`; 
 
             core.setOutput('sha_tag', shaTag);
             core.setOutput('s3_key', s3Key);
@@ -97,6 +99,7 @@ jobs:
       - name: 🚀 Trigger CodeDeploy Deployment
         id: deploy_trigger
         run: |
+          # DEPLOYMENT_ID 할당 시 오류가 발생하면 즉시 exit 1
           DEPLOYMENT_ID=$(aws deploy create-deployment \
             --application-name ${{ env.COEDEPLOY_APP_NAME }} \
             --deployment-group-name ${{ env.COEDEPLOY_GROUP_NAME }} \
@@ -121,6 +124,7 @@ jobs:
       - name: ⏳ Wait for CodeDeploy Completion
         run: |
           echo "⏳ Waiting for deployment ${{ env.DEPLOYMENT_ID }} to complete..."
+          # CodeDeploy Wait 명령은 실패 시 exit code 255를 반환합니다.
           aws deploy wait deployment-successful --deployment-id ${{ env.DEPLOYMENT_ID }}
           echo "✅ Deployment successful!"
 
@@ -128,8 +132,9 @@ jobs:
       # 6. 최종 상태 확인 및 요약
       # ============================================
       - name: 📊 Get Final Status and Summarize
-        if: always()
+        # Step 5가 성공했으므로 이 스텝은 실행됩니다.
         run: |
+          # Step 5가 성공한 경우, DEPLOYMENT_ID는 유효함을 가정합니다.
           STATUS=$(aws deploy get-deployment --deployment-id ${{ env.DEPLOYMENT_ID }} --query "deploymentInfo.status" --output text)
 
           ICON="❌"
@@ -161,7 +166,7 @@ jobs:
       # 7. 💾 SSM에 배포 버전 태그 기록 (성공 시에만 실행)
       # ============================================
       - name: 💾 Save Deployed Version Tag to SSM
-        # 이전 Step 6에서 exit 1로 실패하지 않았을 경우 (즉, 성공했을 경우) 실행
+        # 이전 Step 6까지 성공했으므로 실행
         if: success()
         run: |
           DEPLOYED_TAG="${{ steps.calculate_key.outputs.sha_tag }}"
