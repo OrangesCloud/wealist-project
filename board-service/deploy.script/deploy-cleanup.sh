@@ -5,8 +5,7 @@
 set +e # 오류가 나도 계속 진행 (컨테이너가 없을 수 있음)
 
 PROJECT_ROOT="/home/ec2-user/wealist"
-COMPOSE_FILE="${PROJECT_ROOT}/board-service/docker-compose.ec2-prod.yml"
-
+COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.ec2-prod.yml"
 echo "🧹 Cleaning up old board-service containers..."
 
 # 1. Docker Compose 명령어가 무엇인지 확인합니다.
