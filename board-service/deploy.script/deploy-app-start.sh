@@ -13,7 +13,7 @@ ls -la /home/ec2-user/wealist/docker-compose.ec2-prod.yml && echo "존재함" ||
 
 # 1. 상수 정의
 PROJECT_ROOT="/home/ec2-user/wealist"
-COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.ec2-prod.yml"
+COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-prod.yml"
 SERVICE_NAME="board-service"
 AWS_REGION="ap-northeast-2"
 
