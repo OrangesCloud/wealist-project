@@ -6,6 +6,12 @@
 
 # 오류 발생 시 즉시 종료하고, 파이프라인의 마지막 명령 외에는 상태 코드를 체크합니다.
 set -euo pipefail
+
+echo "=== 디버깅: /home/ec2-user/wealist 디렉터리 구조 ==="
+ls -la /home/ec2-user/wealist/
+echo "=== docker-compose 파일 존재 여부 ==="
+ls -la /home/ec2-user/wealist/docker-compose.ec2-prod.yml && echo "존재함" || echo "없음"
+
 # 1. 상수 정의
 PROJECT_ROOT="/home/ec2-user/wealist" 
 COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-prod.yml" 
