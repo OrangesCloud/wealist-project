@@ -21,8 +21,7 @@ jobs:
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
       full-image: ${{ steps.image-info.outputs.full-image }}
-      artifact-name: codedeploy-artifact-${{ steps.image-info.outputs.image-tag }}
-      artifact-path: deploy_artifact.zip
+      # artifact-name 대신 S3 Key 출력을 기대합니다.
 
     steps:
       # ============================================
@@ -32,25 +31,23 @@ jobs:
         uses: actions/checkout@v4
 
       # ============================================
-      # 2. AWS Credentials 설정 (aws-region 오류 수정)
+      # 2. AWS Credentials 설정
       # ============================================
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.WEALIST_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.WEALIST_AWS_SECRET_ACCESS_KEY }}
-          # ✅ 오류 수정: vars 컨텍스트에서 AWS_REGION 값을 직접 참조
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
-      # 3. Environment Variables 로드 (CI 다이어트: vars 사용)
+      # 3. Environment Variables 로드 (ECR 관련)
       # ============================================
       - name: 📥 Load Environment Variables
         id: config
         run: |
           echo "📥 Loading configuration from GitHub Environment Variables..."
 
-          # Environment Variable (vars)에서 값을 로드하여 GITHUB_ENV로 승격
           echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_ENV
           echo "ECR_REPOSITORY=${{ vars.ECR_REPOSITORY_BOARD }}" >> $GITHUB_ENV
           echo "AWS_ACCOUNT_ID=${{ vars.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV 
@@ -88,7 +85,7 @@ jobs:
           echo "✅ Swagger documentation generated and validated"
 
       # ============================================
-      # 6. Go 테스트 실행 (Prod CI에서는 실패 시 중단 권장)
+      # 6. Go 테스트 실행
       # ============================================
       - name: 🧪 Run Go Tests
         continue-on-error: true
@@ -102,9 +99,7 @@ jobs:
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
-          # env에서 로드된 변수 사용
           ECR_REGISTRY="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-
           IMAGE_TAG="${GITHUB_SHA:0:7}"
           FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
           LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
@@ -115,9 +110,9 @@ jobs:
           echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
 
       # ============================================
-      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시 (ECR 캐시 활용)
+      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
-      - name: 🐳 Login to ECR, Build and Push Docker Image (Optimized for ECR Cache)
+      - name: 🐳 Login to ECR, Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: board-service
@@ -130,26 +125,36 @@ jobs:
           cache-to: type=inline
 
       # ============================================
-      # 9. CodeDeploy 아티팩트 생성 및 전달
+      # 9. CodeDeploy 아티팩트 생성 및 S3 업로드 (수정됨: S3 직접 업로드)
       # ============================================
-      - name: 📦 Prepare CodeDeploy Artifact
+      - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
+        id: s3_upload
         run: |
+          # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
           mkdir -p deploy_artifact/board-service/deploy.script
           mkdir -p deploy_artifact/docker/compose
 
           cp board-service/appspec.yml deploy_artifact/appspec.yml 
           cp board-service/deploy.script/* deploy_artifact/board-service/deploy.script/
-          cp docker/compose/docker-compose.ec2-dev.yml deploy_artifact/docker-compose.ec2-prod.yml 
+          # 🚨 주의: board-service는 docker-compose.ec2-dev.yml을 사용하고 있었으나,
+          # 현재는 PROD 배포이므로 user-service와 동일하게 이름을 복사합니다. 
+          # (만약 파일 내용이 다르다면 별도 확인이 필요합니다.)
+          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml 
 
+          # 2. 아티팩트 ZIP 생성
           zip -r deploy_artifact.zip deploy_artifact
-          echo "✅ CodeDeploy artifact created: deploy_artifact.zip"
 
-      - name: ⬆️ Upload CodeDeploy Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: codedeploy-artifact-${{ steps.image-info.outputs.image-tag }}
-          path: deploy_artifact.zip
-          retention-days: 1
+          # 3. S3 정보 설정 (CodeDeploy 버킷 사용)
+          S3_BUCKET="wealist-codedeploy-artifacts"
+          ARTIFACT_FILENAME="board-service-${{ steps.image-info.outputs.image-tag }}.zip"
+          S3_KEY="board-service/${ARTIFACT_FILENAME}"
+
+          # 4. AWS S3에 직접 업로드
+          aws s3 cp deploy_artifact.zip s3://${S3_BUCKET}/${S3_KEY}
+
+          echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT # CD에서 사용할 S3 KEY를 출력
+
+          echo "✅ CodeDeploy artifact uploaded: s3://${S3_BUCKET}/${S3_KEY}"
 
       # ============================================
       # 10. 빌드 결과 요약
@@ -159,6 +164,6 @@ jobs:
           echo "### ✅ Board Service Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifact:** \`${{ steps.image-info.outputs.artifact-name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Key:** \`${{ steps.s3_upload.outputs.S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next Steps:** CD workflow will use this SHA tag and artifact." >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:** CD workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
