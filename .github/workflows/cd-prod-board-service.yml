@@ -18,7 +18,6 @@ on:
 permissions:
   contents: read
   actions: read
-  # ✅ OIDC 인증을 위해 추가
   id-token: write
 
 jobs:
@@ -37,6 +36,15 @@ jobs:
 
     steps:
       # ============================================
+      # 0. Environment Variables 로드 (AWS_REGION을 먼저 로드)
+      # ============================================
+      - name: 📥 Load AWS Region Variable
+        id: config_region
+        run: |
+          # AWS_REGION 변수를 환경 변수로 먼저 설정합니다.
+          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_ENV
+          echo "✅ AWS Region loaded: ${{ vars.AWS_REGION }}"
+      # ============================================
       # 1. AWS Credentials 설정 (OIDC Role 기반으로 수정)
       # ============================================
       - name: 🔐 Configure AWS Credentials (OIDC)
@@ -44,7 +52,7 @@ jobs:
         with:
           # ✅ OIDC Role ARN을 직접 사용하여 권한 위임
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       # ============================================
       # 2. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
@@ -179,6 +187,6 @@ jobs:
             --value "${DEPLOYED_TAG}" \
             --type "String" \
             --overwrite \
-            --region ${{ vars.AWS_REGION }}
+            --region ${{ env.AWS_REGION }}
 
           echo "✅ Board Service version saved to SSM."
