@@ -101,24 +101,26 @@ jobs:
           # echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT ❌ 제거
 
       # ============================================
-      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시 (태그 직접 조합하여 전달)
+      # 8-1. Amazon ECR 로그인
       # ============================================
-      - name: 🐳 Login to ECR, Build and Push Docker Image
+      - name: 🔐 Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ============================================
+      # 8-2. Docker 이미지 빌드 & 푸시
+      # ============================================
+      - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
+        env:
+          IMAGE_URI: ${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}
         with:
           context: user-service
           push: true
-          # ✅ 최종 수정: 각 태그를 완전한 이미지명 형태로 배열로 전달
-          tags: |
-            ${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-info.outputs.image-tag }}
-            ${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}:latest
-
+          tags: ${{ env.IMAGE_URI }}:${{ steps.image-info.outputs.image-tag }},${{ env.IMAGE_URI }}:latest
+          cache-from: type=registry,ref=${{ env.IMAGE_URI }}:latest
           cache-to: type=inline
-          build-args: |
-            CACHEBUST=$(date +%s)
-          # ✅ 수정 2: cache-from도 | (파이프)를 사용하여 명확하게 배열로 분리
-          cache-from: |
-            type=registry,ref=${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}:latest
+          build-args: CACHEBUST=${{ github.run_id }}
+
       # ============================================
       # 9. CodeDeploy 아티팩트 생성 및 S3 업로드
       # ============================================
