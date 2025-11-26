@@ -2,7 +2,6 @@
 
 프로젝트 관리 도구의 Board 관리 시스템 RESTful API
 
-<!-- Updated: 2025-11-27 - Database permissions and AutoMigrate setup -->
 
 ## 목차
 
