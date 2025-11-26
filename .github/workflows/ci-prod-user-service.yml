@@ -124,11 +124,10 @@ jobs:
         run: |
           # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
           mkdir -p deploy_artifact/user-service/deploy.script
-          mkdir -p deploy_artifact/docker/compose
 
           cp user-service/appspec.yml deploy_artifact/appspec.yml 
           cp user-service/deploy.script/* deploy_artifact/user-service/deploy.script/
-          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml 
+          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml
 
           # 2. 아티팩트 ZIP 생성
           zip -r deploy_artifact.zip deploy_artifact

@@ -135,11 +135,18 @@ jobs:
         run: |
           # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
           mkdir -p deploy_artifact/board-service/deploy.script
-          mkdir -p deploy_artifact/docker/compose
 
           cp board-service/appspec.yml deploy_artifact/appspec.yml 
           cp board-service/deploy.script/* deploy_artifact/board-service/deploy.script/
-          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml 
+
+          # [수정 필요] Docker Compose 파일을 아티팩트 루트가 아닌, 
+          # appspec.yml이 기대하는 상대 경로로 복사합니다.
+          # 현재 appspec.yml은 ZIP 루트에 docker-compose.ec2-prod.yml 파일을 기대합니다.
+
+          # CI가 파일을 ZIP 루트에 복사하는 것이 맞습니다.
+          # ZIP 루트에 복사 (현재 CI 스크립트대로 진행)
+          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml
+
 
           # 2. 아티팩트 ZIP 생성
           zip -r deploy_artifact.zip deploy_artifact
