@@ -122,15 +122,17 @@ jobs:
       - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
         id: s3_upload
         run: |
-          # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
-          mkdir -p deploy_artifact/user-service/deploy.script
+          # 1. CD 배포에 필요한 파일들을 임시 디렉토리에 복사 (flat structure)
+          mkdir -p artifact_temp/deploy.script
 
-          cp user-service/appspec.yml deploy_artifact/appspec.yml 
-          cp user-service/deploy.script/* deploy_artifact/user-service/deploy.script/
-          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml
+          cp user-service/appspec.yml artifact_temp/appspec.yml 
+          cp user-service/deploy.script/* artifact_temp/deploy.script/
+          cp docker/compose/docker-compose.ec2-prod.yml artifact_temp/docker-compose.ec2-prod.yml
 
-          # 2. 아티팩트 ZIP 생성
-          zip -r deploy_artifact.zip deploy_artifact
+          # 2. 아티팩트 ZIP 생성 (artifact_temp 내부 파일들만 압축)
+          cd artifact_temp
+          zip -r ../deploy_artifact.zip .
+          cd ..
 
           # 3. S3 정보 설정
           S3_BUCKET="wealist-codedeploy-artifacts"

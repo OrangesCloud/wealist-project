@@ -1,11 +1,8 @@
 version: 0.0
 os: linux
 files:
-  # [수정] destination 경로를 /home/ec2-user/ 로 변경했습니다.
-  - source: /appspec.yml
-    destination: /home/ec2-user/wealist/user-service/ # /home/ec2-user/wealist/user-service/ 에 복사
-  # User Service 스크립트 파일 복사 (전략적으로 디렉토리 구조 유지)
-  - source: /user-service/deploy.script/
+  # User Service 스크립트 파일 복사
+  - source: /deploy.script/
     destination: /home/ec2-user/wealist/user-service/deploy.script/
   # Docker Compose 파일 복사
   - source: /docker-compose.ec2-prod.yml
