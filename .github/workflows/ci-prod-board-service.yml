@@ -113,6 +113,14 @@ jobs:
           echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
 
       # ============================================
+      # 7-1. Amazon ECR 로그인 (추가) 👈 이 스텝이 ECR 인증 문제를 해결합니다.
+      # ============================================
+      - name: 🐳 Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+        # Step 5에서 OIDC를 통해 AWS 자격 증명이 설정되었기 때문에,
+        # 이 Action은 ECR 레지스트리에 도커 클라이언트를 인증시켜 줍니다.
+
+      # ============================================
       # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
       - name: 🐳 Login to ECR, Build and Push Docker Image
