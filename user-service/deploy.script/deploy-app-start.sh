@@ -23,16 +23,17 @@ export AWS_DEFAULT_REGION="${AWS_REGION}"
 # String 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
 load_param() {
     local name="$1"
-    # 파라미터가 없을 경우 빈 문자열 반환
-    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text --region "${AWS_REGION}" 2>/dev/null || echo ""
+    # [수정] --region "${AWS_REGION}" 플래그를 제거합니다! 
+    # AWS_DEFAULT_REGION을 사용하도록 강제합니다.
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text 2>/dev/null || echo ""
 }
 
 # SecureString 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
 load_secret() {
     local name="$1"
-    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}" 2>/dev/null || echo ""
+    # [수정] --region "${AWS_REGION}" 플래그를 제거합니다!
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo ""
 }
-
 # 3. IMDS 로드 대기 및 인프라 환경 변수 로드 시작
 echo "⏳ Waiting for IAM Role credentials to load via IMDS (15s delay)..."
 sleep 15  # <--- [IMDS 로드를 위한 15초 대기]
