@@ -18,13 +18,13 @@ on:
 permissions:
   contents: read
   actions: read
-  id-token: write
+  id-token: write # OIDC 인증을 위해 필수
 
 jobs:
   deploy:
     name: Deploy to EC2 via CodeDeploy
     runs-on: ubuntu-latest
-    # environment: production ❌ 환경 보호 규칙 문제 해결을 위해 제거됨
+    # environment: production ❌ 제거된 상태 유지
 
     # workflow_run으로 트리거된 경우, CI가 성공했고 deploy-prod 브랜치일 때만 실행
     if: |
@@ -44,29 +44,29 @@ jobs:
           # AWS_REGION 변수를 환경 변수로 먼저 설정합니다.
           echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_ENV
           echo "✅ AWS Region loaded: ${{ vars.AWS_REGION }}"
+
       # ============================================
       # 1. AWS Credentials 설정 (OIDC Role 기반으로 수정)
       # ============================================
       - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # 🚨 핵심 수정: role-to-assume을 with: 블록 안으로 이동합니다.
+          # ✅ role-to-assume, aws-region, role-session-name을 with: 블록 안에서 설정
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
-          # 디버깅을 돕기 위해 세션 이름을 추가합니다.
-          role-session-name: github-cd-${{ github.run_id }}
+          role-session-name: github-cd-${{ github.run_id }} # 디버깅 및 보안 강화를 위해 추가
 
       # ============================================
       # 2. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
       # ============================================
       - name: 📥 Load CodeDeploy Configuration
-        id: config
+        id: config_codedeploy
         run: |
           # CodeDeploy Application 및 Deployment Group 이름은 하드코딩
           echo "COEDEPLOY_APP_NAME=wealist-board-app-codeDeploy" >> $GITHUB_ENV
           echo "COEDEPLOY_GROUP_NAME=wealist-board-app-codeDeploy-tg" >> $GITHUB_ENV 
 
-          # ✅ 변경 사항: CodeDeploy 전용 S3 버킷을 직접 사용 (SSM 로직 제거)
+          # CodeDeploy 전용 S3 버킷을 직접 사용
           echo "S3_BUCKET=wealist-codedeploy-artifacts" >> $GITHUB_ENV
 
           echo "✅ CodeDeploy configuration loaded. S3 Bucket: ${{ env.S3_BUCKET }}"
@@ -95,7 +95,7 @@ jobs:
             }
 
             const shaTag = latestRun.head_sha.substring(0, 7);
-            const artifactFilename = `board-service-${shaTag}.zip`; 
+            const artifactFilename = `board-service-${shaTag}.zip`;
             const s3Key = `board-service/${artifactFilename}`; 
 
             core.setOutput('sha_tag', shaTag);
@@ -134,7 +134,6 @@ jobs:
       - name: ⏳ Wait for CodeDeploy Completion
         run: |
           echo "⏳ Waiting for deployment ${{ env.DEPLOYMENT_ID }} to complete..."
-          # CodeDeploy Wait 명령은 실패 시 exit code 255를 반환합니다.
           aws deploy wait deployment-successful --deployment-id ${{ env.DEPLOYMENT_ID }}
           echo "✅ Deployment successful!"
 
@@ -142,7 +141,6 @@ jobs:
       # 6. 최종 상태 확인 및 요약
       # ============================================
       - name: 📊 Get Final Status and Summarize
-        # Step 5가 성공했으므로 이 스텝은 실행됩니다.
         run: |
           # Step 5가 성공한 경우, DEPLOYMENT_ID는 유효함을 가정합니다.
           STATUS=$(aws deploy get-deployment --deployment-id ${{ env.DEPLOYMENT_ID }} --query "deploymentInfo.status" --output text)
