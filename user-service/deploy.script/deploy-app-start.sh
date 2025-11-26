@@ -34,17 +34,15 @@ load_secret() {
 echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 
 # --- 인프라 및 DB 정보 (String) ---
-# AWS_ACCOUNT_ID 추출 및 검증 강화 (첫 번째 정의만 사용)
+# AWS_ACCOUNT_ID 추출 및 검증 강화 (ECR 로그인 필수 요소 확보)
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
 if [ -z "$AWS_ACCOUNT_ID" ] || [ "$AWS_ACCOUNT_ID" == "null" ]; then
-    echo "❌ FATAL: Could not retrieve AWS Account ID using STS."
+    echo "❌ FATAL: Could not retrieve AWS Account ID using STS. Check IAM Role permissions."
     exit 1
 fi
 export AWS_REGION="${AWS_REGION}" 
 
 echo "✅ AWS Account ID loaded: ${AWS_ACCOUNT_ID}"
-
-# [삭제된 부분: 중복된 AWS_ACCOUNT_ID 재정의 로직 제거]
 
 # DB/Cache 엔드포인트
 export RDS_HOST=$(load_param "db/rds_host")
