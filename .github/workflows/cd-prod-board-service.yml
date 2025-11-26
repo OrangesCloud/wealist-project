@@ -51,7 +51,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: github-cd-${{ github.run_id }} # 디버깅 및 보안 강화를 위해 추가
+          role-session-name: github-cd-${{ github.run_id }}
 
       # ============================================
       # 2. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
@@ -184,6 +184,6 @@ jobs:
             --value "${DEPLOYED_TAG}" \
             --type "String" \
             --overwrite \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ vars.AWS_REGION }}
 
           echo "✅ Board Service version saved to SSM."
