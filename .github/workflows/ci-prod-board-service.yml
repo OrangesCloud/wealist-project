@@ -11,7 +11,7 @@ on:
 
 permissions:
   contents: read
-  # ✅ OIDC 토큰을 요청하기 위해 'id-token: write' 권한 추가 (필수)
+  # OIDC 토큰을 요청하기 위해 필수
   id-token: write
 
 jobs:
@@ -32,31 +32,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ============================================
-      # 2. AWS Credentials 설정 (OIDC Role 기반으로 수정)
-      # ============================================
-      - name: 🔐 Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          # ✅ OIDC Role ARN을 직접 사용하여 권한 위임
-          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
-          aws-region: ${{ vars.AWS_REGION }}
-
-      # ============================================
-      # 3. Environment Variables 로드 (ECR 관련)
-      # ============================================
-      - name: 📥 Load Environment Variables
-        id: config
-        run: |
-          echo "📥 Loading configuration from GitHub Environment Variables..."
-
-          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_ENV
-          echo "ECR_REPOSITORY=${{ vars.ECR_REPOSITORY_BOARD }}" >> $GITHUB_ENV
-          echo "AWS_ACCOUNT_ID=${{ vars.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV 
-
-          echo "✅ Configuration loaded successfully"
-
-      # ============================================
-      # 4. Go 환경 설정 및 종속성 다운로드 (캐시 활용)
+      # 2. Go 환경 설정 및 종속성 다운로드 (빌드 전 준비)
       # ============================================
       - name: 🔧 Setup Go Environment and Download Dependencies
         uses: actions/setup-go@v5
@@ -71,7 +47,7 @@ jobs:
           go mod tidy
 
       # ============================================
-      # 5. Swagger 문서 생성 및 검증
+      # 3. Swagger 문서 생성 및 검증 (빌드/테스트 전)
       # ============================================
       - name: 📝 Generate and Validate Swagger Documentation
         run: |
@@ -86,13 +62,38 @@ jobs:
           echo "✅ Swagger documentation generated and validated"
 
       # ============================================
-      # 6. Go 테스트 실행
+      # 4. Go 테스트 실행 (조기 실패 감지)
       # ============================================
       - name: 🧪 Run Go Tests
-        continue-on-error: true
+        continue-on-error: true # 테스트 실패 시 빌드 계속 진행 여부 (Production CI에서는 false 권장)
         run: |
           cd board-service
           go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build (Check logs!)"
+
+      # --- [효율성 개선] 테스트 성공 시에만 AWS 연동 시작 ---
+
+      # ============================================
+      # 5. AWS Credentials 설정 (OIDC Role 기반으로 수정)
+      # ============================================
+      - name: 🔐 Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # ============================================
+      # 6. Environment Variables 로드 (ECR 관련)
+      # ============================================
+      - name: 📥 Load Environment Variables
+        id: config
+        run: |
+          echo "📥 Loading configuration from GitHub Environment Variables..."
+
+          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=${{ vars.ECR_REPOSITORY_BOARD }}" >> $GITHUB_ENV
+          echo "AWS_ACCOUNT_ID=${{ vars.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV 
+
+          echo "✅ Configuration loaded successfully"
 
       # ============================================
       # 7. 이미지 태그 생성
@@ -150,7 +151,7 @@ jobs:
           # 4. AWS S3에 직접 업로드
           aws s3 cp deploy_artifact.zip s3://${S3_BUCKET}/${S3_KEY}
 
-          echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT # CD에서 사용할 S3 KEY를 출력
+          echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT 
 
           echo "✅ CodeDeploy artifact uploaded: s3://${S3_BUCKET}/${S3_KEY}"
 
