@@ -86,7 +86,7 @@ echo "ECR 로그인 완료"
 # 7. 최신 Board Service 이미지 Pull
 # =============================================================================
 echo "Pulling ${SERVICE_NAME}:${BOARD_SERVICE_VERSION} ..."
-sudo $COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
 echo "Pull 완료"
 
 # =============================================================================
@@ -95,6 +95,6 @@ echo "Pull 완료"
 echo "Board Service 및 Exporters 재시작 중..."
 SERVICES_TO_RESTART="board-service postgres-exporter redis-exporter node-exporter"
 
-sudo $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
 
 echo "배포 완료! CodeDeploy가 ValidateService를 실행합니다."
