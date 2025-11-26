@@ -103,12 +103,14 @@ fi
 
 # ECR 로그인
 echo "🐳 Logging into ECR..."
+# [수정] aws ecr 명령에 sudo는 필요 없지만, docker login 앞에 sudo를 추가해야 안전합니다.
 aws ecr get-login-password --region ${AWS_REGION} | \
-  docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+  sudo docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
 # 6. 최신 이미지 Pull (user-service만)
 echo "🐳 Pulling image: ${SERVICE_NAME}:${USER_SERVICE_VERSION}"
-$COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
+# [수정] pull 명령 앞에 sudo 추가
+sudo $COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
 
 # 7. Docker Compose 실행 (user-service와 Exporter들 재시작)
 echo "🔄 Starting User Service and Exporters defined in ${COMPOSE_FILE}..."
@@ -116,6 +118,7 @@ echo "🔄 Starting User Service and Exporters defined in ${COMPOSE_FILE}..."
 SERVICES_TO_RESTART="user-service postgres-exporter redis-exporter node-exporter"
 
 # 🚨 --no-deps --force-recreate 를 사용하여 User Service와 Exporter들만 재시작
-$COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
+# [수정] up 명령 앞에 sudo 추가
+sudo $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
 
 echo "✅ Deployment initiated. CodeDeploy will now run ValidateService."
