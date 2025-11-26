@@ -45,11 +45,11 @@ fi
 # 3. 필수 환경 변수 보장 (CI에서 안 넣어줬을 경우 대비)
 # =============================================================================
 export BOARD_SERVICE_VERSION=${BOARD_SERVICE_VERSION:-latest}
-export USER_SERVICE_VERSION=${USER_SERVICE_VERSION:-latest}
+# export USER_SERVICE_VERSION=${USER_SERVICE_VERSION:-latest}
 
 echo "최종 사용할 이미지 태그"
 echo "   → Board Service : ${BOARD_SERVICE_VERSION}"
-echo "   → User Service  : ${USER_SERVICE_VERSION}"
+# echo "   → User Service  : ${USER_SERVICE_VERSION}"
 
 # =============================================================================
 # 4. 나머지 환경 변수들은 docker-compose.yml + CodeDeploy Hook에서 SSM으로 주입

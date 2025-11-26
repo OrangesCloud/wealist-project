@@ -133,11 +133,13 @@ jobs:
       - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
         id: s3_upload
         run: |
-          # 1. 배포에 필요한 파일들을 현재 디렉터리(루트)에 모은다
-          cp board-service/appspec.yml .
-          # cp board-service/deploy.script/* board-service/deploy.script/   ← 이 줄 삭제!
-          cp docker/compose/docker-compose.ec2-prod.yml .
+          # 기존 (문제 원인)
+          # cp board-service/appspec.yml .    ← 이 줄이 범인!
 
+          # 수정 후 (이 줄 삭제하거나 주석 처리!)
+          # cp board-service/appspec.yml .    ← 삭제!!!
+
+          cp docker/compose/docker-compose.ec2-prod.yml .
           # .env 파일 생성
           echo "🏷️ Creating .env file with version information..."
           cat > .env << EOF
