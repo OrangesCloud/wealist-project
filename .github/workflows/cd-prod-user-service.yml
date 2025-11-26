@@ -17,7 +17,8 @@ on:
 
 permissions:
   contents: read
-  actions: read # CI 실행 정보를 가져오기 위해 필요
+  actions: read
+  id-token: write
 
 jobs:
   deploy:
@@ -33,32 +34,28 @@ jobs:
 
     steps:
       # ============================================
-      # 1. AWS Credentials 설정
+      # 1. AWS Credentials 설정 (OIDC)
       # ============================================
-      - name: 🔐 Configure AWS Credentials
+      - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.WEALIST_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
-      # 2. CodeDeploy 설정 변수 로드 (S3 버킷 이름 직접 설정)
+      # 2. CodeDeploy 설정 변수 로드
       # ============================================
       - name: 📥 Load CodeDeploy Configuration
         id: config
         run: |
-          # CodeDeploy Application 및 Deployment Group 이름은 하드코딩 (기존 유지)
-          echo "COEDEPLOY_APP_NAME=wealist-user-app-codeDeploy" >> $GITHUB_ENV
-          echo "COEDEPLOY_GROUP_NAME=wealist-user-app-codeDeploy-tg" >> $GITHUB_ENV
-
-          # ✅ 변경 사항: CodeDeploy 전용 S3 버킷을 직접 사용 (SSM 로직 제거)
+          echo "CODEDEPLOY_APP_NAME=wealist-user-app-codeDeploy" >> $GITHUB_ENV
+          echo "CODEDEPLOY_GROUP_NAME=wealist-user-app-codeDeploy-tg" >> $GITHUB_ENV
           echo "S3_BUCKET=wealist-codedeploy-artifacts" >> $GITHUB_ENV
 
-          echo "✅ CodeDeploy configuration loaded. S3 Bucket: ${{ env.S3_BUCKET }}"
+          echo "✅ CodeDeploy configuration loaded."
 
       # ============================================
-      # 3. CI 정보 추출 및 S3 Key 계산 (수정됨: 다운로드 로직 제거)
+      # 3. CI 정보 추출 및 S3 Key 계산
       # ============================================
       - name: 🔍 Get CI Info and Calculate S3 Key
         uses: actions/github-script@v7
@@ -90,14 +87,14 @@ jobs:
             console.log(`✅ Calculated S3 Key: ${s3Key}`);
 
       # ============================================
-      # 4. CodeDeploy 배포 트리거 (수정됨: Step 번호 변경)
+      # 4. CodeDeploy 배포 트리거
       # ============================================
       - name: 🚀 Trigger CodeDeploy Deployment
         id: deploy_trigger
         run: |
           DEPLOYMENT_ID=$(aws deploy create-deployment \
-            --application-name ${{ env.COEDEPLOY_APP_NAME }} \
-            --deployment-group-name ${{ env.COEDEPLOY_GROUP_NAME }} \
+            --application-name ${{ env.CODEDEPLOY_APP_NAME }} \
+            --deployment-group-name ${{ env.CODEDEPLOY_GROUP_NAME }} \
             --deployment-config-name CodeDeployDefault.OneAtATime \
             --description "User Service Deployment ${{ steps.calculate_key.outputs.sha_tag }}" \
             --s3-location bucket=${{ env.S3_BUCKET }},key=${{ steps.calculate_key.outputs.s3_key }},bundleType=zip \
@@ -114,7 +111,7 @@ jobs:
           echo "✅ CodeDeploy Deployment ID: $DEPLOYMENT_ID"
 
       # ============================================
-      # 5. 배포 결과 대기 및 상태 확인 (수정됨: Step 번호 변경)
+      # 5. 배포 결과 대기
       # ============================================
       - name: ⏳ Wait for CodeDeploy Completion
         run: |
@@ -123,14 +120,20 @@ jobs:
           echo "✅ Deployment successful!"
 
       # ============================================
-      # 6. 최종 상태 확인 및 요약 (수정됨: Step 번호 변경)
+      # 6. 최종 상태 확인 및 요약
       # ============================================
       - name: 📊 Get Final Status and Summarize
         if: always()
         run: |
           STATUS=$(aws deploy get-deployment --deployment-id ${{ env.DEPLOYMENT_ID }} --query "deploymentInfo.status" --output text)
 
-          # ... (요약 출력 로직 생략 없이 동일)
+          if [ "$STATUS" == "Succeeded" ]; then
+            ICON="✅"
+            TITLE="User Service Deployment Succeeded"
+          else
+            ICON="❌"
+            TITLE="User Service Deployment Failed"
+          fi
 
           cat >> $GITHUB_STEP_SUMMARY << EOF
           ### ${ICON} ${TITLE}
@@ -143,21 +146,21 @@ jobs:
           - **Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
           #### CodeDeploy Links
-          - [View Deployment in AWS]
-            EOF
+          - [View Deployment in AWS Console](https://ap-northeast-2.console.aws.amazon.com/codesuite/codedeploy/deployments/${{ env.DEPLOYMENT_ID }})
+          EOF
 
           if [ "$STATUS" != "Succeeded" ]; then
-              exit 1
+            exit 1
           fi
+
       # ============================================
-      # 7. 💾 SSM에 배포 버전 태그 기록 (성공 시에만 실행)
+      # 7. SSM에 배포 버전 태그 기록 (성공 시에만 실행)
       # ============================================
       - name: 💾 Save Deployed Version Tag to SSM
-        # Step 6에서 exit 1로 실패하지 않았을 경우 (즉, 성공했을 경우) 실행
         if: success()
         run: |
           DEPLOYED_TAG="${{ steps.calculate_key.outputs.sha_tag }}"
-          SSM_PARAM_NAME="/wealist/prod/version/user_service" # 🚨 User Service의 파라미터 경로 사용
+          SSM_PARAM_NAME="/wealist/prod/version/user_service"
 
           echo "Writing deployed tag ${DEPLOYED_TAG} to SSM parameter: ${SSM_PARAM_NAME}"
 
