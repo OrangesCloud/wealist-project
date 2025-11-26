@@ -186,3 +186,16 @@ jobs:
               ref: 'deploy-prod'
             });
             console.log('✅ CD Board workflow triggered successfully');
+
+      # ============================================
+      # 12. SSM에 배포된 Board Service 버전 기록
+      # ============================================
+      - name: 💾 Record Deployed Board Service Version to SSM
+        run: |
+          aws ssm put-parameter \
+            --name "/wealist/prod/version/board_service" \
+            --value "${{ steps.image-info.outputs.image-tag }}" \
+            --type String \
+            --overwrite \
+            --region ${{ env.AWS_REGION }}
+          echo "✅ Board Service version ${{ steps.image-info.outputs.image-tag }} recorded to SSM"
