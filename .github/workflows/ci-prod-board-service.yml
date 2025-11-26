@@ -68,13 +68,6 @@ jobs:
           cd board-service
           go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build (Check logs!)"
 
-      # --- [핵심] OIDC 인증 성공 여부 확인 단계 ---
-      # 5번 스텝 바로 앞에 추가
-      - name: 🔐 Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
-          aws-region: ${{ vars.AWS_REGION }}
       # ============================================
       # 5. AWS Credentials 설정 (OIDC Role 기반으로 수정)
       # ============================================
@@ -106,13 +99,12 @@ jobs:
         run: |
           ECR_REGISTRY="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
-          FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
-          LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}"
 
-          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
+          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT 
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
-          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
+          echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+
       # ============================================
       # 8-1. Amazon ECR 로그인
       # ============================================
@@ -124,13 +116,11 @@ jobs:
       # ============================================
       - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
-        env:
-          IMAGE_URI: ${{ steps.image-info.outputs.ecr-registry }}/${{ env.ECR_REPOSITORY }}
         with:
-          context: user-service
+          context: board-service
           push: true
-          tags: ${{ env.IMAGE_URI }}:${{ steps.image-info.outputs.image-tag }},${{ env.IMAGE_URI }}:latest
-          cache-from: type=registry,ref=${{ env.IMAGE_URI }}:latest
+          tags: ${{ steps.image-info.outputs.image-uri }}:${{ steps.image-info.outputs.image-tag }},${{ steps.image-info.outputs.image-uri }}:latest
+          cache-from: type=registry,ref=${{ steps.image-info.outputs.image-uri }}:latest
           cache-to: type=inline
           build-args: CACHEBUST=${{ github.run_id }}
 
