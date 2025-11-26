@@ -33,7 +33,10 @@ load_secret() {
     aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text --region "${AWS_REGION}" 2>/dev/null || echo ""
 }
 
-# 3. 인프라 및 시크릿 환경 변수 로드 및 Export
+# 3. IMDS 로드 대기 및 인프라 환경 변수 로드 시작
+echo "⏳ Waiting for IAM Role credentials to load via IMDS (15s delay)..."
+sleep 15  # <--- [IMDS 로드를 위한 15초 대기]
+
 echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 
 # --- 인프라 및 DB 정보 (String) ---
