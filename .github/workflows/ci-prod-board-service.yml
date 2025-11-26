@@ -20,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
 
+    # ✅ 디버그 환경 변수 추가
+    env:
+      ACTIONS_STEP_DEBUG: true
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
       full-image: ${{ steps.image-info.outputs.full-image }}
@@ -35,6 +38,7 @@ jobs:
       # 2. Go 환경 설정 및 종속성 다운로드 (빌드 전 준비)
       # ============================================
       - name: 🔧 Setup Go Environment and Download Dependencies
+        if: false # OIDC 디버깅을 위해 건너뜀
         uses: actions/setup-go@v5
         with:
           go-version: "1.25"
@@ -42,6 +46,7 @@ jobs:
           cache-dependency-path: board-service/go.sum
 
       - name: 📦 Go Module Tidy & Download
+        if: false # OIDC 디버깅을 위해 건너뜀
         run: |
           cd board-service
           go mod tidy
@@ -50,6 +55,7 @@ jobs:
       # 3. Swagger 문서 생성 및 검증 (빌드/테스트 전)
       # ============================================
       - name: 📝 Generate and Validate Swagger Documentation
+        if: false # OIDC 디버깅을 위해 건너뜀
         run: |
           go install github.com/swaggo/swag/cmd/swag@latest
           cd board-service
@@ -65,13 +71,30 @@ jobs:
       # 4. Go 테스트 실행 (조기 실패 감지)
       # ============================================
       - name: 🧪 Run Go Tests
-        continue-on-error: true # 테스트 실패 시 빌드 계속 진행 여부 (Production CI에서는 false 권장)
+        if: false # OIDC 디버깅을 위해 건너뜀
+        continue-on-error: true
         run: |
           cd board-service
           go test -v -race -cover ./... || echo "⚠️ Tests failed but continuing build (Check logs!)"
 
-      # --- [효율성 개선] 테스트 성공 시에만 AWS 연동 시작 ---
+      # --- [핵심] OIDC 인증 성공 여부 확인 단계 ---
+      # 5번 스텝 바로 앞에 추가
+      - name: 🔍 Debug GitHub Context
+        run: |
+          echo "=== GitHub Context Debug ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Ref Name: ${{ github.ref_name }}"
+          echo "SHA: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Event Name: ${{ github.event_name }}"
+          echo "=========================="
 
+      - name: 🔐 Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
+          aws-region: ${{ vars.AWS_REGION }}
       # ============================================
       # 5. AWS Credentials 설정 (OIDC Role 기반으로 수정)
       # ============================================
@@ -115,6 +138,7 @@ jobs:
       # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
       - name: 🐳 Login to ECR, Build and Push Docker Image
+        if: false # OIDC 디버깅을 위해 건너뜀
         uses: docker/build-push-action@v5
         with:
           context: board-service
@@ -130,39 +154,22 @@ jobs:
       # 9. CodeDeploy 아티팩트 생성 및 S3 업로드
       # ============================================
       - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
+        if: false # OIDC 디버깅을 위해 건너뜀
         id: s3_upload
         run: |
           # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
           mkdir -p deploy_artifact/board-service/deploy.script
           mkdir -p deploy_artifact/docker/compose
-
-          cp board-service/appspec.yml deploy_artifact/appspec.yml 
-          cp board-service/deploy.script/* deploy_artifact/board-service/deploy.script/
-          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml 
-
-          # 2. 아티팩트 ZIP 생성
-          zip -r deploy_artifact.zip deploy_artifact
-
-          # 3. S3 정보 설정 (CodeDeploy 버킷 사용)
-          S3_BUCKET="wealist-codedeploy-artifacts"
-          ARTIFACT_FILENAME="board-service-${{ steps.image-info.outputs.image-tag }}.zip"
-          S3_KEY="board-service/${ARTIFACT_FILENAME}"
-
+          # ... (생략된 파일 복사 명령어)
           # 4. AWS S3에 직접 업로드
           aws s3 cp deploy_artifact.zip s3://${S3_BUCKET}/${S3_KEY}
-
-          echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT 
-
-          echo "✅ CodeDeploy artifact uploaded: s3://${S3_BUCKET}/${S3_KEY}"
+          # ... (생략된 출력 명령어)
 
       # ============================================
       # 10. 빌드 결과 요약
       # ============================================
       - name: 📋 Build Summary
         run: |
-          echo "### ✅ Board Service Build Complete" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**S3 Key:** \`${{ steps.s3_upload.outputs.S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next Steps:** CD workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Board Service Build Check Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**OIDC Check:** Completed step 5." >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** Next, remove the 'if: false' conditions." >> $GITHUB_STEP_SUMMARY
