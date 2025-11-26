@@ -5,7 +5,7 @@ files:
   # Board Service 스크립트 파일 복사
   - source: /deploy.script/
     destination: /home/ec2-user/wealist/board-service/deploy.script/
-  # Docker Compose 파일 복사
+  # Docker Compose 파일 복사 (덮어쓰기 허용)
   - source: /docker-compose.ec2-prod.yml
     destination: /home/ec2-user/wealist/docker/compose/
 

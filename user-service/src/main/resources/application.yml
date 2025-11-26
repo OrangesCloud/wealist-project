@@ -31,6 +31,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+      # ⚠️ TEMPORARY: Changed to 'update' to create missing attachments table
+      # TODO: Revert to 'validate' after table is created
     show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
