@@ -33,7 +33,6 @@ jobs:
       # 2. Go 환경 설정 및 종속성 다운로드 (빌드 전 준비)
       # ============================================
       - name: 🔧 Setup Go Environment and Download Dependencies
-        if: false # OIDC 디버깅을 위해 건너뜀
         uses: actions/setup-go@v5
         with:
           go-version: "1.25"
@@ -41,7 +40,6 @@ jobs:
           cache-dependency-path: board-service/go.sum
 
       - name: 📦 Go Module Tidy & Download
-        if: false # OIDC 디버깅을 위해 건너뜀
         run: |
           cd board-service
           go mod tidy
@@ -50,7 +48,6 @@ jobs:
       # 3. Swagger 문서 생성 및 검증 (빌드/테스트 전)
       # ============================================
       - name: 📝 Generate and Validate Swagger Documentation
-        if: false # OIDC 디버깅을 위해 건너뜀
         run: |
           go install github.com/swaggo/swag/cmd/swag@latest
           cd board-service
@@ -66,7 +63,6 @@ jobs:
       # 4. Go 테스트 실행 (조기 실패 감지)
       # ============================================
       - name: 🧪 Run Go Tests
-        if: false # OIDC 디버깅을 위해 건너뜀
         continue-on-error: true
         run: |
           cd board-service
@@ -133,7 +129,6 @@ jobs:
       # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
       - name: 🐳 Login to ECR, Build and Push Docker Image
-        if: false # OIDC 디버깅을 위해 건너뜀
         uses: docker/build-push-action@v5
         with:
           context: board-service
@@ -149,7 +144,6 @@ jobs:
       # 9. CodeDeploy 아티팩트 생성 및 S3 업로드
       # ============================================
       - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
-        if: false # OIDC 디버깅을 위해 건너뜀
         id: s3_upload
         run: |
           # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
