@@ -23,15 +23,14 @@ export AWS_DEFAULT_REGION="${AWS_REGION}"
 # String 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
 load_param() {
     local name="$1"
-    # [수정] --region "${AWS_REGION}" 플래그를 제거합니다! 
-    # AWS_DEFAULT_REGION을 사용하도록 강제합니다.
+    # [수정 완료] --region 플래그 제거: AWS_DEFAULT_REGION을 사용하도록 강제
     aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text 2>/dev/null || echo ""
 }
 
-# SecureString 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
+# SecureString 타입 로드 (파라미터가 없어도 에러를 발생시키도록 처리)
 load_secret() {
     local name="$1"
-    # [수정] --region "${AWS_REGION}" 플래그를 제거합니다!
+    # [수정 완료] --region 플래그 제거: AWS_DEFAULT_REGION을 사용하도록 강제
     aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo ""
 }
 
@@ -44,7 +43,6 @@ echo "🔑 Loading secrets and endpoints from SSM Parameter Store..."
 
 # --- 인프라 및 DB 정보 (String) ---
 # AWS_ACCOUNT_ID 추출 및 검증 강화 (ECR 로그인 필수 요소 확보)
-# [수정] 대기 후 sts 호출
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
 if [ -z "$AWS_ACCOUNT_ID" ] || [ "$AWS_ACCOUNT_ID" == "null" ]; then
     echo "❌ FATAL: Could not retrieve AWS Account ID using STS."
