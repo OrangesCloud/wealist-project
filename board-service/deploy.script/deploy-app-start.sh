@@ -49,6 +49,7 @@ echo "✅ AWS Account ID loaded: ${AWS_ACCOUNT_ID}"
 # DB/Cache 엔드포인트
 export RDS_HOST=$(load_param "db/rds_host")
 export REDIS_HOST=$(load_param "cache/redis_host")
+export REDIS_PORT=$(load_param "cache/redis_port")
 
 # DB 이름
 export USER_DB_NAME=$(load_secret "db/user_db_name")
@@ -59,6 +60,11 @@ export JWT_SECRET=$(load_secret "jwt/jwt_secret")
 export POSTGRES_SUPERUSER=$(load_param "db/rds_master_username")
 export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/rds_master_password")
 export REDIS_PASSWORD=$(load_secret "cache/redis_auth_token")
+
+# Redis AUTH가 비활성화된 경우 빈 문자열로 처리
+if [ "$REDIS_PASSWORD" == "NONE" ]; then
+    export REDIS_PASSWORD=""
+fi
 
 # Board Service DB 접속 시크릿
 export BOARD_DB_USER=$(load_secret "db/board_db_user")

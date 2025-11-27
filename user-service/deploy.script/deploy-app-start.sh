@@ -53,6 +53,7 @@ echo "✅ AWS Account ID loaded: ${AWS_ACCOUNT_ID}"
 # DB/Cache 엔드포인트
 export RDS_HOST=$(load_param "db/rds_host")
 export REDIS_HOST=$(load_param "cache/redis_host")
+export REDIS_PORT=$(load_param "cache/redis_port")
 
 # DB 이름
 export USER_DB_NAME=$(load_secret "db/user_db_name")
@@ -64,6 +65,11 @@ export POSTGRES_SUPERUSER=$(load_param "db/rds_master_username")
 export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/rds_master_password")
 export REDIS_PASSWORD=$(load_secret "cache/redis_auth_token")
 
+# Redis AUTH가 비활성화된 경우 빈 문자열로 처리
+if [ "$REDIS_PASSWORD" == "NONE" ]; then
+    export REDIS_PASSWORD=""
+fi
+
 # User Service DB 접속 시크릿
 export USER_DB_USER=$(load_secret "db/user_db_user")
 export USER_DB_PASSWORD=$(load_secret "db/user_db_password")
@@ -74,7 +80,7 @@ export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 
 # OAuth 및 S3 설정
 export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
-export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google-client-secret")
+export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
 OAUTH_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
 export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google"
 export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
