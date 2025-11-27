@@ -303,20 +303,20 @@ jobs:
           rm -f .env
           
           # Create new .env file without indentation
-          cat > .env << 'ENVEOF'
-            GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
-            GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-            PROMETHEUS_PORT=${PROMETHEUS_PORT}
-            GRAFANA_PORT=${GRAFANA_PORT}
-            NODE_EXPORTER_PORT=${NODE_EXPORTER_PORT}
-            RDS_EXPORTER_PORT=${RDS_EXPORTER_PORT}
-            ELASTIC_EXPORTER_PORT=${ELASTIC_EXPORTER_PORT}
-            AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-            AWS_REGION=${AWS_REGION}
-            ES_URI=${ES_URI}
-            PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
-            ENVEOF
+          cat > .env << ENV_END # 따옴표 제거 및 새로운 종료 구분자 사용
+          GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
+          GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+          PROMETHEUS_PORT=${PROMETHEUS_PORT}
+          GRAFANA_PORT=${GRAFANA_PORT}
+          NODE_EXPORTER_PORT=${NODE_EXPORTER_PORT}
+          RDS_EXPORTER_PORT=${RDS_EXPORTER_PORT}
+          ELASTIC_EXPORTER_PORT=${ELASTIC_EXPORTER_PORT}
+          AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+          AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+          AWS_REGION=${AWS_REGION}
+          ES_URI=${ES_URI}
+          PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
+          ENV_END
 
           # Verify .env file
           echo "✅ .env file created successfully"
