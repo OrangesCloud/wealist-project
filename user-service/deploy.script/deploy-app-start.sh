@@ -95,9 +95,10 @@ export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 # export S3_REGION="${AWS_REGION}"
 
 
-export GOOGLE_CLIENT_ID=640996696843-gtht74dpnn9c4u7mb6k5craur1vojgbk.apps.googleusercontent.com
+# 되었으면 소망을 담는다
+export GOOGLE_CLIENT_ID="640996696843-gtht74dpnn9c4u7mb6k5craur1vojgbk.apps.googleusercontent.com"
 export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
-export OAUTH2_REDIRECT_URL=http://wealist.co.kr/oauth/callback
+export OAUTH2_REDIRECT_URL="http://wealist.co.kr/oauth/callback"
 
 
 
