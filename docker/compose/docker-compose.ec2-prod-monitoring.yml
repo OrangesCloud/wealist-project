@@ -249,6 +249,10 @@ volumes:
     name: wealist-prometheus-data
     driver: local
 
+  loki-data:
+    name: wealist-loki-storage
+    driver: local
+
   grafana-storage:
     name: wealist-grafana-storage
     driver: local
