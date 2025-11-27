@@ -128,16 +128,30 @@ echo "🔄 Starting User Service defined in ${COMPOSE_FILE}..."
 
 SERVICES_TO_RESTART="user-service"
 
-# 기존 컨테이너 중지 및 제거 (포트 충돌 방지)
-echo "🛑 Stopping and removing existing User Service container..."
-sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" stop ${SERVICES_TO_RESTART} 2>/dev/null || true
-sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" rm -f ${SERVICES_TO_RESTART} 2>/dev/null || true
+# 기존 User Service 컨테이너만 직접 중지 및 제거 (다른 서비스에 영향 없음)
+echo "🛑 Stopping and removing existing User Service container (direct Docker commands)..."
+if sudo docker ps -a | grep -q "wealist-user-service"; then
+    echo "  Found existing user-service container, removing it..."
+    sudo docker stop wealist-user-service 2>/dev/null || true
+    sudo docker rm -f wealist-user-service 2>/dev/null || true
+    echo "  ✅ Old container removed"
+else
+    echo "  No existing user-service container found"
+fi
 
 # 컨테이너 정리 대기
+sleep 2
+
+# 🚨 --no-deps --force-recreate 를 사용하여 User Service만 재시작 (다른 서비스에 영향 없음)
+echo "🚀 Starting new user-service container..."
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
+
+# 컨테이너 시작 대기
 sleep 3
 
-# 🚨 --no-deps 를 사용하여 User Service만 재시작 (다른 서비스에 영향 없음)
-sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps ${SERVICES_TO_RESTART}
+# 컨테이너 상태 확인
+echo "📊 Checking container status..."
+sudo docker ps | grep -E "wealist-board-service|wealist-user-service" || echo "⚠️ Services not found in docker ps"
 
 # Node Exporter가 실행 중이 아니면 시작 (최초 배포 시에만)
 echo "🔍 Ensuring node-exporter is running..."
