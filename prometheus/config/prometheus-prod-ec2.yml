@@ -1,0 +1,50 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # User-Service (Spring Boot)
+  - job_name: 'wealist-user'
+    metrics_path: '/api/users/actuator/prometheus'
+    static_configs:
+      - targets: ['user-service:{{USER_SERVICE_PORT}}']
+    scrape_interval: 10s
+
+  # Board-Service (Go)
+  - job_name: 'wealist-board'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['board-service:{{BOARD_SERVICE_PORT}}']
+    scrape_interval: 5s
+
+  # --- [새로 추가된 Exporter 항목] ---
+
+  # 1. Percona RDS Exporter (AWS RDS 모니터링)
+  - job_name: 'rds-exporter'
+    # Docker Compose 파일에서 지정한 서비스 이름과 포트 사용
+    static_configs:
+      - targets: ['rds_exporter:9042'] 
+    scrape_interval: 15s
+    # RDS Exporter는 CloudWatch API 호출이 필요하므로, 
+    # Exporter 컨테이너에 AWS 인증 권한이 잘 부여되었는지 확인해야 합니다.
+
+  # 2. Elasticsearch Exporter (Elasticsearch 모니터링)
+  - job_name: 'elasticsearch-exporter'
+    # Docker Compose 파일에서 지정한 서비스 이름과 포트 사용
+    static_configs:
+      - targets: ['elasticsearch_exporter:9114']
+    scrape_interval: 15s
+    # metrics_path는 기본값(/metrics)이므로 생략합니다.
+
+
+  # Node Exporter
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:{{NODE_EXPORTER_PORT}}']
+    scrape_interval: 15s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:{{PROMETHEUS_PORT}}']
+    scrape_interval: 15s

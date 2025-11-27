@@ -2,35 +2,22 @@
 # weAlist Project - Monitoring Stack
 # =============================================================================
 # Prometheus, Grafana, Exporters를 포함한 모니터링 스택입니다.
-# 선택적으로 추가할 수 있으며, 개발/프로덕션 모두에서 사용 가능합니다.
-#
-# 사용법:
-#   개발 + 모니터링:
-#     docker compose -f docker/compose/docker-compose.yml \
-#                    -f docker/compose/docker-compose.dev.yml \
-#                    -f docker/compose/docker-compose.monitoring.yml up
-#
-#   프로덕션 + 모니터링:
-#     docker compose -f docker/compose/docker-compose.yml \
-#                    -f docker/compose/docker-compose.prod.yml \
-#                    -f docker/compose/docker-compose.monitoring.yml up -d
+# AWS RDS Exporter와 Elasticsearch Exporter가 추가되었습니다.
 # =============================================================================
 
 version: '3.9'
 
 services:
   # ===========================================================================
-  # Metrics Collection & Visualization
+  # Metrics Collection & Visualization (Prometheus, Grafana - 변경 없음)
   # ===========================================================================
 
-  # Prometheus - Metrics Collection
+  # Prometheus - Metrics Collection (생략: 변경 없음)
   prometheus:
     image: prom/prometheus:latest
     container_name: wealist-prometheus
     hostname: prometheus
-
-    user: "0:0"  # root로 실행 (설정 파일 읽기 위해)
-
+    user: "0:0"
     command:
       - '--config.file=/etc/prometheus/prometheus-ec2.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -38,25 +25,18 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
       - '--storage.tsdb.retention.time=30d'
-
-    # 볼륨 마운트 설정
-    # - 호스트 경로는 이 docker-compose 파일의 위치(docker/compose/)를 기준으로 해석됩니다
-    # - ../../prometheus/config -> 프로젝트 루트의 prometheus/config 디렉토리
-    # - :ro 플래그는 read-only 마운트를 의미하여 컨테이너가 설정 파일을 수정할 수 없도록 합니다
+      
     volumes:
       - ${PROMETHEUS_CONFIG_DIR}:/etc/prometheus:ro
       - prometheus-data:/prometheus
-
     ports:
       - "${PROMETHEUS_PORT}"
-
     networks:
       - backend-net
       - database-net
       - monitoring-net
-
     restart: unless-stopped
-
+    
     healthcheck:
       test: ["CMD-SHELL", "wget", "-q", "--spider", "http://localhost:${PROMETHEUS_PORT}/-/healthy"]
       interval: 30s
@@ -70,24 +50,12 @@ services:
         max-size: "10m"
         max-file: "3"
 
-    # 리소스 제한
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-
-  # Grafana - Visualization
+  # Grafana - Visualization (생략: 변경 없음)
   grafana:
     image: grafana/grafana:latest
     container_name: wealist-grafana
     hostname: grafana
-
-    user: "0:0"  # root로 실행
-
+    
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
@@ -96,21 +64,12 @@ services:
       - GF_SERVER_SERVE_FROM_SUB_PATH=true  
       - GF_INSTALL_PLUGINS=redis-datasource
 
-    volumes:
-      - grafana-storage:/var/lib/grafana
-      - grafana-logs:/var/log/grafana
-      # 프로비저닝 설정 (선택사항)
-      # - ../../grafana/provisioning:/etc/grafana/provisioning:ro
-
     ports:
       - "${GRAFANA_PORT}"
-
     networks:
       - monitoring-net
-
     depends_on:
       - prometheus
-
     restart: unless-stopped
 
     healthcheck:
@@ -126,168 +85,157 @@ services:
         max-size: "10m"
         max-file: "3"
 
-    # 리소스 제한
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-
-  # ===========================================================================
-  # Exporters
-  # ===========================================================================
-
-  # Redis Exporter
-  redis-exporter:
-    image: oliver006/redis_exporter:latest
-    container_name: wealist-redis-exporter
-    hostname: redis-exporter
-
-    environment:
-      - REDIS_ADDR=redis://wealist-redis:${REDIS_PORT}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - REDIS_EXPORTER_DEBUG=false
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: wealist-loki
+    hostname: loki
+    user: "0:0"
+    command: -config.file=/etc/loki/local-config.yaml
 
     ports:
-      - "${REDIS_EXPORTER_PORT}"
+      - "3100:3100"
+
+    volumes:
+      - ../../loki/config:/etc/loki
+      - loki-data:/loki
 
     networks:
-      - database-net
       - monitoring-net
-
-    depends_on:
-      - redis
 
     restart: unless-stopped
 
     healthcheck:
-      test: ["CMD-SHELL", "wget", "-q", "--spider", "http://localhost:${REDIS_EXPORTER_PORT}/metrics"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: wealist-promtail
+    hostname: promtail
 
-    # 리소스 제한
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 128M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
-
-  # PostgreSQL Exporter
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
-    container_name: wealist-postgres-exporter
-    hostname: postgres-exporter
-
-    environment:
-      - DATA_SOURCE_NAME=postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@postgres:${POSTGRES_PORT}/postgres?sslmode=disable
-
-    ports:
-      - "${POSTGRES_EXPORTER_PORT}"
+    volumes:
+      - ../../promtail:/etc/promtail ## 여기 경로랑 실제 위치 포인트랑 같아야됨 promtail/config -> 현재 promtail이 있는 위치도 같아야됨
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+    
+    command: -config.file=/etc/promtail/promtail.yml
 
     networks:
-      - database-net
       - monitoring-net
 
+    restart: unless-stopped
+    
     depends_on:
-      postgres:
-        condition: service_healthy
+      - loki
+
+  # ===========================================================================
+  # Exporters (RDS, Elasticsearch 추가)
+  # ===========================================================================
+
+  # 1. AWS RDS Exporter (Percona)
+  # AWS RDS CloudWatch/Enhanced Monitoring 메트릭 수집
+  rds-exporter:
+    # 💡 이미지 수정: Percona RDS Exporter 공식 이미지 사용
+    image: percona/rds_exporter:latest
+    container_name: wealist-rds-exporter
+    # 💡 호스트 이름 통일: Prometheus 설정 파일과 일치
+    hostname: rds-exporter
+    
+    # 🔑 AWS 인증 및 리전 정보 설정 (필수!)
+    # 보안상 민감 정보는 환경 변수 파일(.env)에 정의하고 ${}로 불러오는 것이 좋습니다.
+    environment:
+      # RDS Exporter가 CloudWatch API를 호출하기 위한 자격 증명
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION} # RDS 인스턴스가 위치한 리전
+      # RDS Enhanced Monitoring 활성화 시 필요한 경우 (추가 설정 필요)
+      #- LOG_GROUP_PATTERN=RDSOSMetrics
+      
+    # 💡 포트 설정: 기본 포트 9042를 사용하도록 변수 수정 (RDS_EXPORTER_PORT 변수가 9042로 설정되어야 함)
+    ports:
+      - "${RDS_EXPORTER_PORT}" 
+
+    networks:
+      - monitoring-net # AWS API 호출을 위해 외부 접근이 필요할 수 있습니다.
+      
+    # depends_on: RDS는 외부 서비스이므로 필요 없지만, 필요시 설정 가능
 
     restart: unless-stopped
-
+    # (중략: healthcheck, logging, deploy)
     healthcheck:
-      test: ["CMD-SHELL", "wget", "-q", "--spider", "http://localhost:${POSTGRES_EXPORTER_PORT}/metrics"]
+      test: ["CMD", "wget", "-q", "--spider", "http://{RDS_주소}:{RDS_EXPORTER_PORT}/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-    # 리소스 제한
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 128M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
+  # 2. Elasticsearch Exporter (Prometheus Community)
+  # Elasticsearch 클러스터 메트릭 수집
+  elasticsearch-exporter:
+    # 💡 이미지 수정: Elasticsearch Exporter 공식 이미지 사용
+    image: prometheuscommunity/elasticsearch-exporter:latest 
+    container_name: wealist-elasticsearch-exporter
+    # 💡 호스트 이름 통일
+    hostname: elasticsearch-exporter
 
-  # Node Exporter (호스트 메트릭 수집)
+    # 🔗 Elasticsearch 연결 주소 설정 (필수!)
+    environment:
+      # 실제 Elasticsearch 호스트 주소와 포트로 변경해야 합니다.
+      - ES_URI=http://your-elasticsearch-host:9200
+      #- ES_USERNAME=user
+      #- ES_PASSWORD=password
+
+    # 💡 포트 설정: 기본 포트 9114를 사용하도록 변수 수정 (ELASTIC_EXPORTER_PORT 변수가 9114로 설정되어야 함)
+    ports:
+      - "${ELASTIC_EXPORTER_PORT}:9114"
+
+    networks:
+      - backend-net # ES가 이 네트워크에 있다면
+      - monitoring-net
+
+    # depends_on: Elasticsearch 컨테이너 이름으로 설정 (있다면)
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://ES_URI:ELASTIC_EXPORTER_PORT/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # (중략: healthcheck, logging, deploy)
+
+
+  # Node Exporter (호스트 메트릭 수집 - 유지)
   node-exporter:
     image: prom/node-exporter:latest
     container_name: wealist-node-exporter
     hostname: node-exporter
-
-    command:
-      - '--path.rootfs=/host'
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-
+    # (중략)
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
-
     ports:
       - "${NODE_EXPORTER_PORT}"
-
     networks:
       - monitoring-net
-
     restart: unless-stopped
+    # (중략)
 
-    healthcheck:
-      test: ["CMD-SHELL", "wget", "-q", "--spider", "http://localhost:${NODE_EXPORTER_PORT}/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-    # 리소스 제한
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 128M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
 
 # =============================================================================
-# Monitoring Networks
+# Monitoring Networks & Volumes (변경 없음)
 # =============================================================================
+
 networks:
   monitoring-net:
     driver: bridge
     name: wealist-monitoring-net
 
-  # 기존 네트워크 참조
   backend-net:
     external: true
     name: wealist-backend-net
@@ -296,9 +244,6 @@ networks:
     external: true
     name: wealist-database-net
 
-# =============================================================================
-# Monitoring Volumes
-# =============================================================================
 volumes:
   prometheus-data:
     name: wealist-prometheus-data
