@@ -257,12 +257,11 @@ jobs:
           # Promtail config
           echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null
 
-          # Set proper permissions for configuration files
-          sudo chown -R ${USER}:${USER} ${PROMETHEUS_CONFIG_DIR%/*} 2>/dev/null || true
-          
-          # Also ensure the current user can access the compose directory
-          sudo chown -R ${USER}:${USER} "${COMPOSE_DIR}" 2>/dev/null || true
+          CURRENT_USER=$(whoami)
+          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} ${PROMETHEUS_CONFIG_DIR%/*} 2>/dev/null || true
 
+          # Also ensure the current user can access the compose directory  
+          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} "${COMPOSE_DIR}" 2>/dev/null || true
           # Process template variables in Prometheus config
           echo "🔧 Processing Prometheus template variables..."
           sudo sed -i \
