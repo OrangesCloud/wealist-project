@@ -107,7 +107,7 @@ jobs:
           ELASTIC_EXPORTER_PORT=$(load_param "/monitor/elastic_exporter_port")
           LOKI_PORT=$(load_param "/monitor/loki_port")
           PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config")
-          LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config")
+          LOKI_CONFIG_DIR=$(load_param "/monitor/loki-config")
 
           # Load AWS credentials for RDS Exporter
           AWS_REGION=$(load_param "/cd/aws_region")
