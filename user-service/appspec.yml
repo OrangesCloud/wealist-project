@@ -1,0 +1,31 @@
+version: 0.0
+os: linux
+files:
+  # User Service 스크립트 파일 복사
+  - source: /deploy.script/
+    destination: /home/ec2-user/wealist/user-service/deploy.script/
+  # Docker Compose 파일 복사 (덮어쓰기 허용)
+  - source: /docker-compose.ec2-prod.yml
+    destination: /home/ec2-user/wealist/docker/compose/
+permissions:
+  # [수정] owner와 group을 ec2-user로 변경했습니다.
+  - object: /home/ec2-user/wealist/
+    pattern: "**"
+    owner: ec2-user # ← 소유자 변경 (필수)
+    group: ec2-user # ← 그룹 변경 (필수)
+hooks:
+  BeforeInstall:
+    # 1. 기존 컨테이너 중지 및 이미지 정리
+    - location: deploy.script/deploy-cleanup.sh
+      timeout: 60
+      runas: ec2-user
+  ApplicationStart:
+    # 2. SSM 변수 로드 후 Docker Compose 실행 (핵심 배포 로직)
+    - location: deploy.script/deploy-app-start.sh
+      timeout: 300
+      runas: ec2-user
+  ValidateService:
+    # 3. 헬스 체크
+    - location: deploy.script/deploy-health-check.sh
+      timeout: 180
+      runas: ec2-user

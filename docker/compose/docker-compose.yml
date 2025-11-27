@@ -156,37 +156,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Frontend Service
-  frontend-service:
-    build:
-      context: ../../frontend
-      dockerfile: Dockerfile
-    image: wealist/frontend:${VERSION:-latest}
-    container_name: wealist-frontend
-    hostname: frontend
-
-    networks:
-      - frontend-net
-
-    depends_on:
-      - user-service
-      - board-service
-
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-    restart: unless-stopped
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   # ===========================================================================
   # Infrastructure Services
   # ===========================================================================
@@ -283,11 +252,6 @@ services:
 # Networks
 # =============================================================================
 networks:
-  # Frontend network: NGINX ↔ Frontend
-  frontend-net:
-    driver: bridge
-    name: wealist-frontend-net
-
   # Backend network: Frontend/NGINX ↔ Backend Services
   backend-net:
     driver: bridge
@@ -298,6 +262,11 @@ networks:
     driver: bridge
     name: wealist-database-net
     internal: true # 외부 접근 차단
+  # 💡 [추가] Frontend와의 통신을 위한 외부 네트워크
+  wealist-net:
+    driver: bridge
+    name: wealist-net
+    external: true # ⬅️ 이 네트워크는 수동으로 생성될 것임 (docker.sh에서)
 
 # =============================================================================
 # Volumes
@@ -306,7 +275,6 @@ volumes:
   postgres-data:
     name: wealist-postgres-data
     driver: local
-
   redis-data:
     name: wealist-redis-data
     driver: local

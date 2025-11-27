@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import OrangeCloud.UserRepo.dto.user.UpdateUserRequest;
+import io.micrometer.core.instrument.Counter;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +23,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private final Counter userSignupTotalCounter;
     private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
 
@@ -61,6 +63,7 @@ public class UserService {
 
         User savedUser = userRepository.save(newUser);
         log.debug("New User created: userId={}, email={}", savedUser.getUserId(), email);
+        userSignupTotalCounter.increment();
 
         // UserProfile도 함께 생성
         UserProfile profile = UserProfile.builder()

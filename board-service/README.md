@@ -2,7 +2,7 @@
 
 프로젝트 관리 도구의 Board 관리 시스템 RESTful API
 
-<!-- Updated: 2025-11-16 - Docker Compose v1 compatibility -->
+<!-- Updated: 2025-11-27 - Database permissions and AutoMigrate setup -->
 
 ## 목차
 
@@ -918,5 +918,7 @@ MIT License
 ## 문의
 
 프로젝트에 대한 문의사항이나 버그 리포트는 GitHub Issues를 이용해주세요.
+
+
 
 

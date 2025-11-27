@@ -1,0 +1,243 @@
+# =============================================================================
+# weAlist Project - EC2 Production Environment (Services + Exporters)
+# =============================================================================
+# - DB/Cache: AWS RDS/ElastiCache 엔드포인트 참조
+# - CI/CD: CodeDeploy Hook 스크립트가 SSM Parameter Store에서 환경 변수 주입
+# - 모니터링: Exporter를 포함하여 중앙 Prometheus 서버에 메트릭 노출
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # ===========================================================================
+  # Backend Services
+  # ===========================================================================
+
+  # User Service (Spring Boot)
+  user-service:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-prod-user-service:${USER_SERVICE_VERSION}
+    container_name: wealist-user-service
+    hostname: user-service
+
+    environment:
+      - SPRING_PROFILES_ACTIVE=aws
+      - SERVER_PORT=8080
+      - USER_SERVICE_PORT=8080
+      - APP_NAME=wealist-api-prod
+
+      # DB Configuration (RDS 참조)
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_HOST}:5432/${USER_DB_NAME}?sslmode=require
+      - SPRING_DATASOURCE_USERNAME=${USER_DB_USER}
+      - SPRING_DATASOURCE_PASSWORD=${USER_DB_PASSWORD}
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+
+      # Cache Configuration (ElastiCache 참조)
+      - SPRING_REDIS_HOST=${REDIS_HOST}
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD}
+      - SPRING_REDIS_DATABASE=0
+
+      # JPA: Prod에서는 DDL_AUTO는 validate/none 권장
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+      - SPRING_JPA_SHOW_SQL=false
+      - SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=false
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+
+      # Secrets/Configs (CodeDeploy Script에서 주입됨)
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_TOKEN_EXPIRATION_MS=1800000
+      - JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - OAUTH2_CLIENT_REDIRECT_URI=${OAUTH2_CLIENT_REDIRECT_URI}
+      - OAUTH2_REDIRECT_URL_ENV=${OAUTH2_REDIRECT_URL_ENV}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
+      - CORS_ORIGINS=*
+
+      # Java Options
+      - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+
+    ports:
+      - "8080:8080"
+    networks:
+      - wealist-net-prod
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--spider",
+          "http://localhost:8080/api/users/actuator/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    restart: always
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1536M
+        reservations:
+          cpus: "0.5"
+          memory: 768M
+
+  # Board Service (Go)
+  board-service:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION:-ap-northeast-2}.amazonaws.com/wealist-prod-board-service:${BOARD_SERVICE_VERSION}
+    container_name: wealist-board-service
+    hostname: board-service
+
+    environment:
+      - ENV=prod
+      - SERVER_PORT=8000
+      - SERVER_BASE_PATH=/api/boards
+      - LOG_LEVEL=info
+
+      # DB Configuration (RDS 참조)
+      - DATABASE_URL=postgresql://${BOARD_DB_USER}:${BOARD_DB_PASSWORD}@${RDS_HOST}:5432/${BOARD_DB_NAME}?sslmode=require
+
+      # Cache Configuration (ElastiCache 참조)
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST}:6379/1
+
+      # Secrets/Configs (CodeDeploy Script에서 주입됨)
+      - SECRET_KEY=${JWT_SECRET}
+      - USER_SERVICE_URL=http://user-service:8080/api/users
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+
+    ports:
+      - "8000:8000"
+    networks:
+      - wealist-net-prod
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "-O",
+          "/dev/null",
+          "http://localhost:8000/api/boards/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    restart: always
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  # ===========================================================================
+  # Monitoring Exporters (Prometheus Source)
+  # ===========================================================================
+
+  # PostgreSQL Exporter (RDS 메트릭 수집)
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: wealist-postgres-exporter
+    hostname: postgres-exporter
+
+    environment:
+      # RDS 엔드포인트와 SSM에서 로드된 마스터 비밀번호 사용
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERUSER_PASSWORD}@${RDS_HOST}:5432/postgres?sslmode=disable
+      # Exporter 포트 환경 변수
+      - POSTGRES_EXPORTER_PORT=9187
+
+    ports:
+      - "${POSTGRES_EXPORTER_PORT:-9187}:9187"
+    networks:
+      - wealist-net-prod
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+  # Redis Exporter (ElastiCache 메트릭 수집)
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: wealist-redis-exporter
+    hostname: redis-exporter
+
+    environment:
+      # ElastiCache 엔드포인트와 SSM에서 로드된 Redis 비밀번호 사용
+      - REDIS_ADDR=${REDIS_HOST}:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_EXPORTER_DEBUG=false
+      # Exporter 포트 환경 변수
+      - REDIS_EXPORTER_PORT=9121
+
+    ports:
+      - "${REDIS_EXPORTER_PORT:-9121}:9121"
+    networks:
+      - wealist-net-prod
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+  # Node Exporter (호스트 메트릭 수집)
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: wealist-node-exporter
+    hostname: node-exporter
+
+    command:
+      - "--path.rootfs=/host"
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    networks:
+      - wealist-net-prod
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  wealist-net-prod:
+    driver: bridge
+    name: wealist-ec2-prod-net

@@ -9,7 +9,15 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uc_user_email", columnNames = {"email"})
+        },
+        indexes = {
+                // name: 인덱스 이름 (선택 사항이지만 명시 권장)
+                // columnList: 인덱스를 걸 컬럼 이름
+                @Index(name = "idx_user_email", columnList = "email")
+        })
 @Getter
 @Setter
 @NoArgsConstructor
