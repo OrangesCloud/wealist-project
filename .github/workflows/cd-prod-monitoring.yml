@@ -263,6 +263,7 @@ jobs:
           PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config" "/home/ubuntu/wealist/promtail/config")
           AWS_REGION_PARAM=$(load_param "/cd/aws_region" "ap-northeast-2")
 
+          ELASTIC_URL =$(load_param "/monitor/elasticsearch_uri")
           # Load RDS Exporter image (from CI build)
           RDS_EXPORTER_IMAGE=$(load_param "/monitor/rds_exporter_image" "qonto/prometheus-rds-exporter:latest")
 
@@ -327,22 +328,36 @@ jobs:
           echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null  
           echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null
 
-          # Create .env file
-          cat > .env << ENV_EOF
-          GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
-          GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-          PROMETHEUS_PORT=${PROMETHEUS_PORT}
-          GRAFANA_PORT=${GRAFANA_PORT}
-          NODE_EXPORTER_PORT=${NODE_EXPORTER_PORT}
-          LOKI_PORT=${LOKI_PORT}
-          AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-          AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-          AWS_REGION=${AWS_REGION}
-          PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
-          LOKI_CONFIG_DIR=${LOKI_CONFIG_DIR}
-          PROMTAIL_CONFIG_DIR=${PROMTAIL_CONFIG_DIR}
-          RDS_EXPORTER_IMAGE=${RDS_EXPORTER_IMAGE}
-          ENV_EOF
+          # 1. 필요한 디렉토리 생성
+          sudo mkdir -p /home/ubuntu/wealist/{prometheus/{config,data},grafana/{data,logs},loki/{config,data},promtail/config}
+
+          # 2. 권한 설정
+          sudo chown -R ubuntu:ubuntu /home/ubuntu/wealist/
+          sudo chown -R 472:472 /home/ubuntu/wealist/grafana/
+          sudo chown -R 65534:65534 /home/ubuntu/wealist/prometheus/data
+          sudo chown -R 10001:10001 /home/ubuntu/wealist/loki/data
+
+          # 3. 환경변수 파일 생성 (.env)
+          cat > .env << 'EOF'
+          PROMETHEUS_PORT=9090
+          GRAFANA_PORT=3001
+          LOKI_PORT=3100
+          NODE_EXPORTER_PORT=9001
+          RDS_EXPORTER_PORT=9042
+          ELASTIC_EXPORTER_PORT=9114
+          AWS_REGION=ap-northeast-2
+          ES_URI=${ELASTIC_URL}:9200
+          PROMETHEUS_CONFIG_DIR=/home/ubuntu/wealist/prometheus/config
+          GRAFANA_ADMIN_USER=admin
+          GRAFANA_ADMIN_PASSWORD=your-password
+          RDS_EXPORTER_IMAGE=qonto/prometheus-rds-exporter:latest
+          EOF
+
+          # 4. 구문 검증
+          docker-compose config
+
+          # 5. 서비스 시작
+          sudo docker-compose up -d
 
           echo "✅ Configuration files deployed successfully"
 

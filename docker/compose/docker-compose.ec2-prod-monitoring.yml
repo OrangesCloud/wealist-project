@@ -14,7 +14,7 @@ services:
       
     volumes:
       - ${PROMETHEUS_CONFIG_DIR}:/etc/prometheus:ro
-       - /home/ubuntu/wealist/prometheus/data:/prometheus
+      - /home/ubuntu/wealist/prometheus/data:/prometheus
     ports:
       - "${PROMETHEUS_PORT}:9090"
     networks:
@@ -48,9 +48,8 @@ services:
       - GF_INSTALL_PLUGINS=redis-datasource
 
     volumes:
-      - /home/ubuntu/wealist/grafana/data:/var/lib/grafana  # Named Volume 대신 로컬 경로
-      - /home/ubuntu/wealist/grafana/logs:/var/log/grafana   # Named Volume 대신 로컬 경로
-
+      - /home/ubuntu/wealist/grafana/data:/var/lib/grafana
+      - /home/ubuntu/wealist/grafana/logs:/var/log/grafana
 
     ports:
       - "${GRAFANA_PORT}:3000"
@@ -85,8 +84,7 @@ services:
 
     volumes:
       - /home/ubuntu/wealist/loki/config:/etc/loki:ro
-      - /home/ubuntu/wealist/loki/data:/loki  # Named Volume 대신 로컬 경로
-
+      - /home/ubuntu/wealist/loki/data:/loki
 
     networks:
       - monitoring-net
@@ -106,7 +104,7 @@ services:
     hostname: promtail
 
     volumes:
-      - /home/ubuntu/wealist/promtail/config:/etc/promtail:ro  # 하드코딩된 경로 사용
+      - /home/ubuntu/wealist/promtail/config:/etc/promtail:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/log:/var/log:ro
@@ -120,28 +118,20 @@ services:
     
     depends_on:
       - loki
-  # --- [RDS Exporter 추가] ---
+
   rds-exporter:
     image: ${RDS_EXPORTER_IMAGE:-qonto/prometheus-rds-exporter:latest}
     container_name: wealist-rds-exporter
     hostname: rds-exporter
     
     environment:
-      # CloudWatch API 접근을 위한 리전 설정
-      # 이 Exporter는 CloudWatch API를 호출하므로, 
-      # EC2 인스턴스에 AWS 자격 증명(IAM Role)이 부여되어 있어야 합니다.
-      - AWS_DEFAULT_REGION=${AWS_REGION} 
-      
-      # 옵션: DB 인스턴스 식별을 위한 태그 필터 (모든 RDS 인스턴스를 모니터링하려면 생략)
-      # - RDS_EXPORTER_TAGS="Environment=production"
+      - AWS_DEFAULT_REGION=${AWS_REGION:-ap-northeast-2}
 
     volumes:
-      # /etc/localtime: 컨테이너와 호스트의 시간 동기화 (옵션)
       - /etc/localtime:/etc/localtime:ro
       
     ports:
-      # ${RDS_EXPORTER_PORT} 변수를 사용하여 호스트 포트 바인딩
-      - "${RDS_EXPORTER_PORT}:9042" 
+      - "${RDS_EXPORTER_PORT:-9042}:9042"
       
     networks:
       - monitoring-net
@@ -155,22 +145,16 @@ services:
       retries: 3
       start_period: 10s
 
-  # --- [Elasticsearch Exporter 추가] ---
   elasticsearch-exporter:
     image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
     container_name: wealist-elasticsearch-exporter
     hostname: elasticsearch-exporter
     
     command:
-      # ES 클러스터의 주소 설정 (SSM에서 로드된 변수 사용)
-      - --es.uri=${ES_URI}
-      # HTTP 인증이 필요한 경우 주석 해제 (ES_USERNAME, ES_PASSWORD 변수 필요)
-      # - --es.username=${ES_USERNAME} 
-      # - --es.password=${ES_PASSWORD}
+      - --es.uri=${ES_URI:-http://localhost:9200}
       
     ports:
-      # ${ELASTIC_EXPORTER_PORT} 변수를 사용하여 호스트 포트 바인딩
-      - "${ELASTIC_EXPORTER_PORT}:9114" 
+      - "${ELASTIC_EXPORTER_PORT:-9114}:9114"
       
     networks:
       - monitoring-net
@@ -184,7 +168,6 @@ services:
       retries: 3
       start_period: 10s
 
-  # Node Exporter
   node-exporter:
     image: prom/node-exporter:latest
     container_name: wealist-node-exporter
@@ -202,7 +185,7 @@ services:
       - /:/rootfs:ro
       
     ports:
-      - "${NODE_EXPORTER_PORT}:9100"
+      - "${NODE_EXPORTER_PORT:-9001}:9100"
       
     networks:
       - monitoring-net
@@ -221,19 +204,4 @@ networks:
     driver: bridge
     name: wealist-monitoring-net
 
-volumes:
-  prometheus-data:
-    name: wealist-prometheus-data
-    driver: local
-
-  loki-data:
-    name: wealist-loki-storage
-    driver: local
-
-  grafana-storage:
-    name: wealist-grafana-storage
-    driver: local
-
-  grafana-logs:
-    name: wealist-grafana-logs
-    driver: local
+# volumes 섹션 제거 (로컬 디렉토리 사용하므로 불필요)
