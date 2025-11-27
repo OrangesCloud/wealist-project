@@ -31,7 +31,7 @@ load_param() {
 load_secret() {
     local name="$1"
     # [수정] --region 플래그 제거: AWS_DEFAULT_REGION을 사용하도록 강제
-    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo ""
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text
 }
 # 3. IMDS 로드 대기 및 인프라 환경 변수 로드 시작
 echo "⏳ Waiting for IAM Role credentials to load via IMDS (15s delay)..."
