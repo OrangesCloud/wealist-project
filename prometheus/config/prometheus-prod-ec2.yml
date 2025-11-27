@@ -48,3 +48,38 @@ scrape_configs:
     static_configs:
       - targets: ['prometheus:{{PROMETHEUS_PORT}}']
     scrape_interval: 15s
+    # AWS EC2 서비스 디스커버리 사용 (권장)
+  # AWS EC2 서비스 디스커버리 사용 (권장)
+  - job_name: 'ec2-discovery'
+    ec2_sd_configs:
+      - region: ap-northeast-2
+        # Port는 스크레이핑할 타겟 포트(Node Exporter 포트)를 의미합니다.
+        port: 9100
+        filters:
+          - name: tag:Environment
+            values: [production]
+          # Node Exporter가 설치된 인스턴스만 모니터링하기 위한 태그 필터
+          - name: tag:Monitoring
+            values: [enabled]
+            
+    relabel_configs:
+      # 1. 🛑 필수: 인스턴스의 사설 IP 주소(__meta_ec2_private_ip)에 포트 9100을 붙여 
+      #    최종 스크레이핑 주소(__address__)를 구성합니다.
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: __address__
+        regex: '(.+)'
+        replacement: '$1:9100' 
+        action: replace
+
+      # 2. 🚦 권장: 인스턴스 상태가 'running'일 때만 모니터링 대상으로 유지(keep)합니다.
+      - source_labels: [__meta_ec2_state]
+        regex: running
+        action: keep
+      
+      # 3. 인스턴스 이름을 레이블로 변환 (기존 설정)
+      - source_labels: [__meta_ec2_tag_Name]
+        target_label: instance_name
+        
+      # 4. 인스턴스 ID를 레이블로 변환 (기존 설정)
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: instance_id

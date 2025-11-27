@@ -18,8 +18,6 @@ services:
     ports:
       - "${PROMETHEUS_PORT}:9090"
     networks:
-      - backend-net
-      - database-net
       - monitoring-net
     restart: unless-stopped
     
@@ -121,29 +119,6 @@ services:
     depends_on:
       - loki
 
-  # Redis Exporter (Redis 모니터링용)
-  redis-exporter:
-    image: oliver006/redis_exporter:latest
-    container_name: wealist-redis-exporter
-    hostname: redis-exporter
-    
-    environment:
-      - REDIS_ADDR=redis://${ES_URI}:6379  # Redis 주소 사용
-      
-    ports:
-      - "9121:9121"
-
-    networks:
-      - monitoring-net
-      
-    restart: unless-stopped
-    
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:9121/metrics || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
   # Node Exporter
   node-exporter:
@@ -181,14 +156,6 @@ networks:
   monitoring-net:
     driver: bridge
     name: wealist-monitoring-net
-
-  backend-net:
-    external: true
-    name: wealist-backend-net
-
-  database-net:
-    external: true
-    name: wealist-database-net
 
 volumes:
   prometheus-data:
