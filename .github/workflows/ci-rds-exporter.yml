@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write   # OIDC token 생성 권한
-  contents: read    # 코드 읽기 권한
+  id-token: write # OIDC token 생성 권한
+  contents: read # 코드 읽기 권한
 
 jobs:
   build-and-push:
@@ -37,7 +37,6 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::290008131187:role/GitHubActionsOIDCRole
-          role-session-name: GitHubActions-RDSExporter-${{ github.run_id }}
           aws-region: ap-northeast-2
 
       # ============================================
@@ -47,41 +46,41 @@ jobs:
         id: config
         run: |
           echo "📥 Loading CI configuration from Parameter Store..."
-          
+
           # Load parameters with error handling
           set +e  # Temporarily disable exit on error
-          
+
           echo "🔍 Checking AWS credentials and connectivity..."
           aws sts get-caller-identity
-          
+
           echo "📋 Loading parameters..."
           AWS_REGION=$(aws ssm get-parameter \
             --name "/wealist/prod/ci/aws_region" \
             --query 'Parameter.Value' \
             --output text 2>&1)
-          
+
           ECR_REPOSITORY=$(aws ssm get-parameter \
             --name "/wealist/prod/ci/ecr_repository_rds_exporter" \
             --query 'Parameter.Value' \
             --output text 2>&1)
-          
+
           AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
             --query 'Account' \
             --output text 2>&1)
-          
+
           set -e  # Re-enable exit on error
-          
+
           # Handle parameter not found cases with defaults
           if [[ "$AWS_REGION" == *"ParameterNotFound"* ]]; then
             echo "⚠️ Parameter /wealist/prod/ci/aws_region not found, using default"
             AWS_REGION="ap-northeast-2"
           fi
-          
+
           if [[ "$ECR_REPOSITORY" == *"ParameterNotFound"* ]]; then
             echo "⚠️ Parameter /wealist/prod/ci/ecr_repository_rds_exporter not found, using default"
             ECR_REPOSITORY="wealist/rds-exporter"
           fi
-          
+
           # Validate final values
           if [ -z "$AWS_REGION" ] || [ -z "$ECR_REPOSITORY" ] || [ -z "$AWS_ACCOUNT_ID" ]; then
             echo "❌ Failed to load required configuration"
@@ -90,12 +89,12 @@ jobs:
             echo "   AWS_ACCOUNT_ID: '${AWS_ACCOUNT_ID}'"
             exit 1
           fi
-          
+
           # Export to GITHUB_ENV for subsequent steps
           echo "AWS_REGION=${AWS_REGION}" >> $GITHUB_ENV
           echo "ECR_REPOSITORY=${ECR_REPOSITORY}" >> $GITHUB_ENV
           echo "AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}" >> $GITHUB_ENV
-          
+
           echo "✅ Configuration loaded successfully"
           echo "   AWS Region: ${AWS_REGION}"
           echo "   ECR Repository: ${ECR_REPOSITORY}"
@@ -107,15 +106,15 @@ jobs:
       - name: 📁 Setup RDS Exporter Source
         run: |
           echo "📁 Setting up RDS Exporter source..."
-          
+
           # RDS Exporter 소스 디렉토리 생성
           mkdir -p rds-exporter
           cd rds-exporter
-          
+
           # Percona RDS Exporter 소스 다운로드
           echo "⬇️ Downloading RDS Exporter source..."
           curl -L https://github.com/percona/rds_exporter/archive/refs/heads/main.tar.gz | tar xz --strip-components=1
-          
+
           # Dockerfile 확인 및 생성
           if [ ! -f "Dockerfile" ]; then
             echo "📝 Creating optimized Dockerfile..."
@@ -126,11 +125,11 @@ jobs:
           RUN apk add --no-cache git ca-certificates tzdata wget curl
 
           WORKDIR /app
-          
+
           # Go 모듈 파일 복사 및 의존성 다운로드
           COPY go.mod go.sum ./
           RUN go mod download && go mod verify
-          
+
           # 소스 코드 복사 및 빌드
           COPY . .
           RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
@@ -145,21 +144,21 @@ jobs:
           RUN apk --no-cache add ca-certificates tzdata wget curl
 
           WORKDIR /app
-          
+
           # 실행 파일 복사
           COPY --from=builder /app/rds_exporter .
-          
+
           # 포트 노출
           EXPOSE 9042
-          
+
           # 헬스체크 추가
           HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
             CMD wget --no-verbose --tries=1 --spider http://localhost:9042/metrics || exit 1
-          
+
           ENTRYPOINT ["./rds_exporter"]
           EOF
           fi
-          
+
           echo "✅ RDS Exporter source prepared"
           ls -la
 
@@ -178,14 +177,14 @@ jobs:
       - name: 🔨 Verify Go Build
         run: |
           cd rds-exporter
-          
+
           echo "📦 Downloading dependencies..."
           go mod tidy
           go mod download
-          
+
           echo "🔨 Testing Go build..."
           CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o rds_exporter .
-          
+
           echo "✅ Go binary build successful"
           ls -la rds_exporter
 
@@ -248,7 +247,7 @@ jobs:
             .
 
           echo "✅ Docker image built successfully"
-          
+
           # ECR에 푸시
           echo "📤 Pushing to ECR..."
           docker push ${FULL_IMAGE}
@@ -273,7 +272,7 @@ jobs:
             --overwrite \
             --description "RDS Exporter Docker image URI - Updated $(date)" \
             --region ${{ env.AWS_REGION }}
-          
+
           echo "✅ SSM parameter updated with new image URI: ${FULL_IMAGE}"
 
       # ============================================
