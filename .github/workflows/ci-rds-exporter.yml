@@ -11,6 +11,8 @@ on:
 
 permissions:
   contents: read
+  id-token: write
+  actions: write
 
 jobs:
   build-and-push:
@@ -29,15 +31,6 @@ jobs:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
-      # ============================================
-      # 2. AWS Credentials 설정 (Parameter Store 접근용)
-      # ============================================
-      - name: 🔐 Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
 
       # ============================================
       # 3. Parameter Store에서 설정 로드
