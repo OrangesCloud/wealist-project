@@ -103,17 +103,17 @@ jobs:
           PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config")
 
           # Load NEW monitoring parameters (RDS, Elasticsearch, Loki, Promtail)
-          o RDS_EXPORTER_PORT=$(load_param "/monitor/rds_exporter_port")
-          O ELASTIC_EXPORTER_PORT=$(load_param "/monitor/elastic_exporter_port")
-          o LOKI_PORT=$(load_param "/monitor/loki_port")
-          O ## PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config")
-          O ## LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config")
+          RDS_EXPORTER_PORT=$(load_param "/monitor/rds_exporter_port")
+          ELASTIC_EXPORTER_PORT=$(load_param "/monitor/elastic_exporter_port")
+          LOKI_PORT=$(load_param "/monitor/loki_port")
+          PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config")
+          LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config")
 
           # Load AWS credentials for RDS Exporter
           AWS_REGION=$(load_param "/cd/aws_region")
 
           # Load Elasticsearch connection info
-          o ES_URI=$(load_param "/monitor/elasticsearch_uri")
+          ES_URI=$(load_param "/monitor/elasticsearch_uri")
           ES_USERNAME=$(load_param "/monitor/elasticsearch_username" || echo "")
           ES_PASSWORD=$(load_secret "/monitor/elasticsearch_password" || echo "")
 
