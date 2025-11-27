@@ -311,7 +311,7 @@ jobs:
             AWS_REGION=${AWS_REGION}
             ES_URI=${ES_URI}
             PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
-            EOF
+          EOFgit 
 
           echo "📋 .env file created:"
           cat .env
