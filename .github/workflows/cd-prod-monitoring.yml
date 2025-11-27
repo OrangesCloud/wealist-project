@@ -12,6 +12,10 @@ on:
       - ".github/workflows/cd-prod-monitoring.yml"
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  actions: write # CD 워크플로우 트리거를 위해 추가
+
 jobs:
   deploy-enhanced-monitoring:
     runs-on: ubuntu-latest
