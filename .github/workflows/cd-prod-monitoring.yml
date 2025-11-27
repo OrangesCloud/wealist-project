@@ -39,7 +39,7 @@ jobs:
       - name: 🔐 Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:sts::290008131187:assumed-role/wealist-prod-ec2-role
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-ec2-role
           aws-region: ap-northeast-2
 
       - name: 🔍 Verify OIDC and Load Configuration
