@@ -1,0 +1,213 @@
+name: CI - Build RDS Exporter
+
+on:
+  push:
+    branches:
+      - main
+      - deploy-prod
+    paths:
+      - "rds-exporter/**"
+      - ".github/workflows/ci-rds-exporter.yml"
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force rebuild even if no changes'
+        required: false
+        default: 'false'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push-rds-exporter:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    outputs:
+      image-tag: ${{ steps.build-info.outputs.image-tag }}
+      image-uri: ${{ steps.build-info.outputs.image-uri }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Setup Build Info
+        id: build-info
+        run: |
+          # 이미지 태그 생성
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
+          IMAGE_TAG="${TIMESTAMP}-${SHORT_SHA}"
+          
+          # ECR 정보
+          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com"
+          ECR_REPOSITORY="wealist/rds-exporter"
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          
+          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
+          echo "ecr-repository=${ECR_REPOSITORY}" >> $GITHUB_OUTPUT
+          
+          echo "🏷️ Image Tag: ${IMAGE_TAG}"
+          echo "📦 Image URI: ${IMAGE_URI}"
+
+      - name: Setup RDS Exporter Source
+        run: |
+          # RDS Exporter 소스 준비
+          mkdir -p rds-exporter
+          cd rds-exporter
+          
+          # Percona RDS Exporter 소스 다운로드
+          curl -L https://github.com/percona/rds_exporter/archive/refs/heads/main.tar.gz | tar xz --strip-components=1
+          
+          # Dockerfile이 없다면 생성
+          if [ ! -f "Dockerfile" ]; then
+            cat > Dockerfile << 'EOF'
+          FROM golang:1.21-alpine AS builder
+
+          WORKDIR /app
+          
+          # 의존성 복사 및 다운로드
+          COPY go.mod go.sum ./
+          RUN go mod download
+          
+          # 소스 코드 복사 및 빌드
+          COPY . .
+          RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o rds_exporter .
+
+          # 실행 이미지
+          FROM alpine:latest
+
+          RUN apk --no-cache add ca-certificates
+          
+          WORKDIR /root/
+          
+          COPY --from=builder /app/rds_exporter .
+          
+          EXPOSE 9042
+          
+          CMD ["./rds_exporter"]
+          EOF
+          fi
+          
+          echo "📁 RDS Exporter source prepared"
+          ls -la
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin ${{ steps.build-info.outputs.ecr-registry }}
+
+      - name: Create ECR Repository if not exists
+        run: |
+          # ECR 리포지토리 생성 (이미 존재하면 무시)
+          aws ecr create-repository \
+            --repository-name ${{ steps.build-info.outputs.ecr-repository }} \
+            --region ap-northeast-2 \
+            --image-scanning-configuration scanOnPush=true \
+            --encryption-configuration encryptionType=AES256 || echo "Repository already exists"
+
+      - name: Build Docker Image
+        run: |
+          cd rds-exporter
+          
+          echo "🔨 Building RDS Exporter Docker image..."
+          docker build \
+            --tag ${{ steps.build-info.outputs.image-uri }} \
+            --tag ${{ steps.build-info.outputs.ecr-registry }}/${{ steps.build-info.outputs.ecr-repository }}:latest \
+            --build-arg BUILDTIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg VERSION=${{ steps.build-info.outputs.image-tag }} \
+            .
+          
+          echo "✅ Docker image built successfully"
+          
+          # 이미지 정보 확인
+          docker images | grep rds-exporter
+
+      - name: Test Docker Image
+        run: |
+          echo "🧪 Testing RDS Exporter image..."
+          
+          # 컨테이너 실행 테스트
+          CONTAINER_ID=$(docker run -d -p 9042:9042 ${{ steps.build-info.outputs.image-uri }})
+          
+          # 잠시 대기
+          sleep 10
+          
+          # 헬스체크
+          if curl -f http://localhost:9042/metrics; then
+            echo "✅ RDS Exporter is responding correctly"
+          else
+            echo "❌ RDS Exporter health check failed"
+            docker logs $CONTAINER_ID
+            exit 1
+          fi
+          
+          # 컨테이너 정리
+          docker stop $CONTAINER_ID
+          docker rm $CONTAINER_ID
+
+      - name: Push to ECR
+        run: |
+          echo "📤 Pushing RDS Exporter image to ECR..."
+          
+          # 태그된 이미지 푸시
+          docker push ${{ steps.build-info.outputs.image-uri }}
+          docker push ${{ steps.build-info.outputs.ecr-registry }}/${{ steps.build-info.outputs.ecr-repository }}:latest
+          
+          echo "✅ Image pushed successfully"
+          
+          # ECR에서 이미지 확인
+          aws ecr describe-images \
+            --repository-name ${{ steps.build-info.outputs.ecr-repository }} \
+            --region ap-northeast-2 \
+            --query 'imageDetails[0].{Tags:imageTags,Size:imageSizeInBytes,Pushed:imagePushedAt}'
+
+      - name: Update SSM Parameter with New Image
+        run: |
+          # SSM에 새 이미지 URI 저장
+          aws ssm put-parameter \
+            --name "/wealist/prod/monitor/rds_exporter_image" \
+            --value "${{ steps.build-info.outputs.image-uri }}" \
+            --type "String" \
+            --overwrite \
+            --description "RDS Exporter Docker image URI - Updated $(date)"
+          
+          echo "✅ SSM parameter updated with new image URI"
+
+      - name: Create Deployment Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🎉 RDS Exporter Build & Push Completed
+
+          ### 📦 Built Image
+          - **Image URI**: `${{ steps.build-info.outputs.image-uri }}`
+          - **Latest Tag**: `${{ steps.build-info.outputs.ecr-registry }}/${{ steps.build-info.outputs.ecr-repository }}:latest`
+          - **Build Time**: $(date)
+          - **Git SHA**: `${{ github.sha }}`
+
+          ### 🚀 Next Steps
+          The image is now available in ECR and the SSM parameter has been updated.
+          The CD pipeline will automatically use this new image in the next deployment.
+
+          ### 🔧 Manual Usage
+          ```bash
+          # Pull the image
+          docker pull ${{ steps.build-info.outputs.image-uri }}
+          
+          # Run the container
+          docker run -d -p 9042:9042 \
+            -e AWS_REGION=ap-northeast-2 \
+            -e AWS_ACCESS_KEY_ID=your_key \
+            -e AWS_SECRET_ACCESS_KEY=your_secret \
+            ${{ steps.build-info.outputs.image-uri }}
+          ```
+          EOF

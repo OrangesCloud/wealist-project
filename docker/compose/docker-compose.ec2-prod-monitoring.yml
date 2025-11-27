@@ -120,7 +120,7 @@ services:
       - loki
   # --- [RDS Exporter 추가] ---
   rds-exporter:
-    image: percona/rds-exporter:0.16.0 # Percona의 AWS RDS Exporter 이미지 사용
+    image: ${RDS_EXPORTER_IMAGE:-qonto/prometheus-rds-exporter:latest}
     container_name: wealist-rds-exporter
     hostname: rds-exporter
     
@@ -155,7 +155,7 @@ services:
 
   # --- [Elasticsearch Exporter 추가] ---
   elasticsearch-exporter:
-    image: justwatch/elasticsearch_exporter:1.7.0 # JustWatch의 ES Exporter 이미지 사용
+    image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
     container_name: wealist-elasticsearch-exporter
     hostname: elasticsearch-exporter
     

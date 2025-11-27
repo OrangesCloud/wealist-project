@@ -235,6 +235,24 @@ jobs:
           
           echo "✅ Directory structure created successfully"
 
+          # 배포 스크립트에서 RDS Exporter 이미지 로드 부분 추가
+          echo "📦 Loading RDS Exporter image from SSM..."
+          RDS_EXPORTER_IMAGE=$(load_param "/monitor/rds_exporter_image" "qonto/prometheus-rds-exporter:latest")
+
+          # ECR 로그인 (커스텀 이미지 사용시)
+          if [[ "$RDS_EXPORTER_IMAGE" == *".dkr.ecr."* ]]; then
+            echo "🔑 Logging into ECR for custom RDS Exporter image..."
+            aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+          fi
+
+          # 환경변수에 추가
+          export RDS_EXPORTER_IMAGE
+
+          # .env 파일에도 추가
+          cat >> .env << ENV_EOF
+          RDS_EXPORTER_IMAGE=${RDS_EXPORTER_IMAGE}
+          ENV_EOF
+
           # =============================================================================
           # STEP 5: DEPLOY CONFIGURATION FILES
           # =============================================================================
