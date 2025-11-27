@@ -3,39 +3,17 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # User-Service (Spring Boot)
-  - job_name: 'wealist-user'
-    metrics_path: '/api/users/actuator/prometheus'
-    static_configs:
-      - targets: ['user-service:{{USER_SERVICE_PORT}}']
-    scrape_interval: 10s
-
-  # Board-Service (Go)
-  - job_name: 'wealist-board'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['board-service:{{BOARD_SERVICE_PORT}}']
-    scrape_interval: 5s
-
-  # --- [새로 추가된 Exporter 항목] ---
-
   # 1. Percona RDS Exporter (AWS RDS 모니터링)
   - job_name: 'rds-exporter'
-    # Docker Compose 파일에서 지정한 서비스 이름과 포트 사용
     static_configs:
       - targets: ['rds_exporter:9042'] 
     scrape_interval: 15s
-    # RDS Exporter는 CloudWatch API 호출이 필요하므로, 
-    # Exporter 컨테이너에 AWS 인증 권한이 잘 부여되었는지 확인해야 합니다.
 
   # 2. Elasticsearch Exporter (Elasticsearch 모니터링)
   - job_name: 'elasticsearch-exporter'
-    # Docker Compose 파일에서 지정한 서비스 이름과 포트 사용
     static_configs:
       - targets: ['elasticsearch_exporter:9114']
     scrape_interval: 15s
-    # metrics_path는 기본값(/metrics)이므로 생략합니다.
-
 
   # Node Exporter
   - job_name: 'node-exporter'
@@ -48,38 +26,75 @@ scrape_configs:
     static_configs:
       - targets: ['prometheus:{{PROMETHEUS_PORT}}']
     scrape_interval: 15s
-    # AWS EC2 서비스 디스커버리 사용 (권장)
-  # AWS EC2 서비스 디스커버리 사용 (권장)
-  - job_name: 'ec2-discovery'
+
+  # --- [새로 추가된 User/Board Service 동적 수집] ---
+
+  # 🔔 User & Board Service 동적 수집 (Auto Scaling 대응)
+  - job_name: 'wealist-app-services'
     ec2_sd_configs:
       - region: ap-northeast-2
-        # Port는 스크레이핑할 타겟 포트(Node Exporter 포트)를 의미합니다.
-        port: 9100
+        # User Service 포트(8080)를 기본 포트로 설정합니다.
+        port: 8080 
         filters:
-          - name: tag:Environment
-            values: [production]
-          # Node Exporter가 설치된 인스턴스만 모니터링하기 위한 태그 필터
-          - name: tag:Monitoring
-            values: [enabled]
+          # 🛑 User/Board Service가 배포된 인스턴스를 식별하는 태그를 사용합니다.
+          # (실제 환경의 태그 값으로 변경해야 합니다. 예: Wealist-App)
+          - name: tag:ServiceGroup
+            values: ['Wealist-App'] 
+          - name: instance-state-name
+            values: [running]
             
     relabel_configs:
-      # 1. 🛑 필수: 인스턴스의 사설 IP 주소(__meta_ec2_private_ip)에 포트 9100을 붙여 
-      #    최종 스크레이핑 주소(__address__)를 구성합니다.
+      
+      # 1. User Service (8080 포트) 타겟 구성:
+      # 최종 주소: Private_IP:8080
       - source_labels: [__meta_ec2_private_ip]
         target_label: __address__
         regex: '(.+)'
-        replacement: '$1:9100' 
+        replacement: '$1:8080' 
+        action: replace
+      # User Service의 Metrics Path 설정
+      - target_label: __metrics_path__
+        replacement: '/api/users/actuator/prometheus' 
+        action: replace
+      # service_name 레이블 추가
+      - target_label: service_name
+        replacement: 'user-service'
         action: replace
 
-      # 2. 🚦 권장: 인스턴스 상태가 'running'일 때만 모니터링 대상으로 유지(keep)합니다.
-      - source_labels: [__meta_ec2_state]
-        regex: running
-        action: keep
+      # 2. Board Service (8000 포트) 타겟 복사 및 생성:
       
-      # 3. 인스턴스 이름을 레이블로 변환 (기존 설정)
+      # __address__ (8080)를 임시로 복사하여 원본 타겟 유지
+      - source_labels: [__address__]
+        target_label: __tmp_address_copy
+        regex: '(.+)'
+        action: replace
+        
+      # 새로운 타겟 주소: Private_IP:8000 생성
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: __address__
+        regex: '(.+)'
+        replacement: '$1:8000' 
+        action: replace
+        
+      # Board Service metrics_path와 service_name 레이블 추가
+      - target_label: __metrics_path__
+        replacement: '/metrics' 
+        action: replace
+      - target_label: service_name
+        replacement: 'board-service' 
+        action: replace
+
+      # 3. 인스턴스 이름/ID 레이블 변환 (기존 설정 유지)
       - source_labels: [__meta_ec2_tag_Name]
         target_label: instance_name
+        action: replace
         
-      # 4. 인스턴스 ID를 레이블로 변환 (기존 설정)
       - source_labels: [__meta_ec2_instance_id]
         target_label: instance_id
+        action: replace
+
+  # --- [기존 Node Exporter 동적 수집] ---
+
+  - job_name: 'ec2-discovery'
+    ec2_sd_configs:
+# ... (기존 ec2-discovery 설정 유지)

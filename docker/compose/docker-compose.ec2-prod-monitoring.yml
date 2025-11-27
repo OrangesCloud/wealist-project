@@ -119,7 +119,7 @@ services:
     depends_on:
       - loki
 
-  rds-exporter:
+  rds_exporter:
     image: ${RDS_EXPORTER_IMAGE}
     container_name: wealist-rds-exporter
     hostname: rds-exporter
@@ -129,7 +129,7 @@ services:
 
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      
+      - ${RDS_CONFIG_DIR}:/etc/rds_exporter:ro
     ports:
       - "${RDS_EXPORTER_PORT}:9042"
       
