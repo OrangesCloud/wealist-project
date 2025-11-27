@@ -59,13 +59,13 @@ jobs:
           # EC2 인스턴스 ID 찾기 (ASG의 running 인스턴스 중 첫 번째)
           INSTANCE_ID=$(aws ec2 describe-instances \
             --filters \
-              "Name=tag:aws:autoscaling:groupName,Values=wealist-prod-backend-asg" \
+              "Name=tag:aws:autoscaling:groupName,Values=wealist-prod-monitoring-asg" \
               "Name=instance-state-name,Values=running" \
             --query 'Reservations[0].Instances[0].InstanceId' \
             --output text --region "${AWS_REGION}")
 
           if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ] || [ "$INSTANCE_ID" = "null" ]; then
-            echo "❌ No running EC2 instance found in ASG: wealist-prod-backend-asg"
+            echo "❌ No running EC2 instance found in ASG: wealist-prod-monitoring-asg"
             exit 1
           fi
 
