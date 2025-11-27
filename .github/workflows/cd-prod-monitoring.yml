@@ -72,7 +72,7 @@ jobs:
           echo "✅ Found EC2 Instance: $INSTANCE_ID"
           echo "ec2-instance-id=$INSTANCE_ID" >> $GITHUB_OUTPUT
           echo "parameter-prefix=/wealist/prod" >> $GITHUB_OUTPUT
-          echo "compose-file-path=/home/ubuntu/wealist/docker-compose.yml" >> $GITHUB_OUTPUT
+          echo "compose-file-path=/home/ubuntu/wealist/compose/docker-compose.yml" >> $GITHUB_OUTPUT
 
       # ============================================
       # 3. 배포 스크립트 생성 (EC2에서 실행될 스크립트)
@@ -300,7 +300,7 @@ jobs:
           COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-prod-monitoring.yml || true)
           PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-prod-ec2.yml || true)
           LOKI_CFG_B64=$(base64 -w 0 loki/config/local-config.yaml || true)
-          PROMTAIL_CFG_B64=$(base64 -w 0 promtail/promtail.yml || true)
+          PROMTAIL_CFG_B64=$(base64 -w 0 promtail/config/promtail.yml || true)
           RDS_CFG_B64=$(base64 -w 0 rds_exporter/config.yml || true)
           SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-monitoring.sh || true)
 
