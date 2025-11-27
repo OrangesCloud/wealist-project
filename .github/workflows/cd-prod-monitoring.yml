@@ -28,8 +28,8 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.WEALIST_PROD_AWS_ACCESS_KEY_ID }}  # PROD로 변경
-          aws-secret-access-key: ${{ secrets.WEALIST_PROD_AWS_SECRET_ACCESS_KEY }}  # PROD로 변경
+          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}  # PROD로 변경
+          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}  # PROD로 변경
           aws-region: ap-northeast-2
 
       - name: Load Base Configuration
