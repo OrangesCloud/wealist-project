@@ -1,4 +1,4 @@
-name: CD - Enhanced Monitoring Stack (Complete)
+name: CD - Enhanced Monitoring Stack (Complete Fixed)
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - "prometheus/**"
       - "loki/**"
       - "promtail/**"
+      - "rds-exporter/**"
       - "docker/compose/docker-compose.ec2-prod-monitoring.yml"
       - ".github/workflows/cd-prod-monitoring.yml"
   workflow_dispatch:
@@ -30,14 +31,16 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
+          role-session-name: GitHubActions-Monitoring-${{ github.run_id }}
           aws-region: ap-northeast-2
 
-      - name: 🔍 Load Configuration
+      - name: 🔍 Verify OIDC and Load Configuration
         id: config
         run: |
-          echo "🔍 Loading configuration..."
+          echo "🔍 Verifying OIDC connection and loading configuration..."
           
           # AWS Identity 확인
+          echo "Current AWS Identity:"
           aws sts get-caller-identity
           
           # Load base configuration with error handling
@@ -63,15 +66,17 @@ jobs:
           
           # Handle parameter not found cases with defaults
           if [[ "$EC2_ID" == *"ParameterNotFound"* ]] || [ -z "$EC2_ID" ]; then
-            echo "❌ EC2 Instance ID parameter not found"
+            echo "❌ EC2 Instance ID parameter not found: /wealist/prod/cd/ec2_instance_id"
             exit 1
           fi
           
           if [[ "$COMPOSE_DIR" == *"ParameterNotFound"* ]]; then
+            echo "⚠️ Using default compose directory"
             COMPOSE_DIR="/home/ubuntu/wealist/docker/compose"
           fi
           
           if [[ "$PARAM_PREFIX" == *"ParameterNotFound"* ]]; then
+            echo "⚠️ Using default parameter prefix"
             PARAM_PREFIX="/wealist/prod"
           fi
           
@@ -84,13 +89,13 @@ jobs:
           echo "  Compose Directory: $COMPOSE_DIR"
           echo "  Parameter Prefix: $PARAM_PREFIX"
 
-      - name: 📝 Create Deployment Script
+      - name: 📝 Create Complete Deployment Script
         run: |
           cat << 'DEPLOY_SCRIPT' > /tmp/deploy-monitoring.sh
           #!/bin/bash
           set -euo pipefail
           
-          echo "=== Enhanced Monitoring Stack Deployment ==="
+          echo "=== Enhanced Monitoring Stack Deployment (OIDC) ==="
           echo "Timestamp: $(date)"
           echo "AWS Region: ${AWS_REGION}"
           echo "Parameter Prefix: ${PARAMETER_PREFIX}"
@@ -101,7 +106,7 @@ jobs:
           echo "📋 Current user: ${CURRENT_USER}"
 
           # =============================================================================
-          # STEP 1: CLEANUP
+          # STEP 1: CLEANUP EXISTING MONITORING SERVICES
           # =============================================================================
           echo "🧹 Cleaning up existing monitoring services..."
           
@@ -118,9 +123,9 @@ jobs:
           echo "✅ Cleanup completed"
 
           # =============================================================================
-          # STEP 2: LOAD CONFIGURATION
+          # STEP 2: LOAD CONFIGURATION FROM SSM
           # =============================================================================
-          echo "📋 Loading configuration from SSM..."
+          echo "📋 Loading configuration from SSM Parameter Store..."
 
           # Function to load parameters
           load_param() {
@@ -183,10 +188,14 @@ jobs:
           ELASTIC_URL=$(load_param "/monitor/elasticsearch_uri" "localhost")
           RDS_EXPORTER_IMAGE=$(load_param "/monitor/rds_exporter_image" "qonto/prometheus-rds-exporter:latest")
 
+          # Service ports for Prometheus targets
+          USER_SERVICE_PORT=$(load_param "/user_port" "8080")
+          BOARD_SERVICE_PORT=$(load_param "/board_port" "8000")
+
           echo "✅ Configuration loaded successfully"
 
           # =============================================================================
-          # STEP 3: SETUP DIRECTORIES
+          # STEP 3: SETUP DIRECTORY STRUCTURE
           # =============================================================================
           echo "📁 Setting up directory structure..."
           
@@ -195,34 +204,50 @@ jobs:
           sudo mkdir -p "${COMPOSE_DIR}"
           cd "${COMPOSE_DIR}"
           
-          # Create monitoring directories
+          # Create all monitoring directories
           sudo mkdir -p /home/ubuntu/wealist/{prometheus/{config,data},grafana/{data,logs},loki/{config,data},promtail/config,rds-exporter/config}
 
-          # Set permissions
+          # Set proper permissions
           sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/
           sudo chown -R 472:472 /home/ubuntu/wealist/grafana/
           sudo chown -R 65534:65534 /home/ubuntu/wealist/prometheus/data
           sudo chown -R 10001:10001 /home/ubuntu/wealist/loki/data || sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/loki/data
-          sudo chown -R ubuntu:ubuntu /home/ubuntu/wealist/rds-exporter/
+          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/rds-exporter/
 
-          echo "✅ Directories created and configured"
+          echo "✅ Directory structure created and configured"
 
           # =============================================================================
-          # STEP 4: DEPLOY FILES
+          # STEP 4: DEPLOY CONFIGURATION FILES
           # =============================================================================
           echo "📝 Deploying configuration files..."
           
           # Deploy Docker Compose file
           echo "${COMPOSE_B64}" | base64 -d > docker-compose.yml
           
-          # Deploy configuration files
+          # Deploy Prometheus configuration
           echo "${PROM_CFG_B64}" | base64 -d | sudo tee ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml > /dev/null
-          echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null  
+          
+          # Process Prometheus template variables
+          echo "🔧 Processing Prometheus configuration template..."
+          sudo sed -i \
+              -e "s/{{USER_SERVICE_PORT}}/${USER_SERVICE_PORT}/g" \
+              -e "s/{{BOARD_SERVICE_PORT}}/${BOARD_SERVICE_PORT}/g" \
+              -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
+              -e "s/{{RDS_EXPORTER_PORT}}/${RDS_EXPORTER_PORT}/g" \
+              -e "s/{{ELASTIC_EXPORTER_PORT}}/${ELASTIC_EXPORTER_PORT}/g" \
+              -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
+              "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+          
+          # Deploy Loki configuration
+          echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null
+          
+          # Deploy Promtail configuration
           echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null
+          
+          # Deploy RDS Exporter configuration
           echo "${RDS_CFG_B64}" | base64 -d | sudo tee ${RDS_CONFIG_DIR}/config.yml > /dev/null
 
-
-          # Create environment file
+          # Create environment file with all variables
           cat > .env << ENV_EOF
           PROMETHEUS_PORT=${PROMETHEUS_PORT}
           GRAFANA_PORT=${GRAFANA_PORT}
@@ -241,83 +266,135 @@ jobs:
           RDS_EXPORTER_IMAGE=${RDS_EXPORTER_IMAGE}
           ENV_EOF
 
-          echo "✅ Configuration files deployed"
+          echo "✅ Configuration files deployed and processed"
 
           # =============================================================================
-          # STEP 5: VALIDATE AND START
+          # STEP 5: VALIDATE CONFIGURATION
           # =============================================================================
           echo "🔍 Validating configuration..."
           
           # Debug information
           echo "📋 Debug Information:"
           echo "Current directory: $(pwd)"
-          echo "Files:"
+          echo "Files in directory:"
           ls -la
           echo ""
-          echo "Docker Compose file (first 10 lines):"
-          head -10 docker-compose.yml
+          echo "Docker Compose file (first 20 lines):"
+          head -20 docker-compose.yml
           echo ""
           echo "Environment variables:"
           cat .env
           echo ""
+          echo "Prometheus config preview:"
+          head -10 ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml
 
-          # Validate Docker Compose
+          # Validate Docker Compose syntax
           if ! sudo docker-compose config >/dev/null 2>&1; then
             echo "❌ Docker Compose validation failed:"
             sudo docker-compose config
             exit 1
           fi
 
-          echo "✅ Configuration valid"
+          echo "✅ Configuration validation passed"
 
-          # Start services
+          # =============================================================================
+          # STEP 6: START MONITORING SERVICES
+          # =============================================================================
           echo "🚀 Starting monitoring services..."
           
-          # Pull images
-          echo "📦 Pulling images..."
+          # Pull images first
+          echo "📦 Pulling Docker images..."
           sudo docker-compose pull
 
           # Start containers
           echo "🔄 Starting containers..."
           if ! sudo docker-compose up -d --remove-orphans; then
             echo "❌ Failed to start services"
-            echo "Docker Compose logs:"
+            echo "📋 Docker Compose logs:"
             sudo docker-compose logs --tail=50
             exit 1
           fi
 
-          # Wait and verify
-          echo "⏳ Waiting for services..."
-          sleep 30
+          # Wait for services to initialize
+          echo "⏳ Waiting for services to initialize..."
+          sleep 45
 
-          echo "📋 Container status:"
+          # =============================================================================
+          # STEP 7: VERIFY DEPLOYMENT
+          # =============================================================================
+          echo "📋 Verifying deployment..."
+          
+          echo "Container status:"
           sudo docker ps -a
 
-          # Basic health checks
-          echo "🏥 Basic health checks:"
+          echo ""
+          echo "Network status:"
+          sudo docker network ls | grep monitoring || echo "No monitoring networks found"
+
+          # Health checks for critical services
+          echo ""
+          echo "🏥 Performing health checks..."
           
-          for port in ${PROMETHEUS_PORT} ${GRAFANA_PORT} ${NODE_EXPORTER_PORT}; do
-            if curl -s http://localhost:${port} >/dev/null 2>&1; then
-              echo "✅ Service on port ${port} is responding"
-            else
-              echo "⚠️ Service on port ${port} not ready yet"
-            fi
-          done
+          HEALTH_CHECK_FAILED=false
+          
+          # Check Prometheus
+          if curl -f -m 10 http://localhost:${PROMETHEUS_PORT}/-/ready >/dev/null 2>&1; then
+            echo "✅ Prometheus is healthy"
+          else
+            echo "⚠️ Prometheus health check failed"
+            HEALTH_CHECK_FAILED=true
+          fi
+          
+          # Check Grafana
+          if curl -f -m 10 http://localhost:${GRAFANA_PORT}/api/health >/dev/null 2>&1; then
+            echo "✅ Grafana is healthy"
+          else
+            echo "⚠️ Grafana health check failed"
+            HEALTH_CHECK_FAILED=true
+          fi
+          
+          # Check Node Exporter
+          if curl -f -m 10 http://localhost:${NODE_EXPORTER_PORT}/metrics >/dev/null 2>&1; then
+            echo "✅ Node Exporter is healthy"
+          else
+            echo "⚠️ Node Exporter health check failed"
+          fi
+
+          # Check Loki
+          if curl -f -m 10 http://localhost:${LOKI_PORT}/ready >/dev/null 2>&1; then
+            echo "✅ Loki is healthy"
+          else
+            echo "⚠️ Loki health check failed"
+          fi
+
+          if [ "$HEALTH_CHECK_FAILED" = true ]; then
+            echo "❌ Critical services health check failed"
+            echo "📋 Container logs for debugging:"
+            sudo docker-compose logs --tail=20
+          fi
 
           echo ""
-          echo "🎉 Deployment completed successfully!"
-          echo "📊 Services:"
+          echo "🎉 Enhanced Monitoring Stack deployment completed!"
+          echo "📊 Services are available at:"
           echo "  - Prometheus: http://localhost:${PROMETHEUS_PORT}"
-          echo "  - Grafana: http://localhost:${GRAFANA_PORT} (${GRAFANA_ADMIN_USER}/${GRAFANA_ADMIN_PASSWORD})"
+          echo "  - Grafana: http://localhost:${GRAFANA_PORT} (${GRAFANA_ADMIN_USER}/***)"
           echo "  - Loki: http://localhost:${LOKI_PORT}"
           echo "  - Node Exporter: http://localhost:${NODE_EXPORTER_PORT}/metrics"
+          echo "  - RDS Exporter: http://localhost:${RDS_EXPORTER_PORT}/metrics"
+          echo ""
+          echo "🔧 Management commands:"
+          echo "  - View logs: sudo docker-compose logs -f"
+          echo "  - Restart services: sudo docker-compose restart"
+          echo "  - Stop services: sudo docker-compose down"
           
           DEPLOY_SCRIPT
 
-      - name: 🚀 Deploy via SSM
+      - name: 🚀 Deploy via SSM with Complete Configuration
         id: deploy
         run: |
-          # Encode files
+          echo "📦 Encoding configuration files..."
+          
+          # Encode all configuration files
           COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-prod-monitoring.yml)
           PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
           LOKI_CFG_B64=$(base64 -w 0 loki/config/local-config.yaml)
@@ -325,14 +402,23 @@ jobs:
           RDS_CFG_B64=$(base64 -w 0 rds-exporter/config.yml)
           SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-monitoring.sh)
 
-          # Send command
+          echo "✅ Files encoded successfully"
+          echo "  Script size: ${#SCRIPT_BASE64} bytes"
+
+          # Send SSM command
+          echo "🚀 Sending deployment command to EC2..."
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy Monitoring Stack - ${{ github.sha }}" \
-            --timeout-seconds 1200 \
+            --comment "Deploy Enhanced Monitoring Stack (OIDC) - ${{ github.sha }}" \
+            --timeout-seconds 1500 \
             --parameters commands="[
-              \"echo 'Deployment Started' \",
+              \"echo '=== Enhanced Monitoring Stack Deployment Started (OIDC) ===' \",
+              \"echo 'Timestamp: '\$(date) \",
+              \"echo 'Instance ID: '\$(ec2-metadata --instance-id 2>/dev/null || echo 'N/A') \",
+              \"echo 'GitHub SHA: ${{ github.sha }}' \",
+              \"echo 'Auth Method: OIDC' \",
+              \"echo '' \",
               \"echo '${SCRIPT_BASE64}' | base64 -d > /tmp/deploy-monitoring.sh\",
               \"chmod +x /tmp/deploy-monitoring.sh\",
               \"export PARAMETER_PREFIX='${{ steps.config.outputs.parameter-prefix }}'\",
@@ -343,19 +429,31 @@ jobs:
               \"export LOKI_CFG_B64='${LOKI_CFG_B64}'\",
               \"export PROMTAIL_CFG_B64='${PROMTAIL_CFG_B64}'\",
               \"export RDS_CFG_B64='${RDS_CFG_B64}'\",
-              \"/tmp/deploy-monitoring.sh 2>&1 | tee /tmp/deploy.log\",
-              \"echo 'Deployment Exit Code:' \${PIPESTATUS[0]}\"
+              \"/tmp/deploy-monitoring.sh 2>&1 | tee /tmp/deploy-monitoring.log\",
+              \"DEPLOY_EXIT_CODE=\${PIPESTATUS[0]}\",
+              \"echo '' \",
+              \"echo '=== Deployment Finished ===' \",
+              \"echo 'Exit Code: '\$DEPLOY_EXIT_CODE \",
+              \"if [ \$DEPLOY_EXIT_CODE -ne 0 ]; then echo '📋 Recent logs:'; tail -100 /tmp/deploy-monitoring.log; fi\",
+              \"exit \$DEPLOY_EXIT_CODE\"
             ]" \
             --output text \
             --query "Command.CommandId")
 
-          echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
-          echo "✅ Command sent: ${COMMAND_ID}"
+          if [ -z "$COMMAND_ID" ]; then
+            echo "❌ Failed to send SSM command"
+            exit 1
+          fi
 
-      - name: 📊 Monitor Progress
+          echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
+          echo "✅ Command sent successfully: ${COMMAND_ID}"
+
+      - name: 📊 Monitor Deployment Progress
         run: |
           COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
-          MAX_WAIT=900
+          echo "📊 Monitoring deployment progress: ${COMMAND_ID}"
+          
+          MAX_WAIT=900  # 15분
           WAIT_TIME=0
           
           while [ $WAIT_TIME -lt $MAX_WAIT ]; do
@@ -365,17 +463,24 @@ jobs:
               --query "Status" \
               --output text 2>/dev/null || echo "Pending")
             
-            echo "⏳ Status: $STATUS (${WAIT_TIME}s)"
+            echo "⏳ Status: $STATUS (${WAIT_TIME}s elapsed)"
             
             if [ "$STATUS" = "Success" ]; then
-              echo "✅ Deployment completed!"
+              echo "✅ Enhanced monitoring deployment completed!"
               break
-            elif [ "$STATUS" = "Failed" ]; then
-              echo "❌ Deployment failed!"
+            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
+              echo "❌ Deployment failed with status: $STATUS"
+              echo "📋 Command output:"
               aws ssm get-command-invocation \
                 --command-id "$COMMAND_ID" \
                 --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
                 --query "StandardOutputContent" \
+                --output text
+              echo "📋 Error output:"
+              aws ssm get-command-invocation \
+                --command-id "$COMMAND_ID" \
+                --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
+                --query "StandardErrorContent" \
                 --output text
               exit 1
             fi
@@ -383,11 +488,39 @@ jobs:
             sleep 30
             WAIT_TIME=$((WAIT_TIME + 30))
           done
+          
+          if [ $WAIT_TIME -ge $MAX_WAIT ]; then
+            echo "❌ Deployment timed out after ${MAX_WAIT} seconds"
+            exit 1
+          fi
 
-          # Show final output
-          echo "📋 Final output:"
+          # Show final deployment output
+          echo "📋 Final deployment output:"
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
             --query "StandardOutputContent" \
             --output text
+
+      - name: 📋 Deployment Summary
+        run: |
+          echo "### 🎉 Enhanced Monitoring Stack Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Authentication:** 🔐 OIDC (Secure, no AWS keys required)" >> $GITHUB_STEP_SUMMARY
+          echo "**Instance ID:** \`${{ steps.config.outputs.ec2-instance-id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit SHA:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed Services:**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Prometheus (Metrics Collection & Alerting)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Grafana (Visualization & Dashboards)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Loki (Log Aggregation & Analysis)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Promtail (Log Collection Agent)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Node Exporter (System Metrics)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ RDS Exporter (Database Metrics)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Elasticsearch Exporter (Search Engine Metrics)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
+          echo "- All configuration files deployed with proper template processing" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment-specific values injected from SSM Parameter Store" >> $GITHUB_STEP_SUMMARY
+          echo "- Health checks performed and verified" >> $GITHUB_STEP_SUMMARY
