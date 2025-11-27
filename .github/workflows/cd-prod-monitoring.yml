@@ -404,7 +404,409 @@ jobs:
           echo "  - Elasticsearch Exporter: http://localhost:${ELASTIC_EXPORTER_PORT}/metrics"
           
           DEPLOY_SCRIPT
+      - name: Create Enhanced Deployment Script
+        run: |
+          cat << 'DEPLOY_SCRIPT' > /tmp/deploy-enhanced-monitoring.sh
+          #!/bin/bash
+          set -euo pipefail
+          echo "=== Starting Enhanced Monitoring Stack Deployment ==="
+          echo "Timestamp: $(date)"
+          echo "Parameter Prefix: ${PARAMETER_PREFIX}"
+          echo "Compose File Path: ${COMPOSE_FILE}"
 
+          # Check if Docker is installed
+          echo "🔍 Checking Docker installation..."
+          if ! command -v docker &> /dev/null; then
+            echo "❌ Docker not found. Installing Docker..."
+            
+            # Update system
+            sudo yum update -y
+            
+            # Install Docker
+            sudo amazon-linux-extras install docker -y
+            
+            # Start Docker service
+            sudo systemctl start docker
+            sudo systemctl enable docker
+            
+            # Add ec2-user to docker group
+            sudo usermod -a -G docker ec2-user
+            
+            # Start a new shell session to pick up group membership
+            echo "✅ Docker installed successfully"
+          else
+            echo "✅ Docker is already installed"
+          fi
+
+          # Ensure Docker is running
+          if ! sudo systemctl is-active --quiet docker; then
+            echo "🚀 Starting Docker service..."
+            sudo systemctl start docker
+          fi
+
+          # Check if Docker Compose is installed
+          echo "🔍 Checking Docker Compose installation..."
+          if ! command -v docker-compose &> /dev/null; then
+            echo "❌ Docker Compose not found. Installing Docker Compose..."
+            
+            # Install Docker Compose
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            
+            # Create symlink for easier access
+            sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+            
+            echo "✅ Docker Compose installed successfully"
+          else
+            echo "✅ Docker Compose is already installed"
+          fi
+
+          # Verify installations
+          echo "📋 Verifying installations..."
+          echo "Docker version: $(sudo docker --version)"
+          echo "Docker Compose version: $(docker-compose --version)"
+
+          # Function to load regular parameters
+          load_param() {
+            local param_name="$1"
+            local full_param_path="${PARAMETER_PREFIX}${param_name}"
+            echo "Loading parameter: ${full_param_path}" >&2
+            
+            local value
+            if value=$(aws ssm get-parameter \
+              --name "${full_param_path}" \
+              --query "Parameter.Value" \
+              --output text \
+              --region "${AWS_REGION}" 2>/dev/null); then
+              echo "$value"
+            else
+              echo "❌ Failed to load parameter: ${full_param_path}" >&2
+              return 1
+            fi
+          }
+
+          # Function to load secret parameters
+          load_secret() {
+            local param_name="$1"
+            local full_param_path="${PARAMETER_PREFIX}${param_name}"
+            echo "Loading secret: ${full_param_path}" >&2
+            
+            local value
+            if value=$(aws ssm get-parameter \
+              --name "${full_param_path}" \
+              --query "Parameter.Value" \
+              --output text \
+              --with-decryption \
+              --region "${AWS_REGION}" 2>/dev/null); then
+              echo "$value"
+            else
+              echo "❌ Failed to load secret: ${full_param_path}" >&2
+              return 1
+            fi
+          }
+
+          echo "📋 Loading environment variables from SSM..."
+          
+          # Load core monitoring parameters
+          GRAFANA_ADMIN_USER=$(load_param "/monitor/grafana_admin_user")
+          GRAFANA_ADMIN_PASSWORD=$(load_secret "/monitor/grafana_admin_password")
+          PROMETHEUS_PORT=9090
+          GRAFANA_PORT=3001
+          NODE_EXPORTER_PORT=9001
+          PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config")
+
+          # Load NEW monitoring parameters (RDS, Elasticsearch, Loki, Promtail)
+          RDS_EXPORTER_PORT=$(load_param "/monitor/rds_exporter_port")
+          ELASTIC_EXPORTER_PORT=$(load_param "/monitor/elastic_exporter_port")
+          LOKI_PORT=$(load_param "/monitor/loki_port")
+          PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config")
+          LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config")
+
+          # Load AWS region
+          AWS_REGION=$(load_param "/cd/aws_region")
+
+          # Load Elasticsearch connection info
+          ES_URI=$(load_param "/monitor/elasticsearch_uri")
+          ES_USERNAME=""
+          ES_PASSWORD=""
+
+          # Load service ports for Prometheus scraping
+          USER_SERVICE_PORT=8080
+          BOARD_SERVICE_PORT=8000
+
+          # Export all variables
+          export GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD PROMETHEUS_PORT GRAFANA_PORT
+          export NODE_EXPORTER_PORT PROMETHEUS_CONFIG_DIR RDS_EXPORTER_PORT ELASTIC_EXPORTER_PORT
+          export LOKI_PORT PROMTAIL_CONFIG_DIR LOKI_CONFIG_DIR
+          export AWS_REGION
+          export ES_URI ES_USERNAME ES_PASSWORD
+          export USER_SERVICE_PORT BOARD_SERVICE_PORT
+
+          # AWS 자격증명이 필요한 경우에만 export
+          if [ -n "${AWS_ACCESS_KEY_FROM_GITHUB:-}" ]; then
+            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_FROM_GITHUB}"
+          fi
+          if [ -n "${AWS_SECRET_ACCESS_KEY_FROM_GITHUB:-}" ]; then
+            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY_FROM_GITHUB}"
+          fi
+
+          echo "✅ Environment variables loaded successfully"
+
+          # Check if backend services are running (optional for enhanced stack)
+          echo "🔍 Checking backend services (optional for enhanced monitoring)..."
+          BACKEND_SERVICES_DETECTED=false
+
+          # Find Redis container (optional) - use sudo for docker commands
+          REDIS_CONTAINER=""
+          for container in $(sudo docker ps --format '{{.Names}}' 2>/dev/null || echo ""); do
+            if [[ "$container" == *"redis"* ]] && [[ "$container" != *"exporter"* ]]; then
+              REDIS_CONTAINER="$container"
+              echo "  ✅ Redis container detected: ${REDIS_CONTAINER}"
+              BACKEND_SERVICES_DETECTED=true
+              break
+            fi
+          done
+
+          # Find PostgreSQL container (optional) - use sudo for docker commands
+          POSTGRES_CONTAINER=""
+          for container in $(sudo docker ps --format '{{.Names}}' 2>/dev/null || echo ""); do
+            if [[ "$container" == *"postgres"* ]] && [[ "$container" != *"exporter"* ]]; then
+              POSTGRES_CONTAINER="$container"
+              echo "  ✅ PostgreSQL container detected: ${POSTGRES_CONTAINER}"
+              BACKEND_SERVICES_DETECTED=true
+              break
+            fi
+          done
+
+          if [ "$BACKEND_SERVICES_DETECTED" = false ]; then
+            echo "  ℹ️  No backend services detected - deploying monitoring only"
+          fi
+
+          # Navigate to compose directory
+          echo "📂 Navigating to compose directory: ${COMPOSE_FILE%/*}"
+          cd "${COMPOSE_FILE%/*}"
+
+          # Decode and save docker-compose file
+          echo "📝 Updating docker-compose file..."
+          echo "${COMPOSE_B64}" | base64 -d > docker-compose.ec2-prod-monitoring.yml
+
+          # Remove version from docker-compose file
+          sed -i '/^version:/d' docker-compose.ec2-prod-monitoring.yml
+
+          # Fix port configurations
+          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:${PROMETHEUS_PORT}|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:3000|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${RDS_EXPORTER_PORT}|${RDS_EXPORTER_PORT}:9042|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${ELASTIC_EXPORTER_PORT}|${ELASTIC_EXPORTER_PORT}:9114|g" docker-compose.ec2-prod-monitoring.yml
+
+          # Update environment variables
+          if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+            sed -i "s|\${AWS_ACCESS_KEY_ID}|${AWS_ACCESS_KEY_ID}|g" docker-compose.ec2-prod-monitoring.yml
+          fi
+          if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            sed -i "s|\${AWS_SECRET_ACCESS_KEY}|${AWS_SECRET_ACCESS_KEY}|g" docker-compose.ec2-prod-monitoring.yml
+          fi
+          sed -i "s|\${AWS_REGION}|${AWS_REGION}|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${ES_URI}|${ES_URI}|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${PROMETHEUS_CONFIG_DIR}|${PROMETHEUS_CONFIG_DIR}|g" docker-compose.ec2-prod-monitoring.yml
+
+          # Remove external service dependencies
+          echo "🔧 Removing external service dependencies..."
+          python3 -c "
+          import yaml
+          import sys
+          try:
+              with open('docker-compose.ec2-prod-monitoring.yml', 'r') as f:
+                  content = yaml.safe_load(f)
+              
+              if 'services' in content:
+                  # Remove depends_on for external services
+                  for service_name in content['services']:
+                      if 'depends_on' in content['services'][service_name]:
+                          depends_on = content['services'][service_name]['depends_on']
+                          if isinstance(depends_on, list):
+                              depends_on = [dep for dep in depends_on if dep not in ['redis', 'postgres', 'elasticsearch']]
+                              if not depends_on:
+                                  del content['services'][service_name]['depends_on']
+                              else:
+                                  content['services'][service_name]['depends_on'] = depends_on
+                          elif isinstance(depends_on, dict):
+                              for ext_svc in ['redis', 'postgres', 'elasticsearch']:
+                                  if ext_svc in depends_on:
+                                      del depends_on[ext_svc]
+                              if not depends_on:
+                                  del content['services'][service_name]['depends_on']
+              
+              with open('docker-compose.ec2-prod-monitoring.yml', 'w') as f:
+                  yaml.dump(content, f, default_flow_style=False, indent=2)
+              
+              print('✅ Successfully updated compose file dependencies')
+          except Exception as e:
+              print('⚠️ Python YAML parsing failed: {}'.format(e))
+              sys.exit(1)
+          "
+
+          # Update network configuration if backend services exist
+          if [ "$BACKEND_SERVICES_DETECTED" = true ] && [ -n "$REDIS_CONTAINER" ]; then
+            BACKEND_NETWORK=$(sudo docker inspect "${REDIS_CONTAINER}" --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)
+            echo "Backend network detected: ${BACKEND_NETWORK}"
+
+            echo "🔧 Updating network configuration..."
+            python3 -c "
+            import yaml
+            import sys
+            try:
+                with open('docker-compose.ec2-prod-monitoring.yml', 'r') as f:
+                    content = yaml.safe_load(f)
+                
+                if 'networks' in content:
+                    for net_name in content['networks']:
+                        if net_name in ['backend-net', 'database-net']:
+                            content['networks'][net_name] = {
+                                'external': True,
+                                'name': '${BACKEND_NETWORK}'
+                            }
+                
+                with open('docker-compose.ec2-prod-monitoring.yml', 'w') as f:
+                    yaml.dump(content, f, default_flow_style=False, indent=2)
+                
+                print('✅ Successfully updated network configuration')
+            except Exception as e:
+                print('⚠️ Network update failed: {}'.format(e))
+                sys.exit(1)
+            "
+          else
+            echo "ℹ️  No backend network integration needed"
+          fi
+
+          # Create configuration directories
+          echo "📁 Creating configuration directories..."
+          sudo mkdir -p ${PROMETHEUS_CONFIG_DIR}
+          sudo mkdir -p ${LOKI_CONFIG_DIR}
+          sudo mkdir -p ${PROMTAIL_CONFIG_DIR}
+
+          # Decode and save configuration files
+          echo "📝 Updating configuration files..."
+          
+          # Prometheus config
+          echo "${PROM_CFG_B64}" | base64 -d | sudo tee ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml > /dev/null
+          
+          # Loki config
+          echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null
+          
+          # Promtail config
+          echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null
+
+          # Set proper permissions
+          sudo chown -R ec2-user:ec2-user ${PROMETHEUS_CONFIG_DIR%/*}
+
+          # Process template variables in Prometheus config
+          echo "🔧 Processing Prometheus template variables..."
+          sudo sed -i \
+              -e "s/{{USER_SERVICE_PORT}}/${USER_SERVICE_PORT}/g" \
+              -e "s/{{BOARD_SERVICE_PORT}}/${BOARD_SERVICE_PORT}/g" \
+              -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
+              -e "s/{{RDS_EXPORTER_PORT}}/${RDS_EXPORTER_PORT}/g" \
+              -e "s/{{ELASTIC_EXPORTER_PORT}}/${ELASTIC_EXPORTER_PORT}/g" \
+              -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
+              "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+
+          # Validate docker-compose file
+          echo "🔍 Validating docker-compose file syntax..."
+          if ! docker-compose -f docker-compose.ec2-prod-monitoring.yml config >/dev/null 2>&1; then
+            echo "❌ Invalid docker-compose file"
+            docker-compose -f docker-compose.ec2-prod-monitoring.yml config 2>&1 || true
+            exit 1
+          fi
+
+          # Stop existing monitoring services
+          echo "🛑 Stopping existing monitoring services..."
+          MONITORING_CONTAINERS="wealist-prometheus wealist-grafana wealist-node-exporter wealist-loki wealist-promtail wealist-rds-exporter wealist-elasticsearch-exporter"
+          
+          for container in $MONITORING_CONTAINERS; do
+            if sudo docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
+              echo "  🛑 Stopping and removing ${container}..."
+              sudo docker stop "${container}" 2>/dev/null || true
+              sudo docker rm "${container}" 2>/dev/null || true
+            fi
+          done
+
+          # Deploy enhanced monitoring services
+          echo "🚀 Deploying enhanced monitoring services..."
+          if ! sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml up -d; then
+            echo "❌ Failed to start services"
+            sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml logs --tail=50
+            exit 1
+          fi
+
+          # Wait for services to be ready
+          echo "⏳ Waiting for services to start..."
+          sleep 45
+
+          # Health check function
+          health_check() {
+            local service_name="$1"
+            local port="$2"
+            local endpoint="${3:-/}"
+            local max_attempts=12
+            local attempt=1
+            
+            echo "🔍 Health checking ${service_name} on port ${port}${endpoint}..."
+            
+            while [ $attempt -le $max_attempts ]; do
+              local http_code
+              if http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "http://localhost:${port}${endpoint}" 2>/dev/null); then
+                if echo "$http_code" | grep -q "200\|302\|404"; then
+                  echo "  ✅ ${service_name} is responding (HTTP ${http_code})"
+                  return 0
+                fi
+              fi
+              
+              echo "  ⏳ ${service_name} not ready yet (${attempt}/${max_attempts})"
+              sleep 15
+              ((attempt++))
+            done
+            
+            echo "  ❌ ${service_name} health check failed"
+            return 1
+          }
+
+          # Perform health checks
+          echo "🏥 Performing health checks..."
+          HEALTH_CHECK_FAILED=false
+
+          # Critical services
+          health_check "prometheus" "${PROMETHEUS_PORT}" "/-/ready" || health_check "prometheus" "${PROMETHEUS_PORT}" "/" || HEALTH_CHECK_FAILED=true
+          health_check "grafana" "${GRAFANA_PORT}" "/api/health" || health_check "grafana" "${GRAFANA_PORT}" "/login" || HEALTH_CHECK_FAILED=true
+          health_check "loki" "3100" "/ready" || echo "  ⚠️  Loki not responding"
+
+          # Exporters (non-critical)
+          health_check "node-exporter" "${NODE_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Node exporter not responding"
+          health_check "rds-exporter" "${RDS_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  RDS exporter not responding"
+          health_check "elasticsearch-exporter" "${ELASTIC_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Elasticsearch exporter not responding"
+
+          if [ "$HEALTH_CHECK_FAILED" = true ]; then
+            echo "❌ Critical monitoring services are not responding"
+            exit 1
+          fi
+
+          echo ""
+          echo "🎉 Enhanced Monitoring Stack deployment completed successfully!"
+          if [ "$BACKEND_SERVICES_DETECTED" = true ]; then
+            echo "✅ Backend services are still running and unaffected"
+          else
+            echo "ℹ️  Monitoring stack deployed independently"
+          fi
+          echo "📊 Services available at:"
+          echo "  - Prometheus: http://localhost:${PROMETHEUS_PORT}"
+          echo "  - Grafana: http://localhost:${GRAFANA_PORT}"
+          echo "  - Loki: http://localhost:3100"
+          echo "  - Node Exporter: http://localhost:${NODE_EXPORTER_PORT}/metrics"
+          echo "  - RDS Exporter: http://localhost:${RDS_EXPORTER_PORT}/metrics"
+          echo "  - Elasticsearch Exporter: http://localhost:${ELASTIC_EXPORTER_PORT}/metrics"
+          
+          DEPLOY_SCRIPT
       - name: Deploy Enhanced Monitoring Stack via SSM
         id: deploy
         run: |
@@ -465,4 +867,4 @@ jobs:
           echo "✅ Command sent successfully"
           echo "📝 Command ID: ${COMMAND_ID}"
 
-      # 나머지 steps는 동일하므로 생략...
+      
