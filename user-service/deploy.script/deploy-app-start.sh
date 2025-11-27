@@ -80,7 +80,7 @@ export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 
 # OAuth 및 S3 설정
 export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
-export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google-client-secret")
+export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
 OAUTH_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
 export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google"
 export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")

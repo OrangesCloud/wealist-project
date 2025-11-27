@@ -118,7 +118,7 @@ services:
 
     healthcheck:
       # 💡 [수정] Nginx가 기본 경로에 성공적으로 접근하는지 확인하도록 변경
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/health"]
       interval: 10s
       timeout: 3s
       retries: 3
