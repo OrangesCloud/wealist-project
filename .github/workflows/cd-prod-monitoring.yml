@@ -31,59 +31,58 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
-          role-session-name: GitHubActions-Monitoring-${{ github.run_id }}
           aws-region: ap-northeast-2
 
       - name: 🔍 Verify OIDC and Load Configuration
         id: config
         run: |
           echo "🔍 Verifying OIDC connection and loading configuration..."
-          
-          # AWS Identity 확인
-          echo "Current AWS Identity:"
+
+          # OIDC Role Assume 성공 여부와 신원 확인 (수정 없음, 유지)
+          echo "Current AWS Identity (Check for assumed-role/):"
           aws sts get-caller-identity
-          
+
           # Load base configuration with error handling
           set +e
-          
+
           EC2_ID=$(aws ssm get-parameter \
             --name "/wealist/prod/cd/ec2_instance_id" \
             --query "Parameter.Value" \
             --output text \
             --with-decryption 2>&1)
-          
+
           COMPOSE_DIR=$(aws ssm get-parameter \
             --name "/wealist/prod/monitor/compose_file_path" \
             --query "Parameter.Value" \
             --output text 2>&1)
-          
+
           PARAM_PREFIX=$(aws ssm get-parameter \
             --name "/wealist/prod/cd/parameter_prefix" \
             --query "Parameter.Value" \
             --output text 2>&1)
-          
+
           set -e
-          
+
           # Handle parameter not found cases with defaults
           if [[ "$EC2_ID" == *"ParameterNotFound"* ]] || [ -z "$EC2_ID" ]; then
             echo "❌ EC2 Instance ID parameter not found: /wealist/prod/cd/ec2_instance_id"
             exit 1
           fi
-          
+
           if [[ "$COMPOSE_DIR" == *"ParameterNotFound"* ]]; then
             echo "⚠️ Using default compose directory"
             COMPOSE_DIR="/home/ubuntu/wealist/docker/compose"
           fi
-          
+
           if [[ "$PARAM_PREFIX" == *"ParameterNotFound"* ]]; then
             echo "⚠️ Using default parameter prefix"
             PARAM_PREFIX="/wealist/prod"
           fi
-          
+
           echo "ec2-instance-id=$EC2_ID" >> $GITHUB_OUTPUT
           echo "compose-file-path=$COMPOSE_DIR" >> $GITHUB_OUTPUT
           echo "parameter-prefix=$PARAM_PREFIX" >> $GITHUB_OUTPUT
-          
+
           echo "✅ Configuration loaded:"
           echo "  EC2 Instance ID: $EC2_ID"
           echo "  Compose Directory: $COMPOSE_DIR"
@@ -94,7 +93,7 @@ jobs:
           cat << 'DEPLOY_SCRIPT' > /tmp/deploy-monitoring.sh
           #!/bin/bash
           set -euo pipefail
-          
+
           echo "=== Enhanced Monitoring Stack Deployment (OIDC) ==="
           echo "Timestamp: $(date)"
           echo "AWS Region: ${AWS_REGION}"
@@ -109,17 +108,17 @@ jobs:
           # STEP 1: CLEANUP EXISTING MONITORING SERVICES
           # =============================================================================
           echo "🧹 Cleaning up existing monitoring services..."
-          
+
           # Stop and remove monitoring containers
           sudo docker stop $(sudo docker ps -aq --filter "name=wealist-" 2>/dev/null) 2>/dev/null || echo "No containers to stop"
           sudo docker rm $(sudo docker ps -aq --filter "name=wealist-" 2>/dev/null) 2>/dev/null || echo "No containers to remove"
-          
+
           # Remove monitoring networks
           sudo docker network rm wealist-monitoring-net 2>/dev/null || echo "Network doesn't exist"
-          
+
           # Clean up volumes
           sudo docker volume prune -f || true
-          
+
           echo "✅ Cleanup completed"
 
           # =============================================================================
@@ -179,7 +178,7 @@ jobs:
           LOKI_PORT=$(load_param "/monitor/loki_port" "3100")
           RDS_EXPORTER_PORT=$(load_param "/monitor/rds_exporter_port" "9042")
           ELASTIC_EXPORTER_PORT=$(load_param "/monitor/elastic_exporter_port" "9114")
-          
+
           PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config" "/home/ubuntu/wealist/prometheus/config")
           LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config" "/home/ubuntu/wealist/loki/config")
           PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config" "/home/ubuntu/wealist/promtail/config")
@@ -198,12 +197,12 @@ jobs:
           # STEP 3: SETUP DIRECTORY STRUCTURE
           # =============================================================================
           echo "📁 Setting up directory structure..."
-          
+
           # Navigate to compose directory
           COMPOSE_DIR="${COMPOSE_FILE%/*}"
           sudo mkdir -p "${COMPOSE_DIR}"
           cd "${COMPOSE_DIR}"
-          
+
           # Create all monitoring directories
           sudo mkdir -p /home/ubuntu/wealist/{prometheus/{config,data},grafana/{data,logs},loki/{config,data},promtail/config,rds-exporter/config}
 
@@ -220,13 +219,13 @@ jobs:
           # STEP 4: DEPLOY CONFIGURATION FILES
           # =============================================================================
           echo "📝 Deploying configuration files..."
-          
+
           # Deploy Docker Compose file
           echo "${COMPOSE_B64}" | base64 -d > docker-compose.yml
-          
+
           # Deploy Prometheus configuration
           echo "${PROM_CFG_B64}" | base64 -d | sudo tee ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml > /dev/null
-          
+
           # Process Prometheus template variables
           echo "🔧 Processing Prometheus configuration template..."
           sudo sed -i \
@@ -237,13 +236,13 @@ jobs:
               -e "s/{{ELASTIC_EXPORTER_PORT}}/${ELASTIC_EXPORTER_PORT}/g" \
               -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
               "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
-          
+
           # Deploy Loki configuration
           echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null
-          
+
           # Deploy Promtail configuration
           echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null
-          
+
           # Deploy RDS Exporter configuration
           echo "${RDS_CFG_B64}" | base64 -d | sudo tee ${RDS_CONFIG_DIR}/config.yml > /dev/null
 
@@ -272,7 +271,7 @@ jobs:
           # STEP 5: VALIDATE CONFIGURATION
           # =============================================================================
           echo "🔍 Validating configuration..."
-          
+
           # Debug information
           echo "📋 Debug Information:"
           echo "Current directory: $(pwd)"
@@ -301,7 +300,7 @@ jobs:
           # STEP 6: START MONITORING SERVICES
           # =============================================================================
           echo "🚀 Starting monitoring services..."
-          
+
           # Pull images first
           echo "📦 Pulling Docker images..."
           sudo docker-compose pull
@@ -323,7 +322,7 @@ jobs:
           # STEP 7: VERIFY DEPLOYMENT
           # =============================================================================
           echo "📋 Verifying deployment..."
-          
+
           echo "Container status:"
           sudo docker ps -a
 
@@ -334,9 +333,9 @@ jobs:
           # Health checks for critical services
           echo ""
           echo "🏥 Performing health checks..."
-          
+
           HEALTH_CHECK_FAILED=false
-          
+
           # Check Prometheus
           if curl -f -m 10 http://localhost:${PROMETHEUS_PORT}/-/ready >/dev/null 2>&1; then
             echo "✅ Prometheus is healthy"
@@ -344,7 +343,7 @@ jobs:
             echo "⚠️ Prometheus health check failed"
             HEALTH_CHECK_FAILED=true
           fi
-          
+
           # Check Grafana
           if curl -f -m 10 http://localhost:${GRAFANA_PORT}/api/health >/dev/null 2>&1; then
             echo "✅ Grafana is healthy"
@@ -352,7 +351,7 @@ jobs:
             echo "⚠️ Grafana health check failed"
             HEALTH_CHECK_FAILED=true
           fi
-          
+
           # Check Node Exporter
           if curl -f -m 10 http://localhost:${NODE_EXPORTER_PORT}/metrics >/dev/null 2>&1; then
             echo "✅ Node Exporter is healthy"
@@ -386,14 +385,25 @@ jobs:
           echo "  - View logs: sudo docker-compose logs -f"
           echo "  - Restart services: sudo docker-compose restart"
           echo "  - Stop services: sudo docker-compose down"
-          
+
           DEPLOY_SCRIPT
 
       - name: 🚀 Deploy via SSM with Complete Configuration
         id: deploy
         run: |
           echo "📦 Encoding configuration files..."
-          
+
+          # OIDC 신원 재확인 로직 추가 🟢
+          echo "🚨 Deployment Check: Current AWS Principal:"
+          PRINCIPAL_ARN=$(aws sts get-caller-identity --query "Arn" --output text)
+          if [[ "$PRINCIPAL_ARN" != *"assumed-role/wealist-prod-github-actions-role"* ]]; then
+            echo "❌ ERROR: IAM Role (OIDC) Assume Failed or Overridden!"
+            echo "   Expected assumed-role, but found: $PRINCIPAL_ARN"
+            exit 1
+          fi
+          echo "✅ OIDC Role Verified: $PRINCIPAL_ARN"
+          echo ""
+
           # Encode all configuration files
           COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-prod-monitoring.yml)
           PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
@@ -452,10 +462,10 @@ jobs:
         run: |
           COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
           echo "📊 Monitoring deployment progress: ${COMMAND_ID}"
-          
+
           MAX_WAIT=900  # 15분
           WAIT_TIME=0
-          
+
           while [ $WAIT_TIME -lt $MAX_WAIT ]; do
             STATUS=$(aws ssm get-command-invocation \
               --command-id "$COMMAND_ID" \
@@ -488,7 +498,7 @@ jobs:
             sleep 30
             WAIT_TIME=$((WAIT_TIME + 30))
           done
-          
+
           if [ $WAIT_TIME -ge $MAX_WAIT ]; then
             echo "❌ Deployment timed out after ${MAX_WAIT} seconds"
             exit 1
