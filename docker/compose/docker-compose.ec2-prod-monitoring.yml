@@ -80,10 +80,10 @@ services:
     command: -config.file=/etc/loki/local-config.yaml
 
     ports:
-      - "${LOKI_PORT:-3100}:3100"
+      - "${LOKI_PORT}:3100"
 
     volumes:
-      - /home/ubuntu/wealist/loki/config:/etc/loki:ro
+      - ${LOKI_CONFIG_DIR}:/etc/loki:ro
       - /home/ubuntu/wealist/loki/data:/loki
 
     networks:
@@ -104,7 +104,7 @@ services:
     hostname: promtail
 
     volumes:
-      - /home/ubuntu/wealist/promtail/config:/etc/promtail:ro
+      - ${PROMTAIL_CONFIG_DIR}:/etc/promtail:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/log:/var/log:ro
@@ -120,18 +120,18 @@ services:
       - loki
 
   rds-exporter:
-    image: ${RDS_EXPORTER_IMAGE:-qonto/prometheus-rds-exporter:latest}
+    image: ${RDS_EXPORTER_IMAGE}
     container_name: wealist-rds-exporter
     hostname: rds-exporter
     
     environment:
-      - AWS_DEFAULT_REGION=${AWS_REGION:-ap-northeast-2}
+      - AWS_DEFAULT_REGION=${AWS_REGION}
 
     volumes:
       - /etc/localtime:/etc/localtime:ro
       
     ports:
-      - "${RDS_EXPORTER_PORT:-9042}:9042"
+      - "${RDS_EXPORTER_PORT}:9042"
       
     networks:
       - monitoring-net
@@ -143,7 +143,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
 
   elasticsearch-exporter:
     image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
@@ -151,10 +151,10 @@ services:
     hostname: elasticsearch-exporter
     
     command:
-      - --es.uri=${ES_URI:-http://localhost:9200}
+      - --es.uri=${ES_URI}
       
     ports:
-      - "${ELASTIC_EXPORTER_PORT:-9114}:9114"
+      - "${ELASTIC_EXPORTER_PORT}:9114"
       
     networks:
       - monitoring-net
@@ -166,7 +166,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
 
   node-exporter:
     image: prom/node-exporter:latest
@@ -185,7 +185,7 @@ services:
       - /:/rootfs:ro
       
     ports:
-      - "${NODE_EXPORTER_PORT:-9001}:9100"
+      - "${NODE_EXPORTER_PORT}:9100"
       
     networks:
       - monitoring-net
@@ -203,5 +203,3 @@ networks:
   monitoring-net:
     driver: bridge
     name: wealist-monitoring-net
-
-# volumes 섹션 제거 (로컬 디렉토리 사용하므로 불필요)
