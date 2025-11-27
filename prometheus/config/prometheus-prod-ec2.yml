@@ -1,5 +1,5 @@
 global:
-  scrape_interval: 15s
+  scrape_interval: 30s
   evaluation_interval: 15s
 
 scrape_configs:
@@ -49,110 +49,52 @@ scrape_configs:
 
   # --- [User/Board Service 동적 수집] ---
 
-  # # 8080 포트용 job
-  # - job_name: 'user-8080'
-  #   metrics_path: '/actuator/prometheus'
-  #   scrape_interval: 15s
-  #   ec2_sd_configs:
-  #     - region: ap-northeast-2
-  #       # access_key, secret_key는 EC2에 IAM 역할이 있으면 생략 가능
-  #       port: 443 # 실제 스크래핑할 포트
-    
-  #   relabel_configs:
-  #     - source_labels: [__meta_ec2_instance_id]
-  #       target_label: instance
-      
-  #     - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
-  #       target_label: aws_autoscaling_groupName
-      
-  #     # 특정 오토스케일링 그룹만 필터링 (선택사항)
-  #     - action: keep
-  #       regex: 'wealist-prod-backend-asg'  # 실제 ASG 이름으로 변경
-  #       source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
-      
-  #     - target_label: service_port
-  #       replacement: '443'
-  #       action: replace
+  - job_name: 'wealist-user-service'
+    scrape_interval: 15s
 
-  # # 8081 포트용 job  
-  # - job_name: 'board-8000'
-  #   metrics_path: '/metrics'
-  #   scrape_interval: 15s
-  #   ec2_sd_configs:
-  #     - region: ap-northeast-2
-  #       port: 443  # 실제 스크래핑할 포트
-    
-  #   relabel_configs:
-  #     - source_labels: [__meta_ec2_instance_id]
-  #       target_label: instance
-      
-  #     - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
-  #       target_label: aws_autoscaling_groupName
-      
-  #     - action: keep
-  #       regex: 'wealist-prod-backend-asg'  # 실제 ASG 이름으로 변경
-  #       source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
-      
-  #     - target_label: service_port
-  #       replacement: '443'
-  #       action: replace
-  - job_name: 'wealist-backend-app-services'
-  # 스크랩 주기는 애플리케이션에 맞게 설정 (예: 15초)
-    scrape_interval: 15s 
-  
     ec2_sd_configs:
       - region: ap-northeast-2
-        # Private IP를 사용하여 통신하므로 초기 포트는 80으로 두거나 제거해도 무방합니다.
-        port: 8080 
         filters:
-          # Backend ASG 이름 태그를 필터링합니다.
-          # Terraform 코드에서 ASG 태그를 `Name = "${var.name_prefix}-backend-asg"`로 설정했으므로
-          # AWS의 자동 태그인 `aws:autoscaling:groupName`을 사용합니다.
           - name: tag:aws:autoscaling:groupName
-            values: ['${var.name_prefix}-backend-asg'] # 👈 ASG 이름 반영
+            values: ['wealist-prod-backend-asg']
           - name: instance-state-name
             values: [running]
-            
-    relabel_configs:
-    
-    # 1. 🛑 필터링: 해당 ASG 인스턴스만 유지
-    - action: keep
-      regex: '${var.name_prefix}-backend-asg'
-      source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
-      
-    # 2. 🎯 User Service (8080) 타겟 구성 (첫 번째 타겟)
-    - source_labels: [__meta_ec2_private_ip]
-      target_label: __address__
-      regex: '(.+)'
-      replacement: '$1:8080' # Private IP:8080
-      action: replace
-      
-    - target_label: __metrics_path__
-      replacement: '/actuator/prometheus' # User Service의 메트릭 경로
-      action: replace
-      
-    - target_label: service_name
-      replacement: 'user-service'
-      action: replace
 
-    # 3. 🎯 Board Service (8000) 타겟 복제 및 구성 (두 번째 타겟)
-    #    (복제된 타겟에 대해 __address__를 덮어씁니다.)
-    - source_labels: [__meta_ec2_private_ip]
-      target_label: __address__
-      regex: '(.+)'
-      replacement: '$1:8000' # Private IP:8000
-      action: replace
-      
-    - target_label: __metrics_path__
-      replacement: '/metrics' # Board Service의 메트릭 경로 (경로가 다를 경우 수정)
-      action: replace
-      
-    - target_label: service_name
-      replacement: 'board-service' 
-      action: replace
-      
-    # 4. 🏷️ 공통 레이블 추가
-    - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
-      target_label: aws_asg_name
-    - source_labels: [__meta_ec2_instance_id]
-      target_label: ec2_instance_id
+    relabel_configs:
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: __address__
+        replacement: '$1:8080'
+
+      - target_label: __metrics_path__
+        replacement: '/actuator/prometheus'
+
+      - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
+        target_label: aws_asg_name
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: instance_id
+
+  - job_name: 'wealist-board-service'
+    scrape_interval: 15s
+
+    ec2_sd_configs:
+      - region: ap-northeast-2
+        filters:
+          - name: tag:aws:autoscaling:groupName
+            values: ['wealist-prod-backend-asg']
+          - name: instance-state-name
+            values: [running]
+
+    relabel_configs:
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: __address__
+        replacement: '$1:8000'
+
+      - target_label: __metrics_path__
+        replacement: '/metrics'
+
+      - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
+        target_label: aws_asg_name
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: instance_id
+
+
