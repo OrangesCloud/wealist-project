@@ -190,13 +190,33 @@ jobs:
 
           echo "✅ Environment variables loaded successfully"
 
-          # Navigate to compose directory
-          echo "📂 Navigating to compose directory: ${COMPOSE_FILE%/*}"
-          cd "${COMPOSE_FILE%/*}"
+          # Create and navigate to compose directory
+          COMPOSE_DIR="${COMPOSE_FILE%/*}"
+          echo "📂 Creating compose directory: ${COMPOSE_DIR}"
+          
+          # Create directory structure if it doesn't exist
+          sudo mkdir -p "${COMPOSE_DIR}"
+          
+          # Change to the directory
+          cd "${COMPOSE_DIR}"
+          
+          # Verify we're in the right place
+          echo "📍 Current directory: $(pwd)"
+          echo "📋 Directory contents:"
+          ls -la || echo "Directory is empty"
 
           # Decode and save docker-compose file
-          echo "📝 Updating docker-compose file..."
+          echo "📝 Creating docker-compose file..."
           echo "${COMPOSE_B64}" | base64 -d > docker-compose.ec2-prod-monitoring.yml
+
+          # Verify file was created
+          if [ ! -f "docker-compose.ec2-prod-monitoring.yml" ]; then
+            echo "❌ Failed to create docker-compose file"
+            exit 1
+          fi
+
+          echo "✅ Docker-compose file created successfully"
+          echo "📋 File size: $(wc -l < docker-compose.ec2-prod-monitoring.yml) lines"
 
           # Remove version from docker-compose file
           sed -i '/^version:/d' docker-compose.ec2-prod-monitoring.yml
@@ -237,8 +257,11 @@ jobs:
           # Promtail config
           echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null
 
-          # Set proper permissions
-          sudo chown -R ec2-user:ec2-user ${PROMETHEUS_CONFIG_DIR%/*}
+          # Set proper permissions for configuration files
+          sudo chown -R ${USER}:${USER} ${PROMETHEUS_CONFIG_DIR%/*} 2>/dev/null || true
+          
+          # Also ensure the current user can access the compose directory
+          sudo chown -R ${USER}:${USER} "${COMPOSE_DIR}" 2>/dev/null || true
 
           # Process template variables in Prometheus config
           echo "🔧 Processing Prometheus template variables..."
@@ -251,15 +274,24 @@ jobs:
               -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
               "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
 
+          # Verify configuration files were created
+          echo "📋 Verifying configuration files:"
+          echo "  Prometheus config: $([ -f "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml" ] && echo "✅ Found" || echo "❌ Missing")"
+          echo "  Loki config: $([ -f "${LOKI_CONFIG_DIR}/local-config.yaml" ] && echo "✅ Found" || echo "❌ Missing")"
+          echo "  Promtail config: $([ -f "${PROMTAIL_CONFIG_DIR}/promtail.yml" ] && echo "✅ Found" || echo "❌ Missing")"
+
           # Debug: Show docker-compose file content
-          echo "🔍 Docker-compose file content:"
-          head -20 docker-compose.ec2-prod-monitoring.yml
+          echo "🔍 Docker-compose file content (first 30 lines):"
+          head -30 docker-compose.ec2-prod-monitoring.yml
 
           # Validate docker-compose file
           echo "🔍 Validating docker-compose file syntax..."
           if ! sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml config >/dev/null 2>&1; then
             echo "❌ Invalid docker-compose file"
+            echo "📋 Validation errors:"
             sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml config 2>&1 || true
+            echo "📋 Full docker-compose file content:"
+            cat docker-compose.ec2-prod-monitoring.yml
             exit 1
           fi
 
@@ -270,16 +302,16 @@ jobs:
           
           # Pull images first
           echo "📥 Pulling Docker images..."
-          sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml pull
+          sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml pull || echo "⚠️ Some images may not be available, continuing..."
 
           # Start services
           if ! sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml up -d; then
             echo "❌ Failed to start services"
             echo "📋 Docker-compose logs:"
-            sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml logs --tail=50
+            sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml logs --tail=50 || true
             echo "📋 Docker system info:"
-            sudo docker system df
-            sudo docker ps -a
+            sudo docker system df || true
+            sudo docker ps -a || true
             exit 1
           fi
 
