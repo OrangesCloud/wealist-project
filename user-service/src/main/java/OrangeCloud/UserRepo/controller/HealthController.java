@@ -3,6 +3,7 @@ package OrangeCloud.UserRepo.controller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,6 +21,9 @@ public class HealthController {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
 
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> health() {
@@ -42,6 +46,19 @@ public class HealthController {
                 }
             } catch (Exception e) {
                 checks.put("database", "DOWN - " + e.getMessage());
+            }
+
+            // Redis 연결 확인
+            if (redisTemplate != null) {
+                try {
+                    redisTemplate.getConnectionFactory().getConnection().ping();
+                    checks.put("redis", "UP");
+                } catch (Exception e) {
+                    checks.put("redis", "DOWN - " + e.getMessage());
+                    logger.warn("Redis health check failed", e);
+                }
+            } else {
+                checks.put("redis", "NOT_CONFIGURED");
             }
 
             response.put("checks", checks);
