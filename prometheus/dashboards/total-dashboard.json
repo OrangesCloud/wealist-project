@@ -1374,7 +1374,7 @@
         },
         {
           "editorMode": "code",
-          "expr": "sum(rate(process_cpu_seconds_total{job=\"wealist-board\"}[5m])) * 100",
+          "expr": "sum(rate(process_cpu_seconds_total{job=\"wealist-board-service\"}[5m])) * 100",
           "hide": false,
           "legendFormat": "Board Service CPU (Go)",
           "range": true,
