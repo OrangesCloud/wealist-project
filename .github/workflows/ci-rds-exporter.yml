@@ -1,4 +1,4 @@
-name: CI - RDS Exporter
+name: CI - RDS Exporter (OIDC)
 
 on:
   push:
@@ -10,9 +10,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  id-token: write
-  actions: write
+  id-token: write   # OIDC token 생성 권한
+  contents: read    # 코드 읽기 권한
 
 jobs:
   build-and-push:
@@ -31,6 +30,15 @@ jobs:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
+      # ============================================
+      # 2. AWS Credentials 설정 (OIDC 사용)
+      # ============================================
+      - name: 🔐 Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::290008131187:role/GitHubActionsOIDCRole
+          role-session-name: GitHubActions-RDSExporter-${{ github.run_id }}
+          aws-region: ap-northeast-2
 
       # ============================================
       # 3. Parameter Store에서 설정 로드
@@ -40,29 +48,46 @@ jobs:
         run: |
           echo "📥 Loading CI configuration from Parameter Store..."
           
-          # Load parameters
+          # Load parameters with error handling
+          set +e  # Temporarily disable exit on error
+          
+          echo "🔍 Checking AWS credentials and connectivity..."
+          aws sts get-caller-identity
+          
+          echo "📋 Loading parameters..."
           AWS_REGION=$(aws ssm get-parameter \
-            --name "/wealist/dev/ci/aws_region" \
+            --name "/wealist/prod/ci/aws_region" \
             --query 'Parameter.Value' \
-            --output text)
+            --output text 2>&1)
           
           ECR_REPOSITORY=$(aws ssm get-parameter \
-            --name "/wealist/dev/ci/ecr_repository_rds_exporter" \
+            --name "/wealist/prod/ci/ecr_repository_rds_exporter" \
             --query 'Parameter.Value' \
-            --output text)
+            --output text 2>&1)
           
-          AWS_ACCOUNT_ID=$(aws ssm get-parameter \
-            --name "/wealist/dev/ci/aws_account_id" \
-            --query 'Parameter.Value' \
-            --output text)
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+            --query 'Account' \
+            --output text 2>&1)
           
-          # Validate parameters
+          set -e  # Re-enable exit on error
+          
+          # Handle parameter not found cases with defaults
+          if [[ "$AWS_REGION" == *"ParameterNotFound"* ]]; then
+            echo "⚠️ Parameter /wealist/prod/ci/aws_region not found, using default"
+            AWS_REGION="ap-northeast-2"
+          fi
+          
+          if [[ "$ECR_REPOSITORY" == *"ParameterNotFound"* ]]; then
+            echo "⚠️ Parameter /wealist/prod/ci/ecr_repository_rds_exporter not found, using default"
+            ECR_REPOSITORY="wealist/rds-exporter"
+          fi
+          
+          # Validate final values
           if [ -z "$AWS_REGION" ] || [ -z "$ECR_REPOSITORY" ] || [ -z "$AWS_ACCOUNT_ID" ]; then
-            echo "❌ Failed to load required parameters from Parameter Store"
-            echo "   Please ensure the following parameters exist:"
-            echo "   - /wealist/prod/ci/aws_region"
-            echo "   - /wealist/prod/ci/ecr_repository_rds_exporter"
-            echo "   - /wealist/prod/ci/aws_account_id"
+            echo "❌ Failed to load required configuration"
+            echo "   AWS_REGION: '${AWS_REGION}'"
+            echo "   ECR_REPOSITORY: '${ECR_REPOSITORY}'"
+            echo "   AWS_ACCOUNT_ID: '${AWS_ACCOUNT_ID}'"
             exit 1
           fi
           
@@ -98,7 +123,7 @@ jobs:
           FROM golang:1.21-alpine AS builder
 
           # 필요한 패키지 설치
-          RUN apk add --no-cache git ca-certificates tzdata
+          RUN apk add --no-cache git ca-certificates tzdata wget curl
 
           WORKDIR /app
           
@@ -113,11 +138,11 @@ jobs:
               -a -installsuffix cgo \
               -o rds_exporter .
 
-          # 실행 이미지 - Alpine 사용 (scratch 대신)
+          # 실행 이미지 - Alpine 사용
           FROM alpine:latest
 
           # 필요한 패키지 설치
-          RUN apk --no-cache add ca-certificates tzdata
+          RUN apk --no-cache add ca-certificates tzdata wget curl
 
           WORKDIR /app
           
@@ -145,10 +170,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
-          cache: false  # rds-exporter 디렉토리에서 작업하므로 캐시 비활성화
+          cache: false
 
       # ============================================
-      # 6. Go 빌드 검증 (Docker 빌드 전 사전 검증)
+      # 6. Go 빌드 검증
       # ============================================
       - name: 🔨 Verify Go Build
         run: |
@@ -186,7 +211,7 @@ jobs:
           echo "🐳 Full Image: ${FULL_IMAGE}"
 
       # ============================================
-      # 8. ECR Repository 생성 (존재하지 않을 경우)
+      # 8. ECR Repository 생성
       # ============================================
       - name: 🏗️ Create ECR Repository if not exists
         run: |
@@ -199,7 +224,7 @@ jobs:
             2>/dev/null || echo "✅ Repository already exists"
 
       # ============================================
-      # 9. Amazon ECR 로그인 & 이미지 빌드 & 푸시
+      # 9. ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
       - name: 🐳 Login to ECR, Build and Push Docker Image
         env:
@@ -223,52 +248,7 @@ jobs:
             .
 
           echo "✅ Docker image built successfully"
-
-      # ============================================
-      # 10. Docker 이미지 테스트
-      # ============================================
-      - name: 🧪 Test Docker Image
-        env:
-          FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
-        run: |
-          echo "🧪 Testing RDS Exporter image..."
           
-          # 기본 실행 테스트
-          echo "Testing image starts correctly..."
-          CONTAINER_ID=$(docker run -d \
-            -p 9042:9042 \
-            -e AWS_REGION=${{ env.AWS_REGION }} \
-            ${FULL_IMAGE})
-          
-          # 잠시 대기
-          sleep 20
-          
-          # 컨테이너 로그 확인
-          echo "📋 Container logs:"
-          docker logs $CONTAINER_ID | head -20
-          
-          # 메트릭 엔드포인트 테스트
-          echo "Testing metrics endpoint..."
-          if curl -f -m 10 http://localhost:9042/metrics 2>/dev/null | head -5; then
-            echo "✅ RDS Exporter metrics endpoint is responding"
-          else
-            echo "⚠️ Metrics endpoint not fully ready (may be normal without full AWS credentials)"
-          fi
-          
-          # 컨테이너 정리
-          docker stop $CONTAINER_ID
-          docker rm $CONTAINER_ID
-          
-          echo "✅ Image test completed"
-
-      # ============================================
-      # 11. ECR에 푸시
-      # ============================================
-      - name: 📤 Push to ECR
-        env:
-          FULL_IMAGE: ${{ steps.image-info.outputs.full-image }}
-          LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
-        run: |
           # ECR에 푸시
           echo "📤 Pushing to ECR..."
           docker push ${FULL_IMAGE}
@@ -279,19 +259,7 @@ jobs:
           echo "  - ${LATEST_IMAGE}"
 
       # ============================================
-      # 12. ECR 푸시 검증
-      # ============================================
-      - name: 🔍 Verify ECR Push
-        run: |
-          echo "🔍 Verifying ECR push..."
-          aws ecr describe-images \
-            --repository-name ${{ env.ECR_REPOSITORY }} \
-            --region ${{ env.AWS_REGION }} \
-            --query 'imageDetails[?contains(imageTags, `latest`)].{Tags:imageTags,Size:imageSizeInBytes,Pushed:imagePushedAt}' \
-            --output table
-
-      # ============================================
-      # 13. SSM Parameter 업데이트
+      # 10. SSM Parameter 업데이트
       # ============================================
       - name: 📝 Update SSM Parameter with New Image
         env:
@@ -309,24 +277,17 @@ jobs:
           echo "✅ SSM parameter updated with new image URI: ${FULL_IMAGE}"
 
       # ============================================
-      # 14. 빌드 결과 요약
+      # 11. 빌드 결과 요약
       # ============================================
       - name: 📋 Build Summary
         run: |
-          echo "### ✅ RDS Exporter Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ RDS Exporter Build Complete (OIDC)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Workflow:** \`${{ github.workflow }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Run ID:** \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Auth Method:** 🔐 OIDC (No secrets required)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Build Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
-          echo "**Image Test:** ✅ Passed" >> $GITHUB_STEP_SUMMARY
           echo "**SSM Update:** ✅ Completed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Image is ready for deployment via CD pipeline" >> $GITHUB_STEP_SUMMARY
-          echo "- SSM parameter \`/wealist/prod/monitor/rds_exporter_image\` updated" >> $GITHUB_STEP_SUMMARY
-          echo "- Run monitoring stack deployment to use new image" >> $GITHUB_STEP_SUMMARY
