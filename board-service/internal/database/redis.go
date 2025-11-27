@@ -28,9 +28,11 @@ func InitRedis(cfg config.Config, log *zap.Logger) error {
 		})
 	}
 
-	// 연결 테스트
+	// 연결 테스트 (실패해도 서비스는 시작)
 	if err := client.Ping(context.Background()).Err(); err != nil {
-		return err
+		log.Warn("Redis connection failed, but service will continue without Redis", zap.Error(err))
+		RedisClient = nil
+		return nil
 	}
 
 	RedisClient = client

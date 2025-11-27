@@ -11,18 +11,17 @@ on:
 
 permissions:
   contents: read
+  id-token: write
+  actions: write # CD 워크플로우 트리거를 위해 추가
 
 jobs:
   build-and-push:
     name: Build & Push to ECR
     runs-on: ubuntu-latest
-    environment: production
 
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
-      full-image: ${{ steps.image-info.outputs.full-image }}
-      artifact-name: codedeploy-artifact-${{ steps.image-info.outputs.image-tag }}
-      artifact-path: deploy_artifact.zip
+      full-image: ${{ steps.image-info.outputs.full-tag }}
 
     steps:
       # ============================================
@@ -48,11 +47,10 @@ jobs:
         run: |
           cd user-service
           chmod +x gradlew
-          # 'clean' 제거, 데몬 비활성화하여 빌드 시간 단축
           ./gradlew build --no-daemon
 
       # ============================================
-      # 4. 테스트 커버리지 리포트 업로드 (유지)
+      # 4. 테스트 커버리지 리포트 업로드
       # ============================================
       - name: 📊 Upload JaCoCo Coverage Report
         uses: actions/upload-artifact@v4
@@ -63,93 +61,90 @@ jobs:
           retention-days: 7
 
       # ============================================
-      # 5. AWS Credentials 설정 (SSM 의존성 제거 및 vars 사용)
+      # 5. AWS Credentials 설정 (OIDC Role 기반으로 수정)
       # ============================================
-      - name: 🔐 Configure AWS Credentials
+      - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.WEALIST_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_AWS_SECRET_ACCESS_KEY }}
-          # ✅ 오류 수정 및 최적화: vars 컨텍스트에서 AWS_REGION 값을 직접 참조
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
           aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
-      # 6. Environment Variables 로드 (Parameter Store 제거 - CI 다이어트)
+      # 6. Environment Variables 로드 (ECR 관련)
       # ============================================
       - name: 📥 Load Environment Variables
         id: config
         run: |
           echo "📥 Loading CI configuration from GitHub Environment Variables..."
-
-          # Environment Variable (vars)에서 값을 로드하여 GITHUB_ENV로 승격
           echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_ENV
           echo "ECR_REPOSITORY=${{ vars.ECR_REPOSITORY_USER }}" >> $GITHUB_ENV
           echo "AWS_ACCOUNT_ID=${{ vars.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV 
-
           echo "✅ Configuration loaded successfully"
 
       # ============================================
-      # 7. 이미지 태그 생성
+      # 7. 이미지 태그 생성 (FULL_IMAGE 변수 생성 방식을 변경)
       # ============================================
       - name: 🏷️ Generate Image Tags
         id: image-info
         run: |
-          # env에서 로드된 변수 사용 (AWS_ACCOUNT_ID 오류 수정 반영)
           ECR_REGISTRY="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           IMAGE_TAG="${GITHUB_SHA:0:7}"
-          FULL_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
-          LATEST_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}"
 
-          echo "ecr-registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
-          echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
+          echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "full-tag=${IMAGE_URI}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "latest-tag=${IMAGE_URI}:latest" >> $GITHUB_OUTPUT
 
       # ============================================
-      # 8. Amazon ECR 로그인 & 이미지 빌드 & 푸시 (ECR 캐시 활용)
+      # 8-1. Amazon ECR 로그인
       # ============================================
-      - name: 🐳 Login to ECR, Build and Push Docker Image (Optimized for ECR Cache)
+      - name: 🔐 Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ============================================
+      # 8-2. Docker 이미지 빌드 & 푸시
+      # ============================================
+      - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: user-service # user-service 디렉토리에서 빌드
+          context: user-service
+          file: user-service/Dockerfile
           push: true
-          tags: |
-            ${{ steps.image-info.outputs.full-image }}
-            ${{ steps.image-info.outputs.latest-image }}
-          # ECR 캐시를 사용
-          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-image }}
+          tags: ${{ steps.image-info.outputs.full-tag }},${{ steps.image-info.outputs.latest-tag }}
+          cache-from: type=registry,ref=${{ steps.image-info.outputs.latest-tag }}
           cache-to: type=inline
-          build-args: |
-            CACHEBUST=$(date +%s)
+          build-args: CACHEBUST=${{ github.run_id }}
 
       # ============================================
-      # 9. CodeDeploy 아티팩트 생성 및 전달 (신규)
+      # 9. CodeDeploy 아티팩트 생성 및 S3 업로드
       # ============================================
-      - name: 📦 Prepare CodeDeploy Artifact
+      - name: 📦 Prepare CodeDeploy Artifact & Upload to S3
+        id: s3_upload
         run: |
-          # 1. CD 배포에 필요한 파일들을 새 폴더에 복사
-          mkdir -p deploy_artifact/user-service/deploy.script
-          mkdir -p deploy_artifact/docker/compose
+          # 1. CD 배포에 필요한 파일들을 임시 디렉토리에 복사 (flat structure)
+          mkdir -p artifact_temp/deploy.script
 
-          # appspec.yml
-          cp user-service/appspec.yml deploy_artifact/appspec.yml 
+          cp user-service/appspec.yml artifact_temp/appspec.yml 
+          cp user-service/deploy.script/* artifact_temp/deploy.script/
+          cp docker/compose/docker-compose.ec2-prod.yml artifact_temp/docker-compose.ec2-prod.yml
 
-          # deploy.script/*
-          cp user-service/deploy.script/* deploy_artifact/user-service/deploy.script/
+          # 2. 아티팩트 ZIP 생성 (artifact_temp 내부 파일들만 압축)
+          cd artifact_temp
+          zip -r ../deploy_artifact.zip .
+          cd ..
 
-          # docker-compose.ec2-prod.yml (Prod 환경 파일 복사)
-          cp docker/compose/docker-compose.ec2-prod.yml deploy_artifact/docker-compose.ec2-prod.yml 
+          # 3. S3 정보 설정
+          S3_BUCKET="wealist-codedeploy-artifacts"
+          ARTIFACT_FILENAME="user-service-${{ steps.image-info.outputs.image-tag }}.zip"
+          S3_KEY="user-service/${ARTIFACT_FILENAME}"
 
-          # 2. 아티팩트 ZIP 생성 (CodeDeploy가 S3에서 다운로드할 최종 아티팩트)
-          zip -r deploy_artifact.zip deploy_artifact
-          echo "✅ CodeDeploy artifact created: deploy_artifact.zip"
+          # 4. AWS S3에 직접 업로드
+          aws s3 cp deploy_artifact.zip s3://${S3_BUCKET}/${S3_KEY}
 
-      - name: ⬆️ Upload CodeDeploy Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: codedeploy-artifact-${{ steps.image-info.outputs.image-tag }}
-          path: deploy_artifact.zip
-          retention-days: 1
+          echo "S3_KEY=$S3_KEY" >> $GITHUB_OUTPUT # CD에서 사용할 S3 KEY를 출력
+
+          echo "✅ CodeDeploy artifact uploaded: s3://${S3_BUCKET}/${S3_KEY}"
 
       # ============================================
       # 10. 빌드 결과 요약
@@ -157,8 +152,23 @@ jobs:
       - name: 📋 Build Summary
         run: |
           echo "### ✅ User Service Build Complete" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifact:** \`${{ steps.image-info.outputs.artifact-name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Key:** \`${{ steps.s3_upload.outputs.S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next Steps:** CD workflow will use this SHA tag and artifact." >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:** CD User workflow will use this S3 Key." >> $GITHUB_STEP_SUMMARY
+
+      # ============================================
+      # 11. 🚀 CD 워크플로우 트리거 (workflow_dispatch)
+      # ============================================
+      - name: 🚀 Trigger CD Workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'cd-prod-user-service.yml',
+              ref: 'deploy-prod'
+            });
+            console.log('✅ CD User workflow triggered successfully');

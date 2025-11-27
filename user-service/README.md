@@ -2,6 +2,9 @@
 
 사용자 관리 및 인증을 담당하는 Spring Boot 기반 마이크로서비스입니다.
 
+<!-- Trigger CI/CD: 2025-11-27 - Database permissions update -->
+
+
 ## 주요 기능
 
 - 사용자 인증 및 권한 관리
@@ -135,4 +138,5 @@ S3_SECRET_KEY=minioadmin
 # 특정 테스트 실행
 ./gradlew test --tests ProfileImageControllerTest
 ```
+
 

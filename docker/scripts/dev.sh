@@ -25,7 +25,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 프로젝트 루트 디렉토리로 이동
+# 프로젝트 루트 디렉토리로 이동 (ex. wealist-backend-repo/)
 cd "$(dirname "$0")/../.."
 
 # 환경변수 파일 확인
@@ -45,82 +45,54 @@ COMPOSE_FILES="-f docker/compose/docker-compose.yml -f docker/compose/docker-com
 ENV_FILE_OPTION="--env-file $ENV_FILE"
 
 # =============================================================================
-# [⭐️ 핵심 추가] 공통 네트워크 검사 및 생성 (프론트엔드 연결용)
+# [⭐️ 핵심 수정] 공통 네트워크 검사 및 생성 (프론트엔드 연결용)
+#   - 레이블 검사를 제거하고 존재 여부만 확인하여 프로세스 단순화 및 안정화
 # =============================================================================
 NETWORK_NAME="wealist-net"
-EXPECTED_LABEL="com.docker.compose.network=${NETWORK_NAME}"
 
 # 'up' 명령어 계열이거나 명령어가 생략되었을 때만 네트워크를 확인하고 생성합니다.
 if [ "$1" == "up" ] || [ "$1" == "up-fg" ] || [ -z "$1" ]; then
     echo -e "${BLUE}🔗 공통 네트워크 ${NETWORK_NAME} 검사 중...${NC}"
     
-    NETWORK_ID=$(docker network ls -q -f name=^${NETWORK_NAME}$)
-    
-    if [ -n "$NETWORK_ID" ]; then
-        NETWORK_LABELS=$(docker network inspect $NETWORK_ID --format '{{json .Labels}}')
-        
-        # Docker Compose에서 기대하는 레이블을 포함하고 있는지 확인
-        if echo "$NETWORK_LABELS" | grep -q "\"${EXPECTED_LABEL}\""; then
-            echo -e "${BLUE}✅ 공통 네트워크 ${NETWORK_NAME} 이미 존재하고 레이블이 올바름.${NC}"
-        else
-            # 💡 [핵심 수정] 레이블이 잘못된 경우, 먼저 모든 컨테이너를 강제 중지/제거하고 네트워크를 삭제합니다.
-            echo -e "${RED}❌ 공통 네트워크 ${NETWORK_NAME}의 레이블이 올바르지 않습니다.${NC}"
-            
-            # 네트워크에 연결된 모든 컨테이너 목록 조회
-            CONTAINERS=$(docker network inspect ${NETWORK_NAME} --format '{{range .Containers}}{{.Name}} {{end}}')
-            
-            if [ -n "$CONTAINERS" ]; then
-                echo -e "${YELLOW}   ⚠️ 네트워크에 연결된 컨테이너 (${CONTAINERS})를 강제 중지 및 제거합니다.${NC}"
-                # 컨테이너 강제 중지 및 제거 (다른 프로젝트 컨테이너도 포함될 수 있으므로 주의)
-                docker rm -f $CONTAINERS || true 
-            fi
-            
-            echo -e "${YELLOW}   잘못된 레이블의 네트워크를 삭제 후 재생성합니다.${NC}"
-            docker network rm ${NETWORK_NAME} || true # 삭제 실패해도 계속 진행 (이 단계에서는 대부분 성공해야 함)
-            NETWORK_ID="" # 네트워크 ID 초기화하여 아래 로직으로 이동
-        fi
-    fi
-    
-    # 네트워크 ID가 비어있으면 (존재하지 않거나 방금 삭제된 경우) 생성
-    if [ -z "$NETWORK_ID" ]; then
-        echo -e "${GREEN}✅ 공통 네트워크 ${NETWORK_NAME} 생성.${NC}"
-        
-        # 💡 [핵심] 레이블을 명시적으로 부여하여 프론트엔드 Docker Compose가 인식하도록 합니다.
-        docker network create \
-            --driver bridge \
-            --label ${EXPECTED_LABEL} \
-            ${NETWORK_NAME} 
-            
+    # 네트워크 존재 여부 확인 및 생성 (if not exists)
+    if docker network ls --filter name=^${NETWORK_NAME}$ --format "{{.Name}}" | grep -q ${NETWORK_NAME}; then
+        echo -e "${GREEN}✅ 공통 네트워크 ${NETWORK_NAME}이(가) 이미 존재합니다. 재사용합니다.${NC}"
+    else
+        echo -e "${YELLOW}🚨 공통 네트워크 ${NETWORK_NAME}이(가) 존재하지 않습니다. 새로 생성합니다.${NC}"
+        # --attachable: 다른 Docker Compose 파일의 서비스가 이 네트워크에 쉽게 연결될 수 있도록 허용
+        docker network create --driver bridge --attachable ${NETWORK_NAME}
+        echo -e "${GREEN}✅ 공통 네트워크 ${NETWORK_NAME} 생성 완료.${NC}"
     fi
     echo ""
 fi
 # =============================================================================
 
 
-# =============================================================================
-# 로컬 환경 API Base URL 강제 오버라이드 (프론트엔드 컨테이너에서 필요)
-# =============================================================================
-# 이 설정은 프론트엔드 레포지토리의 .env 파일에만 필요하므로, 이 백엔드 스크립트에서는 제거합니다.
-# 대신 프론트엔드 컨테이너가 http://nginx 로 통신하도록 합니다.
-# =============================================================================
-
 # 커맨드 처리
 COMMAND=${1:-up}
 
 case $COMMAND in
     up)
-        echo -e "${BLUE}🚀 개발 환경을 백그라운드로 시작합니다...${NC}"
+        echo -e "${BLUE}🚀 1/2 단계: 백엔드 개발 환경을 백그라운드로 시작합니다...${NC}"
         # --build 옵션 제거 (up 시 자동으로 build 필요한지 검사함)
         docker compose $ENV_FILE_OPTION $COMPOSE_FILES up -d 
-        echo -e "${GREEN}✅ 개발 환경이 시작되었습니다.${NC}"
-        echo -e "${BLUE}📊 서비스 접속 정보:${NC}"
+        echo -e "${GREEN}✅ 백엔드 서비스(DB, MinIO, API Gateway 등) 시작 완료.${NC}"
+
+        # ---------------------------------------------------------------------
+        # 프론트엔드 실행 안내 (프론트엔드 리포가 분리되어 있으므로 수동 실행이 필요함)
+        # ---------------------------------------------------------------------
+        echo -e "\n${BLUE}🚀 2/2 단계: 프론트엔드 개발 서버를 시작해주세요!${NC}"
+        echo -e "${YELLOW}💡 프론트엔드 리포지토리로 이동하여 다음 명령을 실행하세요:${NC}"
+        echo -e "   ${YELLOW}cd ../wealist-frontend-repo (경로 확인)${NC}"
+        echo -e "   ${YELLOW}docker compose up -d${NC}"
+        echo -e "   (또는 로컬에서 pnpm run dev)${NC}"
+        # ---------------------------------------------------------------------
+
+        echo -e "\n${BLUE}📊 서비스 접속 정보:${NC}"
+        echo "   - NGINX/Frontend API Gateway: http://localhost:80 (API 호출 기본 주소)"
         echo "   - User API:    http://localhost:8080"
         echo "   - Board API:   http://localhost:8000"
-        echo "   - NGINX/Frontend API Gateway: http://localhost:80 (프론트엔드 접속 주소)"
-        echo "   - PostgreSQL:  localhost:5432"
-        echo "   - Redis:       localhost:6379"
-        echo "   - User API swagger:    http://localhost:8080/swagger-ui/index.html"
-        echo "   - Board API swagger:   http://localhost:8000/swagger/index.html"
+        echo "   - MinIO Console: http://localhost:9001"
         echo -e ""
         echo -e "${BLUE}💡 로그 확인: ./docker/scripts/dev.sh logs${NC}"
         ;;
@@ -164,11 +136,15 @@ case $COMMAND in
         ;;
 
     clean)
-        echo -e "${RED}⚠️  모든 컨테이너, 볼륨, 이미지를 삭제합니다.${NC}"
+        echo -e "${RED}⚠️  모든 백엔드 컨테이너, 볼륨, 이미지를 삭제합니다.${NC}"
         read -p "계속하시겠습니까? (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             docker compose $ENV_FILE_OPTION $COMPOSE_FILES down -v --remove-orphans
+            
+            echo -e "${YELLOW}🔗 공통 네트워크 ${NETWORK_NAME}를 삭제합니다. (프론트엔드 컨테이너가 중지되었는지 확인하세요.)${NC}"
+            docker network rm ${NETWORK_NAME} || true
+            
             echo -e "${GREEN}✅ 정리가 완료되었습니다.${NC}"
         else
             echo -e "${YELLOW}취소되었습니다.${NC}"

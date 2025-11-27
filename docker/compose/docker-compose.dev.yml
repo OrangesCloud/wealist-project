@@ -96,7 +96,7 @@ services:
       - backend-net
       - database-net
 
-  # NGINX - API Gateway for Local Development
+    # NGINX - API Gateway for Local Development
   nginx:
     image: nginx:alpine
     container_name: wealist-nginx-dev
@@ -117,7 +117,8 @@ services:
       - board-service
 
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      # 💡 [수정] Nginx가 기본 경로에 성공적으로 접근하는지 확인하도록 변경
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -130,7 +131,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
   # ===========================================================================
   # Infrastructure Services - Development Overrides
   # ===========================================================================

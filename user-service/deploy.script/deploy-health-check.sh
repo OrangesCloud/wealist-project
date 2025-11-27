@@ -1,7 +1,6 @@
 #!/bin/bash
 # CodeDeploy Hook: ValidateService
 # 새로 배포된 서비스의 헬스 체크
-
 set -euo pipefail
 
 SERVICE_PORT=8080
