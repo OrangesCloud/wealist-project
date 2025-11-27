@@ -48,7 +48,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
       # 2. Configuration 설정 (누락된 부분 추가)
