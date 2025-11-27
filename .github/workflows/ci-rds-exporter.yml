@@ -10,14 +10,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write # OIDC token 생성 권한
   contents: read # 코드 읽기 권한
+  id-token: write # OIDC token 생성 권한
+  # Note: actions:write는 다음 CD 워크플로우를 트리거할 때 필요하며, 현재 CI는 트리거하지 않으므로 제거함.
 
 jobs:
   build-and-push:
     name: Build & Push RDS Exporter to ECR
     runs-on: ubuntu-latest
-    environment: production
+    # environment: production # Board Service CI와 일관성을 위해 제거 (선택 사항)
 
     outputs:
       image-tag: ${{ steps.image-info.outputs.image-tag }}
@@ -37,85 +38,36 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
-          aws-region: ap-northeast-2
+          aws-region: ${{ vars.AWS_REGION }}
 
       # ============================================
-      # 3. Parameter Store에서 설정 로드
+      # 3. Environment Variables 로드 (Board Service CI 패턴 적용)
       # ============================================
-      - name: 📥 Load Configuration from Parameter Store
+      - name: 📥 Load Configuration from GitHub Variables
         id: config
         run: |
-          echo "📥 Loading CI configuration from Parameter Store..."
+          echo "📥 Loading configuration from GitHub Variables..."
 
-          # Load parameters with error handling
-          set +e  # Temporarily disable exit on error
-
-          echo "🔍 Checking AWS credentials and connectivity..."
-          aws sts get-caller-identity
-
-          echo "📋 Loading parameters..."
-          AWS_REGION=$(aws ssm get-parameter \
-            --name "/wealist/prod/ci/aws_region" \
-            --query 'Parameter.Value' \
-            --output text 2>&1)
-
-          ECR_REPOSITORY=$(aws ssm get-parameter \
-            --name "/wealist/prod/ci/ecr_repository_rds_exporter" \
-            --query 'Parameter.Value' \
-            --output text 2>&1)
-
-          AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
-            --query 'Account' \
-            --output text 2>&1)
-
-          set -e  # Re-enable exit on error
-
-          # Handle parameter not found cases with defaults
-          if [[ "$AWS_REGION" == *"ParameterNotFound"* ]]; then
-            echo "⚠️ Parameter /wealist/prod/ci/aws_region not found, using default"
-            AWS_REGION="ap-northeast-2"
-          fi
-
-          if [[ "$ECR_REPOSITORY" == *"ParameterNotFound"* ]]; then
-            echo "⚠️ Parameter /wealist/prod/ci/ecr_repository_rds_exporter not found, using default"
-            ECR_REPOSITORY="wealist/rds-exporter"
-          fi
-
-          # Validate final values
-          if [ -z "$AWS_REGION" ] || [ -z "$ECR_REPOSITORY" ] || [ -z "$AWS_ACCOUNT_ID" ]; then
-            echo "❌ Failed to load required configuration"
-            echo "   AWS_REGION: '${AWS_REGION}'"
-            echo "   ECR_REPOSITORY: '${ECR_REPOSITORY}'"
-            echo "   AWS_ACCOUNT_ID: '${AWS_ACCOUNT_ID}'"
-            exit 1
-          fi
-
-          # Export to GITHUB_ENV for subsequent steps
-          echo "AWS_REGION=${AWS_REGION}" >> $GITHUB_ENV
-          echo "ECR_REPOSITORY=${ECR_REPOSITORY}" >> $GITHUB_ENV
-          echo "AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}" >> $GITHUB_ENV
+          # GITHUB VARIABLES를 사용하여 환경 변수를 GITHUB_ENV에 설정
+          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=${{ vars.ECR_REPOSITORY_RDS_EXPORTER }}" >> $GITHUB_ENV
+          echo "AWS_ACCOUNT_ID=${{ vars.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV 
 
           echo "✅ Configuration loaded successfully"
-          echo "   AWS Region: ${AWS_REGION}"
-          echo "   ECR Repository: ${ECR_REPOSITORY}"
-          echo "   AWS Account ID: ${AWS_ACCOUNT_ID}"
 
       # ============================================
-      # 4. RDS Exporter 소스 준비
+      # 4. RDS Exporter 소스 준비 (기존 로직 유지)
       # ============================================
       - name: 📁 Setup RDS Exporter Source
         run: |
           echo "📁 Setting up RDS Exporter source..."
-
-          # RDS Exporter 소스 디렉토리 생성
           mkdir -p rds-exporter
           cd rds-exporter
-
-          # Percona RDS Exporter 소스 다운로드
           echo "⬇️ Downloading RDS Exporter source..."
+          # 외부 소스 다운로드 (Percona RDS Exporter)
           curl -L https://github.com/percona/rds_exporter/archive/refs/heads/main.tar.gz | tar xz --strip-components=1
 
-          # Dockerfile 확인 및 생성
+          # Dockerfile 확인 및 생성 (기존 로직 유지)
           if [ ! -f "Dockerfile" ]; then
             echo "📝 Creating optimized Dockerfile..."
             cat > Dockerfile << 'EOF'
@@ -125,8 +77,6 @@ jobs:
           RUN apk add --no-cache git ca-certificates tzdata wget curl
 
           WORKDIR /app
-
-          # Go 모듈 파일 복사 및 의존성 다운로드
           COPY go.mod go.sum ./
           RUN go mod download && go mod verify
 
@@ -139,57 +89,36 @@ jobs:
 
           # 실행 이미지 - Alpine 사용
           FROM alpine:latest
-
-          # 필요한 패키지 설치
           RUN apk --no-cache add ca-certificates tzdata wget curl
-
           WORKDIR /app
-
-          # 실행 파일 복사
           COPY --from=builder /app/rds_exporter .
-
-          # 포트 노출
           EXPOSE 9042
-
-          # 헬스체크 추가
           HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
             CMD wget --no-verbose --tries=1 --spider http://localhost:9042/metrics || exit 1
-
           ENTRYPOINT ["./rds_exporter"]
           EOF
           fi
-
           echo "✅ RDS Exporter source prepared"
-          ls -la
 
       # ============================================
-      # 5. Go 환경 설정 (소스 검증용)
+      # 5. Go 환경 설정 및 빌드 검증 (유지)
       # ============================================
-      - name: 🔧 Setup Go Environment
+      - name: 🔧 Setup Go Environment and Verify Build
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
           cache: false
 
-      # ============================================
-      # 6. Go 빌드 검증
-      # ============================================
-      - name: 🔨 Verify Go Build
+      - name: 🔨 Build Verification
         run: |
           cd rds-exporter
-
-          echo "📦 Downloading dependencies..."
           go mod tidy
           go mod download
-
-          echo "🔨 Testing Go build..."
           CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o rds_exporter .
-
-          echo "✅ Go binary build successful"
-          ls -la rds_exporter
+          echo "✅ Go binary build verification successful"
 
       # ============================================
-      # 7. 이미지 태그 생성
+      # 6. 이미지 태그 생성 (유지)
       # ============================================
       - name: 🏷️ Generate Image Tags
         id: image-info
@@ -205,25 +134,25 @@ jobs:
           echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "full-image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
           echo "latest-image=${LATEST_IMAGE}" >> $GITHUB_OUTPUT
-
           echo "📦 Image Tag: ${IMAGE_TAG}"
-          echo "🐳 Full Image: ${FULL_IMAGE}"
 
       # ============================================
-      # 8. ECR Repository 생성
+      # 7. ECR Repository 생성 (권한 유지/필요)
       # ============================================
       - name: 🏗️ Create ECR Repository if not exists
         run: |
           echo "🏗️ Ensuring ECR repository exists..."
-          aws ecr create-repository \
-            --repository-name ${{ env.ECR_REPOSITORY }} \
-            --region ${{ env.AWS_REGION }} \
-            --image-scanning-configuration scanOnPush=true \
-            --encryption-configuration encryptionType=AES256 \
-            2>/dev/null || echo "✅ Repository already exists"
+          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} 2>/dev/null || \
+            aws ecr create-repository \
+              --repository-name ${{ env.ECR_REPOSITORY }} \
+              --region ${{ env.AWS_REGION }} \
+              --image-scanning-configuration scanOnPush=true \
+              --encryption-configuration encryptionType=AES256 \
+              2>/dev/null
+          echo "✅ Repository check complete"
 
       # ============================================
-      # 9. ECR 로그인 & 이미지 빌드 & 푸시
+      # 8. ECR 로그인 & 이미지 빌드 & 푸시
       # ============================================
       - name: 🐳 Login to ECR, Build and Push Docker Image
         env:
@@ -231,34 +160,25 @@ jobs:
           LATEST_IMAGE: ${{ steps.image-info.outputs.latest-image }}
           ECR_REGISTRY: ${{ steps.image-info.outputs.ecr-registry }}
         run: |
-          # ECR 로그인
           echo "🔑 Logging into Amazon ECR..."
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-          # Docker 이미지 빌드
           cd rds-exporter
           echo "🔨 Building Docker image..."
           docker build \
             -t ${FULL_IMAGE} \
             -t ${LATEST_IMAGE} \
-            --build-arg BUILDTIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-            --build-arg VERSION=${{ steps.image-info.outputs.image-tag }} \
             .
 
-          echo "✅ Docker image built successfully"
-
-          # ECR에 푸시
           echo "📤 Pushing to ECR..."
           docker push ${FULL_IMAGE}
           docker push ${LATEST_IMAGE}
 
-          echo "✅ Successfully pushed:"
-          echo "  - ${FULL_IMAGE}"
-          echo "  - ${LATEST_IMAGE}"
+          echo "✅ Successfully pushed images."
 
       # ============================================
-      # 10. SSM Parameter 업데이트
+      # 9. SSM Parameter 업데이트 (이미지 URI 기록)
       # ============================================
       - name: 📝 Update SSM Parameter with New Image
         env:
@@ -276,17 +196,11 @@ jobs:
           echo "✅ SSM parameter updated with new image URI: ${FULL_IMAGE}"
 
       # ============================================
-      # 11. 빌드 결과 요약
+      # 10. 빌드 결과 요약
       # ============================================
       - name: 📋 Build Summary
         run: |
           echo "### ✅ RDS Exporter Build Complete (OIDC)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ steps.image-info.outputs.full-image }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** \`${{ steps.image-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Auth Method:** 🔐 OIDC (No secrets required)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
           echo "**SSM Update:** ✅ Completed" >> $GITHUB_STEP_SUMMARY
