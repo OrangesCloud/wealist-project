@@ -1,4 +1,4 @@
-name: CD - Enhanced Monitoring Stack (Clean Deploy)
+name: CD - Enhanced Monitoring Stack (Clean Deploy with OIDC)
 
 on:
   push:
@@ -13,8 +13,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
-  actions: write
+  id-token: write   # OIDC token 생성 권한
+  contents: read    # 코드 읽기 권한
+  actions: write    # Actions 실행 권한
 
 jobs:
   deploy-enhanced-monitoring:
@@ -25,30 +26,92 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
+      # ============================================
+      # OIDC를 통한 AWS 인증
+      # ============================================
+      - name: 🔐 Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
+          aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Load Base Configuration
+      # ============================================
+      # AWS 연결 상태 확인 및 기본 설정 로드
+      # ============================================
+      - name: 🔍 Verify AWS Connection and Load Base Configuration
         id: config
         run: |
-          EC2_ID=$(aws ssm get-parameter --name "/wealist/prod/cd/ec2_instance_id" --query "Parameter.Value" --output text --with-decryption)
-          COMPOSE_DIR=$(aws ssm get-parameter --name "/wealist/prod/monitor/compose_file_path" --query "Parameter.Value" --output text)
-          PARAM_PREFIX=$(aws ssm get-parameter --name "/wealist/prod/cd/parameter_prefix" --query "Parameter.Value" --output text)
+          echo "🔍 Verifying AWS OIDC connection..."
+          
+          # AWS Identity 확인
+          echo "Current AWS Identity:"
+          aws sts get-caller-identity
+          
+          echo "📥 Loading base configuration from Parameter Store..."
+          
+          # Load base configuration with error handling
+          set +e  # Temporarily disable exit on error
+          
+          EC2_ID=$(aws ssm get-parameter \
+            --name "/wealist/prod/cd/ec2_instance_id" \
+            --query "Parameter.Value" \
+            --output text \
+            --with-decryption 2>&1)
+          
+          COMPOSE_DIR=$(aws ssm get-parameter \
+            --name "/wealist/prod/monitor/compose_file_path" \
+            --query "Parameter.Value" \
+            --output text 2>&1)
+          
+          PARAM_PREFIX=$(aws ssm get-parameter \
+            --name "/wealist/prod/cd/parameter_prefix" \
+            --query "Parameter.Value" \
+            --output text 2>&1)
+          
+          set -e  # Re-enable exit on error
+          
+          # Handle parameter not found cases with defaults
+          if [[ "$EC2_ID" == *"ParameterNotFound"* ]]; then
+            echo "❌ EC2 Instance ID parameter not found: /wealist/prod/cd/ec2_instance_id"
+            echo "Please create this parameter with your EC2 instance ID"
+            exit 1
+          fi
+          
+          if [[ "$COMPOSE_DIR" == *"ParameterNotFound"* ]]; then
+            echo "⚠️ Compose directory parameter not found, using default"
+            COMPOSE_DIR="/home/ubuntu/wealist/docker/compose"
+          fi
+          
+          if [[ "$PARAM_PREFIX" == *"ParameterNotFound"* ]]; then
+            echo "⚠️ Parameter prefix not found, using default"
+            PARAM_PREFIX="/wealist/prod"
+          fi
+          
+          # Validate required values
+          if [ -z "$EC2_ID" ]; then
+            echo "❌ Failed to get EC2 Instance ID"
+            exit 1
+          fi
+          
           echo "ec2-instance-id=$EC2_ID" >> $GITHUB_OUTPUT
           echo "compose-file-path=$COMPOSE_DIR" >> $GITHUB_OUTPUT
           echo "parameter-prefix=$PARAM_PREFIX" >> $GITHUB_OUTPUT
           echo "aws-region=ap-northeast-2" >> $GITHUB_OUTPUT
+          
+          echo "✅ Base configuration loaded successfully:"
+          echo "  EC2 Instance ID: $EC2_ID"
+          echo "  Compose Directory: $COMPOSE_DIR"
+          echo "  Parameter Prefix: $PARAM_PREFIX"
 
-      - name: Create Clean Deployment Script
+      # ============================================
+      # 향상된 배포 스크립트 생성 (OIDC 지원)
+      # ============================================
+      - name: 📝 Create Enhanced Clean Deployment Script
         run: |
           cat << 'DEPLOY_SCRIPT' > /tmp/deploy-enhanced-monitoring.sh
           #!/bin/bash
           set -euo pipefail
-          echo "=== Starting CLEAN Enhanced Monitoring Stack Deployment ==="
+          echo "=== Starting CLEAN Enhanced Monitoring Stack Deployment (OIDC) ==="
           echo "Timestamp: $(date)"
           echo "Parameter Prefix: ${PARAMETER_PREFIX}"
           echo "Compose File Path: ${COMPOSE_FILE}"
@@ -56,6 +119,9 @@ jobs:
           # Get current user
           CURRENT_USER=$(whoami)
           echo "📋 Current user: ${CURRENT_USER}"
+          
+          # AWS Account ID for ECR login
+          AWS_ACCOUNT_ID="290008131187"
 
           # =============================================================================
           # STEP 1: COMPLETE CLEANUP - 기존 모니터링 환경 완전 제거
@@ -69,7 +135,7 @@ jobs:
           
           # Remove all monitoring-related containers by image name
           echo "🗑️ Removing containers by image patterns..."
-          sudo docker ps -a --format "table {{.Names}}\t{{.Image}}" | grep -E "(prometheus|grafana|loki|promtail|node-exporter|redis-exporter)" | awk '{print $1}' | xargs -r sudo docker rm -f || echo "No monitoring containers found"
+          sudo docker ps -a --format "table {{.Names}}\t{{.Image}}" | grep -E "(prometheus|grafana|loki|promtail|node-exporter|redis-exporter|rds-exporter)" | awk '{print $1}' | xargs -r sudo docker rm -f || echo "No monitoring containers found"
           
           # Clean up Docker system
           echo "🧽 Cleaning Docker system..."
@@ -197,17 +263,23 @@ jobs:
           PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config" "/home/ubuntu/wealist/promtail/config")
           AWS_REGION_PARAM=$(load_param "/cd/aws_region" "ap-northeast-2")
 
-          # Set AWS credentials
-          AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_FROM_GITHUB:-}"
-          AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY_FROM_GITHUB:-}"
+          # Load RDS Exporter image (from CI build)
+          RDS_EXPORTER_IMAGE=$(load_param "/monitor/rds_exporter_image" "qonto/prometheus-rds-exporter:latest")
+
+          # OIDC 사용시에는 AWS 자격증명이 이미 설정되어 있음
+          # EC2 인스턴스에서 IAM Role 사용하거나, 임시 자격증명 사용
+          AWS_ACCESS_KEY_ID=""
+          AWS_SECRET_ACCESS_KEY=""
 
           # Export all variables
           export GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD PROMETHEUS_PORT GRAFANA_PORT
           export NODE_EXPORTER_PORT PROMETHEUS_CONFIG_DIR LOKI_PORT LOKI_CONFIG_DIR PROMTAIL_CONFIG_DIR
           export AWS_REGION="${AWS_REGION_PARAM}"
           export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+          export RDS_EXPORTER_IMAGE
 
           echo "✅ Environment variables loaded successfully"
+          echo "🔧 RDS Exporter Image: ${RDS_EXPORTER_IMAGE}"
 
           # =============================================================================
           # STEP 4: CREATE FRESH DIRECTORY STRUCTURE
@@ -235,23 +307,12 @@ jobs:
           
           echo "✅ Directory structure created successfully"
 
-          # 배포 스크립트에서 RDS Exporter 이미지 로드 부분 추가
-          echo "📦 Loading RDS Exporter image from SSM..."
-          RDS_EXPORTER_IMAGE=$(load_param "/monitor/rds_exporter_image" "qonto/prometheus-rds-exporter:latest")
-
           # ECR 로그인 (커스텀 이미지 사용시)
           if [[ "$RDS_EXPORTER_IMAGE" == *".dkr.ecr."* ]]; then
             echo "🔑 Logging into ECR for custom RDS Exporter image..."
+            # OIDC 사용시 ECR 로그인 - EC2에서 실행되므로 IAM Role 사용
             aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
           fi
-
-          # 환경변수에 추가
-          export RDS_EXPORTER_IMAGE
-
-          # .env 파일에도 추가
-          cat >> .env << ENV_EOF
-          RDS_EXPORTER_IMAGE=${RDS_EXPORTER_IMAGE}
-          ENV_EOF
 
           # =============================================================================
           # STEP 5: DEPLOY CONFIGURATION FILES
@@ -280,6 +341,7 @@ jobs:
           PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
           LOKI_CONFIG_DIR=${LOKI_CONFIG_DIR}
           PROMTAIL_CONFIG_DIR=${PROMTAIL_CONFIG_DIR}
+          RDS_EXPORTER_IMAGE=${RDS_EXPORTER_IMAGE}
           ENV_EOF
 
           echo "✅ Configuration files deployed successfully"
@@ -358,12 +420,13 @@ jobs:
           done
 
           echo ""
-          echo "🎉 === DEPLOYMENT COMPLETED SUCCESSFULLY ==="
+          echo "🎉 === DEPLOYMENT COMPLETED SUCCESSFULLY (OIDC) ==="
           echo "📊 Services are available at:"
           echo "  - Prometheus: http://localhost:${PROMETHEUS_PORT}"
           echo "  - Grafana: http://localhost:${GRAFANA_PORT} (admin/${GRAFANA_ADMIN_PASSWORD})"
           echo "  - Loki: http://localhost:${LOKI_PORT}"
           echo "  - Node Exporter: http://localhost:${NODE_EXPORTER_PORT}/metrics"
+          echo "  - RDS Exporter: ${RDS_EXPORTER_IMAGE}"
           echo ""
           echo "🔧 To manage services:"
           echo "  - View logs: sudo docker-compose logs -f"
@@ -372,7 +435,10 @@ jobs:
           
           DEPLOY_SCRIPT
 
-      - name: Deploy Clean Monitoring Stack via SSM
+      # ============================================
+      # SSM을 통한 배포 실행
+      # ============================================
+      - name: 🚀 Deploy Clean Monitoring Stack via SSM (OIDC)
         id: deploy
         run: |
           # Base64 encode all configuration files
@@ -387,17 +453,18 @@ jobs:
           echo "✅ Script encoded (${#SCRIPT_BASE64} bytes)"
 
           # Send SSM Run Command
-          echo "🚀 Sending CLEAN monitoring deployment command..."
+          echo "🚀 Sending CLEAN monitoring deployment command (OIDC)..."
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "CLEAN Deploy Enhanced Monitoring Stack - ${{ github.sha }}" \
+            --comment "CLEAN Deploy Enhanced Monitoring Stack (OIDC) - ${{ github.sha }}" \
             --timeout-seconds 1200 \
             --parameters commands="[
-              \"echo '=== CLEAN Enhanced Monitoring Stack Deployment Started ===' \",
+              \"echo '=== CLEAN Enhanced Monitoring Stack Deployment Started (OIDC) ===' \",
               \"echo 'Timestamp: '\$(date) \",
               \"echo 'Instance ID: '\$(ec2-metadata --instance-id 2>/dev/null || echo 'N/A') \",
               \"echo 'GitHub SHA: ${{ github.sha }}' \",
+              \"echo 'Auth Method: OIDC' \",
               \"echo '' \",
               \"echo '${SCRIPT_BASE64}' | base64 -d > /tmp/deploy-enhanced-monitoring.sh\",
               \"chmod +x /tmp/deploy-enhanced-monitoring.sh\",
@@ -409,12 +476,10 @@ jobs:
               \"export PROM_CFG_B64='${PROM_CFG_B64}'\",
               \"export LOKI_CFG_B64='${LOKI_CFG_B64}'\",
               \"export PROMTAIL_CFG_B64='${PROMTAIL_CFG_B64}'\",
-              \"export AWS_ACCESS_KEY_FROM_GITHUB='${{ secrets.WEALIST_PROD_AWS_ACCESS_KEY_ID }}'\",
-              \"export AWS_SECRET_ACCESS_KEY_FROM_GITHUB='${{ secrets.WEALIST_PROD_AWS_SECRET_ACCESS_KEY }}'\",
               \"/tmp/deploy-enhanced-monitoring.sh 2>&1 | tee /tmp/deploy-enhanced-monitoring.log\",
               \"DEPLOY_EXIT_CODE=\${PIPESTATUS[0]}\",
               \"echo '' \",
-              \"echo '=== CLEAN Deployment Script Finished ===' \",
+              \"echo '=== CLEAN Deployment Script Finished (OIDC) ===' \",
               \"echo 'Exit Code: '\$DEPLOY_EXIT_CODE \",
               \"if [ \$DEPLOY_EXIT_CODE -ne 0 ]; then echo '📋 Recent logs:'; tail -200 /tmp/deploy-enhanced-monitoring.log; fi\",
               \"exit \$DEPLOY_EXIT_CODE\"
@@ -431,12 +496,15 @@ jobs:
           echo "✅ Command sent successfully"
           echo "📝 Command ID: ${COMMAND_ID}"
 
-      - name: Monitor Clean Deployment Progress
+      # ============================================
+      # 배포 진행 상황 모니터링
+      # ============================================
+      - name: 📊 Monitor Clean Deployment Progress (OIDC)
         run: |
           COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
-          echo "📊 Monitoring CLEAN deployment progress: ${COMMAND_ID}"
+          echo "📊 Monitoring CLEAN deployment progress (OIDC): ${COMMAND_ID}"
           
-          MAX_WAIT=900  # 15분으로 증가
+          MAX_WAIT=900  # 15분
           WAIT_TIME=0
           
           while [ $WAIT_TIME -lt $MAX_WAIT ]; do
@@ -449,7 +517,7 @@ jobs:
             echo "⏳ Status: $STATUS (${WAIT_TIME}s elapsed)"
             
             if [ "$STATUS" = "Success" ]; then
-              echo "✅ CLEAN monitoring deployment completed!"
+              echo "✅ CLEAN monitoring deployment completed with OIDC!"
               break
             elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
               echo "❌ Deployment failed with status: $STATUS"
@@ -484,3 +552,26 @@ jobs:
             --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
             --query "StandardOutputContent" \
             --output text
+
+      # ============================================
+      # 배포 완료 요약
+      # ============================================
+      - name: 📋 Deployment Summary
+        run: |
+          echo "### 🎉 Enhanced Monitoring Stack Deployment Complete (OIDC)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Authentication:** 🔐 OIDC (No AWS Access Keys required)" >> $GITHUB_STEP_SUMMARY
+          echo "**Instance ID:** \`${{ steps.config.outputs.ec2-instance-id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Type:** Clean deployment (full environment reset)" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed Services:**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Prometheus (Metrics Collection)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Grafana (Visualization)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Loki (Log Aggregation)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Promtail (Log Collection)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Node Exporter (System Metrics)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ RDS Exporter (Database Metrics)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Security:** All operations performed using OIDC authentication with minimal required permissions." >> $GITHUB_STEP_SUMMARY
