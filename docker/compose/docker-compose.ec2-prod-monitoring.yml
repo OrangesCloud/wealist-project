@@ -109,7 +109,7 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/log:/var/log:ro
     
-    command: -config.file=/etc/promtail/promtail.yml
+    command: -config.file=/etc/promtail/config/promtail.yml
 
     networks:
       - monitoring-net
