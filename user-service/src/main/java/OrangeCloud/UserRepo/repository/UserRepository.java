@@ -1,5 +1,7 @@
 package OrangeCloud.UserRepo.repository;
 
+import OrangeCloud.UserRepo.dto.user.projection.CreatorAndProfileProjection;
+import OrangeCloud.UserRepo.dto.user.projection.UserAndMembershipProjection;
 import OrangeCloud.UserRepo.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -16,6 +18,17 @@ import java.util.UUID;
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
 
+    // 최적화 시도중
+    @Query("SELECT u.id as userId, u.email as email, p.nickName as nickName " +
+            "FROM User u JOIN UserProfile p ON u.id = p.userId " +
+            "WHERE u.id = :id AND p.workspaceId = :profileWorkspaceId")
+    Optional<CreatorAndProfileProjection> findProjectionWithProfileByIdAndDefaultWorkspace(
+            UUID id, UUID profileWorkspaceId);
+
+    @Query("SELECT u.id as userId, u.email as email, CASE WHEN wm.userId IS NOT NULL THEN TRUE ELSE FALSE END as isMember " +
+            "FROM User u LEFT JOIN WorkspaceMember wm ON u.id = wm.userId AND wm.workspaceId = :workspaceId " +
+            "WHERE u.email = :email")
+    Optional<UserAndMembershipProjection> findByEmailWithMembershipStatus(String email, UUID workspaceId);
     // ============================================================================
     // Google OAuth 관련
     // ============================================================================

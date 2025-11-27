@@ -1,5 +1,7 @@
 package OrangeCloud.UserRepo.service;
 
+import OrangeCloud.UserRepo.dto.user.projection.CreatorAndProfileProjection;
+import OrangeCloud.UserRepo.dto.user.projection.UserAndMembershipProjection;
 import OrangeCloud.UserRepo.dto.workspace.*;
 import OrangeCloud.UserRepo.entity.User;
 import OrangeCloud.UserRepo.entity.UserProfile;
@@ -12,6 +14,7 @@ import OrangeCloud.UserRepo.repository.UserRepository;
 import OrangeCloud.UserRepo.repository.WorkspaceJoinRequestRepository;
 import OrangeCloud.UserRepo.repository.WorkspaceMemberRepository;
 import OrangeCloud.UserRepo.repository.WorkspaceRepository;
+import io.micrometer.core.instrument.Counter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,7 @@ public class WorkspaceService {
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final Optional<SampleDataSeederService> sampleDataSeederService;
+    private final Counter workspaceCreatedTotalCounter;
     private static final UUID DEFAULT_WORKSPACE_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
     // ============================================================================
     // Workspace 생성/수정/삭제
@@ -40,13 +44,15 @@ public class WorkspaceService {
     /**
      * 새로운 Workspace 생성 (생성자가 자동으로 OWNER)
      */
+    @Transactional
     public WorkspaceResponse createWorkspace(CreateWorkspaceRequest request, UUID creatorId) {
-        log.info("Creating workspace: name={}, creator={}", request.getWorkspaceName(), creatorId);
 
-        User creator = userRepository.findById(creatorId)
+        // Full Entity Search X -> Projection
+        CreatorAndProfileProjection creatorData = userRepository.findProjectionWithProfileByIdAndDefaultWorkspace(
+                        creatorId, DEFAULT_WORKSPACE_ID) // DEFAULT_WORKSPACE_ID도 인자로 넘겨 프로필 조회 조건에 사용
                 .orElseThrow(() -> {
-                    log.warn("User not found: {}", creatorId);
-                    return new UserNotFoundException("사용자를 찾을 수 없습니다.");
+                    log.warn("User or Profile not found: {}", creatorId);
+                    return new UserNotFoundException("사용자 또는 프로필을 찾을 수 없습니다.");
                 });
 
         boolean isPublic = request.getIsPublic() != null ? request.getIsPublic() : false;
@@ -61,7 +67,8 @@ public class WorkspaceService {
                 .build();
 
         Workspace savedWorkspace = workspaceRepository.save(workspace);
-        log.info("Workspace created: workspaceId={}", savedWorkspace.getWorkspaceId());
+
+        workspaceCreatedTotalCounter.increment();
 
         WorkspaceMember ownerMember = WorkspaceMember.builder()
                 .workspaceId(savedWorkspace.getWorkspaceId())
@@ -72,21 +79,21 @@ public class WorkspaceService {
                 .build();
 
         workspaceMemberRepository.save(ownerMember);
-        log.info("Creator added as OWNER: workspaceId={}, userId={}", savedWorkspace.getWorkspaceId(), creatorId);
 
-        UserProfile creatorProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, creatorId)
-                .orElseThrow(() -> {
-                    log.warn("Profile not found for user: {}", creatorId);
-                    return new UserNotFoundException("프로필을 찾을 수 없습니다.");
-                });
+
+//        UserProfile creatorProfile = userProfileRepository.findByWorkspaceIdAndUserId(DEFAULT_WORKSPACE_ID, creatorId)
+//                .orElseThrow(() -> {
+//                    log.warn("Profile not found for user: {}", creatorId);
+//                    return new UserNotFoundException("프로필을 찾을 수 없습니다.");
+//                });
 
         // Trigger sample data generation asynchronously if enabled
-        sampleDataSeederService.ifPresent(seeder -> {
-            log.info("Triggering sample data generation for workspace: {}", savedWorkspace.getWorkspaceId());
-            seeder.seedWorkspaceData(savedWorkspace.getWorkspaceId(), creatorId);
-        });
+//        sampleDataSeederService.ifPresent(seeder -> {
+//            log.info("Triggering sample data generation for workspace: {}", savedWorkspace.getWorkspaceId());
+//            seeder.seedWorkspaceData(savedWorkspace.getWorkspaceId(), creatorId);
+//        });
 
-        return convertToWorkspaceResponse(savedWorkspace, creator, creatorProfile);
+        return convertToWorkspaceResponse2(savedWorkspace, creatorData);
     }
 
     /**
@@ -409,42 +416,69 @@ public class WorkspaceService {
     /**
      * 워크스페이스에 이메일 기반 사용자 초대
      */
+//    @Transactional
+//    public WorkspaceMemberResponse inviteUser(UUID workspaceId, InviteUserRequest request, UUID requesterId) {
+//        String query = request.getQuery().trim();
+//
+//        checkWorkspaceAdminOrOwner(workspaceId, requesterId);
+//
+//        // ✅ 이메일 형식인지 검사
+//        boolean isEmail = query.contains("@");
+//
+//        // ✅ 사용자 조회
+//        Optional<User> targetUserOpt;
+//
+//        targetUserOpt = userRepository.findByEmail(query);
+//
+//        User targetUser = targetUserOpt
+//                .orElseThrow(() -> new UserNotFoundException("해당 " + (isEmail ? "이메일" : "이름") + "의 사용자를 찾을 수 없습니다."));
+//
+//        // ✅ 이미 멤버인지 확인
+//        if (workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, targetUser.getUserId())) {
+//            log.warn("User is already a member of workspace: workspaceId={}, userId={}", workspaceId,
+//                    targetUser.getUserId());
+//            throw new IllegalArgumentException("해당 사용자는 이미 워크스페이스 멤버입니다.");
+//        }
+//
+//        // ✅ 새 멤버 등록
+//        WorkspaceMember newMember = WorkspaceMember.builder()
+//                .workspaceId(workspaceId)
+//                .userId(targetUser.getUserId())
+//                .role(WorkspaceMember.WorkspaceRole.MEMBER)
+//                .isDefault(false)
+//                .isActive(true)
+//                .build();
+//
+//        WorkspaceMember savedMember = workspaceMemberRepository.save(newMember);
+//        log.info("User invited and added as member: workspaceId={}, userId={}", workspaceId, targetUser.getUserId());
+//
+//        return convertToWorkspaceMemberResponse(savedMember);
+//    }
     @Transactional
     public WorkspaceMemberResponse inviteUser(UUID workspaceId, InviteUserRequest request, UUID requesterId) {
         String query = request.getQuery().trim();
-        log.info("Inviting user to workspace: workspaceId={}, query={}, requester={}", workspaceId, query, requesterId);
-
         checkWorkspaceAdminOrOwner(workspaceId, requesterId);
 
-        // ✅ 이메일 형식인지 검사
-        boolean isEmail = query.contains("@");
-
-        // ✅ 사용자 조회
-        Optional<User> targetUserOpt;
-
-        targetUserOpt = userRepository.findByEmail(query);
-
-        User targetUser = targetUserOpt
-                .orElseThrow(() -> new UserNotFoundException("해당 " + (isEmail ? "이메일" : "이름") + "의 사용자를 찾을 수 없습니다."));
+        // ✅ 쿼리 1회로 통합 (DB Read 1회)
+        UserAndMembershipProjection userData = userRepository.findByEmailWithMembershipStatus(query, workspaceId)
+                .orElseThrow(() -> new UserNotFoundException("해당 이메일의 사용자를 찾을 수 없습니다."));
 
         // ✅ 이미 멤버인지 확인
-        if (workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, targetUser.getUserId())) {
-            log.warn("User is already a member of workspace: workspaceId={}, userId={}", workspaceId,
-                    targetUser.getUserId());
+        if (userData.getIsMember() != null && userData.getIsMember()) {
+            log.warn("User is already a member of workspace: workspaceId={}, userId={}", workspaceId, userData.getUserId());
             throw new IllegalArgumentException("해당 사용자는 이미 워크스페이스 멤버입니다.");
         }
 
-        // ✅ 새 멤버 등록
+        // ✅ 새 멤버 등록 (DB Write 1회)
         WorkspaceMember newMember = WorkspaceMember.builder()
                 .workspaceId(workspaceId)
-                .userId(targetUser.getUserId())
+                .userId(userData.getUserId())
                 .role(WorkspaceMember.WorkspaceRole.MEMBER)
                 .isDefault(false)
                 .isActive(true)
                 .build();
 
         WorkspaceMember savedMember = workspaceMemberRepository.save(newMember);
-        log.info("User invited and added as member: workspaceId={}, userId={}", workspaceId, targetUser.getUserId());
 
         return convertToWorkspaceMemberResponse(savedMember);
     }
@@ -815,6 +849,19 @@ public class WorkspaceService {
                 .ownerId(owner.getUserId())
                 .ownerName(ownerProfile.getNickName())
                 .ownerEmail(owner.getEmail())
+                .isPublic(workspace.getIsPublic())
+                .needApproved(workspace.getNeedApproved())
+                .createdAt(workspace.getCreatedAt())
+                .build();
+    }
+    private WorkspaceResponse convertToWorkspaceResponse2(Workspace workspace, CreatorAndProfileProjection ownerData) {
+        return WorkspaceResponse.builder()
+                .workspaceId(workspace.getWorkspaceId())
+                .workspaceName(workspace.getWorkspaceName())
+                .workspaceDescription(workspace.getWorkspaceDescription())
+                .ownerId(ownerData.getUserId())
+                .ownerName(ownerData.getNickName()) // Projection에서 닉네임 사용
+                .ownerEmail(ownerData.getEmail())   // Projection에서 이메일 사용
                 .isPublic(workspace.getIsPublic())
                 .needApproved(workspace.getNeedApproved())
                 .createdAt(workspace.getCreatedAt())
