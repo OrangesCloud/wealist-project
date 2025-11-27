@@ -118,7 +118,69 @@ services:
     
     depends_on:
       - loki
+  # --- [RDS Exporter 추가] ---
+  rds-exporter:
+    image: percona/rds-exporter:0.16.0 # Percona의 AWS RDS Exporter 이미지 사용
+    container_name: wealist-rds-exporter
+    hostname: rds-exporter
+    
+    environment:
+      # CloudWatch API 접근을 위한 리전 설정
+      # 이 Exporter는 CloudWatch API를 호출하므로, 
+      # EC2 인스턴스에 AWS 자격 증명(IAM Role)이 부여되어 있어야 합니다.
+      - AWS_DEFAULT_REGION=${AWS_REGION} 
+      
+      # 옵션: DB 인스턴스 식별을 위한 태그 필터 (모든 RDS 인스턴스를 모니터링하려면 생략)
+      # - RDS_EXPORTER_TAGS="Environment=production"
 
+    volumes:
+      # /etc/localtime: 컨테이너와 호스트의 시간 동기화 (옵션)
+      - /etc/localtime:/etc/localtime:ro
+      
+    ports:
+      # ${RDS_EXPORTER_PORT} 변수를 사용하여 호스트 포트 바인딩
+      - "${RDS_EXPORTER_PORT}:9042" 
+      
+    networks:
+      - monitoring-net
+      
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9042/metrics || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # --- [Elasticsearch Exporter 추가] ---
+  elasticsearch-exporter:
+    image: justwatch/elasticsearch_exporter:1.7.0 # JustWatch의 ES Exporter 이미지 사용
+    container_name: wealist-elasticsearch-exporter
+    hostname: elasticsearch-exporter
+    
+    command:
+      # ES 클러스터의 주소 설정 (SSM에서 로드된 변수 사용)
+      - --es.uri=${ES_URI}
+      # HTTP 인증이 필요한 경우 주석 해제 (ES_USERNAME, ES_PASSWORD 변수 필요)
+      # - --es.username=${ES_USERNAME} 
+      # - --es.password=${ES_PASSWORD}
+      
+    ports:
+      # ${ELASTIC_EXPORTER_PORT} 변수를 사용하여 호스트 포트 바인딩
+      - "${ELASTIC_EXPORTER_PORT}:9114" 
+      
+    networks:
+      - monitoring-net
+      
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9114/metrics || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # Node Exporter
   node-exporter:

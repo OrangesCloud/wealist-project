@@ -1,4 +1,4 @@
-name: CD - Enhanced Monitoring Stack
+name: CD - Enhanced Monitoring Stack (Clean Deploy)
 
 on:
   push:
@@ -43,12 +43,12 @@ jobs:
           echo "parameter-prefix=$PARAM_PREFIX" >> $GITHUB_OUTPUT
           echo "aws-region=ap-northeast-2" >> $GITHUB_OUTPUT
 
-      - name: Create Enhanced Deployment Script with Docker Installation
+      - name: Create Clean Deployment Script
         run: |
           cat << 'DEPLOY_SCRIPT' > /tmp/deploy-enhanced-monitoring.sh
           #!/bin/bash
           set -euo pipefail
-          echo "=== Starting Enhanced Monitoring Stack Deployment ==="
+          echo "=== Starting CLEAN Enhanced Monitoring Stack Deployment ==="
           echo "Timestamp: $(date)"
           echo "Parameter Prefix: ${PARAMETER_PREFIX}"
           echo "Compose File Path: ${COMPOSE_FILE}"
@@ -57,60 +57,91 @@ jobs:
           CURRENT_USER=$(whoami)
           echo "📋 Current user: ${CURRENT_USER}"
 
-          # Check if Docker is installed
-          echo "🔍 Checking Docker installation..."
+          # =============================================================================
+          # STEP 1: COMPLETE CLEANUP - 기존 모니터링 환경 완전 제거
+          # =============================================================================
+          echo "🧹 === CLEANING UP EXISTING MONITORING ENVIRONMENT ==="
+          
+          # Stop and remove all monitoring containers
+          echo "🛑 Stopping all monitoring containers..."
+          sudo docker stop $(sudo docker ps -aq --filter "name=wealist-" 2>/dev/null) 2>/dev/null || echo "No containers to stop"
+          sudo docker rm $(sudo docker ps -aq --filter "name=wealist-" 2>/dev/null) 2>/dev/null || echo "No containers to remove"
+          
+          # Remove all monitoring-related containers by image name
+          echo "🗑️ Removing containers by image patterns..."
+          sudo docker ps -a --format "table {{.Names}}\t{{.Image}}" | grep -E "(prometheus|grafana|loki|promtail|node-exporter|redis-exporter)" | awk '{print $1}' | xargs -r sudo docker rm -f || echo "No monitoring containers found"
+          
+          # Clean up Docker system
+          echo "🧽 Cleaning Docker system..."
+          sudo docker system prune -f --volumes || true
+          sudo docker network prune -f || true
+          sudo docker volume prune -f || true
+          
+          # Remove monitoring networks
+          echo "🌐 Removing monitoring networks..."
+          sudo docker network rm wealist-monitoring-net 2>/dev/null || echo "Network doesn't exist"
+          sudo docker network rm $(sudo docker network ls --filter "name=monitoring" --format "{{.Name}}") 2>/dev/null || echo "No monitoring networks found"
+          
+          # Clean up directories
+          echo "📁 Cleaning up monitoring directories..."
+          sudo rm -rf /home/ubuntu/wealist/prometheus/data/* 2>/dev/null || echo "No prometheus data to clean"
+          sudo rm -rf /home/ubuntu/wealist/grafana/data/* 2>/dev/null || echo "No grafana data to clean"
+          sudo rm -rf /home/ubuntu/wealist/loki/data/* 2>/dev/null || echo "No loki data to clean"
+          sudo rm -rf /var/lib/docker/volumes/wealist-* 2>/dev/null || echo "No wealist volumes to clean"
+          
+          # Remove existing compose files
+          COMPOSE_DIR="${COMPOSE_FILE%/*}"
+          echo "🗂️ Cleaning compose directory: ${COMPOSE_DIR}"
+          sudo rm -f ${COMPOSE_DIR}/docker-compose*.yml 2>/dev/null || echo "No compose files to clean"
+          sudo rm -f ${COMPOSE_DIR}/.env 2>/dev/null || echo "No .env file to clean"
+          
+          echo "✅ Cleanup completed!"
+
+          # =============================================================================
+          # STEP 2: DOCKER INSTALLATION CHECK
+          # =============================================================================
+          echo "🔍 === CHECKING DOCKER INSTALLATION ==="
+          
           if ! command -v docker &> /dev/null; then
             echo "❌ Docker not found. Installing Docker..."
-            
-            # Update system
             sudo yum update -y
-            
-            # Install Docker
             sudo amazon-linux-extras install docker -y
-            
-            # Start Docker service
             sudo systemctl start docker
             sudo systemctl enable docker
-            
-            # Add current user to docker group
             sudo usermod -a -G docker ${CURRENT_USER}
-            
             echo "✅ Docker installed successfully"
           else
             echo "✅ Docker is already installed"
           fi
 
-          # Ensure Docker is running
           if ! sudo systemctl is-active --quiet docker; then
             echo "🚀 Starting Docker service..."
             sudo systemctl start docker
           fi
 
-          # Check if Docker Compose is installed
-          echo "🔍 Checking Docker Compose installation..."
           if ! command -v docker-compose &> /dev/null; then
             echo "❌ Docker Compose not found. Installing Docker Compose..."
-            
-            # Install Docker Compose
             sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
             sudo chmod +x /usr/local/bin/docker-compose
-            
-            # Create symlink for easier access
             sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
-            
             echo "✅ Docker Compose installed successfully"
           else
             echo "✅ Docker Compose is already installed"
           fi
 
-          # Verify installations
           echo "📋 Verifying installations..."
           echo "Docker version: $(sudo docker --version)"
           echo "Docker Compose version: $(sudo docker-compose --version)"
 
+          # =============================================================================
+          # STEP 3: LOAD CONFIGURATION FROM SSM
+          # =============================================================================
+          echo "📋 === LOADING CONFIGURATION FROM SSM ==="
+
           # Function to load regular parameters
           load_param() {
             local param_name="$1"
+            local default_value="${2:-}"
             local full_param_path="${PARAMETER_PREFIX}${param_name}"
             echo "Loading parameter: ${full_param_path}" >&2
             
@@ -121,6 +152,9 @@ jobs:
               --output text \
               --region "${AWS_REGION}" 2>/dev/null); then
               echo "$value"
+            elif [ -n "$default_value" ]; then
+              echo "⚠️ Using default value for ${param_name}: ${default_value}" >&2
+              echo "$default_value"
             else
               echo "❌ Failed to load parameter: ${full_param_path}" >&2
               return 1
@@ -130,6 +164,7 @@ jobs:
           # Function to load secret parameters
           load_secret() {
             local param_name="$1"
+            local default_value="${2:-}"
             local full_param_path="${PARAMETER_PREFIX}${param_name}"
             echo "Loading secret: ${full_param_path}" >&2
             
@@ -141,222 +176,125 @@ jobs:
               --with-decryption \
               --region "${AWS_REGION}" 2>/dev/null); then
               echo "$value"
+            elif [ -n "$default_value" ]; then
+              echo "⚠️ Using default value for secret ${param_name}" >&2
+              echo "$default_value"
             else
               echo "❌ Failed to load secret: ${full_param_path}" >&2
               return 1
             fi
           }
 
-          echo "📋 Loading environment variables from SSM..."
-          
-          # Load core monitoring parameters
-          GRAFANA_ADMIN_USER=$(load_param "/monitor/grafana_admin_user")
-          GRAFANA_ADMIN_PASSWORD=$(load_secret "/monitor/grafana_admin_password")
-          PROMETHEUS_PORT=9090
-          GRAFANA_PORT=3001
-          NODE_EXPORTER_PORT=9001
-          PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config")
+          # Load configuration with fallback values
+          GRAFANA_ADMIN_USER=$(load_param "/monitor/grafana_admin_user" "admin")
+          GRAFANA_ADMIN_PASSWORD=$(load_secret "/monitor/grafana_admin_password" "admin123!")
+          PROMETHEUS_PORT=$(load_param "/monitor/prometheus_port" "9090")
+          GRAFANA_PORT=$(load_param "/monitor/grafana_port" "3001") 
+          NODE_EXPORTER_PORT=$(load_param "/monitor/node_exporter_port" "9001")
+          PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config" "/home/ubuntu/wealist/prometheus/config")
+          LOKI_PORT=$(load_param "/monitor/loki_port" "3100")
+          LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config" "/home/ubuntu/wealist/loki/config")
+          PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config" "/home/ubuntu/wealist/promtail/config")
+          AWS_REGION_PARAM=$(load_param "/cd/aws_region" "ap-northeast-2")
 
-          # Load NEW monitoring parameters
-          RDS_EXPORTER_PORT=$(load_param "/monitor/rds_exporter_port")
-          ELASTIC_EXPORTER_PORT=$(load_param "/monitor/elastic_exporter_port")
-          LOKI_PORT=$(load_param "/monitor/loki_port")
-          PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config")
-          LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config")
-
-          # Load AWS region
-          AWS_REGION_PARAM=$(load_param "/cd/aws_region")
-
-          # Load Elasticsearch connection info
-          ES_URI=$(load_param "/monitor/elasticsearch_uri")
-          ES_USERNAME=""
-          ES_PASSWORD=""
-
-          # Load service ports for Prometheus scraping
-          USER_SERVICE_PORT=8080
-          BOARD_SERVICE_PORT=8000
-
-          # AWS 자격증명 설정
-          if [ -n "${AWS_ACCESS_KEY_FROM_GITHUB:-}" ]; then
-            AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_FROM_GITHUB}"
-          else
-            AWS_ACCESS_KEY_ID=""
-          fi
-          
-          if [ -n "${AWS_SECRET_ACCESS_KEY_FROM_GITHUB:-}" ]; then
-            AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY_FROM_GITHUB}"
-          else
-            AWS_SECRET_ACCESS_KEY=""
-          fi
+          # Set AWS credentials
+          AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_FROM_GITHUB:-}"
+          AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY_FROM_GITHUB:-}"
 
           # Export all variables
           export GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD PROMETHEUS_PORT GRAFANA_PORT
-          export NODE_EXPORTER_PORT PROMETHEUS_CONFIG_DIR RDS_EXPORTER_PORT ELASTIC_EXPORTER_PORT
-          export LOKI_PORT PROMTAIL_CONFIG_DIR LOKI_CONFIG_DIR
+          export NODE_EXPORTER_PORT PROMETHEUS_CONFIG_DIR LOKI_PORT LOKI_CONFIG_DIR PROMTAIL_CONFIG_DIR
           export AWS_REGION="${AWS_REGION_PARAM}"
-          export ES_URI ES_USERNAME ES_PASSWORD
-          export USER_SERVICE_PORT BOARD_SERVICE_PORT
           export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 
           echo "✅ Environment variables loaded successfully"
-          echo "📋 Environment variable check:"
-          echo "  GRAFANA_ADMIN_USER: ${GRAFANA_ADMIN_USER:-(empty)}"
-          echo "  PROMETHEUS_PORT: ${PROMETHEUS_PORT}"
-          echo "  GRAFANA_PORT: ${GRAFANA_PORT}"
-          echo "  AWS_REGION: ${AWS_REGION}"
 
-          # Create and navigate to compose directory
-          COMPOSE_DIR="${COMPOSE_FILE%/*}"
-          echo "📂 Creating compose directory: ${COMPOSE_DIR}"
+          # =============================================================================
+          # STEP 4: CREATE FRESH DIRECTORY STRUCTURE
+          # =============================================================================
+          echo "📁 === CREATING FRESH DIRECTORY STRUCTURE ==="
           
-          # Create directory structure if it doesn't exist
+          # Create compose directory
           sudo mkdir -p "${COMPOSE_DIR}"
-          
-          # Change to the directory
           cd "${COMPOSE_DIR}"
           
-          # Verify we're in the right place
-          echo "📍 Current directory: $(pwd)"
-
-          # Decode and save docker-compose file
-          echo "📝 Creating docker-compose file..."
-          echo "${COMPOSE_B64}" | base64 -d > docker-compose.ec2-prod-monitoring.yml
-
-          # Verify file was created
-          if [ ! -f "docker-compose.ec2-prod-monitoring.yml" ]; then
-            echo "❌ Failed to create docker-compose file"
-            exit 1
-          fi
-
-          echo "✅ Docker-compose file created successfully"
-
-          # Remove version from docker-compose file
-          sed -i '/^version:/d' docker-compose.ec2-prod-monitoring.yml
-
-          # Fix port configurations - 더 정확한 치환
-          echo "🔧 Processing port configurations..."
-          sed -i "s/\${PROMETHEUS_PORT}:9090/${PROMETHEUS_PORT}:9090/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${GRAFANA_PORT}:3000/${GRAFANA_PORT}:3000/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${NODE_EXPORTER_PORT}:9100/${NODE_EXPORTER_PORT}:9100/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${RDS_EXPORTER_PORT}:9042/${RDS_EXPORTER_PORT}:9042/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${ELASTIC_EXPORTER_PORT}:9114/${ELASTIC_EXPORTER_PORT}:9114/g" docker-compose.ec2-prod-monitoring.yml
-
-          # 단일 포트 변수 치환
-          sed -i "s/\${PROMETHEUS_PORT}/${PROMETHEUS_PORT}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${GRAFANA_PORT}/${GRAFANA_PORT}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${NODE_EXPORTER_PORT}/${NODE_EXPORTER_PORT}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${RDS_EXPORTER_PORT}/${RDS_EXPORTER_PORT}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${ELASTIC_EXPORTER_PORT}/${ELASTIC_EXPORTER_PORT}/g" docker-compose.ec2-prod-monitoring.yml
-
-          # Environment variables 치환
-          echo "🔧 Processing environment variables..."
-          sed -i "s/\${GRAFANA_ADMIN_USER}/${GRAFANA_ADMIN_USER}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${GRAFANA_ADMIN_PASSWORD}/${GRAFANA_ADMIN_PASSWORD}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${AWS_ACCESS_KEY_ID}/${AWS_ACCESS_KEY_ID}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${AWS_SECRET_ACCESS_KEY}/${AWS_SECRET_ACCESS_KEY}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${AWS_REGION}/${AWS_REGION}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${ES_URI}/${ES_URI}/g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s/\${PROMETHEUS_CONFIG_DIR}/${PROMETHEUS_CONFIG_DIR//\//\\/}/g" docker-compose.ec2-prod-monitoring.yml
-
-          # Create configuration directories
-          echo "📁 Creating configuration directories..."
+          # Create all required directories
           sudo mkdir -p ${PROMETHEUS_CONFIG_DIR}
-          sudo mkdir -p ${LOKI_CONFIG_DIR}  
+          sudo mkdir -p ${LOKI_CONFIG_DIR}
           sudo mkdir -p ${PROMTAIL_CONFIG_DIR}
+          sudo mkdir -p /home/ubuntu/wealist/prometheus/data
+          sudo mkdir -p /home/ubuntu/wealist/grafana/data
+          sudo mkdir -p /home/ubuntu/wealist/loki/data
 
-          # Decode and save configuration files
-          echo "📝 Updating configuration files..."
+          # Set proper permissions
+          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/ || true
+          sudo chmod -R 755 /home/ubuntu/wealist/
+
+          # Special permissions for Grafana (runs as user 472)
+          sudo chown -R 472:472 /home/ubuntu/wealist/grafana/data
           
-          # Prometheus config
+          echo "✅ Directory structure created successfully"
+
+          # =============================================================================
+          # STEP 5: DEPLOY CONFIGURATION FILES
+          # =============================================================================
+          echo "📝 === DEPLOYING CONFIGURATION FILES ==="
+          
+          # Deploy Docker Compose file
+          echo "${COMPOSE_B64}" | base64 -d > docker-compose.yml
+          
+          # Deploy configuration files
           echo "${PROM_CFG_B64}" | base64 -d | sudo tee ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml > /dev/null
-          
-          # Loki config  
-          echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null
-          
-          # Promtail config
+          echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null  
           echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null
 
-          # Set proper permissions for configuration files
-          echo "🔧 Setting permissions..."
-          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} ${PROMETHEUS_CONFIG_DIR%/*} 2>/dev/null || true
-          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} "${COMPOSE_DIR}" 2>/dev/null || true
-
-          # Process template variables in Prometheus config
-          echo "🔧 Processing Prometheus template variables..."
-          sudo sed -i \
-              -e "s/{{USER_SERVICE_PORT}}/${USER_SERVICE_PORT}/g" \
-              -e "s/{{BOARD_SERVICE_PORT}}/${BOARD_SERVICE_PORT}/g" \
-              -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
-              -e "s/{{RDS_EXPORTER_PORT}}/${RDS_EXPORTER_PORT}/g" \
-              -e "s/{{ELASTIC_EXPORTER_PORT}}/${ELASTIC_EXPORTER_PORT}/g" \
-              -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
-              "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
-
-          # Debug: Show docker-compose file content after substitution
-          echo "🔍 Docker-compose file content after substitution (first 50 lines):"
-          head -50 docker-compose.ec2-prod-monitoring.yml
-
-          # Create .env file for docker-compose
-          echo "📝 Creating .env file for Docker Compose..."
-          
-          # Remove existing .env file
-          rm -f .env
-          
-          # Create new .env file without indentation
-          cat > .env << ENV_END # 따옴표 제거 및 새로운 종료 구분자 사용
+          # Create .env file
+          cat > .env << ENV_EOF
           GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
           GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
           PROMETHEUS_PORT=${PROMETHEUS_PORT}
           GRAFANA_PORT=${GRAFANA_PORT}
           NODE_EXPORTER_PORT=${NODE_EXPORTER_PORT}
-          RDS_EXPORTER_PORT=${RDS_EXPORTER_PORT}
-          ELASTIC_EXPORTER_PORT=${ELASTIC_EXPORTER_PORT}
+          LOKI_PORT=${LOKI_PORT}
           AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
           AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
           AWS_REGION=${AWS_REGION}
-          ES_URI=${ES_URI}
           PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
-          ENV_END
+          LOKI_CONFIG_DIR=${LOKI_CONFIG_DIR}
+          PROMTAIL_CONFIG_DIR=${PROMTAIL_CONFIG_DIR}
+          ENV_EOF
 
-          # Verify .env file
-          echo "✅ .env file created successfully"
-          echo "📋 .env file content:"
-          cat .env
-          echo "📋 .env file line count: $(wc -l < .env)"
+          echo "✅ Configuration files deployed successfully"
 
-          # Validate docker-compose file
-          echo "🔍 Validating docker-compose file syntax..."
-          if ! sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml config >/dev/null 2>&1; then
-            echo "❌ Invalid docker-compose file"
-            echo "📋 Validation errors:"
-            sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml config 2>&1 || true
-            echo "📋 Checking for common issues..."
-            
-            # Check for Redis port issues
-            if grep -q "invalid IP address: 6379" <(sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml config 2>&1); then
-              echo "🔍 Found Redis port issue, fixing..."
-              sed -i 's/redis:6379/redis:${REDIS_PORT:-6379}/g' docker-compose.ec2-prod-monitoring.yml
-              sed -i 's/redis:\${REDIS_PORT:-6379}/redis:6379/g' docker-compose.ec2-prod-monitoring.yml
-            fi
-            
-            # Try validation again
-            if ! sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml config >/dev/null 2>&1; then
-              echo "📋 Full docker-compose file content:"
-              cat docker-compose.ec2-prod-monitoring.yml
-              exit 1
-            fi
-          fi
-
-          echo "✅ Docker-compose file validation passed"
-
-          # Deploy enhanced monitoring services
-          echo "🚀 Deploying enhanced monitoring services..."
+          # =============================================================================
+          # STEP 6: VALIDATE AND DEPLOY SERVICES
+          # =============================================================================
+          echo "🔍 === VALIDATING CONFIGURATION ==="
           
+          # Validate Docker Compose file
+          if ! sudo docker-compose config >/dev/null 2>&1; then
+            echo "❌ Invalid docker-compose file"
+            sudo docker-compose config
+            exit 1
+          fi
+          
+          echo "✅ Configuration validation passed"
+
+          # =============================================================================
+          # STEP 7: START SERVICES
+          # =============================================================================
+          echo "🚀 === STARTING MONITORING SERVICES ==="
+          
+          # Pull images first
+          echo "📦 Pulling Docker images..."
+          sudo docker-compose pull
+
           # Start services
-          if ! sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml up -d; then
+          echo "🔄 Starting containers..."
+          if ! sudo docker-compose up -d --remove-orphans; then
             echo "❌ Failed to start services"
             echo "📋 Docker-compose logs:"
-            sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml logs --tail=50 || true
+            sudo docker-compose logs --tail=50
             exit 1
           fi
 
@@ -364,21 +302,59 @@ jobs:
           echo "⏳ Waiting for services to start..."
           sleep 30
 
-          # Check container status
-          echo "📋 Checking container status..."
+          # =============================================================================
+          # STEP 8: VERIFICATION
+          # =============================================================================
+          echo "📋 === VERIFYING DEPLOYMENT ==="
+          
+          echo "Container status:"
           sudo docker ps -a
+          
+          echo ""
+          echo "Service health checks:"
+          for i in {1..5}; do
+            echo "Health check attempt $i/5..."
+            
+            # Check Prometheus
+            if curl -s http://localhost:${PROMETHEUS_PORT}/-/healthy >/dev/null 2>&1; then
+              echo "✅ Prometheus is healthy"
+            else
+              echo "⚠️ Prometheus not ready yet"
+            fi
+            
+            # Check Grafana  
+            if curl -s http://localhost:${GRAFANA_PORT}/api/health >/dev/null 2>&1; then
+              echo "✅ Grafana is healthy"
+            else
+              echo "⚠️ Grafana not ready yet"
+            fi
+            
+            # Check Node Exporter
+            if curl -s http://localhost:${NODE_EXPORTER_PORT}/metrics >/dev/null 2>&1; then
+              echo "✅ Node Exporter is healthy"
+            else
+              echo "⚠️ Node Exporter not ready yet"
+            fi
+            
+            sleep 10
+          done
 
           echo ""
-          echo "🎉 Enhanced Monitoring Stack deployment completed!"
-          echo "📊 Services should be available at:"
+          echo "🎉 === DEPLOYMENT COMPLETED SUCCESSFULLY ==="
+          echo "📊 Services are available at:"
           echo "  - Prometheus: http://localhost:${PROMETHEUS_PORT}"
-          echo "  - Grafana: http://localhost:${GRAFANA_PORT}"
-          echo "  - Loki: http://localhost:3100"
+          echo "  - Grafana: http://localhost:${GRAFANA_PORT} (admin/${GRAFANA_ADMIN_PASSWORD})"
+          echo "  - Loki: http://localhost:${LOKI_PORT}"
           echo "  - Node Exporter: http://localhost:${NODE_EXPORTER_PORT}/metrics"
+          echo ""
+          echo "🔧 To manage services:"
+          echo "  - View logs: sudo docker-compose logs -f"
+          echo "  - Restart: sudo docker-compose restart"
+          echo "  - Stop: sudo docker-compose down"
           
           DEPLOY_SCRIPT
 
-      - name: Deploy Enhanced Monitoring Stack via SSM
+      - name: Deploy Clean Monitoring Stack via SSM
         id: deploy
         run: |
           # Base64 encode all configuration files
@@ -388,26 +364,26 @@ jobs:
           PROMTAIL_CFG_B64=$(base64 -w 0 promtail/promtail.yml)
           
           # Base64 encode deployment script
-          echo "📦 Encoding deployment script..."
+          echo "📦 Encoding clean deployment script..."
           SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-enhanced-monitoring.sh)
           echo "✅ Script encoded (${#SCRIPT_BASE64} bytes)"
 
           # Send SSM Run Command
-          echo "🚀 Sending enhanced monitoring deployment command..."
+          echo "🚀 Sending CLEAN monitoring deployment command..."
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy Enhanced Monitoring Stack - ${{ github.sha }}" \
-            --timeout-seconds 900 \
+            --comment "CLEAN Deploy Enhanced Monitoring Stack - ${{ github.sha }}" \
+            --timeout-seconds 1200 \
             --parameters commands="[
-              \"echo '=== Enhanced Monitoring Stack Deployment Started ===' \",
+              \"echo '=== CLEAN Enhanced Monitoring Stack Deployment Started ===' \",
               \"echo 'Timestamp: '\$(date) \",
               \"echo 'Instance ID: '\$(ec2-metadata --instance-id 2>/dev/null || echo 'N/A') \",
               \"echo 'GitHub SHA: ${{ github.sha }}' \",
               \"echo '' \",
               \"echo '${SCRIPT_BASE64}' | base64 -d > /tmp/deploy-enhanced-monitoring.sh\",
               \"chmod +x /tmp/deploy-enhanced-monitoring.sh\",
-              \"echo '🚀 Starting enhanced deployment script execution...' \",
+              \"echo '🚀 Starting CLEAN deployment script execution...' \",
               \"export PARAMETER_PREFIX='${{ steps.config.outputs.parameter-prefix }}'\",
               \"export AWS_REGION='${{ steps.config.outputs.aws-region }}'\",
               \"export COMPOSE_FILE='${{ steps.config.outputs.compose-file-path }}'\",
@@ -420,9 +396,9 @@ jobs:
               \"/tmp/deploy-enhanced-monitoring.sh 2>&1 | tee /tmp/deploy-enhanced-monitoring.log\",
               \"DEPLOY_EXIT_CODE=\${PIPESTATUS[0]}\",
               \"echo '' \",
-              \"echo '=== Enhanced Deployment Script Finished ===' \",
+              \"echo '=== CLEAN Deployment Script Finished ===' \",
               \"echo 'Exit Code: '\$DEPLOY_EXIT_CODE \",
-              \"if [ \$DEPLOY_EXIT_CODE -ne 0 ]; then echo '📋 Recent logs:'; tail -100 /tmp/deploy-enhanced-monitoring.log; fi\",
+              \"if [ \$DEPLOY_EXIT_CODE -ne 0 ]; then echo '📋 Recent logs:'; tail -200 /tmp/deploy-enhanced-monitoring.log; fi\",
               \"exit \$DEPLOY_EXIT_CODE\"
             ]" \
             --output text \
@@ -437,12 +413,12 @@ jobs:
           echo "✅ Command sent successfully"
           echo "📝 Command ID: ${COMMAND_ID}"
 
-      - name: Monitor Enhanced Deployment Progress
+      - name: Monitor Clean Deployment Progress
         run: |
           COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
-          echo "📊 Monitoring enhanced deployment progress: ${COMMAND_ID}"
+          echo "📊 Monitoring CLEAN deployment progress: ${COMMAND_ID}"
           
-          MAX_WAIT=600
+          MAX_WAIT=900  # 15분으로 증가
           WAIT_TIME=0
           
           while [ $WAIT_TIME -lt $MAX_WAIT ]; do
@@ -455,7 +431,7 @@ jobs:
             echo "⏳ Status: $STATUS (${WAIT_TIME}s elapsed)"
             
             if [ "$STATUS" = "Success" ]; then
-              echo "✅ Enhanced monitoring deployment completed!"
+              echo "✅ CLEAN monitoring deployment completed!"
               break
             elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
               echo "❌ Deployment failed with status: $STATUS"
@@ -474,8 +450,8 @@ jobs:
               exit 1
             fi
             
-            sleep 25
-            WAIT_TIME=$((WAIT_TIME + 25))
+            sleep 30
+            WAIT_TIME=$((WAIT_TIME + 30))
           done
           
           if [ $WAIT_TIME -ge $MAX_WAIT ]; then
