@@ -1,18 +1,6 @@
-# =============================================================================
-# weAlist Project - Monitoring Stack
-# =============================================================================
-# Prometheus, Grafana, Exporters를 포함한 모니터링 스택입니다.
-# AWS RDS Exporter와 Elasticsearch Exporter가 추가되었습니다.
-# =============================================================================
-
 version: '3.9'
 
 services:
-  # ===========================================================================
-  # Metrics Collection & Visualization (Prometheus, Grafana - 변경 없음)
-  # ===========================================================================
-
-  # Prometheus - Metrics Collection (생략: 변경 없음)
   prometheus:
     image: prom/prometheus:latest
     container_name: wealist-prometheus
@@ -30,7 +18,7 @@ services:
       - ${PROMETHEUS_CONFIG_DIR}:/etc/prometheus:ro
       - prometheus-data:/prometheus
     ports:
-      - "${PROMETHEUS_PORT}"
+      - "${PROMETHEUS_PORT}:9090"  # 포트 매핑 수정
     networks:
       - backend-net
       - database-net
@@ -38,7 +26,7 @@ services:
     restart: unless-stopped
     
     healthcheck:
-      test: ["CMD-SHELL", "wget", "-q", "--spider", "http://localhost:${PROMETHEUS_PORT}/-/healthy"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/healthy || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -50,7 +38,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Grafana - Visualization (생략: 변경 없음)
   grafana:
     image: grafana/grafana:latest
     container_name: wealist-grafana
@@ -64,8 +51,12 @@ services:
       - GF_SERVER_SERVE_FROM_SUB_PATH=true  
       - GF_INSTALL_PLUGINS=redis-datasource
 
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - grafana-logs:/var/log/grafana
+
     ports:
-      - "${GRAFANA_PORT}"
+      - "${GRAFANA_PORT}:3000"  # 포트 매핑 수정
     networks:
       - monitoring-net
     depends_on:
@@ -73,7 +64,7 @@ services:
     restart: unless-stopped
 
     healthcheck:
-      test: ["CMD-SHELL", "wget", "-q", "--spider", "http://localhost:${GRAFANA_PORT}/api/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -93,10 +84,10 @@ services:
     command: -config.file=/etc/loki/local-config.yaml
 
     ports:
-      - "3100:3100"
+      - "${LOKI_PORT:-3100}:3100"  # 포트 매핑 수정
 
     volumes:
-      - ../../loki/config:/etc/loki
+      - ${LOKI_CONFIG_DIR}:/etc/loki:ro
       - loki-data:/loki
 
     networks:
@@ -105,7 +96,7 @@ services:
     restart: unless-stopped
 
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3100/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -117,7 +108,7 @@ services:
     hostname: promtail
 
     volumes:
-      - ../../promtail:/etc/promtail ## 여기 경로랑 실제 위치 포인트랑 같아야됨 promtail/config -> 현재 promtail이 있는 위치도 같아야됨
+      - ${PROMTAIL_CONFIG_DIR}:/etc/promtail:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/log:/var/log:ro
@@ -132,104 +123,90 @@ services:
     depends_on:
       - loki
 
-  # ===========================================================================
-  # Exporters (RDS, Elasticsearch 추가)
-  # ===========================================================================
-
-  # 1. AWS RDS Exporter (Percona)
-  # AWS RDS CloudWatch/Enhanced Monitoring 메트릭 수집
+  # AWS RDS CloudWatch Exporter - 수정된 버전
   rds-exporter:
-    # 💡 이미지 수정: Percona RDS Exporter 공식 이미지 사용
-    image: percona/rds_exporter:latest
+    image: qonto/prometheus-rds-exporter:latest  # 존재하는 이미지로 변경
     container_name: wealist-rds-exporter
-    # 💡 호스트 이름 통일: Prometheus 설정 파일과 일치
     hostname: rds-exporter
     
-    # 🔑 AWS 인증 및 리전 정보 설정 (필수!)
-    # 보안상 민감 정보는 환경 변수 파일(.env)에 정의하고 ${}로 불러오는 것이 좋습니다.
     environment:
-      # RDS Exporter가 CloudWatch API를 호출하기 위한 자격 증명
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION} # RDS 인스턴스가 위치한 리전
-      # RDS Enhanced Monitoring 활성화 시 필요한 경우 (추가 설정 필요)
-      #- LOG_GROUP_PATTERN=RDSOSMetrics
+      - AWS_REGION=${AWS_REGION}
       
-    # 💡 포트 설정: 기본 포트 9042를 사용하도록 변수 수정 (RDS_EXPORTER_PORT 변수가 9042로 설정되어야 함)
     ports:
-      - "${RDS_EXPORTER_PORT}" 
+      - "${RDS_EXPORTER_PORT}:9042"  # 포트 매핑 수정
 
     networks:
-      - monitoring-net # AWS API 호출을 위해 외부 접근이 필요할 수 있습니다.
+      - monitoring-net
       
-    # depends_on: RDS는 외부 서비스이므로 필요 없지만, 필요시 설정 가능
-
     restart: unless-stopped
-    # (중략: healthcheck, logging, deploy)
+    
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://{RDS_주소}:{RDS_EXPORTER_PORT}/ready"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9042/metrics || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
 
-
-  # 2. Elasticsearch Exporter (Prometheus Community)
-  # Elasticsearch 클러스터 메트릭 수집
+  # Elasticsearch Exporter - 수정된 버전
   elasticsearch-exporter:
-    # 💡 이미지 수정: Elasticsearch Exporter 공식 이미지 사용
-    image: prometheuscommunity/elasticsearch-exporter:latest 
+    image: prometheuscommunity/elasticsearch-exporter:latest
     container_name: wealist-elasticsearch-exporter
-    # 💡 호스트 이름 통일
     hostname: elasticsearch-exporter
 
-    # 🔗 Elasticsearch 연결 주소 설정 (필수!)
     environment:
-      # 실제 Elasticsearch 호스트 주소와 포트로 변경해야 합니다.
-      - ES_URI=http://your-elasticsearch-host:9200
-      #- ES_USERNAME=user
-      #- ES_PASSWORD=password
+      - ES_URI=${ES_URI}  # 환경변수로 올바르게 설정
+      - ES_USERNAME=${ES_USERNAME:-}
+      - ES_PASSWORD=${ES_PASSWORD:-}
 
-    # 💡 포트 설정: 기본 포트 9114를 사용하도록 변수 수정 (ELASTIC_EXPORTER_PORT 변수가 9114로 설정되어야 함)
     ports:
-      - "${ELASTIC_EXPORTER_PORT}:9114"
+      - "${ELASTIC_EXPORTER_PORT}:9114"  # 포트 매핑 수정
 
     networks:
-      - backend-net # ES가 이 네트워크에 있다면
+      - backend-net
       - monitoring-net
 
-    # depends_on: Elasticsearch 컨테이너 이름으로 설정 (있다면)
+    restart: unless-stopped
+    
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://ES_URI:ELASTIC_EXPORTER_PORT/ready"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9114/metrics || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    # (중략: healthcheck, logging, deploy)
+      start_period: 30s
 
-
-  # Node Exporter (호스트 메트릭 수집 - 유지)
+  # Node Exporter
   node-exporter:
     image: prom/node-exporter:latest
     container_name: wealist-node-exporter
     hostname: node-exporter
-    # (중략)
+    
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
+      
     ports:
-      - "${NODE_EXPORTER_PORT}"
+      - "${NODE_EXPORTER_PORT}:9100"  # 포트 매핑 수정
+      
     networks:
       - monitoring-net
+      
     restart: unless-stopped
-    # (중략)
-
-
-# =============================================================================
-# Monitoring Networks & Volumes (변경 없음)
-# =============================================================================
+    
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9100/metrics || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
   monitoring-net:
