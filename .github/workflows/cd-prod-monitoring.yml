@@ -178,7 +178,8 @@ jobs:
           PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config" "/home/ubuntu/wealist/prometheus/config")
           LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config" "/home/ubuntu/wealist/loki/config")
           PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config" "/home/ubuntu/wealist/promtail/config")
-          
+          RDS_CONFIG_DIR=$(load_param "/monitor/rds_config" "/home/ubuntu/wealist/rds-exporter/config")
+
           ELASTIC_URL=$(load_param "/monitor/elasticsearch_uri" "localhost")
           RDS_EXPORTER_IMAGE=$(load_param "/monitor/rds_exporter_image" "qonto/prometheus-rds-exporter:latest")
 
@@ -195,13 +196,14 @@ jobs:
           cd "${COMPOSE_DIR}"
           
           # Create monitoring directories
-          sudo mkdir -p /home/ubuntu/wealist/{prometheus/{config,data},grafana/{data,logs},loki/{config,data},promtail/config}
+          sudo mkdir -p /home/ubuntu/wealist/{prometheus/{config,data},grafana/{data,logs},loki/{config,data},promtail/config,rds-exporter/config}
 
           # Set permissions
           sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/
           sudo chown -R 472:472 /home/ubuntu/wealist/grafana/
           sudo chown -R 65534:65534 /home/ubuntu/wealist/prometheus/data
           sudo chown -R 10001:10001 /home/ubuntu/wealist/loki/data || sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/loki/data
+          sudo chown -R ubuntu:ubuntu /home/ubuntu/wealist/rds-exporter/
 
           echo "✅ Directories created and configured"
 
@@ -217,6 +219,8 @@ jobs:
           echo "${PROM_CFG_B64}" | base64 -d | sudo tee ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml > /dev/null
           echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null  
           echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null
+          echo "${RDS_CFG_B64}" | base64 -d | sudo tee ${RDS_CONFIG_DIR}/config.yml > /dev/null
+
 
           # Create environment file
           cat > .env << ENV_EOF
@@ -231,6 +235,7 @@ jobs:
           PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
           LOKI_CONFIG_DIR=${LOKI_CONFIG_DIR}
           PROMTAIL_CONFIG_DIR=${PROMTAIL_CONFIG_DIR}
+          RDS_CONFIG_DIR=${RDS_CONFIG_DIR}
           GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
           GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
           RDS_EXPORTER_IMAGE=${RDS_EXPORTER_IMAGE}
@@ -317,6 +322,7 @@ jobs:
           PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
           LOKI_CFG_B64=$(base64 -w 0 loki/config/local-config.yaml)
           PROMTAIL_CFG_B64=$(base64 -w 0 promtail/promtail.yml)
+          RDS_CFG_B64=$(base64 -w 0 rds-exporter/config.yml)
           SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-monitoring.sh)
 
           # Send command
@@ -336,6 +342,7 @@ jobs:
               \"export PROM_CFG_B64='${PROM_CFG_B64}'\",
               \"export LOKI_CFG_B64='${LOKI_CFG_B64}'\",
               \"export PROMTAIL_CFG_B64='${PROMTAIL_CFG_B64}'\",
+              \"export RDS_CFG_B64='${RDS_CFG_B64}'\",
               \"/tmp/deploy-monitoring.sh 2>&1 | tee /tmp/deploy.log\",
               \"echo 'Deployment Exit Code:' \${PIPESTATUS[0]}\"
             ]" \

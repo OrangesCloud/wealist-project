@@ -1,0 +1,61 @@
+# RDS Exporter Configuration
+---
+# AWS Region
+region: ap-northeast-2
+
+# CloudWatch configuration
+cloudwatch:
+  # Metrics collection interval (seconds)
+  interval: 60
+  
+  # AWS credentials (if not using IAM roles)
+  # access_key: ""
+  # secret_key: ""
+
+# RDS instances to monitor (optional - if empty, monitors all RDS instances)
+instances:
+  # Specific instances (uncomment to monitor specific instances only)
+  # - db-instance-1
+  # - db-instance-2
+
+# Metrics to collect
+metrics:
+  # Basic RDS metrics
+  - CPUUtilization
+  - DatabaseConnections
+  - FreeableMemory
+  - FreeStorageSpace
+  - ReadIOPS
+  - WriteIOPS
+  - ReadLatency
+  - WriteLatency
+  - ReadThroughput
+  - WriteThroughput
+  
+  # Enhanced metrics (requires Enhanced Monitoring enabled)
+  # - ActiveTransactions
+  # - BlockedTransactions
+  # - BufferCacheHitRatio
+  # - CommitLatency
+  # - CommitThroughput
+  # - DDLLatency
+  # - DDLThroughput
+  # - DMLLatency
+  # - DMLThroughput
+  # - LoginFailures
+  # - Queries
+  # - SelectLatency
+  # - SelectThroughput
+
+# Export configuration
+export:
+  # Port to listen on
+  port: 9042
+  
+  # Path for metrics endpoint
+  path: /metrics
+
+# Logging configuration
+log:
+  level: info
+  format: text
