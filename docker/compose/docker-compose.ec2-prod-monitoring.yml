@@ -14,7 +14,7 @@ services:
       
     volumes:
       - ${PROMETHEUS_CONFIG_DIR}:/etc/prometheus:ro
-      - prometheus-data:/prometheus
+       - /home/ubuntu/wealist/prometheus/data:/prometheus
     ports:
       - "${PROMETHEUS_PORT}:9090"
     networks:
@@ -48,8 +48,9 @@ services:
       - GF_INSTALL_PLUGINS=redis-datasource
 
     volumes:
-      - grafana-storage:/var/lib/grafana
-      - grafana-logs:/var/log/grafana
+      - /home/ubuntu/wealist/grafana/data:/var/lib/grafana  # Named Volume 대신 로컬 경로
+      - /home/ubuntu/wealist/grafana/logs:/var/log/grafana   # Named Volume 대신 로컬 경로
+
 
     ports:
       - "${GRAFANA_PORT}:3000"
@@ -83,8 +84,9 @@ services:
       - "${LOKI_PORT:-3100}:3100"
 
     volumes:
-      - /home/ubuntu/wealist/loki/config:/etc/loki:ro  # 하드코딩된 경로 사용
-      - loki-data:/loki
+      - /home/ubuntu/wealist/loki/config:/etc/loki:ro
+      - /home/ubuntu/wealist/loki/data:/loki  # Named Volume 대신 로컬 경로
+
 
     networks:
       - monitoring-net

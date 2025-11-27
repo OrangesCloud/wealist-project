@@ -504,7 +504,7 @@ jobs:
           COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
           echo "📊 Monitoring CLEAN deployment progress (OIDC): ${COMMAND_ID}"
           
-          MAX_WAIT=900  # 15분
+          MAX_WAIT=100  # 15분
           WAIT_TIME=0
           
           while [ $WAIT_TIME -lt $MAX_WAIT ]; do
