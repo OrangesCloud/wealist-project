@@ -452,7 +452,7 @@ jobs:
         run: |
           # Base64 encode docker-compose and prometheus config files
           COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-dev-monitoring.yml)
-          PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
+          PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-prod-ec2.yml)
           
           # Base64 encode deployment script
           echo "📦 Encoding deployment script..."
