@@ -79,8 +79,6 @@ export S3_REGION="${AWS_REGION}"
 export CORS_ORIGINS="*"
 
 # Exporter Ports
-export POSTGRES_EXPORTER_PORT=9187
-export REDIS_EXPORTER_PORT=9121
 export NODE_EXPORTER_PORT=9100
 
 # 4. 이미지 버전 환경 변수 설정
@@ -118,20 +116,24 @@ aws ecr get-login-password --region ${AWS_REGION} | \
 echo "🐳 Pulling image: ${SERVICE_NAME}:${BOARD_SERVICE_VERSION}"
 sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
 
-# 7. Docker Compose 실행 (board-service와 Exporter들 재시작)
-echo "🔄 Starting Board Service and Exporters defined in ${COMPOSE_FILE}..."
+# 7. Docker Compose 실행 (board-service만 재시작)
+echo "🔄 Starting Board Service defined in ${COMPOSE_FILE}..."
 
-SERVICES_TO_RESTART="board-service postgres-exporter redis-exporter node-exporter"
+SERVICES_TO_RESTART="board-service"
 
 # 기존 컨테이너 중지 및 제거 (포트 충돌 방지)
-echo "🛑 Stopping and removing existing containers..."
+echo "🛑 Stopping and removing existing Board Service container..."
 sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" stop ${SERVICES_TO_RESTART} 2>/dev/null || true
 sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" rm -f ${SERVICES_TO_RESTART} 2>/dev/null || true
 
 # 컨테이너 정리 대기
 sleep 3
 
-# 🚨 --no-deps 를 사용하여 Board Service와 Exporter들만 재시작
+# 🚨 --no-deps 를 사용하여 Board Service만 재시작 (다른 서비스에 영향 없음)
 sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps ${SERVICES_TO_RESTART}
+
+# Node Exporter가 실행 중이 아니면 시작 (최초 배포 시에만)
+echo "🔍 Ensuring node-exporter is running..."
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps node-exporter 2>/dev/null || true
 
 echo "✅ Deployment initiated. CodeDeploy will now run ValidateService."
