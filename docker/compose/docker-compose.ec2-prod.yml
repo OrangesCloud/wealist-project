@@ -6,7 +6,6 @@
 # - 모니터링: Exporter를 포함하여 중앙 Prometheus 서버에 메트릭 노출
 # =============================================================================
 
-
 version: "3.8"
 
 services:
@@ -57,6 +56,9 @@ services:
       - S3_BUCKET=${S3_BUCKET}
       - S3_REGION=${S3_REGION}
       - CORS_ORIGINS=*
+
+      # ✨ [추가됨] AWS SDK가 사용할 Region 명시 (Instance Role 인증과 함께 사용)
+      - AWS_REGION=${S3_REGION}
 
       # Java Options
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
@@ -118,6 +120,7 @@ services:
       - S3_BUCKET=${S3_BUCKET}
       - S3_REGION=${S3_REGION}
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - AWS_REGION=${S3_REGION}
 
     ports:
       - "8000:8000"
