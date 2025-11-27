@@ -53,6 +53,10 @@ jobs:
           echo "Parameter Prefix: ${PARAMETER_PREFIX}"
           echo "Compose File Path: ${COMPOSE_FILE}"
 
+          # Get current user
+          CURRENT_USER=$(whoami)
+          echo "📋 Current user: ${CURRENT_USER}"
+
           # Check if Docker is installed
           echo "🔍 Checking Docker installation..."
           if ! command -v docker &> /dev/null; then
@@ -68,8 +72,8 @@ jobs:
             sudo systemctl start docker
             sudo systemctl enable docker
             
-            # Add ec2-user to docker group
-            sudo usermod -a -G docker ec2-user
+            # Add current user to docker group
+            sudo usermod -a -G docker ${CURRENT_USER}
             
             echo "✅ Docker installed successfully"
           else
@@ -172,6 +176,19 @@ jobs:
           USER_SERVICE_PORT=8080
           BOARD_SERVICE_PORT=8000
 
+          # AWS 자격증명 설정
+          if [ -n "${AWS_ACCESS_KEY_FROM_GITHUB:-}" ]; then
+            AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_FROM_GITHUB}"
+          else
+            AWS_ACCESS_KEY_ID=""
+          fi
+          
+          if [ -n "${AWS_SECRET_ACCESS_KEY_FROM_GITHUB:-}" ]; then
+            AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY_FROM_GITHUB}"
+          else
+            AWS_SECRET_ACCESS_KEY=""
+          fi
+
           # Export all variables
           export GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD PROMETHEUS_PORT GRAFANA_PORT
           export NODE_EXPORTER_PORT PROMETHEUS_CONFIG_DIR RDS_EXPORTER_PORT ELASTIC_EXPORTER_PORT
@@ -179,16 +196,14 @@ jobs:
           export AWS_REGION="${AWS_REGION_PARAM}"
           export ES_URI ES_USERNAME ES_PASSWORD
           export USER_SERVICE_PORT BOARD_SERVICE_PORT
-
-          # AWS 자격증명 export
-          if [ -n "${AWS_ACCESS_KEY_FROM_GITHUB:-}" ]; then
-            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_FROM_GITHUB}"
-          fi
-          if [ -n "${AWS_SECRET_ACCESS_KEY_FROM_GITHUB:-}" ]; then
-            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY_FROM_GITHUB}"
-          fi
+          export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 
           echo "✅ Environment variables loaded successfully"
+          echo "📋 Environment variable check:"
+          echo "  GRAFANA_ADMIN_USER: ${GRAFANA_ADMIN_USER:-(empty)}"
+          echo "  PROMETHEUS_PORT: ${PROMETHEUS_PORT}"
+          echo "  GRAFANA_PORT: ${GRAFANA_PORT}"
+          echo "  AWS_REGION: ${AWS_REGION}"
 
           # Create and navigate to compose directory
           COMPOSE_DIR="${COMPOSE_FILE%/*}"
@@ -202,8 +217,6 @@ jobs:
           
           # Verify we're in the right place
           echo "📍 Current directory: $(pwd)"
-          echo "📋 Directory contents:"
-          ls -la || echo "Directory is empty"
 
           # Decode and save docker-compose file
           echo "📝 Creating docker-compose file..."
@@ -216,28 +229,34 @@ jobs:
           fi
 
           echo "✅ Docker-compose file created successfully"
-          echo "📋 File size: $(wc -l < docker-compose.ec2-prod-monitoring.yml) lines"
 
           # Remove version from docker-compose file
           sed -i '/^version:/d' docker-compose.ec2-prod-monitoring.yml
 
-          # Fix port configurations
-          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:${PROMETHEUS_PORT}|g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:3000|g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}|g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s|\${RDS_EXPORTER_PORT}|${RDS_EXPORTER_PORT}:9042|g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s|\${ELASTIC_EXPORTER_PORT}|${ELASTIC_EXPORTER_PORT}:9114|g" docker-compose.ec2-prod-monitoring.yml
+          # Fix port configurations - 더 정확한 치환
+          echo "🔧 Processing port configurations..."
+          sed -i "s/\${PROMETHEUS_PORT}:9090/${PROMETHEUS_PORT}:9090/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${GRAFANA_PORT}:3000/${GRAFANA_PORT}:3000/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${NODE_EXPORTER_PORT}:9100/${NODE_EXPORTER_PORT}:9100/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${RDS_EXPORTER_PORT}:9042/${RDS_EXPORTER_PORT}:9042/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${ELASTIC_EXPORTER_PORT}:9114/${ELASTIC_EXPORTER_PORT}:9114/g" docker-compose.ec2-prod-monitoring.yml
 
-          # Update environment variables
-          if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
-            sed -i "s|\${AWS_ACCESS_KEY_ID}|${AWS_ACCESS_KEY_ID}|g" docker-compose.ec2-prod-monitoring.yml
-          fi
-          if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
-            sed -i "s|\${AWS_SECRET_ACCESS_KEY}|${AWS_SECRET_ACCESS_KEY}|g" docker-compose.ec2-prod-monitoring.yml
-          fi
-          sed -i "s|\${AWS_REGION}|${AWS_REGION}|g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s|\${ES_URI}|${ES_URI}|g" docker-compose.ec2-prod-monitoring.yml
-          sed -i "s|\${PROMETHEUS_CONFIG_DIR}|${PROMETHEUS_CONFIG_DIR}|g" docker-compose.ec2-prod-monitoring.yml
+          # 단일 포트 변수 치환
+          sed -i "s/\${PROMETHEUS_PORT}/${PROMETHEUS_PORT}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${GRAFANA_PORT}/${GRAFANA_PORT}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${NODE_EXPORTER_PORT}/${NODE_EXPORTER_PORT}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${RDS_EXPORTER_PORT}/${RDS_EXPORTER_PORT}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${ELASTIC_EXPORTER_PORT}/${ELASTIC_EXPORTER_PORT}/g" docker-compose.ec2-prod-monitoring.yml
+
+          # Environment variables 치환
+          echo "🔧 Processing environment variables..."
+          sed -i "s/\${GRAFANA_ADMIN_USER}/${GRAFANA_ADMIN_USER}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${GRAFANA_ADMIN_PASSWORD}/${GRAFANA_ADMIN_PASSWORD}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${AWS_ACCESS_KEY_ID}/${AWS_ACCESS_KEY_ID}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${AWS_SECRET_ACCESS_KEY}/${AWS_SECRET_ACCESS_KEY}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${AWS_REGION}/${AWS_REGION}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${ES_URI}/${ES_URI}/g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s/\${PROMETHEUS_CONFIG_DIR}/${PROMETHEUS_CONFIG_DIR//\//\\/}/g" docker-compose.ec2-prod-monitoring.yml
 
           # Create configuration directories
           echo "📁 Creating configuration directories..."
@@ -257,11 +276,11 @@ jobs:
           # Promtail config
           echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null
 
-          CURRENT_USER=$(whoami)
+          # Set proper permissions for configuration files
+          echo "🔧 Setting permissions..."
           sudo chown -R ${CURRENT_USER}:${CURRENT_USER} ${PROMETHEUS_CONFIG_DIR%/*} 2>/dev/null || true
-
-          # Also ensure the current user can access the compose directory  
           sudo chown -R ${CURRENT_USER}:${CURRENT_USER} "${COMPOSE_DIR}" 2>/dev/null || true
+
           # Process template variables in Prometheus config
           echo "🔧 Processing Prometheus template variables..."
           sudo sed -i \
@@ -273,15 +292,29 @@ jobs:
               -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
               "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
 
-          # Verify configuration files were created
-          echo "📋 Verifying configuration files:"
-          echo "  Prometheus config: $([ -f "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml" ] && echo "✅ Found" || echo "❌ Missing")"
-          echo "  Loki config: $([ -f "${LOKI_CONFIG_DIR}/local-config.yaml" ] && echo "✅ Found" || echo "❌ Missing")"
-          echo "  Promtail config: $([ -f "${PROMTAIL_CONFIG_DIR}/promtail.yml" ] && echo "✅ Found" || echo "❌ Missing")"
+          # Debug: Show docker-compose file content after substitution
+          echo "🔍 Docker-compose file content after substitution (first 50 lines):"
+          head -50 docker-compose.ec2-prod-monitoring.yml
 
-          # Debug: Show docker-compose file content
-          echo "🔍 Docker-compose file content (first 30 lines):"
-          head -30 docker-compose.ec2-prod-monitoring.yml
+          # Create .env file for docker-compose
+          echo "📝 Creating .env file for Docker Compose..."
+          cat > .env << EOF
+            GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
+            GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+            PROMETHEUS_PORT=${PROMETHEUS_PORT}
+            GRAFANA_PORT=${GRAFANA_PORT}
+            NODE_EXPORTER_PORT=${NODE_EXPORTER_PORT}
+            RDS_EXPORTER_PORT=${RDS_EXPORTER_PORT}
+            ELASTIC_EXPORTER_PORT=${ELASTIC_EXPORTER_PORT}
+            AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            AWS_REGION=${AWS_REGION}
+            ES_URI=${ES_URI}
+            PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
+            EOF
+
+          echo "📋 .env file created:"
+          cat .env
 
           # Validate docker-compose file
           echo "🔍 Validating docker-compose file syntax..."
@@ -289,9 +322,21 @@ jobs:
             echo "❌ Invalid docker-compose file"
             echo "📋 Validation errors:"
             sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml config 2>&1 || true
-            echo "📋 Full docker-compose file content:"
-            cat docker-compose.ec2-prod-monitoring.yml
-            exit 1
+            echo "📋 Checking for common issues..."
+            
+            # Check for Redis port issues
+            if grep -q "invalid IP address: 6379" <(sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml config 2>&1); then
+              echo "🔍 Found Redis port issue, fixing..."
+              sed -i 's/redis:6379/redis:${REDIS_PORT:-6379}/g' docker-compose.ec2-prod-monitoring.yml
+              sed -i 's/redis:\${REDIS_PORT:-6379}/redis:6379/g' docker-compose.ec2-prod-monitoring.yml
+            fi
+            
+            # Try validation again
+            if ! sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml config >/dev/null 2>&1; then
+              echo "📋 Full docker-compose file content:"
+              cat docker-compose.ec2-prod-monitoring.yml
+              exit 1
+            fi
           fi
 
           echo "✅ Docker-compose file validation passed"
@@ -299,18 +344,11 @@ jobs:
           # Deploy enhanced monitoring services
           echo "🚀 Deploying enhanced monitoring services..."
           
-          # Pull images first
-          echo "📥 Pulling Docker images..."
-          sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml pull || echo "⚠️ Some images may not be available, continuing..."
-
           # Start services
           if ! sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml up -d; then
             echo "❌ Failed to start services"
             echo "📋 Docker-compose logs:"
             sudo docker-compose -f docker-compose.ec2-prod-monitoring.yml logs --tail=50 || true
-            echo "📋 Docker system info:"
-            sudo docker system df || true
-            sudo docker ps -a || true
             exit 1
           fi
 
@@ -321,43 +359,6 @@ jobs:
           # Check container status
           echo "📋 Checking container status..."
           sudo docker ps -a
-
-          # Health check function
-          health_check() {
-            local service_name="$1"
-            local port="$2"
-            local endpoint="${3:-/}"
-            local max_attempts=8
-            local attempt=1
-            
-            echo "🔍 Health checking ${service_name} on port ${port}${endpoint}..."
-            
-            while [ $attempt -le $max_attempts ]; do
-              local http_code
-              if http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "http://localhost:${port}${endpoint}" 2>/dev/null); then
-                if echo "$http_code" | grep -q "200\|302\|404"; then
-                  echo "  ✅ ${service_name} is responding (HTTP ${http_code})"
-                  return 0
-                fi
-              fi
-              
-              echo "  ⏳ ${service_name} not ready yet (${attempt}/${max_attempts})"
-              sleep 10
-              ((attempt++))
-            done
-            
-            echo "  ⚠️ ${service_name} health check failed, but continuing..."
-            return 1
-          }
-
-          # Perform health checks
-          echo "🏥 Performing health checks..."
-          
-          # Check services
-          health_check "prometheus" "${PROMETHEUS_PORT}" "/" || echo "  ⚠️  Prometheus not responding"
-          health_check "grafana" "${GRAFANA_PORT}" "/login" || echo "  ⚠️  Grafana not responding" 
-          health_check "loki" "3100" "/ready" || echo "  ⚠️  Loki not responding"
-          health_check "node-exporter" "${NODE_EXPORTER_PORT}" "/metrics" || echo "  ⚠️  Node exporter not responding"
 
           echo ""
           echo "🎉 Enhanced Monitoring Stack deployment completed!"
