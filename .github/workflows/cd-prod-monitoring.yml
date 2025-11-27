@@ -114,8 +114,8 @@ jobs:
 
           # Load Elasticsearch connection info
           ES_URI=$(load_param "/monitor/elasticsearch_uri")
-          ES_USERNAME=$(load_param "/monitor/elasticsearch_username" || echo "")
-          ES_PASSWORD=$(load_secret "/monitor/elasticsearch_password" || echo "")
+          ES_USERNAME=""
+          ES_PASSWORD=""
 
           # Load service ports for Prometheus scraping
           USER_SERVICE_PORT=8080
