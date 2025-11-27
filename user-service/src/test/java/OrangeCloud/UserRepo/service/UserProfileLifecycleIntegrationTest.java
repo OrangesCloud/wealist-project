@@ -134,8 +134,10 @@ class UserProfileLifecycleIntegrationTest {
         workspaceMemberRepository.save(member);
 
         assertThat(testWorkspace.getWorkspaceId()).isNotNull();
-        assertThat(workspaceMemberRepository.existsByWorkspaceIdAndUserId(
-                testWorkspace.getWorkspaceId(), testUser.getUserId())).isTrue();
+    assertThat(workspaceMemberRepository.existsByWorkspaceIdAndUserId( 
+            testWorkspace.getWorkspaceId(), testUser.getUserId())).isTrue();
+
+
 
         // ========================================
         // 3. 프로필 조회 (fallback) - 워크스페이스별 프로필이 없으므로 기본 프로필 반환

@@ -11,7 +11,7 @@ import java.util.UUID;
 @Table(name = "workspaces",
         // 👇 workspaceId와 userId의 조합은 중복될 수 없음
         uniqueConstraints = {
-                @UniqueConstraint(name = "uc_workspace_member_unique", columnNames = {"workspace_id", "user_id"})
+                @UniqueConstraint(name = "uc_workspace_member_unique", columnNames = {"workspaceId", "ownerId"})
         }
 )
 @Getter
