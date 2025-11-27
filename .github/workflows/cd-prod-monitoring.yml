@@ -191,7 +191,7 @@ jobs:
           PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config" "/home/ubuntu/wealist/prometheus/config")
           LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config" "/home/ubuntu/wealist/loki/config")
           PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config" "/home/ubuntu/wealist/promtail/config")
-          RDS_CONFIG_DIR=$(load_param "/monitor/rds_config" "/home/ubuntu/wealist/rds-exporter/config")
+          RDS_CONFIG_DIR=$(load_param "/monitor/rds_config" "/home/ubuntu/wealist/rds_exporter/config")
 
           ELASTIC_URL=$(load_param "/monitor/elasticsearch_uri" "localhost")
           RDS_EXPORTER_IMAGE=$(load_param "/monitor/rds_exporter_image" "qonto/prometheus-rds-exporter:latest")
@@ -213,14 +213,14 @@ jobs:
           cd "${COMPOSE_DIR}"
 
           # Create all monitoring directories
-          sudo mkdir -p /home/ubuntu/wealist/{prometheus/{config,data},grafana/{data,logs},loki/{config,data},promtail/config,rds-exporter/config}
+          sudo mkdir -p /home/ubuntu/wealist/{prometheus/{config,data},grafana/{data,logs},loki/{config,data},promtail/config,rds_exporter/config}
 
           # Set proper permissions
           sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/
           sudo chown -R 472:472 /home/ubuntu/wealist/grafana/
           sudo chown -R 65534:65534 /home/ubuntu/wealist/prometheus/data
           sudo chown -R 10001:10001 /home/ubuntu/wealist/loki/data || sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/loki/data
-          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/rds-exporter/
+          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/rds_exporter/
 
           echo "✅ Directory structure created and configured"
 
@@ -418,7 +418,7 @@ jobs:
           PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
           LOKI_CFG_B64=$(base64 -w 0 loki/config/local-config.yaml)
           PROMTAIL_CFG_B64=$(base64 -w 0 promtail/promtail.yml)
-          RDS_CFG_B64=$(base64 -w 0 rds-exporter/config.yml)
+          RDS_CFG_B64=$(base64 -w 0 rds_exporter/config.yml)
           SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-monitoring.sh)
 
           echo "✅ Files encoded successfully"
