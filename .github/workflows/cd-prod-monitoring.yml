@@ -23,79 +23,39 @@ on:
         - staging
 
 permissions:
-  id-token: write
   contents: read
-  actions: write
+  actions: read
+  id-token: write
 
 jobs:
-  deploy-enhanced-monitoring:
+  deploy:
+    name: Deploy to EC2 via CodeDeploy
     runs-on: ubuntu-latest
-    environment: production
 
     steps:
-      - name: Checkout
+      # ============================================
+      # 0. Checkout 코드
+      # ============================================
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🔐 Configure AWS Credentials via OIDC
+      # ============================================
+      # 1. Environment Variables 로드
+      # ============================================
+      - name: 📥 Load AWS Region Variable
+        id: config_region
+        run: |
+          echo "✅ AWS Region loaded: ${{ vars.AWS_REGION }}"
+
+      # ============================================
+      # 2. AWS Credentials 설정
+      # ============================================
+      - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-ec2-role
-          aws-region: ap-northeast-2
+          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
+          aws-region: ${{ vars.AWS_REGION }}
 
-      - name: 🔍 Verify OIDC and Load Configuration
-        id: config
-        run: |
-          echo "🔍 Verifying OIDC connection and loading configuration..."
-
-          # OIDC Role Assume 성공 여부와 신원 확인 (수정 없음, 유지)
-          echo "Current AWS Identity (Check for assumed-role/):"
-          aws sts get-caller-identity
-
-          # Load base configuration with error handling
-          set +e
-
-          EC2_ID=$(aws ssm get-parameter \
-            --name "/wealist/prod/cd/ec2_instance_id" \
-            --query "Parameter.Value" \
-            --output text \
-            --with-decryption 2>&1)
-
-          COMPOSE_DIR=$(aws ssm get-parameter \
-            --name "/wealist/prod/monitor/compose_file_path" \
-            --query "Parameter.Value" \
-            --output text 2>&1)
-
-          PARAM_PREFIX=$(aws ssm get-parameter \
-            --name "/wealist/prod/cd/parameter_prefix" \
-            --query "Parameter.Value" \
-            --output text 2>&1)
-
-          set -e
-
-          # Handle parameter not found cases with defaults
-          if [[ "$EC2_ID" == *"ParameterNotFound"* ]] || [ -z "$EC2_ID" ]; then
-            echo "❌ EC2 Instance ID parameter not found: /wealist/prod/cd/ec2_instance_id"
-            exit 1
-          fi
-
-          if [[ "$COMPOSE_DIR" == *"ParameterNotFound"* ]]; then
-            echo "⚠️ Using default compose directory"
-            COMPOSE_DIR="/home/ubuntu/wealist/docker/compose"
-          fi
-
-          if [[ "$PARAM_PREFIX" == *"ParameterNotFound"* ]]; then
-            echo "⚠️ Using default parameter prefix"
-            PARAM_PREFIX="/wealist/prod"
-          fi
-
-          echo "ec2-instance-id=$EC2_ID" >> $GITHUB_OUTPUT
-          echo "compose-file-path=$COMPOSE_DIR" >> $GITHUB_OUTPUT
-          echo "parameter-prefix=$PARAM_PREFIX" >> $GITHUB_OUTPUT
-
-          echo "✅ Configuration loaded:"
-          echo "  EC2 Instance ID: $EC2_ID"
-          echo "  Compose Directory: $COMPOSE_DIR"
-          echo "  Parameter Prefix: $PARAM_PREFIX"
 
       - name: 📝 Create Complete Deployment Script
         run: |
