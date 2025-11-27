@@ -10,6 +10,26 @@
 #   User Service: Process as GET /api/workspaces/all
 # =============================================================================
 
+spring:
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+  
+  # OAuth2 Redirect URI는 ALB 도메인 + context path 포함
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            redirect-uri: ${OAUTH2_CLIENT_REDIRECT_URI:https://api.wealist.co.kr/api/users/login/oauth2/code/google}
+  
+  # Session 설정 (OAuth2는 세션 필요)
+  session:
+    store-type: redis
+    timeout: 1800s  # 30분
+
 server:
   servlet:
     context-path: /api/users

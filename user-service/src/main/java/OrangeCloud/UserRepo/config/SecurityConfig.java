@@ -52,8 +52,14 @@ public class SecurityConfig {
                 http
                         .csrf(csrf -> csrf.disable())
                         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                        .sessionManagement(session -> session
-                                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                        .sessionManagement(session -> {
+                                // OAuth2가 활성화된 경우 세션 사용, 그렇지 않으면 STATELESS
+                                if (customOAuth2UserService != null && oAuth2SuccessHandler != null) {
+                                        session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED);
+                                } else {
+                                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+                                }
+                        })
                         .authorizeHttpRequests(authz -> authz
                                         // Swagger UI 경로 허용
                                         .requestMatchers("/swagger-ui/**").permitAll()
