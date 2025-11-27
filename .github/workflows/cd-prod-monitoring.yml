@@ -39,7 +39,7 @@ jobs:
       - name: 🔐 Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
+          role-to-assume: arn:aws:sts::290008131187:assumed-role/wealist-prod-ec2-role
           aws-region: ap-northeast-2
 
       - name: 🔍 Verify OIDC and Load Configuration
@@ -233,7 +233,7 @@ jobs:
           echo "${COMPOSE_B64}" | base64 -d > docker-compose.yml
 
           # Deploy Prometheus configuration
-          echo "${PROM_CFG_B64}" | base64 -d | sudo tee ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml > /dev/null
+          echo "${PROM_CFG_B64}" | base64 -d | sudo tee ${PROMETHEUS_CONFIG_DIR}/prometheus-prod-ec2.yml > /dev/null
 
           # Process Prometheus template variables
           echo "🔧 Processing Prometheus configuration template..."
@@ -244,7 +244,7 @@ jobs:
               -e "s/{{RDS_EXPORTER_PORT}}/${RDS_EXPORTER_PORT}/g" \
               -e "s/{{ELASTIC_EXPORTER_PORT}}/${ELASTIC_EXPORTER_PORT}/g" \
               -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
-              "${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml"
+              "${PROMETHEUS_CONFIG_DIR}/prometheus-prod-ec2.yml"
 
           # Deploy Loki configuration
           echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null
@@ -264,7 +264,7 @@ jobs:
           RDS_EXPORTER_PORT=${RDS_EXPORTER_PORT}
           ELASTIC_EXPORTER_PORT=${ELASTIC_EXPORTER_PORT}
           AWS_REGION=ap-northeast-2
-          ES_URI=http://${ELASTIC_URL}:9200
+          ES_URI=${ELASTIC_URL}:9200
           PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
           LOKI_CONFIG_DIR=${LOKI_CONFIG_DIR}
           PROMTAIL_CONFIG_DIR=${PROMTAIL_CONFIG_DIR}
@@ -294,7 +294,7 @@ jobs:
           cat .env
           echo ""
           echo "Prometheus config preview:"
-          head -10 ${PROMETHEUS_CONFIG_DIR}/prometheus-ec2.yml
+          head -10 ${PROMETHEUS_CONFIG_DIR}/prometheus-prod-ec2.yml
 
           # Validate Docker Compose syntax
           if ! sudo docker-compose config >/dev/null 2>&1; then
@@ -415,7 +415,7 @@ jobs:
 
           # Encode all configuration files
           COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-prod-monitoring.yml)
-          PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
+          PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-prod-ec2.yml)
           LOKI_CFG_B64=$(base64 -w 0 loki/config/local-config.yaml)
           PROMTAIL_CFG_B64=$(base64 -w 0 promtail/promtail.yml)
           RDS_CFG_B64=$(base64 -w 0 rds_exporter/config.yml)

@@ -3,98 +3,156 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # 1. Percona RDS Exporter (AWS RDS 모니터링)
-  - job_name: 'rds-exporter'
+  # ❌ 기존 단일 rds-exporter Job은 삭제 또는 주석 처리했습니다.
+  
+  # 1. RDS Basic Metrics 수집 (CloudWatch, 60초 주기)
+  - job_name: rds-basic
+    scrape_interval: 60s # CloudWatch 메트릭은 60초 주기로 수집
+    scrape_timeout: 55s
+    # CloudWatch 기본 메트릭 경로
+    metrics_path: /basic 
+    honor_labels: true
     static_configs:
-      - targets: ['rds_exporter:9042'] 
-    scrape_interval: 15s
+      - targets:
+          # RDS Exporter의 서비스 이름과 포트
+          - 'wealist-rds-exporter:9042' 
 
-  # 2. Elasticsearch Exporter (Elasticsearch 모니터링)
+  # 2. RDS Enhanced Metrics 수집 (Enhanced Monitoring, 10초 주기)
+  - job_name: rds-enhanced
+    scrape_interval: 10s # Enhanced Monitoring 메트릭은 10초 주기로 수집
+    scrape_timeout: 9s
+    # Enhanced Monitoring 메트릭 경로
+    metrics_path: /enhanced 
+    honor_labels: true
+    static_configs:
+      - targets:
+          # RDS Exporter의 서비스 이름과 포트
+          - 'wealist-rds-exporter:9042' 
+
+  # 3. Elasticsearch Exporter (Elasticsearch 모니터링)
   - job_name: 'elasticsearch-exporter'
     static_configs:
-      - targets: ['elasticsearch_exporter:9114']
+      - targets: ['wealist-elasticsearch-exporter:9114']
     scrape_interval: 15s
 
   # Node Exporter
   - job_name: 'node-exporter'
     static_configs:
-      - targets: ['node-exporter:{{NODE_EXPORTER_PORT}}']
+      - targets: ['node-exporter:9100']
     scrape_interval: 15s
 
   # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
-      - targets: ['prometheus:{{PROMETHEUS_PORT}}']
+      - targets: ['prometheus:9090']
     scrape_interval: 15s
 
-  # --- [새로 추가된 User/Board Service 동적 수집] ---
+  # --- [User/Board Service 동적 수집] ---
 
-  # 🔔 User & Board Service 동적 수집 (Auto Scaling 대응)
-  - job_name: 'wealist-app-services'
+  # # 8080 포트용 job
+  # - job_name: 'user-8080'
+  #   metrics_path: '/actuator/prometheus'
+  #   scrape_interval: 15s
+  #   ec2_sd_configs:
+  #     - region: ap-northeast-2
+  #       # access_key, secret_key는 EC2에 IAM 역할이 있으면 생략 가능
+  #       port: 443 # 실제 스크래핑할 포트
+    
+  #   relabel_configs:
+  #     - source_labels: [__meta_ec2_instance_id]
+  #       target_label: instance
+      
+  #     - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
+  #       target_label: aws_autoscaling_groupName
+      
+  #     # 특정 오토스케일링 그룹만 필터링 (선택사항)
+  #     - action: keep
+  #       regex: 'wealist-prod-backend-asg'  # 실제 ASG 이름으로 변경
+  #       source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
+      
+  #     - target_label: service_port
+  #       replacement: '443'
+  #       action: replace
+
+  # # 8081 포트용 job  
+  # - job_name: 'board-8000'
+  #   metrics_path: '/metrics'
+  #   scrape_interval: 15s
+  #   ec2_sd_configs:
+  #     - region: ap-northeast-2
+  #       port: 443  # 실제 스크래핑할 포트
+    
+  #   relabel_configs:
+  #     - source_labels: [__meta_ec2_instance_id]
+  #       target_label: instance
+      
+  #     - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
+  #       target_label: aws_autoscaling_groupName
+      
+  #     - action: keep
+  #       regex: 'wealist-prod-backend-asg'  # 실제 ASG 이름으로 변경
+  #       source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
+      
+  #     - target_label: service_port
+  #       replacement: '443'
+  #       action: replace
+  - job_name: 'wealist-backend-app-services'
+  # 스크랩 주기는 애플리케이션에 맞게 설정 (예: 15초)
+    scrape_interval: 15s 
+  
     ec2_sd_configs:
       - region: ap-northeast-2
-        # User Service 포트(8080)를 기본 포트로 설정합니다.
+        # Private IP를 사용하여 통신하므로 초기 포트는 80으로 두거나 제거해도 무방합니다.
         port: 8080 
         filters:
-          # 🛑 User/Board Service가 배포된 인스턴스를 식별하는 태그를 사용합니다.
-          # (실제 환경의 태그 값으로 변경해야 합니다. 예: Wealist-App)
-          - name: tag:ServiceGroup
-            values: ['Wealist-App'] 
+          # Backend ASG 이름 태그를 필터링합니다.
+          # Terraform 코드에서 ASG 태그를 `Name = "${var.name_prefix}-backend-asg"`로 설정했으므로
+          # AWS의 자동 태그인 `aws:autoscaling:groupName`을 사용합니다.
+          - name: tag:aws:autoscaling:groupName
+            values: ['${var.name_prefix}-backend-asg'] # 👈 ASG 이름 반영
           - name: instance-state-name
             values: [running]
             
     relabel_configs:
+    
+    # 1. 🛑 필터링: 해당 ASG 인스턴스만 유지
+    - action: keep
+      regex: '${var.name_prefix}-backend-asg'
+      source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
       
-      # 1. User Service (8080 포트) 타겟 구성:
-      # 최종 주소: Private_IP:8080
-      - source_labels: [__meta_ec2_private_ip]
-        target_label: __address__
-        regex: '(.+)'
-        replacement: '$1:8080' 
-        action: replace
-      # User Service의 Metrics Path 설정
-      - target_label: __metrics_path__
-        replacement: '/api/users/actuator/prometheus' 
-        action: replace
-      # service_name 레이블 추가
-      - target_label: service_name
-        replacement: 'user-service'
-        action: replace
-
-      # 2. Board Service (8000 포트) 타겟 복사 및 생성:
+    # 2. 🎯 User Service (8080) 타겟 구성 (첫 번째 타겟)
+    - source_labels: [__meta_ec2_private_ip]
+      target_label: __address__
+      regex: '(.+)'
+      replacement: '$1:8080' # Private IP:8080
+      action: replace
       
-      # __address__ (8080)를 임시로 복사하여 원본 타겟 유지
-      - source_labels: [__address__]
-        target_label: __tmp_address_copy
-        regex: '(.+)'
-        action: replace
-        
-      # 새로운 타겟 주소: Private_IP:8000 생성
-      - source_labels: [__meta_ec2_private_ip]
-        target_label: __address__
-        regex: '(.+)'
-        replacement: '$1:8000' 
-        action: replace
-        
-      # Board Service metrics_path와 service_name 레이블 추가
-      - target_label: __metrics_path__
-        replacement: '/metrics' 
-        action: replace
-      - target_label: service_name
-        replacement: 'board-service' 
-        action: replace
+    - target_label: __metrics_path__
+      replacement: '/actuator/prometheus' # User Service의 메트릭 경로
+      action: replace
+      
+    - target_label: service_name
+      replacement: 'user-service'
+      action: replace
 
-      # 3. 인스턴스 이름/ID 레이블 변환 (기존 설정 유지)
-      - source_labels: [__meta_ec2_tag_Name]
-        target_label: instance_name
-        action: replace
-        
-      - source_labels: [__meta_ec2_instance_id]
-        target_label: instance_id
-        action: replace
-
-  # --- [기존 Node Exporter 동적 수집] ---
-
-  - job_name: 'ec2-discovery'
-    ec2_sd_configs:
-# ... (기존 ec2-discovery 설정 유지)
+    # 3. 🎯 Board Service (8000) 타겟 복제 및 구성 (두 번째 타겟)
+    #    (복제된 타겟에 대해 __address__를 덮어씁니다.)
+    - source_labels: [__meta_ec2_private_ip]
+      target_label: __address__
+      regex: '(.+)'
+      replacement: '$1:8000' # Private IP:8000
+      action: replace
+      
+    - target_label: __metrics_path__
+      replacement: '/metrics' # Board Service의 메트릭 경로 (경로가 다를 경우 수정)
+      action: replace
+      
+    - target_label: service_name
+      replacement: 'board-service' 
+      action: replace
+      
+    # 4. 🏷️ 공통 레이블 추가
+    - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
+      target_label: aws_asg_name
+    - source_labels: [__meta_ec2_instance_id]
+      target_label: ec2_instance_id

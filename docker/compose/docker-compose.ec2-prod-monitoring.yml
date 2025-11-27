@@ -5,7 +5,7 @@ services:
     hostname: prometheus
     user: "0:0"
     command:
-      - '--config.file=/etc/prometheus/prometheus-ec2.yml'
+      - '--config.file=/etc/prometheus/prometheus-prod-ec2.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'

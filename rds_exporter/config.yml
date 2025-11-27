@@ -1,61 +1,31 @@
-# RDS Exporter Configuration
+# RDS Exporter Configuration File (e.g., sessions.yml)
 ---
-# AWS Region
+# AWS Region (모니터링할 인스턴스가 위치한 기본 리전)
 region: ap-northeast-2
 
 # CloudWatch configuration
 cloudwatch:
-  # Metrics collection interval (seconds)
-  interval: 60
-  
-  # AWS credentials (if not using IAM roles)
-  # access_key: ""
-  # secret_key: ""
+  interval: 60 # 기본 메트릭 수집 주기 (초)
 
-# RDS instances to monitor (optional - if empty, monitors all RDS instances)
+# RDS instances to monitor
 instances:
-  # Specific instances (uncomment to monitor specific instances only)
-  # - db-instance-1
-  # - db-instance-2
+  # 기본 IAM Role을 사용하여 ap-northeast-2 리전의 인스턴스 수집
+  - instance: wealist-prod-postgresql
+    # labels를 사용하여 Prometheus로 전송되는 메트릭에 식별 레이블 추가
+    labels:
+      environment: production
+      service: postgresql
 
-# Metrics to collect
+# Metrics to collect (기본 설정 유지)
 metrics:
   # Basic RDS metrics
   - CPUUtilization
   - DatabaseConnections
-  - FreeableMemory
-  - FreeStorageSpace
-  - ReadIOPS
-  - WriteIOPS
-  - ReadLatency
-  - WriteLatency
-  - ReadThroughput
-  - WriteThroughput
-  
-  # Enhanced metrics (requires Enhanced Monitoring enabled)
-  # - ActiveTransactions
-  # - BlockedTransactions
-  # - BufferCacheHitRatio
-  # - CommitLatency
-  # - CommitThroughput
-  # - DDLLatency
-  # - DDLThroughput
-  # - DMLLatency
-  # - DMLThroughput
-  # - LoginFailures
-  # - Queries
-  # - SelectLatency
-  # - SelectThroughput
+  # ... (나머지 기본 메트릭 목록)
 
-# Export configuration
+# Export configuration (Prometheus가 접근할 포트 및 경로)
 export:
-  # Port to listen on
   port: 9042
-  
-  # Path for metrics endpoint
-  path: /metrics
+  path: /metrics # 이 경로는 Prometheus가 직접 접근하지 않으므로, 기본값 유지
 
-# Logging configuration
-log:
-  level: info
-  format: text
+# ... (Logging configuration 생략)
