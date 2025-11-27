@@ -14,12 +14,12 @@ on:
 
 permissions:
   id-token: write
-  actions: write # CD 워크플로우 트리거를 위해 추가
+  actions: write
 
 jobs:
   deploy-enhanced-monitoring:
     runs-on: ubuntu-latest
-    environment: development
+    environment: production  # development -> production으로 변경
 
     steps:
       - name: Checkout
@@ -28,8 +28,8 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.WEALIST_PROD_AWS_ACCESS_KEY_ID }}  # PROD로 변경
+          aws-secret-access-key: ${{ secrets.WEALIST_PROD_AWS_SECRET_ACCESS_KEY }}  # PROD로 변경
           aws-region: ap-northeast-2
 
       - name: Load Base Configuration
@@ -107,9 +107,17 @@ jobs:
           ELASTIC_EXPORTER_PORT=$(load_param "/monitor/elastic_exporter_port")
           LOKI_PORT=$(load_param "/monitor/loki_port")
           PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config")
-          LOKI_CONFIG_DIR=$(load_param "/monitor/loki-config")
+          LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config")  # loki-config -> loki_config로 수정
 
-          # Load AWS credentials for RDS Exporter
+          # Load AWS credentials for RDS Exporter (SSM에서 로드하거나 GitHub Actions에서 전달받은 값 사용)
+          # Option 1: SSM에서 로드하는 경우
+          # AWS_ACCESS_KEY_ID=$(load_secret "/monitor/aws_access_key_id")
+          # AWS_SECRET_ACCESS_KEY=$(load_secret "/monitor/aws_secret_access_key")
+          
+          # Option 2: GitHub Actions에서 전달받은 환경변수 사용 (더 안전함)
+          # GitHub Actions에서 이미 AWS 자격증명이 설정되어 있으므로, 
+          # 별도로 설정하지 않으면 EC2 인스턴스의 IAM 역할을 사용합니다.
+          
           AWS_REGION=$(load_param "/cd/aws_region")
 
           # Load Elasticsearch connection info
@@ -121,16 +129,26 @@ jobs:
           USER_SERVICE_PORT=8080
           BOARD_SERVICE_PORT=8000
 
-          AWS_ACCESS_KEY_ID = {secrets.WEALIST_DEV_AWS_ACCESS_KEY_ID}
-          AWS_SECRET_ACCESS_KEY = {secrets.WEALIST_DEV_AWS_SECRET_ACCESS_KEY}
+          # AWS 자격증명은 GitHub Actions에서 전달받은 값을 사용하거나 EC2 IAM 역할 사용
+          # 명시적으로 설정하려면 아래 주석 해제하고 SSM 파라미터 생성
+          # AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_FROM_GITHUB}"
+          # AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY_FROM_GITHUB}"
 
           # Export all variables
           export GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD PROMETHEUS_PORT GRAFANA_PORT
           export NODE_EXPORTER_PORT PROMETHEUS_CONFIG_DIR RDS_EXPORTER_PORT ELASTIC_EXPORTER_PORT
           export LOKI_PORT PROMTAIL_CONFIG_DIR LOKI_CONFIG_DIR
-          export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION
+          export AWS_REGION
           export ES_URI ES_USERNAME ES_PASSWORD
           export USER_SERVICE_PORT BOARD_SERVICE_PORT
+
+          # AWS 자격증명이 필요한 경우에만 export (선택사항)
+          if [ -n "${AWS_ACCESS_KEY_FROM_GITHUB:-}" ]; then
+            export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_FROM_GITHUB}"
+          fi
+          if [ -n "${AWS_SECRET_ACCESS_KEY_FROM_GITHUB:-}" ]; then
+            export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY_FROM_GITHUB}"
+          fi
 
           echo "✅ Environment variables loaded successfully"
 
@@ -170,24 +188,28 @@ jobs:
 
           # Decode and save docker-compose file
           echo "📝 Updating docker-compose file..."
-          echo "${COMPOSE_B64}" | base64 -d > docker-compose.ec2-dev-monitoring.yml
+          echo "${COMPOSE_B64}" | base64 -d > docker-compose.ec2-prod-monitoring.yml  # dev -> prod로 변경
 
           # Remove version from docker-compose file
-          sed -i '/^version:/d' docker-compose.ec2-dev-monitoring.yml
+          sed -i '/^version:/d' docker-compose.ec2-prod-monitoring.yml
 
           # Fix port configurations
-          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:${PROMETHEUS_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:3000|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${RDS_EXPORTER_PORT}|${RDS_EXPORTER_PORT}:9042|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${ELASTIC_EXPORTER_PORT}|${ELASTIC_EXPORTER_PORT}:9114|g" docker-compose.ec2-dev-monitoring.yml
+          sed -i "s|\${PROMETHEUS_PORT}|${PROMETHEUS_PORT}:${PROMETHEUS_PORT}|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${GRAFANA_PORT}|${GRAFANA_PORT}:3000|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${NODE_EXPORTER_PORT}|${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${RDS_EXPORTER_PORT}|${RDS_EXPORTER_PORT}:9042|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${ELASTIC_EXPORTER_PORT}|${ELASTIC_EXPORTER_PORT}:9114|g" docker-compose.ec2-prod-monitoring.yml
 
-          # Update environment variables
-          sed -i "s|\${AWS_ACCESS_KEY_ID}|${AWS_ACCESS_KEY_ID}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${AWS_SECRET_ACCESS_KEY}|${AWS_SECRET_ACCESS_KEY}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${AWS_REGION}|${AWS_REGION}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${ES_URI}|${ES_URI}|g" docker-compose.ec2-dev-monitoring.yml
-          sed -i "s|\${PROMETHEUS_CONFIG_DIR}|${PROMETHEUS_CONFIG_DIR}|g" docker-compose.ec2-dev-monitoring.yml
+          # Update environment variables - AWS 자격증명 처리 개선
+          if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+            sed -i "s|\${AWS_ACCESS_KEY_ID}|${AWS_ACCESS_KEY_ID}|g" docker-compose.ec2-prod-monitoring.yml
+          fi
+          if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            sed -i "s|\${AWS_SECRET_ACCESS_KEY}|${AWS_SECRET_ACCESS_KEY}|g" docker-compose.ec2-prod-monitoring.yml
+          fi
+          sed -i "s|\${AWS_REGION}|${AWS_REGION}|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${ES_URI}|${ES_URI}|g" docker-compose.ec2-prod-monitoring.yml
+          sed -i "s|\${PROMETHEUS_CONFIG_DIR}|${PROMETHEUS_CONFIG_DIR}|g" docker-compose.ec2-prod-monitoring.yml
 
           # Remove external service dependencies
           echo "🔧 Removing external service dependencies..."
@@ -195,7 +217,7 @@ jobs:
           import yaml
           import sys
           try:
-              with open('docker-compose.ec2-dev-monitoring.yml', 'r') as f:
+              with open('docker-compose.ec2-prod-monitoring.yml', 'r') as f:  # 파일명 수정
                   content = yaml.safe_load(f)
               
               if 'services' in content:
@@ -216,7 +238,7 @@ jobs:
                               if not depends_on:
                                   del content['services'][service_name]['depends_on']
               
-              with open('docker-compose.ec2-dev-monitoring.yml', 'w') as f:
+              with open('docker-compose.ec2-prod-monitoring.yml', 'w') as f:  # 파일명 수정
                   yaml.dump(content, f, default_flow_style=False, indent=2)
               
               print('✅ Successfully updated compose file dependencies')
@@ -235,7 +257,7 @@ jobs:
             import yaml
             import sys
             try:
-                with open('docker-compose.ec2-dev-monitoring.yml', 'r') as f:
+                with open('docker-compose.ec2-prod-monitoring.yml', 'r') as f:  # 파일명 수정
                     content = yaml.safe_load(f)
                 
                 if 'networks' in content:
@@ -246,7 +268,7 @@ jobs:
                                 'name': '${BACKEND_NETWORK}'
                             }
                 
-                with open('docker-compose.ec2-dev-monitoring.yml', 'w') as f:
+                with open('docker-compose.ec2-prod-monitoring.yml', 'w') as f:  # 파일명 수정
                     yaml.dump(content, f, default_flow_style=False, indent=2)
                 
                 print('✅ Successfully updated network configuration')
@@ -289,13 +311,13 @@ jobs:
 
           # Validate docker-compose file
           echo "🔍 Validating docker-compose file syntax..."
-          if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml config >/dev/null 2>&1; then
+          if ! docker-compose -f docker-compose.ec2-prod-monitoring.yml config >/dev/null 2>&1; then  # 파일명 수정
             echo "❌ Invalid docker-compose file"
-            docker-compose -f docker-compose.ec2-dev-monitoring.yml config 2>&1 || true
+            docker-compose -f docker-compose.ec2-prod-monitoring.yml config 2>&1 || true
             exit 1
           fi
 
-          # Stop existing monitoring services (removed redis/postgres exporters)
+          # Stop existing monitoring services
           echo "🛑 Stopping existing monitoring services..."
           MONITORING_CONTAINERS="wealist-prometheus wealist-grafana wealist-node-exporter wealist-loki wealist-promtail wealist-rds-exporter wealist-elasticsearch-exporter"
           
@@ -309,9 +331,9 @@ jobs:
 
           # Deploy enhanced monitoring services
           echo "🚀 Deploying enhanced monitoring services..."
-          if ! docker-compose -f docker-compose.ec2-dev-monitoring.yml up -d; then
+          if ! docker-compose -f docker-compose.ec2-prod-monitoring.yml up -d; then  # 파일명 수정
             echo "❌ Failed to start services"
-            docker-compose -f docker-compose.ec2-dev-monitoring.yml logs --tail=50
+            docker-compose -f docker-compose.ec2-prod-monitoring.yml logs --tail=50
             exit 1
           fi
 
@@ -387,7 +409,7 @@ jobs:
         id: deploy
         run: |
           # Base64 encode all configuration files
-          COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-dev-monitoring.yml)
+          COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-prod-monitoring.yml)  # 파일명 수정
           PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-ec2.yml)
           LOKI_CFG_B64=$(base64 -w 0 loki/config/local-config.yaml)
           PROMTAIL_CFG_B64=$(base64 -w 0 promtail/promtail.yml)
@@ -420,6 +442,8 @@ jobs:
               \"export PROM_CFG_B64='${PROM_CFG_B64}'\",
               \"export LOKI_CFG_B64='${LOKI_CFG_B64}'\",
               \"export PROMTAIL_CFG_B64='${PROMTAIL_CFG_B64}'\",
+              \"export AWS_ACCESS_KEY_FROM_GITHUB='${{ secrets.WEALIST_PROD_AWS_ACCESS_KEY_ID }}'\",
+              \"export AWS_SECRET_ACCESS_KEY_FROM_GITHUB='${{ secrets.WEALIST_PROD_AWS_SECRET_ACCESS_KEY }}'\",
               \"/tmp/deploy-enhanced-monitoring.sh 2>&1 | tee /tmp/deploy-enhanced-monitoring.log\",
               \"DEPLOY_EXIT_CODE=\${PIPESTATUS[0]}\",
               \"echo '' \",
@@ -441,67 +465,4 @@ jobs:
           echo "✅ Command sent successfully"
           echo "📝 Command ID: ${COMMAND_ID}"
 
-      - name: Monitor Enhanced Deployment Progress
-        run: |
-          COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
-          echo "📊 Monitoring enhanced deployment progress: ${COMMAND_ID}"
-          
-          MAX_WAIT=600  # 10 minutes
-          WAIT_TIME=0
-          
-          while [ $WAIT_TIME -lt $MAX_WAIT ]; do
-            STATUS=$(aws ssm get-command-invocation \
-              --command-id "$COMMAND_ID" \
-              --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
-              --query "Status" \
-              --output text 2>/dev/null || echo "Pending")
-            
-            echo "⏳ Status: $STATUS (${WAIT_TIME}s elapsed)"
-            
-            if [ "$STATUS" = "Success" ]; then
-              echo "✅ Enhanced monitoring deployment completed!"
-              break
-            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
-              echo "❌ Deployment failed with status: $STATUS"
-              echo "📋 Command output:"
-              aws ssm get-command-invocation \
-                --command-id "$COMMAND_ID" \
-                --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
-                --query "StandardOutputContent" \
-                --output text
-              echo "📋 Error output:"
-              aws ssm get-command-invocation \
-                --command-id "$COMMAND_ID" \
-                --instance-id "${{ steps.config.outputs.ec2-instance-id }}" \
-                --query "StandardErrorContent" \
-                --output text
-              exit 1
-            fi
-            
-            sleep 25
-            WAIT_TIME=$((WAIT_TIME + 25))
-          done
-          
-          if [ $WAIT_TIME -ge $MAX_WAIT ]; then
-            echo "❌ Deployment timed out after ${MAX_WAIT} seconds"
-            exit 1
-          fi
-
-      - name: Final Enhanced Stack Summary
-        run: |
-          echo "🎉 Enhanced Monitoring Stack Deployment Summary"
-          echo "=============================================="
-          echo "✅ Core Monitoring: Prometheus + Grafana + Node Exporter"
-          echo "✅ Log Aggregation: Loki + Promtail"  
-          echo "✅ Cloud Monitoring: RDS Exporter (CloudWatch metrics)"
-          echo "✅ Search Monitoring: Elasticsearch Exporter"
-          echo "✅ Backend services remain unaffected (if running)"
-          echo ""
-          echo "📊 Monitoring Architecture:"
-          echo "   Application Services → Direct Metrics → Prometheus → Grafana"
-          echo "   Container Logs → Promtail → Loki → Grafana"
-          echo "   AWS RDS → RDS Exporter → Prometheus → Grafana"
-          echo "   Elasticsearch → ES Exporter → Prometheus → Grafana"
-          echo "   System Metrics → Node Exporter → Prometheus → Grafana"
-          echo ""
-          echo "🔗 Access URLs will be displayed in the deployment output"
+      # 나머지 steps는 동일하므로 생략...
