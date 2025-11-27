@@ -34,9 +34,11 @@ services:
 
       # Cache Configuration (ElastiCache 참조)
       - SPRING_REDIS_HOST=${REDIS_HOST}
-      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PORT=${REDIS_PORT:-6379}
       - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD}
-      - SPRING_REDIS_DATABASE=0
+      - SPRING_DATA_REDIS_HOST=${REDIS_HOST}
+      - SPRING_DATA_REDIS_PORT=${REDIS_PORT:-6379}
+      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD}
 
       # JPA: Prod에서는 DDL_AUTO는 validate/none 권장
       - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
@@ -107,7 +109,8 @@ services:
       - DATABASE_URL=postgresql://${BOARD_DB_USER}:${BOARD_DB_PASSWORD}@${RDS_HOST}:5432/${BOARD_DB_NAME}?sslmode=require&connect_timeout=10
 
       # Cache Configuration (ElastiCache 참조)
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST}:6379/1
+      # Redis AUTH가 비활성화된 경우 비밀번호 없이 연결
+      - REDIS_URL=redis://${REDIS_HOST}:${REDIS_PORT:-6379}/1
 
       # Secrets/Configs (CodeDeploy Script에서 주입됨)
       - SECRET_KEY=${JWT_SECRET}
