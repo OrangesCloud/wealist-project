@@ -10,6 +10,7 @@ import (
 	"project-board-api/internal/response"
 )
 
+
 // toDomainAttachments converts []*domain.Attachment (pointer slice) to []domain.Attachment (value slice)
 func toDomainAttachments(attachments []*domain.Attachment) []domain.Attachment {
 	if attachments == nil {
