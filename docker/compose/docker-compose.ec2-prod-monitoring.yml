@@ -544,79 +544,82 @@ jobs:
       # 6. 배포 실행
       # ============================================
       - name: 🚀 Execute Deployment
-        id: deploy
-        run: |
-          echo "🚀 Executing deployment via SSM..."
+  id: deploy
+  run: |
+    echo "🚀 Executing deployment via SSM..."
 
-          DEPLOY_ID="${{ steps.upload.outputs.deploy-id }}"
-          S3_BUCKET="${{ steps.upload.outputs.s3-bucket }}"
-          S3_PREFIX="${{ steps.upload.outputs.s3-prefix }}"
-          PARAM_PREFIX="${{ steps.config.outputs.parameter-prefix }}"
-          COMPOSE_DIR_VAR="${{ steps.config.outputs.compose-dir }}"
-          SKIP_DOCKER="${{ inputs.skip_docker_install }}"
+    DEPLOY_ID="${{ steps.upload.outputs.deploy-id }}"
+    S3_BUCKET="${{ steps.upload.outputs.s3-bucket }}"
+    S3_PREFIX="${{ steps.upload.outputs.s3-prefix }}"
+    PARAM_PREFIX="${{ steps.config.outputs.parameter-prefix }}"
+    COMPOSE_DIR_VAR="${{ steps.config.outputs.compose-dir }}"
+    SKIP_DOCKER="${{ inputs.skip_docker_install }}"
+    AWS_REGION="${{ steps.config.outputs.aws-region }}" # AWS_REGION 변수가 없어서 추가했다고 가정
 
-          # SSM 명령 생성 (JSON 파일로)
-          cat > /tmp/ssm-command.json << 'EOF'
-          {
-            "commands": [
-              "set -e",
-              "echo '=== Monitoring Stack Deployment ==='",
-              "echo 'Deploy ID: DEPLOY_ID_PLACEHOLDER'",
-              "echo 'Downloading configuration from S3...'",
-              "mkdir -p /tmp/monitoring-deploy",
-              "aws s3 cp s3://S3_BUCKET_PLACEHOLDER/S3_PREFIX_PLACEHOLDER/ /tmp/monitoring-deploy/ --recursive --region AWS_REGION_PLACEHOLDER",
-              "echo 'Files downloaded successfully'",
-              "ls -la /tmp/monitoring-deploy/",
-              "chmod +x /tmp/monitoring-deploy/deploy-monitoring.sh",
-              "export PARAMETER_PREFIX='PARAM_PREFIX_PLACEHOLDER'",
-              "export AWS_REGION='AWS_REGION_PLACEHOLDER'",
-              "export COMPOSE_DIR='COMPOSE_DIR_PLACEHOLDER'",
-              "export CONFIG_DIR='/tmp/monitoring-deploy'",
-              "export SKIP_DOCKER_INSTALL='SKIP_DOCKER_PLACEHOLDER'",
-              "/tmp/monitoring-deploy/deploy-monitoring.sh 2>&1 | tee /tmp/deploy-monitoring.log",
-              "DEPLOY_EXIT_CODE=$?",
-              "echo 'Deployment finished with exit code: ${DEPLOY_EXIT_CODE}'",
-              "echo 'Cleaning up temporary files...'",
-              "rm -rf /tmp/monitoring-deploy",
-              "exit ${DEPLOY_EXIT_CODE}"
-            ]
-          }
-          EOF
+    # SSM 명령 생성 (JSON 파일로)
+    cat > /tmp/ssm-command.json << EOF
+    {
+      "commands": [
+        "set -e",
+        "echo '=== Monitoring Stack Deployment ==='",
+        "echo 'Deploy ID: DEPLOY_ID_PLACEHOLDER'",
+        "echo 'Downloading configuration from S3...'",
+        "mkdir -p /tmp/monitoring-deploy",
+        "aws s3 cp s3://S3_BUCKET_PLACEHOLDER/S3_PREFIX_PLACEHOLDER/ /tmp/monitoring-deploy/ --recursive --region AWS_REGION_PLACEHOLDER",
+        "echo 'Files downloaded successfully'",
+        "ls -la /tmp/monitoring-deploy/",
+        "chmod +x /tmp/monitoring-deploy/deploy-monitoring.sh",
+        "export PARAMETER_PREFIX='PARAM_PREFIX_PLACEHOLDER'",
+        "export AWS_REGION='AWS_REGION_PLACEHOLDER'",
+        "export COMPOSE_DIR='COMPOSE_DIR_PLACEHOLDER'",
+        "export CONFIG_DIR='/tmp/monitoring-deploy'",
+        "export SKIP_DOCKER_INSTALL='SKIP_DOCKER_PLACEHOLDER'",
+        "/tmp/monitoring-deploy/deploy-monitoring.sh 2>&1 | tee /tmp/deploy-monitoring.log",
+        "DEPLOY_EXIT_CODE=\\$?",  // <--- 수정: $를 이스케이프
+        "echo 'Deployment finished with exit code: \${DEPLOY_EXIT_CODE}'", // <--- 수정: $를 이스케이프
+        "echo 'Cleaning up temporary files...'",
+        "rm -rf /tmp/monitoring-deploy",
+        "exit \${DEPLOY_EXIT_CODE}" // <--- 수정: $를 이스케이프
+      ]
+    }
+    EOF
+    
+    # 참고: 'EOF' 대신 EOF를 사용하면 sed 명령에서 $AWS_REGION 등을 더 안전하게 처리할 수 있습니다. 
+    # (이미 sed로 처리 중이므로, JSON 내 쉘 구문만 수정했습니다.)
 
-          # 플레이스홀더를 실제 값으로 치환
-          sed -i "s|DEPLOY_ID_PLACEHOLDER|${DEPLOY_ID}|g" /tmp/ssm-command.json
-          sed -i "s|S3_BUCKET_PLACEHOLDER|${S3_BUCKET}|g" /tmp/ssm-command.json
-          sed -i "s|S3_PREFIX_PLACEHOLDER|${S3_PREFIX}|g" /tmp/ssm-command.json
-          sed -i "s|AWS_REGION_PLACEHOLDER|${AWS_REGION}|g" /tmp/ssm-command.json
-          sed -i "s|PARAM_PREFIX_PLACEHOLDER|${PARAM_PREFIX}|g" /tmp/ssm-command.json
-          sed -i "s|COMPOSE_DIR_PLACEHOLDER|${COMPOSE_DIR_VAR}|g" /tmp/ssm-command.json
-          sed -i "s|SKIP_DOCKER_PLACEHOLDER|${SKIP_DOCKER}|g" /tmp/ssm-command.json
+    # 플레이스홀더를 실제 값으로 치환 (이 부분은 그대로 유지)
+    sed -i "s|DEPLOY_ID_PLACEHOLDER|${DEPLOY_ID}|g" /tmp/ssm-command.json
+    sed -i "s|S3_BUCKET_PLACEHOLDER|${S3_BUCKET}|g" /tmp/ssm-command.json
+    sed -i "s|S3_PREFIX_PLACEHOLDER|${S3_PREFIX}|g" /tmp/ssm-command.json
+    sed -i "s|AWS_REGION_PLACEHOLDER|${AWS_REGION}|g" /tmp/ssm-command.json
+    sed -i "s|PARAM_PREFIX_PLACEHOLDER|${PARAM_PREFIX}|g" /tmp/ssm-command.json
+    sed -i "s|COMPOSE_DIR_PLACEHOLDER|${COMPOSE_DIR_VAR}|g" /tmp/ssm-command.json
+    sed -i "s|SKIP_DOCKER_PLACEHOLDER|${SKIP_DOCKER}|g" /tmp/ssm-command.json
 
-          echo "Generated SSM command:"
-          cat /tmp/ssm-command.json
+    echo "Generated SSM command:"
+    cat /tmp/ssm-command.json
 
-          # SSM 명령 실행
-          echo ""
-          echo "Sending deployment command to EC2..."
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
-            --document-name "AWS-RunShellScript" \
-            --comment "Deploy Monitoring Stack - ${DEPLOY_ID}" \
-            --timeout-seconds 1800 \
-            --cli-input-json file:///tmp/ssm-command.json \
-            --output text \
-            --query "Command.CommandId" \
-            --region "${AWS_REGION}")
+    # SSM 명령 실행 (이 부분은 그대로 유지)
+    echo ""
+    echo "Sending deployment command to EC2..."
+    COMMAND_ID=$(aws ssm send-command \
+      --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
+      --document-name "AWS-RunShellScript" \
+      --comment "Deploy Monitoring Stack - ${DEPLOY_ID}" \
+      --timeout-seconds 1800 \
+      --cli-input-json file:///tmp/ssm-command.json \
+      --output text \
+      --query "Command.CommandId" \
+      --region "${AWS_REGION}")
 
-          if [ -z "$COMMAND_ID" ]; then
-            echo "❌ Failed to send SSM command"
-            cat /tmp/ssm-command.json
-            exit 1
-          fi
+    if [ -z "$COMMAND_ID" ]; then
+      echo "❌ Failed to send SSM command"
+      cat /tmp/ssm-command.json
+      exit 1
+    fi
 
-          echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
-          echo "✅ Command ID: ${COMMAND_ID}"
-
+    echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
+    echo "✅ Command ID: ${COMMAND_ID}"
       # ============================================
       # 7. 배포 모니터링
       # ============================================
