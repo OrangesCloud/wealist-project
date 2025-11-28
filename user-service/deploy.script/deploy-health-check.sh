@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SERVICE_PORT=8080
-HEALTH_ENDPOINT="/api/users/actuator/health"
+HEALTH_ENDPOINT="/api/users/health"
 MAX_ATTEMPTS=15
 WAIT_SECONDS=5
 
