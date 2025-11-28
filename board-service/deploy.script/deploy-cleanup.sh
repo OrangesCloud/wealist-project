@@ -8,6 +8,15 @@ PROJECT_ROOT="/home/ec2-user/wealist"
 COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-prod.yml"
 echo "🧹 Cleaning up old board-service containers..."
 
+# CodeDeploy 파일 복사 충돌 방지: 기존 docker-compose 파일 삭제
+echo "🗑️ Removing existing docker-compose file to prevent CodeDeploy conflict..."
+if [ -f "${COMPOSE_FILE}" ]; then
+    sudo rm -f "${COMPOSE_FILE}"
+    echo "  ✅ Removed existing docker-compose.ec2-prod.yml"
+else
+    echo "  No existing docker-compose file found"
+fi
+
 # 1. Docker Compose 명령어가 무엇인지 확인합니다.
 if docker compose version &> /dev/null; then
   COMPOSE_CMD="docker compose"

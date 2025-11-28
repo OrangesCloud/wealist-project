@@ -10,6 +10,15 @@ COMPOSE_FILE="${PROJECT_ROOT}/docker/compose/docker-compose.ec2-prod.yml"
 
 echo "🧹 Cleaning up old user-service containers..."
 
+# CodeDeploy 파일 복사 충돌 방지: 기존 docker-compose 파일 삭제
+echo "🗑️ Removing existing docker-compose file to prevent CodeDeploy conflict..."
+if [ -f "${COMPOSE_FILE}" ]; then
+    sudo rm -f "${COMPOSE_FILE}"
+    echo "  ✅ Removed existing docker-compose.ec2-prod.yml"
+else
+    echo "  No existing docker-compose file found"
+fi
+
 if docker compose version &> /dev/null; then
   COMPOSE_CMD="docker compose"
 else

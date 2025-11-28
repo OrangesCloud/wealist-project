@@ -95,7 +95,7 @@ jobs:
           DEPLOYMENT_ID=$(aws deploy create-deployment \
             --application-name ${{ env.CODEDEPLOY_APP_NAME }} \
             --deployment-group-name ${{ env.CODEDEPLOY_GROUP_NAME }} \
-            --deployment-config-name CodeDeployDefault.OneAtATime \
+            --deployment-config-name CodeDeployDefault.AllAtOnce \
             --description "Board Service Deployment ${{ steps.calculate_key.outputs.sha_tag }}" \
             --s3-location bucket=${{ env.S3_BUCKET }},key=${{ steps.calculate_key.outputs.s3_key }},bundleType=zip \
             --query "deploymentId" \
