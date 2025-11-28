@@ -57,14 +57,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * HTTP 요청 헤더에서 JWT 토큰을 추출합니다.
-     * Authorization 헤더의 "Bearer " 접두사를 제거하고 토큰을 반환합니다.
+     * HTTP 요청 헤더에서 JWT 토큰을 추출하고, 헤더에 없으면 쿼리 파라미터에서 accessToken을 추출합니다.
      */
     private String getJwtFromRequest(HttpServletRequest request) {
+        // 1. Authorization 헤더에서 추출 시도 (권장 표준 방식)
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
-        return null;
+
+        // 2. 쿼리 파라미터에서 추출 시도 (현재 클라이언트의 요청 방식)
+        // 클라이언트가 "accessToken"이라는 이름으로 토큰을 전달하고 있으므로 그 이름을 사용합니다.
+        String queryToken = request.getParameter("accessToken");
+        if (StringUtils.hasText(queryToken)) {
+            return queryToken;
+        }
+
+        return null; // 토큰을 찾지 못함
     }
 }
