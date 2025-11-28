@@ -1,751 +1,205 @@
-name: CD - Enhanced Monitoring Stack
-
-on:
-  push:
-    branches:
-      - deploy-prod
-    paths:
-      - "prometheus/**"
-      - "loki/**"
-      - "promtail/**"
-      - "rds_exporter/**"
-      - "docker/compose/docker-compose.ec2-prod-monitoring.yml"
-      - ".github/workflows/cd-prod-monitoring.yml"
-  workflow_dispatch:
-    inputs:
-      skip_docker_install:
-        description: 'Skip Docker Compose installation check'
-        required: false
-        default: false
-        type: boolean
-
-permissions:
-  contents: read
-  actions: read
-  id-token: write
-
-jobs:
-  deploy:
-    name: Deploy Monitoring Stack
-    runs-on: ubuntu-latest
-    env:
-      AWS_REGION: ap-northeast-2
-
-    steps:
-      # ============================================
-      # 0. Checkout
-      # ============================================
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      # ============================================
-      # 1. AWS Credentials (OIDC)
-      # ============================================
-      - name: 🔐 Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::290008131187:role/wealist-prod-github-actions-role
-          aws-region: ap-northeast-2
-
-      # ============================================
-      # 2. 배포 대상 EC2 인스턴스 찾기
-      # ============================================
-      - name: 🔍 Find Target EC2 Instance
-        id: config
-        run: |
-          echo "🔍 Finding target EC2 instance..."
-          
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters \
-              "Name=tag:aws:autoscaling:groupName,Values=wealist-prod-monitoring-asg" \
-              "Name=instance-state-name,Values=running" \
-            --query 'Reservations[0].Instances[0].InstanceId' \
-            --output text \
-            --region "${AWS_REGION}")
-
-          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ] || [ "$INSTANCE_ID" = "null" ]; then
-            echo "❌ No running EC2 instance found in ASG: wealist-prod-monitoring-asg"
-            echo "💡 Check if ASG exists and has running instances"
-            exit 1
-          fi
-
-          echo "✅ Found EC2 Instance: $INSTANCE_ID"
-          echo "ec2-instance-id=$INSTANCE_ID" >> $GITHUB_OUTPUT
-          echo "parameter-prefix=/wealist/prod" >> $GITHUB_OUTPUT
-          echo "compose-dir=/home/ubuntu/wealist/compose" >> $GITHUB_OUTPUT
-
-      # ============================================
-      # 3. 설정 파일 검증
-      # ============================================
-      - name: ✅ Validate Configuration Files
-        run: |
-          echo "📋 Validating required files..."
-          
-          REQUIRED_FILES=(
-            "docker/compose/docker-compose.ec2-prod-monitoring.yml"
-            "prometheus/config/prometheus-prod-ec2.yml"
-            "loki/config/local-config.yaml"
-            "promtail/config/promtail.yml"
-            "rds_exporter/config.yml"
-          )
-          
-          MISSING_FILES=()
-          for file in "${REQUIRED_FILES[@]}"; do
-            if [ ! -f "$file" ]; then
-              MISSING_FILES+=("$file")
-              echo "❌ Missing: $file"
-            else
-              echo "✅ Found: $file"
-            fi
-          done
-          
-          if [ ${#MISSING_FILES[@]} -gt 0 ]; then
-            echo ""
-            echo "❌ ERROR: Missing required files:"
-            printf '  - %s\n' "${MISSING_FILES[@]}"
-            exit 1
-          fi
-          
-          echo "✅ All required files present"
-
-      # ============================================
-      # 4. 배포 스크립트 생성
-      # ============================================
-      - name: 📝 Create Deployment Script
-        run: |
-          cat << 'DEPLOY_SCRIPT' > /tmp/deploy-monitoring.sh
-          #!/bin/bash
-          set -euo pipefail
-
-          # 로깅 함수
-          log_info() { echo "ℹ️  $1"; }
-          log_success() { echo "✅ $1"; }
-          log_warning() { echo "⚠️  $1"; }
-          log_error() { echo "❌ $1" >&2; }
-
-          log_info "=== Enhanced Monitoring Stack Deployment ==="
-          log_info "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          log_info "AWS Region: ${AWS_REGION:-ap-northeast-2}"
-          log_info "Parameter Prefix: ${PARAMETER_PREFIX:-/wealist/prod}"
-
-          # =============================================================================
-          # STEP 1: 환경 검증
-          # =============================================================================
-          log_info "🔍 Validating environment..."
-
-          # 현재 사용자 확인
-          CURRENT_USER=$(whoami 2>/dev/null || echo "ubuntu")
-          log_info "Current user: ${CURRENT_USER}"
-
-          # AWS CLI 확인
-          if ! command -v aws &> /dev/null; then
-            log_error "AWS CLI not found. Please install AWS CLI."
-            exit 1
-          fi
-          log_success "AWS CLI available: $(aws --version 2>&1 | head -n1)"
-
-          # Docker 확인
-          if ! command -v docker &> /dev/null; then
-            log_error "Docker not found. Please install Docker."
-            exit 1
-          fi
-          log_success "Docker available: $(docker --version)"
-
-          # Docker 서비스 실행 확인
-          if ! sudo systemctl is-active --quiet docker; then
-            log_warning "Docker service not running. Starting..."
-            sudo systemctl start docker
-            sudo systemctl enable docker
-            sleep 3
-          fi
-          log_success "Docker service is running"
-
-          # =============================================================================
-          # STEP 2: Docker Compose 설치/업데이트
-          # =============================================================================
-          if [ "${SKIP_DOCKER_INSTALL:-false}" != "true" ]; then
-            log_info "🐳 Checking Docker Compose..."
-
-            # 현재 버전 확인
-            CURRENT_VERSION="0.0.0"
-            if command -v docker-compose &> /dev/null; then
-              CURRENT_VERSION=$(docker-compose --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1 || echo "0.0.0")
-              log_info "Current Docker Compose version: ${CURRENT_VERSION}"
-            else
-              log_warning "Docker Compose not found"
-            fi
-
-            # 필요 버전
-            REQUIRED_VERSION="2.20.0"
-            
-            # 버전 비교 함수
-            version_ge() {
-              [ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
-            }
-
-            if ! version_ge "$CURRENT_VERSION" "$REQUIRED_VERSION"; then
-              log_info "📥 Installing Docker Compose..."
-              
-              # 최신 버전 가져오기
-              COMPOSE_VERSION=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest 2>/dev/null | grep -Po '"tag_name": "\K[^"]*' || echo "v2.24.0")
-              log_info "Downloading Docker Compose ${COMPOSE_VERSION}..."
-              
-              # 다운로드 및 설치
-              if sudo curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" \
-                -o /usr/local/bin/docker-compose; then
-                
-                sudo chmod +x /usr/local/bin/docker-compose
-                sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose 2>/dev/null || true
-                
-                if docker-compose --version &> /dev/null; then
-                  log_success "Docker Compose installed: $(docker-compose --version)"
-                else
-                  log_error "Docker Compose installation verification failed"
-                  exit 1
-                fi
-              else
-                log_error "Failed to download Docker Compose"
-                exit 1
-              fi
-            else
-              log_success "Docker Compose is up to date: ${CURRENT_VERSION}"
-            fi
-          else
-            log_info "⏭️  Skipping Docker Compose installation check"
-          fi
-
-          # Docker Compose 명령어 결정
-          if docker compose version &> /dev/null; then
-            COMPOSE_CMD="docker compose"
-            log_info "Using Docker Compose V2 (plugin)"
-          elif docker-compose --version &> /dev/null; then
-            COMPOSE_CMD="docker-compose"
-            log_info "Using Docker Compose V1 (standalone)"
-          else
-            log_error "Docker Compose not available"
-            exit 1
-          fi
-
-          # =============================================================================
-          # STEP 3: 기존 서비스 정리
-          # =============================================================================
-          log_info "🧹 Cleaning up existing services..."
-
-          # 실행 중인 컨테이너 중지 및 제거
-          CONTAINERS=$(sudo docker ps -aq --filter "name=wealist-" 2>/dev/null || true)
-          if [ -n "$CONTAINERS" ]; then
-            log_info "Stopping and removing containers..."
-            sudo docker stop $CONTAINERS 2>/dev/null || true
-            sudo docker rm $CONTAINERS 2>/dev/null || true
-            log_success "Containers cleaned up"
-          else
-            log_info "No containers to clean up"
-          fi
-
-          # 네트워크 제거 (존재하면)
-          if sudo docker network ls --format '{{.Name}}' 2>/dev/null | grep -q '^wealist-monitoring-net$'; then
-            log_info "Removing network wealist-monitoring-net..."
-            sudo docker network rm wealist-monitoring-net 2>/dev/null || true
-          fi
-
-          # Dangling 볼륨 제거
-          sudo docker volume prune -f &> /dev/null || true
-
-          log_success "Cleanup completed"
-
-          # =============================================================================
-          # STEP 4: SSM에서 설정 로드
-          # =============================================================================
-          log_info "📋 Loading configuration from SSM..."
-
-          # SSM 파라미터 로드 함수
-          load_param() {
-            local param_name="$1"
-            local default_value="${2:-}"
-            local full_path="${PARAMETER_PREFIX}${param_name}"
-            
-            local value
-            if value=$(aws ssm get-parameter \
-              --name "${full_path}" \
-              --query "Parameter.Value" \
-              --output text \
-              --region "${AWS_REGION}" 2>/dev/null); then
-              echo "$value"
-            elif [ -n "$default_value" ]; then
-              log_warning "Using default for ${param_name}: ${default_value}"
-              echo "$default_value"
-            else
-              log_error "Required parameter not found: ${full_path}"
-              return 1
-            fi
-          }
-
-          # SSM 암호화된 파라미터 로드 함수
-          load_secret() {
-            local param_name="$1"
-            local default_value="${2:-}"
-            local full_path="${PARAMETER_PREFIX}${param_name}"
-            
-            local value
-            if value=$(aws ssm get-parameter \
-              --name "${full_path}" \
-              --query "Parameter.Value" \
-              --output text \
-              --with-decryption \
-              --region "${AWS_REGION}" 2>/dev/null); then
-              echo "$value"
-            elif [ -n "$default_value" ]; then
-              log_warning "Using default for ${param_name}"
-              echo "$default_value"
-            else
-              log_error "Required secret not found: ${full_path}"
-              return 1
-            fi
-          }
-
-          # 설정 로드
-          log_info "Loading parameters..."
-          
-          GRAFANA_ADMIN_USER=$(load_param "/monitor/grafana_admin_user" "admin")
-          GRAFANA_ADMIN_PASSWORD=$(load_secret "/monitor/grafana_admin_password" "")
-          
-          if [ -z "$GRAFANA_ADMIN_PASSWORD" ]; then
-            log_error "Grafana admin password is required"
-            exit 1
-          fi
-          
-          PROMETHEUS_PORT=$(load_param "/monitor/prometheus_port" "9090")
-          GRAFANA_PORT=$(load_param "/monitor/grafana_port" "3001")
-          NODE_EXPORTER_PORT=$(load_param "/monitor/node_exporter_port" "9001")
-          LOKI_PORT=$(load_param "/monitor/loki_port" "3100")
-          RDS_EXPORTER_PORT=$(load_param "/monitor/rds_exporter_port" "9042")
-          ELASTIC_EXPORTER_PORT=$(load_param "/monitor/elastic_exporter_port" "9114")
-
-          PROMETHEUS_CONFIG_DIR=$(load_param "/monitor/prometheus_config" "/home/ubuntu/wealist/prometheus/config")
-          LOKI_CONFIG_DIR=$(load_param "/monitor/loki_config" "/home/ubuntu/wealist/loki/config")
-          PROMTAIL_CONFIG_DIR=$(load_param "/monitor/promtail_config" "/home/ubuntu/wealist/promtail/config")
-          RDS_CONFIG_DIR=$(load_param "/monitor/rds_config" "/home/ubuntu/wealist/rds_exporter/config")
-
-          ELASTIC_URL=$(load_param "/monitor/elasticsearch_uri" "localhost")
-          RDS_EXPORTER_IMAGE=$(load_param "/monitor/rds_exporter_image" "qonto/prometheus-rds-exporter:latest")
-
-          USER_SERVICE_PORT=$(load_param "/user_port" "8080")
-          BOARD_SERVICE_PORT=$(load_param "/board_port" "8000")
-
-          log_success "Configuration loaded successfully"
-
-          # =============================================================================
-          # STEP 5: 디렉토리 구조 생성
-          # =============================================================================
-          log_info "📁 Setting up directory structure..."
-
-          # Compose 디렉토리로 이동
-          COMPOSE_DIR="${COMPOSE_DIR:-/home/ubuntu/wealist/compose}"
-          sudo mkdir -p "${COMPOSE_DIR}"
-          
-          if ! cd "${COMPOSE_DIR}"; then
-            log_error "Failed to change to directory: ${COMPOSE_DIR}"
-            exit 1
-          fi
-          log_info "Working directory: $(pwd)"
-
-          # 필요한 디렉토리 생성
-          sudo mkdir -p /home/ubuntu/wealist/{prometheus/{config,data},grafana/{data,logs},loki/{config,data},promtail/config,rds_exporter/config}
-
-          # 권한 설정 (에러 무시)
-          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/ 2>/dev/null || true
-          sudo chown -R 472:472 /home/ubuntu/wealist/grafana/ 2>/dev/null || true
-          sudo chown -R 65534:65534 /home/ubuntu/wealist/prometheus/data 2>/dev/null || true
-          sudo chown -R 10001:10001 /home/ubuntu/wealist/loki/data 2>/dev/null || sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/loki/data 2>/dev/null || true
-          sudo chown -R ${CURRENT_USER}:${CURRENT_USER} /home/ubuntu/wealist/rds_exporter/ 2>/dev/null || true
-
-          log_success "Directory structure created"
-
-          # =============================================================================
-          # STEP 6: 설정 파일 배포
-          # =============================================================================
-          log_info "📝 Deploying configuration files..."
-
-          # CONFIG_DIR에서 파일 복사 (S3에서 다운로드한 파일들)
-          CONFIG_SRC="${CONFIG_DIR:-/tmp/monitoring-deploy}"
-          
-          if [ ! -d "$CONFIG_SRC" ]; then
-            log_error "Configuration directory not found: ${CONFIG_SRC}"
-            exit 1
-          fi
-
-          # Docker Compose 파일
-          if [ -f "${CONFIG_SRC}/docker-compose.yml" ]; then
-            cp "${CONFIG_SRC}/docker-compose.yml" docker-compose.yml
-            log_success "docker-compose.yml deployed"
-          else
-            log_error "docker-compose.yml not found in ${CONFIG_SRC}"
-            exit 1
-          fi
-
-          # Prometheus 설정
-          if [ -f "${CONFIG_SRC}/prometheus.yml" ]; then
-            sudo cp "${CONFIG_SRC}/prometheus.yml" ${PROMETHEUS_CONFIG_DIR}/prometheus-prod-ec2.yml
-            log_success "Prometheus config deployed"
-            
-            # 템플릿 변수 치환
-            sudo sed -i \
-              -e "s/{{USER_SERVICE_PORT}}/${USER_SERVICE_PORT}/g" \
-              -e "s/{{BOARD_SERVICE_PORT}}/${BOARD_SERVICE_PORT}/g" \
-              -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
-              -e "s/{{RDS_EXPORTER_PORT}}/${RDS_EXPORTER_PORT}/g" \
-              -e "s/{{ELASTIC_EXPORTER_PORT}}/${ELASTIC_EXPORTER_PORT}/g" \
-              -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
-              "${PROMETHEUS_CONFIG_DIR}/prometheus-prod-ec2.yml" 2>/dev/null || log_warning "Failed to process Prometheus template"
-            log_success "Prometheus config processed"
-          else
-            log_warning "Prometheus config not found"
-          fi
-
-          # Loki 설정
-          if [ -f "${CONFIG_SRC}/loki.yaml" ]; then
-            sudo cp "${CONFIG_SRC}/loki.yaml" ${LOKI_CONFIG_DIR}/local-config.yaml
-            log_success "Loki config deployed"
-          else
-            log_warning "Loki config not found"
-          fi
-
-          # Promtail 설정
-          if [ -f "${CONFIG_SRC}/promtail.yml" ]; then
-            sudo cp "${CONFIG_SRC}/promtail.yml" ${PROMTAIL_CONFIG_DIR}/promtail.yml
-            log_success "Promtail config deployed"
-          else
-            log_warning "Promtail config not found"
-          fi
-
-          # RDS Exporter 설정
-          if [ -f "${CONFIG_SRC}/rds-exporter.yml" ]; then
-            sudo cp "${CONFIG_SRC}/rds-exporter.yml" ${RDS_CONFIG_DIR}/config.yml
-            log_success "RDS Exporter config deployed"
-          else
-            log_warning "RDS Exporter config not found"
-          fi
-
-          # .env 파일 생성
-          cat > .env << ENV_EOF
-          PROMETHEUS_PORT=${PROMETHEUS_PORT}
-          GRAFANA_PORT=${GRAFANA_PORT}
-          LOKI_PORT=${LOKI_PORT}
-          NODE_EXPORTER_PORT=${NODE_EXPORTER_PORT}
-          RDS_EXPORTER_PORT=${RDS_EXPORTER_PORT}
-          ELASTIC_EXPORTER_PORT=${ELASTIC_EXPORTER_PORT}
-          AWS_REGION=${AWS_REGION}
-          ES_URI=${ELASTIC_URL}:9200
-          PROMETHEUS_CONFIG_DIR=${PROMETHEUS_CONFIG_DIR}
-          LOKI_CONFIG_DIR=${LOKI_CONFIG_DIR}
-          PROMTAIL_CONFIG_DIR=${PROMTAIL_CONFIG_DIR}
-          RDS_CONFIG_DIR=${RDS_CONFIG_DIR}
-          GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
-          GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-          RDS_EXPORTER_IMAGE=${RDS_EXPORTER_IMAGE}
-          ENV_EOF
-
-          log_success ".env file created"
-
-          # =============================================================================
-          # STEP 7: 서비스 시작
-          # =============================================================================
-          log_info "🚀 Starting monitoring services..."
-
-          # 이미지 Pull
-          log_info "Pulling Docker images..."
-          if sudo ${COMPOSE_CMD} pull 2>&1 | tee /tmp/compose-pull.log; then
-            log_success "Images pulled successfully"
-          else
-            log_warning "Some images may have failed to pull (check /tmp/compose-pull.log)"
-          fi
-
-          # 컨테이너 시작
-          log_info "Starting containers..."
-          if ! sudo ${COMPOSE_CMD} up -d --remove-orphans 2>&1 | tee /tmp/compose-up.log; then
-            log_error "Failed to start services"
-            log_info "Docker Compose logs:"
-            sudo ${COMPOSE_CMD} logs --tail=100 2>&1 || true
-            exit 1
-          fi
-
-          log_success "Containers started"
-
-          # 초기화 대기
-          log_info "Waiting for services to initialize (30s)..."
-          sleep 30
-
-          # =============================================================================
-          # STEP 8: 상태 확인
-          # =============================================================================
-          log_info "🔍 Checking service health..."
-
-          # 컨테이너 상태
-          sudo ${COMPOSE_CMD} ps
-
-          # 실행 중인 컨테이너 수
-          RUNNING_COUNT=$(sudo docker ps --filter "name=wealist-" --format "{{.Names}}" | wc -l)
-          log_info "Running containers: ${RUNNING_COUNT}"
-
-          if [ "$RUNNING_COUNT" -eq 0 ]; then
-            log_error "No containers are running!"
-            exit 1
-          fi
-
-          log_success "🎉 Monitoring Stack deployment completed!"
-          DEPLOY_SCRIPT
-
-          chmod +x /tmp/deploy-monitoring.sh
-          echo "✅ Deployment script created"
-
-      # ============================================
-      # 5. S3에 설정 파일 업로드
-      # ============================================
-      - name: 📦 Upload Configuration to S3
-        id: upload
-        run: |
-          echo "📦 Uploading configuration files to S3..."
-
-          # OIDC 검증
-          PRINCIPAL_ARN=$(aws sts get-caller-identity --query "Arn" --output text --region "${AWS_REGION}")
-          if [[ "$PRINCIPAL_ARN" != *"assumed-role/wealist-prod-github-actions-role"* ]]; then
-            echo "❌ ERROR: Invalid IAM role: $PRINCIPAL_ARN"
-            exit 1
-          fi
-          echo "✅ OIDC verified: $PRINCIPAL_ARN"
-
-          # 배포 ID 생성 (타임스탬프 + SHA)
-          DEPLOY_ID="monitoring-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}"
-          S3_BUCKET="wealist-codedeploy-artifacts"
-          S3_PREFIX="monitoring-configs/${DEPLOY_ID}"
-
-          echo "deploy-id=${DEPLOY_ID}" >> $GITHUB_OUTPUT
-          echo "s3-bucket=${S3_BUCKET}" >> $GITHUB_OUTPUT
-          echo "s3-prefix=${S3_PREFIX}" >> $GITHUB_OUTPUT
-
-          # 임시 디렉토리 생성
-          mkdir -p /tmp/monitoring-deploy
-
-          # 파일 복사
-          cp docker/compose/docker-compose.ec2-prod-monitoring.yml /tmp/monitoring-deploy/docker-compose.yml
-          cp prometheus/config/prometheus-prod-ec2.yml /tmp/monitoring-deploy/prometheus.yml
-          cp loki/config/local-config.yaml /tmp/monitoring-deploy/loki.yaml
-          cp promtail/config/promtail.yml /tmp/monitoring-deploy/promtail.yml
-          cp rds_exporter/config.yml /tmp/monitoring-deploy/rds-exporter.yml
-          cp /tmp/deploy-monitoring.sh /tmp/monitoring-deploy/deploy-monitoring.sh
-
-          # S3에 업로드
-          echo "Uploading to s3://${S3_BUCKET}/${S3_PREFIX}/"
-          aws s3 cp /tmp/monitoring-deploy/ s3://${S3_BUCKET}/${S3_PREFIX}/ --recursive --region "${AWS_REGION}"
-
-          echo "✅ Configuration uploaded to S3"
-
-      # ============================================
-      # 6. 배포 실행
-      # ============================================
-      - name: 🚀 Execute Deployment
-        id: deploy
-        run: |
-          echo "🚀 Executing deployment via SSM..."
-
-          DEPLOY_ID="${{ steps.upload.outputs.deploy-id }}"
-          S3_BUCKET="${{ steps.upload.outputs.s3-bucket }}"
-          S3_PREFIX="${{ steps.upload.outputs.s3-prefix }}"
-          PARAM_PREFIX="${{ steps.config.outputs.parameter-prefix }}"
-          COMPOSE_DIR_VAR="${{ steps.config.outputs.compose-dir }}"
-          SKIP_DOCKER="${{ inputs.skip_docker_install }}"
-
-          # 쉘 스크립트를 직접 생성
-          cat > /tmp/deploy-script.sh << 'SCRIPT_EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "=== Monitoring Stack Deployment ==="
-          echo "Deploy ID: __DEPLOY_ID__"
-          echo "Downloading configuration from S3..."
-          
-          mkdir -p /tmp/monitoring-deploy
-          aws s3 cp s3://__S3_BUCKET__/__S3_PREFIX__/ /tmp/monitoring-deploy/ --recursive --region __AWS_REGION__
-          
-          echo "Files downloaded successfully"
-          ls -la /tmp/monitoring-deploy/
-          
-          chmod +x /tmp/monitoring-deploy/deploy-monitoring.sh
-          
-          export PARAMETER_PREFIX="__PARAM_PREFIX__"
-          export AWS_REGION="__AWS_REGION__"
-          export COMPOSE_DIR="__COMPOSE_DIR__"
-          export CONFIG_DIR="/tmp/monitoring-deploy"
-          export SKIP_DOCKER_INSTALL="__SKIP_DOCKER__"
-          
-          /tmp/monitoring-deploy/deploy-monitoring.sh 2>&1 | tee /tmp/deploy-monitoring.log
-          DEPLOY_EXIT_CODE=$?
-          
-          echo "Deployment finished with exit code: $DEPLOY_EXIT_CODE"
-          echo "Cleaning up temporary files..."
-          rm -rf /tmp/monitoring-deploy
-          
-          exit $DEPLOY_EXIT_CODE
-          SCRIPT_EOF
-
-          # 플레이스홀더 치환
-          sed -i "s|__DEPLOY_ID__|${DEPLOY_ID}|g" /tmp/deploy-script.sh
-          sed -i "s|__S3_BUCKET__|${S3_BUCKET}|g" /tmp/deploy-script.sh
-          sed -i "s|__S3_PREFIX__|${S3_PREFIX}|g" /tmp/deploy-script.sh
-          sed -i "s|__AWS_REGION__|${AWS_REGION}|g" /tmp/deploy-script.sh
-          sed -i "s|__PARAM_PREFIX__|${PARAM_PREFIX}|g" /tmp/deploy-script.sh
-          sed -i "s|__COMPOSE_DIR__|${COMPOSE_DIR_VAR}|g" /tmp/deploy-script.sh
-          sed -i "s|__SKIP_DOCKER__|${SKIP_DOCKER}|g" /tmp/deploy-script.sh
-
-          echo "Generated deployment script:"
-          echo "----------------------------"
-          cat /tmp/deploy-script.sh
-          echo "----------------------------"
-
-          # Base64로 인코딩 (특수문자 문제 방지)
-          SCRIPT_B64=$(base64 -w 0 /tmp/deploy-script.sh)
-
-          echo ""
-          echo "Sending deployment command to EC2..."
-          
-          # ddddddddd
-          # SSM 명령 실행 (스크립트를 base64로 전송)
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
-            --document-name "AWS-RunShellScript" \
-            --comment "Deploy Monitoring Stack - ${DEPLOY_ID}" \
-            --timeout-seconds 1800 \
-            --parameters "commands=[
-              \"echo 'Decoding and executing deployment script...'\",
-              \"echo '${SCRIPT_B64}' | base64 -d > /tmp/exec-deploy.sh\",
-              \"chmod +x /tmp/exec-deploy.sh\",
-              \"/tmp/exec-deploy.sh\",
-              \"rm -f /tmp/exec-deploy.sh\"
-            ]" \
-            --output text \
-            --query "Command.CommandId" \
-            --region "${AWS_REGION}")
-
-          if [ -z "$COMMAND_ID" ]; then
-            echo "❌ Failed to send SSM command"
-            exit 1
-          fi
-
-          echo "command-id=${COMMAND_ID}" >> $GITHUB_OUTPUT
-          echo "✅ Command ID: ${COMMAND_ID}"
-      # ============================================
-      # 7. 배포 모니터링
-      # ============================================
-      - name: 📊 Monitor Deployment
-        run: |
-          COMMAND_ID="${{ steps.deploy.outputs.command-id }}"
-          INSTANCE_ID="${{ steps.config.outputs.ec2-instance-id }}"
-          
-          echo "📊 Monitoring: ${COMMAND_ID} on ${INSTANCE_ID}"
-
-          MAX_WAIT=1800  # 30 minutes
-          WAIT_TIME=0
-          CHECK_COUNT=0
-
-          while [ $WAIT_TIME -lt $MAX_WAIT ]; do
-            STATUS=$(aws ssm get-command-invocation \
-              --command-id "$COMMAND_ID" \
-              --instance-id "$INSTANCE_ID" \
-              --query "Status" \
-              --output text \
-              --region "${AWS_REGION}" 2>/dev/null || echo "Pending")
-
-            # 처음 5분은 자주, 이후는 덜 자주 체크
-            if [ $WAIT_TIME -lt 300 ]; then
-              INTERVAL=15
-            else
-              INTERVAL=30
-            fi
-
-            CHECK_COUNT=$((CHECK_COUNT + 1))
-            echo "⏳ [$CHECK_COUNT] Status: $STATUS (${WAIT_TIME}s elapsed)"
-
-            if [ "$STATUS" = "Success" ]; then
-              echo "✅ Deployment completed successfully!"
-              break
-            elif [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
-              echo ""
-              echo "❌ Deployment failed with status: $STATUS"
-              echo ""
-              echo "📋 Standard Output:"
-              echo "-------------------"
-              aws ssm get-command-invocation \
-                --command-id "$COMMAND_ID" \
-                --instance-id "$INSTANCE_ID" \
-                --query "StandardOutputContent" \
-                --output text \
-                --region "${AWS_REGION}" || echo "(no output)"
-              echo ""
-              echo "📋 Error Output:"
-              echo "----------------"
-              aws ssm get-command-invocation \
-                --command-id "$COMMAND_ID" \
-                --instance-id "$INSTANCE_ID" \
-                --query "StandardErrorContent" \
-                --output text \
-                --region "${AWS_REGION}" || echo "(no errors)"
-              exit 1
-            fi
-
-            sleep $INTERVAL
-            WAIT_TIME=$((WAIT_TIME + INTERVAL))
-          done
-
-          if [ $WAIT_TIME -ge $MAX_WAIT ]; then
-            echo "❌ Deployment timed out after ${MAX_WAIT} seconds"
-            exit 1
-          fi
-
-          # 최종 출력
-          echo ""
-          echo "📋 Deployment Output:"
-          echo "---------------------"
-          aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --query "StandardOutputContent" \
-            --output text \
-            --region "${AWS_REGION}" || true
-
-      # ============================================
-      # 8. 배포 요약
-      # ============================================
-      - name: 📋 Deployment Summary
-        if: always()
-        run: |
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ### 🎉 Enhanced Monitoring Stack Deployment
-          
-          **Status:** ${{ job.status }}  
-          **Instance:** `${{ steps.config.outputs.ec2-instance-id }}`  
-          **Command:** `${{ steps.deploy.outputs.command-id }}`  
-          **SHA:** `${{ github.sha }}`  
-          **Branch:** `${{ github.ref_name }}`  
-          **Timestamp:** `$(date -u '+%Y-%m-%d %H:%M:%S UTC')`
-          
-          ---
-          
-          #### 🛠️ Components
-          - ✅ Prometheus (metrics collection)
-          - ✅ Grafana (visualization)
-          - ✅ Loki (log aggregation)
-          - ✅ Promtail (log shipping)
-          - ✅ RDS Exporter (database metrics)
-          - ✅ Node Exporter (system metrics)
-          - ✅ Elasticsearch Exporter
-          
-          #### 🔐 Security
-          - OIDC authentication
-          - SSM Parameter Store for secrets
-          - KMS encryption
-          
-          #### 📦 Configuration
-          - Auto-install Docker Compose
-          - Base64-encoded config files
-          - Template variable substitution
-          EOF
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: wealist-prometheus
+    hostname: prometheus
+    user: "0:0"
+    command:
+      - '--config.file=/etc/prometheus/prometheus-prod-ec2.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=30d'
+      
+    volumes:
+      - ${PROMETHEUS_CONFIG_DIR}:/etc/prometheus:ro
+      - /home/ubuntu/wealist/prometheus/data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: wealist-grafana
+    hostname: grafana
+    
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://api.wealist.co.kr/monitoring
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true  
+      - GF_INSTALL_PLUGINS=redis-datasource
+
+    volumes:
+      - /home/ubuntu/wealist/grafana/data:/var/lib/grafana
+      - /home/ubuntu/wealist/grafana/logs:/var/log/grafana
+
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    networks:
+      - monitoring-net
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: wealist-loki
+    hostname: loki
+    user: "0:0"
+    command: -config.file=/etc/loki/local-config.yaml
+
+    ports:
+      - "${LOKI_PORT}:3100"
+
+    volumes:
+      - ${LOKI_CONFIG_DIR}:/etc/loki:ro
+      - /home/ubuntu/wealist/loki/data:/loki
+
+    networks:
+      - monitoring-net
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3100/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: wealist-promtail
+    hostname: promtail
+
+    volumes:
+      - ${PROMTAIL_CONFIG_DIR}:/etc/promtail:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+    
+    command: -config.file=/etc/promtail/promtail.yml
+
+    networks:
+      - monitoring-net
+
+    restart: unless-stopped
+    
+    depends_on:
+      - loki
+
+  rds_exporter:
+    image: ${RDS_EXPORTER_IMAGE}
+    container_name: wealist-rds-exporter
+    hostname: rds-exporter
+    
+    environment:
+      - AWS_DEFAULT_REGION=${AWS_REGION}
+
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${RDS_CONFIG_DIR}:/etc/rds_exporter:ro
+    ports:
+      - "${RDS_EXPORTER_PORT}:9042"
+      
+    networks:
+      - monitoring-net
+      
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9042/metrics || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  elasticsearch-exporter:
+    image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
+    container_name: wealist-elasticsearch-exporter
+    hostname: elasticsearch-exporter
+    
+    command:
+      - --es.uri=${ES_URI}
+      
+    ports:
+      - "${ELASTIC_EXPORTER_PORT}:9114"
+      
+    networks:
+      - monitoring-net
+      
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9114/metrics || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: wealist-node-exporter
+    hostname: node-exporter
+    
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      
+    ports:
+      - "${NODE_EXPORTER_PORT}:9100"
+      
+    networks:
+      - monitoring-net
+      
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9100/metrics || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  monitoring-net:
+    driver: bridge
+    name: wealist-monitoring-net
