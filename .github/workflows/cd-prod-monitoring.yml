@@ -366,63 +366,64 @@ jobs:
           # =============================================================================
           log_info "📝 Deploying configuration files..."
 
-          # Docker Compose 파일
-          if [ -z "${COMPOSE_B64:-}" ]; then
-            log_error "COMPOSE_B64 environment variable not set"
+          # CONFIG_DIR에서 파일 복사 (S3에서 다운로드한 파일들)
+          CONFIG_SRC="${CONFIG_DIR:-/tmp/monitoring-deploy}"
+          
+          if [ ! -d "$CONFIG_SRC" ]; then
+            log_error "Configuration directory not found: ${CONFIG_SRC}"
             exit 1
           fi
 
-          if ! echo "${COMPOSE_B64}" | base64 -d > docker-compose.yml 2>/dev/null; then
-            log_error "Failed to decode docker-compose.yml"
+          # Docker Compose 파일
+          if [ -f "${CONFIG_SRC}/docker-compose.yml" ]; then
+            cp "${CONFIG_SRC}/docker-compose.yml" docker-compose.yml
+            log_success "docker-compose.yml deployed"
+          else
+            log_error "docker-compose.yml not found in ${CONFIG_SRC}"
             exit 1
           fi
-          log_success "docker-compose.yml created"
 
           # Prometheus 설정
-          if [ -n "${PROM_CFG_B64:-}" ]; then
-            if echo "${PROM_CFG_B64}" | base64 -d | sudo tee ${PROMETHEUS_CONFIG_DIR}/prometheus-prod-ec2.yml > /dev/null; then
-              log_success "Prometheus config created"
-              
-              # 템플릿 변수 치환
-              sudo sed -i \
-                -e "s/{{USER_SERVICE_PORT}}/${USER_SERVICE_PORT}/g" \
-                -e "s/{{BOARD_SERVICE_PORT}}/${BOARD_SERVICE_PORT}/g" \
-                -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
-                -e "s/{{RDS_EXPORTER_PORT}}/${RDS_EXPORTER_PORT}/g" \
-                -e "s/{{ELASTIC_EXPORTER_PORT}}/${ELASTIC_EXPORTER_PORT}/g" \
-                -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
-                "${PROMETHEUS_CONFIG_DIR}/prometheus-prod-ec2.yml" 2>/dev/null || log_warning "Failed to process Prometheus template"
-              log_success "Prometheus config processed"
-            fi
+          if [ -f "${CONFIG_SRC}/prometheus.yml" ]; then
+            sudo cp "${CONFIG_SRC}/prometheus.yml" ${PROMETHEUS_CONFIG_DIR}/prometheus-prod-ec2.yml
+            log_success "Prometheus config deployed"
+            
+            # 템플릿 변수 치환
+            sudo sed -i \
+              -e "s/{{USER_SERVICE_PORT}}/${USER_SERVICE_PORT}/g" \
+              -e "s/{{BOARD_SERVICE_PORT}}/${BOARD_SERVICE_PORT}/g" \
+              -e "s/{{NODE_EXPORTER_PORT}}/${NODE_EXPORTER_PORT}/g" \
+              -e "s/{{RDS_EXPORTER_PORT}}/${RDS_EXPORTER_PORT}/g" \
+              -e "s/{{ELASTIC_EXPORTER_PORT}}/${ELASTIC_EXPORTER_PORT}/g" \
+              -e "s/{{PROMETHEUS_PORT}}/${PROMETHEUS_PORT}/g" \
+              "${PROMETHEUS_CONFIG_DIR}/prometheus-prod-ec2.yml" 2>/dev/null || log_warning "Failed to process Prometheus template"
+            log_success "Prometheus config processed"
           else
-            log_warning "Prometheus config not provided"
+            log_warning "Prometheus config not found"
           fi
 
           # Loki 설정
-          if [ -n "${LOKI_CFG_B64:-}" ]; then
-            if echo "${LOKI_CFG_B64}" | base64 -d | sudo tee ${LOKI_CONFIG_DIR}/local-config.yaml > /dev/null; then
-              log_success "Loki config created"
-            fi
+          if [ -f "${CONFIG_SRC}/loki.yaml" ]; then
+            sudo cp "${CONFIG_SRC}/loki.yaml" ${LOKI_CONFIG_DIR}/local-config.yaml
+            log_success "Loki config deployed"
           else
-            log_warning "Loki config not provided"
+            log_warning "Loki config not found"
           fi
 
           # Promtail 설정
-          if [ -n "${PROMTAIL_CFG_B64:-}" ]; then
-            if echo "${PROMTAIL_CFG_B64}" | base64 -d | sudo tee ${PROMTAIL_CONFIG_DIR}/promtail.yml > /dev/null; then
-              log_success "Promtail config created"
-            fi
+          if [ -f "${CONFIG_SRC}/promtail.yml" ]; then
+            sudo cp "${CONFIG_SRC}/promtail.yml" ${PROMTAIL_CONFIG_DIR}/promtail.yml
+            log_success "Promtail config deployed"
           else
-            log_warning "Promtail config not provided"
+            log_warning "Promtail config not found"
           fi
 
           # RDS Exporter 설정
-          if [ -n "${RDS_CFG_B64:-}" ]; then
-            if echo "${RDS_CFG_B64}" | base64 -d | sudo tee ${RDS_CONFIG_DIR}/config.yml > /dev/null; then
-              log_success "RDS Exporter config created"
-            fi
+          if [ -f "${CONFIG_SRC}/rds-exporter.yml" ]; then
+            sudo cp "${CONFIG_SRC}/rds-exporter.yml" ${RDS_CONFIG_DIR}/config.yml
+            log_success "RDS Exporter config deployed"
           else
-            log_warning "RDS Exporter config not provided"
+            log_warning "RDS Exporter config not found"
           fi
 
           # .env 파일 생성
@@ -498,12 +499,12 @@ jobs:
           echo "✅ Deployment script created"
 
       # ============================================
-      # 5. 배포 실행
+      # 5. S3에 설정 파일 업로드
       # ============================================
-      - name: 🚀 Execute Deployment
-        id: deploy
+      - name: 📦 Upload Configuration to S3
+        id: upload
         run: |
-          echo "📦 Encoding configuration files..."
+          echo "📦 Uploading configuration files to S3..."
 
           # OIDC 검증
           PRINCIPAL_ARN=$(aws sts get-caller-identity --query "Arn" --output text --region "${AWS_REGION}")
@@ -513,41 +514,69 @@ jobs:
           fi
           echo "✅ OIDC verified: $PRINCIPAL_ARN"
 
-          # 설정 파일 인코딩
-          echo "Encoding files..."
-          COMPOSE_B64=$(base64 -w 0 docker/compose/docker-compose.ec2-prod-monitoring.yml)
-          PROM_CFG_B64=$(base64 -w 0 prometheus/config/prometheus-prod-ec2.yml)
-          LOKI_CFG_B64=$(base64 -w 0 loki/config/local-config.yaml)
-          PROMTAIL_CFG_B64=$(base64 -w 0 promtail/config/promtail.yml)
-          RDS_CFG_B64=$(base64 -w 0 rds_exporter/config.yml)
-          SCRIPT_BASE64=$(base64 -w 0 /tmp/deploy-monitoring.sh)
+          # 배포 ID 생성 (타임스탬프 + SHA)
+          DEPLOY_ID="monitoring-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}"
+          S3_BUCKET="wealist-codedeploy-artifacts"
+          S3_PREFIX="monitoring-configs/${DEPLOY_ID}"
 
-          echo "✅ Files encoded"
+          echo "deploy-id=${DEPLOY_ID}" >> $GITHUB_OUTPUT
+          echo "s3-bucket=${S3_BUCKET}" >> $GITHUB_OUTPUT
+          echo "s3-prefix=${S3_PREFIX}" >> $GITHUB_OUTPUT
 
-          # SSM 명령 실행
-          echo "Sending deployment command to EC2..."
+          # 임시 디렉토리 생성
+          mkdir -p /tmp/monitoring-deploy
+
+          # 파일 복사
+          cp docker/compose/docker-compose.ec2-prod-monitoring.yml /tmp/monitoring-deploy/docker-compose.yml
+          cp prometheus/config/prometheus-prod-ec2.yml /tmp/monitoring-deploy/prometheus.yml
+          cp loki/config/local-config.yaml /tmp/monitoring-deploy/loki.yaml
+          cp promtail/config/promtail.yml /tmp/monitoring-deploy/promtail.yml
+          cp rds_exporter/config.yml /tmp/monitoring-deploy/rds-exporter.yml
+          cp /tmp/deploy-monitoring.sh /tmp/monitoring-deploy/deploy-monitoring.sh
+
+          # S3에 업로드
+          echo "Uploading to s3://${S3_BUCKET}/${S3_PREFIX}/"
+          aws s3 cp /tmp/monitoring-deploy/ s3://${S3_BUCKET}/${S3_PREFIX}/ --recursive --region "${AWS_REGION}"
+
+          echo "✅ Configuration uploaded to S3"
+
+      # ============================================
+      # 6. 배포 실행
+      # ============================================
+      - name: 🚀 Execute Deployment
+        id: deploy
+        run: |
+          echo "🚀 Executing deployment via SSM..."
+
+          DEPLOY_ID="${{ steps.upload.outputs.deploy-id }}"
+          S3_BUCKET="${{ steps.upload.outputs.s3-bucket }}"
+          S3_PREFIX="${{ steps.upload.outputs.s3-prefix }}"
+
+          # SSM 명령 실행 (S3에서 다운로드하도록)
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy Monitoring Stack - SHA: ${{ github.sha }}" \
+            --comment "Deploy Monitoring Stack - ${DEPLOY_ID}" \
             --timeout-seconds 1800 \
             --parameters commands="[
               \"set -e\",
-              \"echo 'Starting deployment...'\",
-              \"echo '${SCRIPT_BASE64}' | base64 -d > /tmp/deploy-monitoring.sh\",
-              \"chmod +x /tmp/deploy-monitoring.sh\",
+              \"echo '=== Monitoring Stack Deployment ==='\",
+              \"echo 'Deploy ID: ${DEPLOY_ID}'\",
+              \"echo 'Downloading configuration from S3...'\",
+              \"mkdir -p /tmp/monitoring-deploy\",
+              \"aws s3 cp s3://${S3_BUCKET}/${S3_PREFIX}/ /tmp/monitoring-deploy/ --recursive --region ${AWS_REGION}\",
+              \"echo 'Files downloaded successfully'\",
+              \"chmod +x /tmp/monitoring-deploy/deploy-monitoring.sh\",
               \"export PARAMETER_PREFIX='${{ steps.config.outputs.parameter-prefix }}'\",
               \"export AWS_REGION='${AWS_REGION}'\",
               \"export COMPOSE_DIR='${{ steps.config.outputs.compose-dir }}'\",
-              \"export COMPOSE_B64='${COMPOSE_B64}'\",
-              \"export PROM_CFG_B64='${PROM_CFG_B64}'\",
-              \"export LOKI_CFG_B64='${LOKI_CFG_B64}'\",
-              \"export PROMTAIL_CFG_B64='${PROMTAIL_CFG_B64}'\",
-              \"export RDS_CFG_B64='${RDS_CFG_B64}'\",
+              \"export CONFIG_DIR='/tmp/monitoring-deploy'\",
               \"export SKIP_DOCKER_INSTALL='${{ inputs.skip_docker_install }}'\",
-              \"/tmp/deploy-monitoring.sh 2>&1 | tee /tmp/deploy-monitoring.log\",
+              \"/tmp/monitoring-deploy/deploy-monitoring.sh 2>&1 | tee /tmp/deploy-monitoring.log\",
               \"EXIT_CODE=\\${PIPESTATUS[0]}\",
               \"echo 'Deployment finished with exit code:' \\$EXIT_CODE\",
+              \"echo 'Cleaning up temporary files...'\",
+              \"rm -rf /tmp/monitoring-deploy\",
               \"exit \\$EXIT_CODE\"
             ]" \
             --output text \
@@ -563,7 +592,7 @@ jobs:
           echo "✅ Command ID: ${COMMAND_ID}"
 
       # ============================================
-      # 6. 배포 모니터링
+      # 7. 배포 모니터링
       # ============================================
       - name: 📊 Monitor Deployment
         run: |
@@ -642,7 +671,7 @@ jobs:
             --region "${AWS_REGION}" || true
 
       # ============================================
-      # 7. 배포 요약
+      # 8. 배포 요약
       # ============================================
       - name: 📋 Deployment Summary
         if: always()
