@@ -75,11 +75,6 @@ export USER_DB_USER=$(load_secret "db/user_db_user")
 export USER_DB_PASSWORD=$(load_secret "db/user_db_password")
 
 # OAuth 및 S3 설정
-export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
-export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google-client-secret")
-OAUTH_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
-export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google"
-export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
 export S3_BUCKET=$(load_param "s3/bucket")
 export S3_REGION="${AWS_REGION}"
 export CORS_ORIGINS="*"
@@ -97,14 +92,8 @@ if [ -z "$BOARD_SERVICE_VERSION" ]; then
   export BOARD_SERVICE_VERSION="latest"
 fi
 
-# User Service 버전 (현재 Prod에 구동 중인 버전)
-export USER_SERVICE_VERSION=$(load_param "version/user_service")
-if [ -z "$USER_SERVICE_VERSION" ]; then
-  echo "⚠️ User Service version not found in SSM. Using latest tag."
-  export USER_SERVICE_VERSION="latest"
-fi
 
-echo "Board Service Tag: ${BOARD_SERVICE_VERSION}, User Service Tag: ${USER_SERVICE_VERSION}"
+echo "Board Service Tag: ${BOARD_SERVICE_VERSION}"
 
 # 5. Docker Compose 실행
 if docker compose version &> /dev/null; then
@@ -150,7 +139,6 @@ sleep 3
 
 # 컨테이너 상태 확인
 echo "📊 Checking container status..."
-sudo docker ps | grep -E "wealist-board-service|wealist-user-service" || echo "⚠️ Services not found in docker ps"
 
 # Node Exporter가 실행 중이 아니면 시작 (최초 배포 시에만)
 echo "🔍 Ensuring node-exporter is running..."
