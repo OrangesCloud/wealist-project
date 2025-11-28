@@ -98,8 +98,8 @@ export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 # OAuth 설정
 export GOOGLE_CLIENT_ID="640996696843-gtht74dpnn9c4u7mb6k5craur1vojgbk.apps.googleusercontent.com"
 export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
-export OAUTH2_CLIENT_REDIRECT_URI="https://api.wealist.co.kr/api/users/login/oauth2/code/google"
-export OAUTH2_REDIRECT_URL="https://api.wealist.co.kr/oauth/callback"
+export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google"
+export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
 
 
 
