@@ -575,10 +575,10 @@ jobs:
               "export SKIP_DOCKER_INSTALL='SKIP_DOCKER_PLACEHOLDER'",
               "/tmp/monitoring-deploy/deploy-monitoring.sh 2>&1 | tee /tmp/deploy-monitoring.log",
               "DEPLOY_EXIT_CODE=$?",
-              "echo \"Deployment finished with exit code: $DEPLOY_EXIT_CODE\"",
+              "echo 'Deployment finished with exit code: ${DEPLOY_EXIT_CODE}'",
               "echo 'Cleaning up temporary files...'",
               "rm -rf /tmp/monitoring-deploy",
-              "exit $DEPLOY_EXIT_CODE"
+              "exit ${DEPLOY_EXIT_CODE}"
             ]
           }
           EOF
