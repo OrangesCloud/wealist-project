@@ -3,114 +3,45 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # ❌ 기존 단일 rds-exporter Job은 삭제 또는 주석 처리했습니다.
-  
-  # 1. RDS Basic Metrics 수집 (CloudWatch, 60초 주기)
   - job_name: rds-basic
-    scrape_interval: 60s # CloudWatch 메트릭은 60초 주기로 수집
+    scrape_interval: 60s
     scrape_timeout: 55s
-    # CloudWatch 기본 메트릭 경로
-    metrics_path: /basic 
+    metrics_path: '/basic'
     honor_labels: true
     static_configs:
-      - targets:
-          # RDS Exporter의 서비스 이름과 포트
-          - 'wealist-rds-exporter:9042' 
+      - targets: ['wealist-rds-exporter:9042']
 
-  # 2. RDS Enhanced Metrics 수집 (Enhanced Monitoring, 10초 주기)
   - job_name: rds-enhanced
-    scrape_interval: 10s # Enhanced Monitoring 메트릭은 10초 주기로 수집
+    scrape_interval: 10s
     scrape_timeout: 9s
-    # Enhanced Monitoring 메트릭 경로
-    metrics_path: /enhanced 
+    metrics_path: '/enhanced'
     honor_labels: true
     static_configs:
-      - targets:
-          # RDS Exporter의 서비스 이름과 포트
-          - 'wealist-rds-exporter:9042' 
+      - targets: ['wealist-rds-exporter:9042']
 
-  # 3. Elasticsearch Exporter (Elasticsearch 모니터링)
   - job_name: 'elasticsearch-exporter'
+    scrape_interval: 15s
     static_configs:
       - targets: ['wealist-elasticsearch-exporter:9114']
-    scrape_interval: 15s
 
-  # Node Exporter (on backend EC2 instances)
   - job_name: 'node-exporter'
     scrape_interval: 15s
-    
-    ec2_sd_configs:
-      - region: ap-northeast-2
-        filters:
-          - name: tag:aws:autoscaling:groupName
-            values: ['wealist-prod-backend-asg']
-          - name: instance-state-name
-            values: [running]
-
-    relabel_configs:
-      - source_labels: [__meta_ec2_private_ip]
-        target_label: __address__
-        replacement: '$1:9100'
-      
-      - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
-        target_label: aws_asg_name
-      - source_labels: [__meta_ec2_instance_id]
-        target_label: instance_id
-
-  # Prometheus self-monitoring
-  - job_name: 'prometheus'
     static_configs:
-      - targets: ['prometheus:9090']
-    scrape_interval: 15s
+      - targets: ['wealist-node-exporter:9100']
 
-  # --- [User/Board Service 동적 수집] ---
+  - job_name: 'prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9090']
 
   - job_name: 'wealist-user-service'
     scrape_interval: 15s
-
-    ec2_sd_configs:
-      - region: ap-northeast-2
-        filters:
-          - name: tag:aws:autoscaling:groupName
-            values: ['wealist-prod-backend-asg']
-          - name: instance-state-name
-            values: [running]
-
-    relabel_configs:
-      - source_labels: [__meta_ec2_private_ip]
-        target_label: __address__
-        replacement: '$1:8080'
-
-      - target_label: __metrics_path__
-        replacement: '/actuator/prometheus'
-
-      - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
-        target_label: aws_asg_name
-      - source_labels: [__meta_ec2_instance_id]
-        target_label: instance_id
+    metrics_path: '/api/users/actuator/prometheus'
+    static_configs:
+      - targets: ['api.wealist.co.kr']
 
   - job_name: 'wealist-board-service'
     scrape_interval: 15s
-
-    ec2_sd_configs:
-      - region: ap-northeast-2
-        filters:
-          - name: tag:aws:autoscaling:groupName
-            values: ['wealist-prod-backend-asg']
-          - name: instance-state-name
-            values: [running]
-
-    relabel_configs:
-      - source_labels: [__meta_ec2_private_ip]
-        target_label: __address__
-        replacement: '$1:8000'
-
-      - target_label: __metrics_path__
-        replacement: '/metrics'
-
-      - source_labels: [__meta_ec2_tag_aws_autoscaling_groupName]
-        target_label: aws_asg_name
-      - source_labels: [__meta_ec2_instance_id]
-        target_label: instance_id
-
-
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api.wealist.co.kr']
