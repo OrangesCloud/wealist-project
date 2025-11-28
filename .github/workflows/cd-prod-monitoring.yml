@@ -12,15 +12,7 @@ on:
       - "docker/compose/docker-compose.ec2-prod-monitoring.yml"
       - ".github/workflows/cd-prod-monitoring.yml"
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: true
-        default: 'production'
-        type: choice
-        options:
-          - production
-          - staging
+    
 
 permissions:
   contents: read
