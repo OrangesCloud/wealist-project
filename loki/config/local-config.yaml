@@ -8,7 +8,7 @@ server:
 
 # Loki 인스턴스의 주소
 common:
-  instance_addr: 127.0.0.1
+  instance_addr: 'api.wealist.co.kr/api/user/actuator/prometheus'
   path_prefix: /var/loki
   storage:
     filesystem:  # 파일시스템 기반 저장소를 사용
