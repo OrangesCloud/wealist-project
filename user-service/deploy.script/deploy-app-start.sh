@@ -86,20 +86,20 @@ export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 # export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
 
 
-# export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
-# export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
-# OAUTH_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
-# export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google"
-# export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
-# export S3_BUCKET=$(load_param "s3/bucket")
-# export S3_REGION="${AWS_REGION}"
+export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
+export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
+OAUTH_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
+export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google"
+export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
+export S3_BUCKET=$(load_param "s3/bucket")
+export S3_REGION="${AWS_REGION}"
 
 
 # OAuth 설정
-export GOOGLE_CLIENT_ID="640996696843-gtht74dpnn9c4u7mb6k5craur1vojgbk.apps.googleusercontent.com"
-export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
-export OAUTH2_CLIENT_REDIRECT_URI="https://api.wealist.co.kr/api/users/login/oauth2/code/google"
-export OAUTH2_REDIRECT_URL="https://wealist.co.kr/oauth/callback"
+# export GOOGLE_CLIENT_ID="640996696843-gtht74dpnn9c4u7mb6k5craur1vojgbk.apps.googleusercontent.com"
+# export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
+# export OAUTH2_CLIENT_REDIRECT_URI="https://api.wealist.co.kr/api/users/login/oauth2/code/google"
+# export OAUTH2_REDIRECT_URL="https://wealist.co.kr/oauth/callback"
 
 
 
