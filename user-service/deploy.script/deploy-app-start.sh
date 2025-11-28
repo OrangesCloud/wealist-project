@@ -95,18 +95,9 @@ export S3_BUCKET=$(load_param "s3/bucket")
 export S3_REGION="${AWS_REGION}"
 
 
-# OAuth 설정
-# export GOOGLE_CLIENT_ID="640996696843-gtht74dpnn9c4u7mb6k5craur1vojgbk.apps.googleusercontent.com"
-# export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
-# export OAUTH2_CLIENT_REDIRECT_URI="https://api.wealist.co.kr/api/users/login/oauth2/code/google"
-# export OAUTH2_REDIRECT_URL="https://wealist.co.kr/oauth/callback"
 
 
 
-
-
-export S3_BUCKET=$(load_param "s3/bucket")
-export S3_REGION="${AWS_REGION}"
 
 # --- Exporter Ports ---
 export NODE_EXPORTER_PORT=9100
@@ -121,14 +112,7 @@ if [ -z "$USER_SERVICE_VERSION" ]; then
   export USER_SERVICE_VERSION="latest";
 fi
 
-# Board Service 버전 (현재 Prod에 구동 중인 버전)
-export BOARD_SERVICE_VERSION=$(load_param "version/board_service")
-if [ -z "$BOARD_SERVICE_VERSION" ]; then
-  echo "⚠️ Board Service version not found in SSM. Using latest tag."
-  export BOARD_SERVICE_VERSION="latest";
-fi
-
-echo "User Service Tag: ${USER_SERVICE_VERSION}, Board Service Tag: ${BOARD_SERVICE_VERSION}"
+echo "User Service Tag: ${USER_SERVICE_VERSION}"
 
 
 # 5. Docker Compose 실행
@@ -178,7 +162,7 @@ sleep 3
 
 # 컨테이너 상태 확인
 echo "📊 Checking container status..."
-sudo docker ps | grep -E "wealist-board-service|wealist-user-service" || echo "⚠️ Services not found in docker ps"
+sudo docker ps | grep -E "wealist-user-service" || echo "⚠️ Services not found in docker ps"
 
 # Node Exporter가 실행 중이 아니면 시작 (최초 배포 시에만)
 echo "🔍 Ensuring node-exporter is running..."
