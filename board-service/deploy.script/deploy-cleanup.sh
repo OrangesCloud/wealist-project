@@ -34,11 +34,11 @@ echo "🧹 Cleaning up board-service temporary health check containers..."
 # Board Service 관련 임시 컨테이너만 정리
 sudo docker rm -f temp-board-health 2>/dev/null || true
 
-# 8080 포트(Board Service)만 정리 - User Service(8000)는 건드리지 않음
-echo "  - Checking port 8080 (board-service)..."
-PID=$(sudo lsof -ti:8080 2>/dev/null || true)
+# 8000 포트(Board Service)만 정리 - User Service(8080)는 건드리지 않음
+echo "  - Checking port 8000 (board-service)..."
+PID=$(sudo lsof -ti:8000 2>/dev/null || true)
 if [ -n "$PID" ]; then
-    echo "    Found process ${PID} using port 8080, killing..."
+    echo "    Found process ${PID} using port 8000, killing..."
     sudo kill -9 $PID 2>/dev/null || true
 fi
 

@@ -43,6 +43,7 @@ COPY --from=builder --chown=appuser:appuser /app/board-api .
 # Copy configuration files
 COPY --from=builder --chown=appuser:appuser /app/configs ./configs
 
+
 # Switch to non-root user
 USER appuser
 
