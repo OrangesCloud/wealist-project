@@ -1,6 +1,6 @@
 # Project Board Management API
 
-프로젝트 관리 도구의 Board 관리 시스템 RESTful API
+Wealist 보드(칸반)시스템 RESTful API
 
 ## 목차
 
