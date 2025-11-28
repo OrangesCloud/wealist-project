@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SERVICE_PORT=8000 # Board Service 포트
-HEALTH_ENDPOINT="/api/boards/health" # Board Service 헬스체크 엔드포인트
+HEALTH_ENDPOINT="/api/boards/actuator/health" # Board Service 헬스체크 엔드포인트
 MAX_ATTEMPTS=15
 WAIT_SECONDS=5
 
