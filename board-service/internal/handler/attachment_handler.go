@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,27 +29,42 @@ func NewAttachmentHandler(s3Client *client.S3Client, attachmentRepo repository.A
 	}
 }
 
-// File size limit: 20MB
-const MaxFileSize = 20 * 1024 * 1024
+// File size limit: 50MB
+const MaxFileSize = 50 * 1024 * 1024
 
-// Allowed file types
 var (
 	AllowedImageTypes = map[string]bool{
-		"image/jpeg": true,
-		"image/png":  true,
-		"image/gif":  true,
-		"image/webp": true,
+		// 기본 이미지
+		"image/jpeg":    true,
+		"image/jpg":     true,
+		"image/png":     true,
+		"image/gif":     true,
+		"image/webp":    true,
+		"image/svg+xml": true,
+		"image/heic":    true, // iPhone
 	}
 
 	AllowedDocTypes = map[string]bool{
-		"application/pdf":    true,
-		"text/plain":         true,
-		"application/msword": true,
-		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true, // .docx
-		"application/vnd.ms-excel": true, // .xls
+		// 문서
+		"application/pdf": true,
+		"text/plain":      true,
+		"text/markdown":   true,
+		"text/csv":        true,
+
+		// MS Office
+		"application/msword":            true, // .doc
+		"application/vnd.ms-excel":      true, // .xls
+		"application/vnd.ms-powerpoint": true, // .ppt
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document":   true, // .docx
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         true, // .xlsx
-		"application/vnd.ms-powerpoint":                                             true, // .ppt
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation": true, // .pptx
+
+		// 압축
+		"application/zip":              true,
+		"application/x-zip-compressed": true,
+
+		// 데이터
+		"application/json": true,
 	}
 
 	AllowedImageExtensions = map[string]bool{
@@ -57,17 +73,23 @@ var (
 		".png":  true,
 		".gif":  true,
 		".webp": true,
+		".svg":  true,
+		".heic": true,
 	}
 
 	AllowedDocExtensions = map[string]bool{
 		".pdf":  true,
 		".txt":  true,
+		".md":   true,
+		".csv":  true,
 		".doc":  true,
 		".docx": true,
 		".xls":  true,
 		".xlsx": true,
 		".ppt":  true,
 		".pptx": true,
+		".zip":  true,
+		".json": true,
 	}
 )
 
@@ -94,8 +116,8 @@ type PresignedURLResponse struct {
 // @Description  Creates a temporary attachment record and returns its ID along with the presigned URL
 // @Description  Validates file metadata (size, type, name) before generating URL
 // @Description  Supported entity types: BOARD, COMMENT, PROJECT
-// @Description  Supported file types: images (jpg, jpeg, png, gif, webp) and documents (pdf, txt, doc, docx, xls, xlsx, ppt, pptx)
-// @Description  Maximum file size: 20MB
+// @Description  Supported file types: images (jpg, jpeg, png, gif, webp, svg, heic) and documents (pdf, txt, doc, docx, xls, xlsx, ppt, pptx, zip, json, md, csv)
+// @Description  Maximum file size: 50MB
 // @Description  URL expires in 5 minutes (300 seconds)
 // @Tags         attachments
 // @Accept       json
@@ -142,7 +164,7 @@ func (h *AttachmentHandler) GeneratePresignedURL(c *gin.Context) {
 		return
 	}
 	if req.FileSize > MaxFileSize {
-		response.SendError(c, http.StatusBadRequest, "FILE_TOO_LARGE", "File size exceeds 20MB limit")
+		response.SendError(c, http.StatusBadRequest, "FILE_TOO_LARGE", "File size exceeds 50MB limit")
 		return
 	}
 
@@ -181,10 +203,6 @@ func (h *AttachmentHandler) GeneratePresignedURL(c *gin.Context) {
 		return
 	}
 
-	// ✅ 수정: fileURL 생성 삭제 - S3 key만 DB에 저장
-	// Generate file URL from file key
-	// fileURL := h.s3Client.GetFileURL(fileKey)  // ❌ 삭제
-
 	// Create attachment record with temporary status
 	now := time.Now()
 	expiresAt := now.Add(1 * time.Hour) // Expires in 1 hour
@@ -197,7 +215,7 @@ func (h *AttachmentHandler) GeneratePresignedURL(c *gin.Context) {
 		EntityID:    nil, // Will be set when entity is created
 		Status:      domain.AttachmentStatusTemp,
 		FileName:    req.FileName,
-		FileURL:     fileKey, // ✅ 수정: S3 key만 저장 (full URL 아님)
+		FileURL:     fileKey, // S3 key only (not full URL)
 		FileSize:    req.FileSize,
 		ContentType: req.ContentType,
 		UploadedBy:  userID,
@@ -235,14 +253,8 @@ func validateEntityType(entityTypeStr string) (domain.EntityType, error) {
 
 // validateFileType validates file type and extension
 func validateFileType(fileName, contentType string) error {
-	// Extract file extension
-	fileExt := ""
-	for i := len(fileName) - 1; i >= 0; i-- {
-		if fileName[i] == '.' {
-			fileExt = strings.ToLower(fileName[i:])
-			break
-		}
-	}
+	// Extract file extension using filepath.Ext
+	fileExt := strings.ToLower(filepath.Ext(fileName))
 
 	if fileExt == "" {
 		return response.NewValidationError("Invalid file name", "File must have an extension")
@@ -255,7 +267,7 @@ func validateFileType(fileName, contentType string) error {
 	if !isAllowedImage && !isAllowedDoc {
 		return response.NewValidationError(
 			"Unsupported file type",
-			"Supported types: images (jpg, jpeg, png, gif, webp) and documents (pdf, txt, doc, docx, xls, xlsx, ppt, pptx)",
+			"Supported types: images (jpg, jpeg, png, gif, webp, svg, heic) and documents (pdf, txt, doc, docx, xls, xlsx, ppt, pptx, zip, json, md, csv)",
 		)
 	}
 
@@ -344,7 +356,7 @@ func (h *AttachmentHandler) SaveAttachmentMetadata(c *gin.Context) {
 		return
 	}
 	if req.FileSize > MaxFileSize {
-		response.SendError(c, http.StatusBadRequest, "FILE_TOO_LARGE", "File size exceeds 20MB limit")
+		response.SendError(c, http.StatusBadRequest, "FILE_TOO_LARGE", "File size exceeds 50MB limit")
 		return
 	}
 
@@ -367,10 +379,6 @@ func (h *AttachmentHandler) SaveAttachmentMetadata(c *gin.Context) {
 		return
 	}
 
-	// ✅ 수정: fileURL 생성 삭제 - S3 key만 DB에 저장
-	// Generate file URL from file key
-	// fileURL := h.s3Client.GetFileURL(req.FileKey)  // ❌ 삭제
-
 	// Create attachment record with temporary status
 	// Note: EntityID is nil to indicate temporary attachment
 	// This will be updated when the entity (board/comment/project) is created
@@ -385,7 +393,7 @@ func (h *AttachmentHandler) SaveAttachmentMetadata(c *gin.Context) {
 		EntityID:    nil, // Will be set when entity is created
 		Status:      domain.AttachmentStatusTemp,
 		FileName:    req.FileName,
-		FileURL:     req.FileKey, // ✅ 수정: S3 key만 저장
+		FileURL:     req.FileKey, // S3 key only (not full URL)
 		FileSize:    req.FileSize,
 		ContentType: req.ContentType,
 		UploadedBy:  userID,
@@ -445,7 +453,7 @@ func (h *AttachmentHandler) GetBoardAttachments(c *gin.Context) {
 	// Convert to response format
 	resp := make([]AttachmentResponse, len(attachments))
 	for i, attachment := range attachments {
-		// ✅ 수정: 조회 시 full URL 생성
+		// Generate full URL from S3 key when retrieving
 		fileURL := h.s3Client.GetFileURL(attachment.FileURL)
 
 		resp[i] = AttachmentResponse{
@@ -454,7 +462,7 @@ func (h *AttachmentHandler) GetBoardAttachments(c *gin.Context) {
 			EntityID:    attachment.EntityID,
 			Status:      string(attachment.Status),
 			FileName:    attachment.FileName,
-			FileURL:     fileURL, // ✅ 수정: full URL 반환
+			FileURL:     fileURL, // Return full URL to client
 			FileSize:    attachment.FileSize,
 			ContentType: attachment.ContentType,
 			UploadedBy:  attachment.UploadedBy,
@@ -495,7 +503,7 @@ func (h *AttachmentHandler) GetCommentAttachments(c *gin.Context) {
 	// Convert to response format
 	resp := make([]AttachmentResponse, len(attachments))
 	for i, attachment := range attachments {
-		// ✅ 수정: 조회 시 full URL 생성
+		// Generate full URL from S3 key when retrieving
 		fileURL := h.s3Client.GetFileURL(attachment.FileURL)
 
 		resp[i] = AttachmentResponse{
@@ -504,7 +512,7 @@ func (h *AttachmentHandler) GetCommentAttachments(c *gin.Context) {
 			EntityID:    attachment.EntityID,
 			Status:      string(attachment.Status),
 			FileName:    attachment.FileName,
-			FileURL:     fileURL, // ✅ 수정: full URL 반환
+			FileURL:     fileURL, // Return full URL to client
 			FileSize:    attachment.FileSize,
 			ContentType: attachment.ContentType,
 			UploadedBy:  attachment.UploadedBy,
@@ -545,7 +553,7 @@ func (h *AttachmentHandler) GetProjectAttachments(c *gin.Context) {
 	// Convert to response format
 	resp := make([]AttachmentResponse, len(attachments))
 	for i, attachment := range attachments {
-		// ✅ 수정: 조회 시 full URL 생성
+		// Generate full URL from S3 key when retrieving
 		fileURL := h.s3Client.GetFileURL(attachment.FileURL)
 
 		resp[i] = AttachmentResponse{
@@ -554,7 +562,7 @@ func (h *AttachmentHandler) GetProjectAttachments(c *gin.Context) {
 			EntityID:    attachment.EntityID,
 			Status:      string(attachment.Status),
 			FileName:    attachment.FileName,
-			FileURL:     fileURL, // ✅ 수정: full URL 반환
+			FileURL:     fileURL, // Return full URL to client
 			FileSize:    attachment.FileSize,
 			ContentType: attachment.ContentType,
 			UploadedBy:  attachment.UploadedBy,
@@ -626,19 +634,8 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	// Extract file key from file URL
-	// FileURL format: https://{bucket}.s3.{region}.amazonaws.com/{key}
-	fileKey := ""
-	if len(attachment.FileURL) > 0 {
-		// Find the last occurrence of ".amazonaws.com/"
-		prefix := ".amazonaws.com/"
-		for i := len(attachment.FileURL) - len(prefix); i >= 0; i-- {
-			if i+len(prefix) <= len(attachment.FileURL) && attachment.FileURL[i:i+len(prefix)] == prefix {
-				fileKey = attachment.FileURL[i+len(prefix):]
-				break
-			}
-		}
-	}
+	// FileURL is already the S3 key (not full URL)
+	fileKey := attachment.FileURL
 
 	// Delete file from S3
 	if fileKey != "" {

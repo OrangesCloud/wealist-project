@@ -79,34 +79,18 @@ export BOARD_DB_USER=$(load_secret "db/board_db_user")
 export BOARD_DB_PASSWORD=$(load_secret "db/board_db_password")
 
 # OAuth 및 S3 설정
-# export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
-# export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
-# OAUTH_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
-# export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google"
-# export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
-
-
-# export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
-# export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
-# OAUTH_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
-# export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google"
-# export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
-# export S3_BUCKET=$(load_param "s3/bucket")
-# export S3_REGION="${AWS_REGION}"
-
-
-# OAuth 설정
-export GOOGLE_CLIENT_ID="640996696843-gtht74dpnn9c4u7mb6k5craur1vojgbk.apps.googleusercontent.com"
+export GOOGLE_CLIENT_ID=$(load_param "oauth/google_client_id")
 export GOOGLE_CLIENT_SECRET=$(load_secret "oauth/google_client_secret")
+OAUTH_REDIRECT_BASE=$(load_param "url/oauth2_client_redirect_base")
 export OAUTH2_CLIENT_REDIRECT_URI="${OAUTH_REDIRECT_BASE}/api/users/login/oauth2/code/google"
 export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
-
-
-
-
-
 export S3_BUCKET=$(load_param "s3/bucket")
 export S3_REGION="${AWS_REGION}"
+
+
+
+
+
 
 # --- Exporter Ports ---
 export NODE_EXPORTER_PORT=9100
@@ -121,14 +105,7 @@ if [ -z "$USER_SERVICE_VERSION" ]; then
   export USER_SERVICE_VERSION="latest";
 fi
 
-# Board Service 버전 (현재 Prod에 구동 중인 버전)
-export BOARD_SERVICE_VERSION=$(load_param "version/board_service")
-if [ -z "$BOARD_SERVICE_VERSION" ]; then
-  echo "⚠️ Board Service version not found in SSM. Using latest tag."
-  export BOARD_SERVICE_VERSION="latest";
-fi
-
-echo "User Service Tag: ${USER_SERVICE_VERSION}, Board Service Tag: ${BOARD_SERVICE_VERSION}"
+echo "User Service Tag: ${USER_SERVICE_VERSION}"
 
 
 # 5. Docker Compose 실행
@@ -178,7 +155,7 @@ sleep 3
 
 # 컨테이너 상태 확인
 echo "📊 Checking container status..."
-sudo docker ps | grep -E "wealist-board-service|wealist-user-service" || echo "⚠️ Services not found in docker ps"
+sudo docker ps | grep -E "wealist-user-service" || echo "⚠️ Services not found in docker ps"
 
 # Node Exporter가 실행 중이 아니면 시작 (최초 배포 시에만)
 echo "🔍 Ensuring node-exporter is running..."
