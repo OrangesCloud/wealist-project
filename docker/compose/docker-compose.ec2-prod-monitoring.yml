@@ -608,6 +608,7 @@ jobs:
           echo ""
           echo "Sending deployment command to EC2..."
           
+          # ddddddddd
           # SSM 명령 실행 (스크립트를 base64로 전송)
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ steps.config.outputs.ec2-instance-id }}" \
