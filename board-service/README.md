@@ -1,8 +1,6 @@
 # Project Board Management API
 
-프로젝트 관리 도구의 Board 관리 시스템 RESTful API
-
-<!-- Updated: 2025-11-27 - Database permissions and AutoMigrate setup -->
+Wealist 보드(칸반)시스템 RESTful API
 
 ## 목차
 
@@ -23,7 +21,7 @@
 
 ## 소개
 
-Project Board Management API는 프로젝트 관리 도구의 핵심 기능을 제공하는 RESTful API입니다. Workspace 내의 Project에 속한 Board들을 관리하며, 각 Board는 Stage(진행 상태), Importance(중요도), Role(담당자 역할) 속성을 가지고 참여자 및 댓글 기능을 제공합니다.
+Wealist Board-Service 는 보드(칸반)을 관리하는 RESTful API입니다. Workspace 내의 Project에 속한 Board들을 관리하며, 각 Board는 Stage(진행 상태), Importance(중요도), Role(담당자 역할) 속성을 가지고 참여자 및 댓글 기능을 제공합니다.
 
 ### 특징
 

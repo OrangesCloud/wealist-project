@@ -82,6 +82,7 @@ type BoardResponse struct {
 	UpdatedAt      time.Time              `json:"updatedAt" example:"2024-01-15T14:20:00Z"`
 }
 
+// ghgh
 // PaginatedBoardsResponse represents paginated boards response
 type PaginatedBoardsResponse struct {
 	Boards []BoardResponse `json:"boards"`

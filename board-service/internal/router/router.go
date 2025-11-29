@@ -1,6 +1,9 @@
 package router
 
 import (
+	"context"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerFiles "github.com/swaggo/files"
@@ -10,6 +13,7 @@ import (
 
 	"project-board-api/internal/client"
 	"project-board-api/internal/converter"
+	"project-board-api/internal/database"
 	"project-board-api/internal/handler"
 	"project-board-api/internal/metrics"
 	"project-board-api/internal/middleware"
@@ -28,6 +32,7 @@ type Config struct {
 	S3Client           *client.S3Client
 }
 
+// gk
 // Setup initializes the router with all dependencies and routes
 func Setup(cfg Config) *gin.Engine {
 	// Create Gin router
@@ -124,6 +129,8 @@ func Setup(cfg Config) *gin.Engine {
 // healthCheckHandler returns a handler for the health check endpoint
 func healthCheckHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		checks := gin.H{}
+
 		// Check database connection
 		sqlDB, err := db.DB()
 		if err != nil {
@@ -143,10 +150,26 @@ func healthCheckHandler(db *gorm.DB) gin.HandlerFunc {
 			})
 			return
 		}
+		checks["database"] = "connected"
+
+		// Check Redis connection
+		redisClient := database.GetRedis()
+		if redisClient != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			if err := redisClient.Ping(ctx).Err(); err != nil {
+				checks["redis"] = "disconnected - " + err.Error()
+			} else {
+				checks["redis"] = "connected"
+			}
+		} else {
+			checks["redis"] = "not_configured"
+		}
 
 		c.JSON(200, gin.H{
-			"status":   "healthy",
-			"database": "connected",
+			"status": "healthy",
+			"checks": checks,
 		})
 	}
 }

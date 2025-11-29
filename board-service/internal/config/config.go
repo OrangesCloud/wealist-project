@@ -365,7 +365,7 @@ func (c *Config) validateUserAPIBaseURL() error {
 // GetDSN returns the database connection string
 func (c *DatabaseConfig) GetDSN() string {
 	return fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=require",
 		c.Host, c.Port, c.User, c.Password, c.DBName,
 	)
 }

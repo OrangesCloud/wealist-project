@@ -26,12 +26,12 @@ load_param() {
     # [수정] --region 플래그 제거: AWS_DEFAULT_REGION을 사용하도록 강제
     aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --query 'Parameter.Value' --output text 2>/dev/null || echo ""
 }
-
+# IAM 복호화권한 줬음
 # SecureString 타입 로드 (파라미터가 없어도 에러를 발생시키지 않도록 처리)
 load_secret() {
     local name="$1"
     # [수정] --region 플래그 제거: AWS_DEFAULT_REGION을 사용하도록 강제
-    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo ""
+    aws ssm get-parameter --name "${PARAMETER_BASE_PATH}/${name}" --with-decryption --query 'Parameter.Value' --output text
 }
 # 3. IMDS 로드 대기 및 인프라 환경 변수 로드 시작
 echo "⏳ Waiting for IAM Role credentials to load via IMDS (15s delay)..."
@@ -53,6 +53,7 @@ echo "✅ AWS Account ID loaded: ${AWS_ACCOUNT_ID}"
 # DB/Cache 엔드포인트
 export RDS_HOST=$(load_param "db/rds_host")
 export REDIS_HOST=$(load_param "cache/redis_host")
+export REDIS_PORT=$(load_param "cache/redis_port")
 
 # DB 이름
 export USER_DB_NAME=$(load_secret "db/user_db_name")
@@ -63,6 +64,11 @@ export JWT_SECRET=$(load_secret "jwt/jwt_secret")
 export POSTGRES_SUPERUSER=$(load_param "db/rds_master_username")
 export POSTGRES_SUPERUSER_PASSWORD=$(load_secret "db/rds_master_password")
 export REDIS_PASSWORD=$(load_secret "cache/redis_auth_token")
+
+# Redis AUTH가 비활성화된 경우 빈 문자열로 처리
+if [ "$REDIS_PASSWORD" == "NONE" ]; then
+    export REDIS_PASSWORD=""
+fi
 
 # User Service DB 접속 시크릿
 export USER_DB_USER=$(load_secret "db/user_db_user")
@@ -81,9 +87,12 @@ export OAUTH2_REDIRECT_URL_ENV=$(load_param "url/oauth2_redirect_url")
 export S3_BUCKET=$(load_param "s3/bucket")
 export S3_REGION="${AWS_REGION}"
 
+
+
+
+
+
 # --- Exporter Ports ---
-export POSTGRES_EXPORTER_PORT=9187
-export REDIS_EXPORTER_PORT=9121
 export NODE_EXPORTER_PORT=9100
 
 # 4. 이미지 버전 환경 변수 설정 (SSM에서 동적 로드)
@@ -96,14 +105,7 @@ if [ -z "$USER_SERVICE_VERSION" ]; then
   export USER_SERVICE_VERSION="latest";
 fi
 
-# Board Service 버전 (현재 Prod에 구동 중인 버전)
-export BOARD_SERVICE_VERSION=$(load_param "version/board_service")
-if [ -z "$BOARD_SERVICE_VERSION" ]; then
-  echo "⚠️ Board Service version not found in SSM. Using latest tag."
-  export BOARD_SERVICE_VERSION="latest";
-fi
-
-echo "User Service Tag: ${USER_SERVICE_VERSION}, Board Service Tag: ${BOARD_SERVICE_VERSION}"
+echo "User Service Tag: ${USER_SERVICE_VERSION}"
 
 
 # 5. Docker Compose 실행
@@ -125,20 +127,38 @@ echo "🐳 Pulling image: ${SERVICE_NAME}:${USER_SERVICE_VERSION}"
 # [수정] sudo -E를 사용하여 환경 변수 보존
 sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" pull "${SERVICE_NAME}"
 
-# 7. Docker Compose 실행 (user-service와 Exporter들 재시작)
-echo "🔄 Starting User Service and Exporters defined in ${COMPOSE_FILE}..."
+# 7. Docker Compose 실행 (user-service만 재시작)
+echo "🔄 Starting User Service defined in ${COMPOSE_FILE}..."
 
-SERVICES_TO_RESTART="user-service postgres-exporter redis-exporter node-exporter"
+SERVICES_TO_RESTART="user-service"
 
-# 기존 컨테이너 중지 및 제거 (포트 충돌 방지)
-echo "🛑 Stopping and removing existing containers..."
-sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" stop ${SERVICES_TO_RESTART} 2>/dev/null || true
-sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" rm -f ${SERVICES_TO_RESTART} 2>/dev/null || true
+# 기존 User Service 컨테이너만 직접 중지 및 제거 (다른 서비스에 영향 없음)
+echo "🛑 Stopping and removing existing User Service container (direct Docker commands)..."
+if sudo docker ps -a | grep -q "wealist-user-service"; then
+    echo "  Found existing user-service container, removing it..."
+    sudo docker stop wealist-user-service 2>/dev/null || true
+    sudo docker rm -f wealist-user-service 2>/dev/null || true
+    echo "  ✅ Old container removed"
+else
+    echo "  No existing user-service container found"
+fi
 
 # 컨테이너 정리 대기
+sleep 2
+
+# 🚨 --no-deps --force-recreate 를 사용하여 User Service만 재시작 (다른 서비스에 영향 없음)
+echo "🚀 Starting new user-service container..."
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate ${SERVICES_TO_RESTART}
+
+# 컨테이너 시작 대기
 sleep 3
 
-# 🚨 --no-deps 를 사용하여 User Service와 Exporter들만 재시작
-sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps ${SERVICES_TO_RESTART}
+# 컨테이너 상태 확인
+echo "📊 Checking container status..."
+sudo docker ps | grep -E "wealist-user-service" || echo "⚠️ Services not found in docker ps"
+
+# Node Exporter가 실행 중이 아니면 시작 (최초 배포 시에만)
+echo "🔍 Ensuring node-exporter is running..."
+sudo -E $COMPOSE_CMD -f "${COMPOSE_FILE}" up -d --no-deps node-exporter 2>/dev/null || true
 
 echo "✅ Deployment initiated. CodeDeploy will now run ValidateService."

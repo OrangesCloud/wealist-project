@@ -69,6 +69,7 @@ import (
 // @Success 200 {object} dto.UpdateBoardFieldRequest
 
 func main() {
+	
 	// Load configuration
 	cfg, err := config.Load("configs/config.yaml")
 	if err != nil {
