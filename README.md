@@ -12,7 +12,7 @@
 **🔗 Infrastructure Repository**: [wealist-terraform-prod](https://github.com/OrangesCloud/wealist-terraform-prod.git)
 **📋 상세 아키텍처 문서**: [ARCHITECTURE.md](https://github.com/OrangesCloud/wealist-terraform-prod/blob/main/ARCHITECTURE.md)
 
-![AWS Architecture Diagram](./docs/images/wealist_prod.aws-architecture.png)
+![AWS Architecture Diagram](./docs/images/wealist_prod_aws_architecture.png)
 
 
 
