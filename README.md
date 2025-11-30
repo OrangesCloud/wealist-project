@@ -92,12 +92,6 @@ swag init -g cmd/api/main.go -o docs  # Swagger 재생성
 ./scripts/db/apply_migrations.sh dev  # DB 마이그레이션
 ```
 
-### 통합 테스트
-```bash
-cd board-service
-./test-board-integration.sh        # Board Service 통합 테스트
-```
-
 ## 📦 기술 스택
 
 **Backend**:
@@ -142,8 +136,6 @@ cd board-service
 - **JWT 인증**: User/Board 서비스 간 공유 SECRET_KEY
 - **Clean Architecture**: Board Service는 DDD 패턴 적용
 
-상세 아키텍처는 **[ARCHITECTURE.md](./ARCHITECTURE.md)** 참조
-
 ## 🔄 CI/CD Pipeline
 
 ### Development
@@ -177,52 +169,20 @@ Health Check → Success/Rollback
 ## 📚 문서
 
 ### 개발 가이드
-- **[CLAUDE.md](./CLAUDE.md)** - 전체 개발 가이드 (필수)
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - 아키텍처 상세 문서
-- **[docker/README.md](./docker/README.md)** - Docker 환경 가이드
 
 ### 서비스별 문서
 - **User Service**:
-  - [user-service/README.md](./user-service/README.md) - 서비스 개요
-  - [_README/CODING_CONVENTIONS.md](./_README/CODING_CONVENTIONS.md) - 코딩 컨벤션 (필수)
-  - [.claude/api-user-documentation.md](./.claude/api-user-documentation.md) - API 문서
 
 - **Board Service**:
-  - [board-service/README.md](./board-service/README.md) - 서비스 개요
-  - [board-service/ARCHITECTURE.md](./board-service/ARCHITECTURE.md) - Clean Architecture 가이드
-  - [board-service/CACHE_STRATEGY.md](./board-service/CACHE_STRATEGY.md) - 캐싱 전략
 
 ### 배포 & 운영
-- **[.github/workflows/README.md](./.github/workflows/README.md)** - CI/CD 워크플로우
-- **[.kiro/docs/DEPLOYMENT_GUIDES.md](./.kiro/docs/DEPLOYMENT_GUIDES.md)** - 배포 가이드 모음
 
-## 🐛 문제 해결
-
-### 자주 발생하는 문제
-
-**서비스 시작 실패**:
-```bash
-# 로그 확인
-./docker/scripts/dev.sh logs [service-name]
-
-# 완전 초기화 후 재시작
-./docker/scripts/dev.sh clean
-./docker/scripts/dev.sh up
-```
-
-**JWT Secret 불일치**:
-- `.env.dev`에서 `JWT_SECRET` 값이 양쪽 서비스에 동일한지 확인
-
-**환경 변수 경고**:
-- `./docker/scripts/dev.sh` 스크립트 사용 (권장)
-- 또는 `--env-file docker/env/.env.dev` 플래그 추가
-
-**더 많은 문제 해결 방법**: [CLAUDE.md - Known Issues](./CLAUDE.md#known-issues-and-gotchas)
 
 ## 📂 프로젝트 구조
 
 ```
 wealist-project/
+├── front/                 # frontend (react)
 ├── user-service/          # User Service (Spring Boot)
 ├── board-service/         # Board Service (Go)
 ├── docker/               # Docker 환경 설정
@@ -232,24 +192,6 @@ wealist-project/
 ├── prometheus/          # Prometheus 설정
 ├── loki/               # Loki 설정
 ├── .github/workflows/  # CI/CD 워크플로우
-├── .kiro/             # 아카이브 (과거 문서)
-├── ARCHITECTURE.md    # 아키텍처 상세 문서
-├── CLAUDE.md         # 전체 개발 가이드
+├── k6-test/          # 부하테스트 파일
 └── README.md         # 이 파일
 ```
-
-## 🤝 기여 가이드
-
-1. `.env.dev` 설정 확인 (OAuth, JWT Secret 등)
-2. User Service는 **camelCase 컨벤션** 필수 준수
-3. Board Service는 **Clean Architecture** 패턴 유지
-4. 커밋 전 테스트 실행
-5. PR 전 [CLAUDE.md](./CLAUDE.md) 검토
-
-## 📞 지원
-
-문제 발생 시:
-1. **[CLAUDE.md](./CLAUDE.md)** - 전체 가이드 확인
-2. **[ARCHITECTURE.md](./ARCHITECTURE.md)** - 아키텍처 이해
-3. 서비스별 README 확인
-4. GitHub Issues 등록
