@@ -195,3 +195,10 @@ wealist-project/
 ├── k6-test/          # 부하테스트 파일
 └── README.md         # 이 파일
 ```
+
+
+### docs 문서
+- 요구사항 정의서 : https://docs.google.com/document/d/169P4DZdy0j5jN2kPn3CWh3zm3XslFIgj4B3PdgGsadg/edit?tab=t.0
+- 운영 구성문서 : https://docs.google.com/document/d/1DGhk45JQCTk1f5wnXaHk4K4Q0DXTMwPVYuiGJPrE9ng/edit?tab=t.0#heading=h.4nsosg6p7o8r
+- 아키텍처 다이어그램 정의서 : https://docs.google.com/document/d/1lrmF15LKFsGg9gx9El8Nbu58SL3cWTHSaf1Viv44FlA/edit?tab=t.0#heading=h.ey26ew5hhc1b
+
