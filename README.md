@@ -10,10 +10,10 @@
 본 프로젝트의 AWS 인프라는 Terraform으로 관리되며, 별도 리포지토리에서 Infrastructure as Code로 관리됩니다.
 
 **🔗 Infrastructure Repository**: [wealist-terraform-prod](https://github.com/OrangesCloud/wealist-terraform-prod.git)
+
 **📋 상세 아키텍처 문서**: [ARCHITECTURE.md](https://github.com/OrangesCloud/wealist-terraform-prod/blob/main/ARCHITECTURE.md)
 
-![AWS Architecture Diagram](./docs/images/wealist_prod.aws-architecture.png)
-
+![AWS Architecture Diagram](.docs/images/wealist_prod.aws-architecture.png)
 
 
 ### Infrastructure 특징
@@ -165,15 +165,6 @@ graph TB
     BS --> BDB
     US --> REDIS
     BS --> REDIS
-    
-    %% Styling
-    classDef frontend fill:#61dafb,stroke:#333,stroke-width:2px,color:#000
-    classDef backend fill:#10b981,stroke:#333,stroke-width:2px,color:#fff
-    classDef database fill:#3b82f6,stroke:#333,stroke-width:2px,color:#fff
-    
-    class FE frontend
-    class US,BS backend
-    class UDB,BDB,REDIS database
 
 ```
 
