@@ -5,6 +5,10 @@
 **Tech Stack**: Spring Boot (Java 21), Go 1.21+/Gin, PostgreSQL 17, Redis 7, Docker Compose
 **Infrastructure**: AWS (Terraform), EC2, RDS, ElastiCache, ALB, Route53
 
+## 상세 주요 문서
+- **Wiki** : [wealist 상세문서](https://github.com/OrangesCloud/wealist-project/wiki)
+
+
 ## 🏗️ 인프라 아키텍처
 ### AWS Infrastructure Overview
 본 프로젝트의 AWS 인프라는 Terraform으로 관리되며, 별도 리포지토리에서 Infrastructure as Code로 관리됩니다.
