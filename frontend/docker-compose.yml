@@ -1,0 +1,29 @@
+services:
+  frontend-dev:
+    # 1. pnpm 설치를 위해 생성한 개발용 Dockerfile.dev 참조
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    # 2. 로컬 .env 파일의 변수들을 컨테이너에 주입
+    env_file:
+      - .env # 💡 env_file을 사용하여 .env 파일 참조
+
+    # 💡 핫 리로딩을 위해 로컬 소스 코드를 컨테이너의 /app에 마운트
+    volumes:
+      - ./:/app
+      - /app/node_modules # 호스트의 node_modules는 무시 (컨테이너 내부 종속성 보존)
+
+    working_dir: /app
+
+    # 로컬 개발 서버 실행 명령 (Vite dev server)
+    command: sh -c "pnpm install --frozen-lockfile --ignore-scripts && pnpm run dev -- --host 0.0.0.0 --port 3000"
+    # 포트 매핑: 호스트:컨테이너
+    ports:
+      - '3000:3000'
+
+    # 백엔드와 통신을 위한 공통 네트워크 연결
+    networks:
+      - wealist-net
+networks:
+  wealist-net:
+    external: true # 외부에서 생성된 네트워크를 사용하도록 지정

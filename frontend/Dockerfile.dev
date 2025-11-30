@@ -1,0 +1,13 @@
+# 1. Base Image: CI/CD와 동일한 LTS Node.js 버전 사용
+# Alpine 리눅스는 가볍기 때문에 개발 환경에 적합합니다.
+FROM node:20-alpine
+
+# 2. pnpm 설치
+# Node.js 환경에서 pnpm을 전역으로 설치합니다.
+RUN npm install -g pnpm
+
+# 3. 작업 디렉토리 설정 (docker-compose.yml과 일치해야 함)
+WORKDIR /app
+
+# 4. 개발 서버 실행 포트 노출 (선택 사항이지만 명시적으로 추가)
+EXPOSE 3000
