@@ -3,20 +3,49 @@
 마이크로서비스 기반 프로젝트 관리 플랫폼
 
 **Tech Stack**: Spring Boot (Java 21), Go 1.21+/Gin, PostgreSQL 17, Redis 7, Docker Compose
+**Infrastructure**: AWS (Terraform), EC2, RDS, ElastiCache, ALB, Route53
+
+## 🏗️ 인프라 아키텍처
+### AWS Infrastructure Overview
+본 프로젝트의 AWS 인프라는 Terraform으로 관리되며, 별도 리포지토리에서 Infrastructure as Code로 관리됩니다.
+
+**🔗 Infrastructure Repository**: [wealist-terraform-prod](https://github.com/OrangesCloud/wealist-terraform-prod.git)
+**📋 상세 아키텍처 문서**: [ARCHITECTURE.md](https://github.com/OrangesCloud/wealist-terraform-prod/blob/main/ARCHITECTURE.md)
+
+![AWS Architecture Diagram](./docs/images/wealist_prod.aws-architecture.png)
+
+
+
+### Infrastructure 특징
+- Infrastructure as Code: Terraform을 통한 완전한 인프라 코드화
+- High Availability: Multi-AZ RDS, Auto Scaling Group을 통한 고가용성
+- Security: VPC, Security Groups, IAM을 통한 보안 강화
+- Monitoring: CloudWatch, Application Load Balancer Health Check
+- SSL/TLS: ACM을 통한 인증서 자동 관리
+- CDN: CloudFront를 통한 글로벌 콘텐츠 배포
 
 ## 🏗️ 서비스 구조
 
-| 서비스 | 기술 스택 | 포트 | 설명 |
-|--------|----------|------|------|
-| **User Service** | Spring Boot (Java 21) | 8080 | 사용자 인증, 워크스페이스 관리, OAuth2 |
-| **Board Service** | Go/Gin | 8000 | 프로젝트/보드 관리, 커스텀 필드, Fractional Indexing |
+| 서비스               | 기술 스택               | 포트   | 설명                                      |
+|-------------------|---------------------|------|-----------------------------------------|
+| **Frontend**      | React               | 3000 | 사용자 인터페이스, 대시보드, 프로젝트 관리 UI             |
+| **User Service**  | Spring Boot (Java 21) | 8080 | 사용자 인증, 워크스페이스 관리, OAuth2               |
+| **Board Service** | Go/Gin              | 8000 | 프로젝트/보드 관리, 커스텀 필드, Fractional Indexing |
 
 ## 🚀 주요 기능
+### Frontend 기능
+- ✅ 반응형 웹 디자인 (Tailwind CSS)
+- ✅ 실시간 프로젝트 대시보드
+- ✅ 드래그 앤 드롭 칸반 보드
+- ✅ Google OAuth 소셜 로그인
+- ✅ 워크스페이스 관리 인터페이스
+- ✅ 역할 기반 UI 권한 제어
+- ✅ 반응형 모바일 지원
 
+### Backend 기능
 - ✅ 워크스페이스 & 프로젝트 관리
 - ✅ 역할 기반 접근 제어 (OWNER/ADMIN/MEMBER)
 - ✅ JWT 기반 인증 (HS512)
-- ✅ Fractional Indexing을 이용한 효율적인 보드 정렬
 - ✅ Redis 캐싱 전략
 - ✅ RESTful API with Swagger
 - ✅ GitHub Actions CI/CD (EC2 자동 배포)
@@ -61,6 +90,7 @@ cp docker/env/.env.example docker/env/.env.dev
 ### 3. 서비스 확인
 
 **개발 환경 접속**:
+- Frontend: http://localhost:3000
 - User Service API: http://localhost:8080
 - User Service Swagger: http://localhost:8080/swagger-ui/index.html
 - Board Service API: http://localhost:8000
@@ -93,6 +123,8 @@ swag init -g cmd/api/main.go -o docs  # Swagger 재생성
 ```
 
 ## 📦 기술 스택
+**Frontend**
+- Core: react
 
 **Backend**:
 - User Service: Spring Boot 3.x, Java 21, Spring Security
@@ -110,24 +142,39 @@ swag init -g cmd/api/main.go -o docs  # Swagger 재생성
 
 ### 마이크로서비스 구조
 
-```
-┌─────────────────┐         ┌──────────────────┐
-│  User Service   │◄────────│  Board Service   │
-│  (Spring Boot)  │  JWT    │      (Go)        │
-│                 │  Auth   │                  │
-└────────┬────────┘         └────────┬─────────┘
-         │                           │
-    ┌────▼─────┐              ┌─────▼──────┐
-    │ User DB  │              │  Board DB  │
-    │(PostgreSQL)             │(PostgreSQL)│
-    └──────────┘              └────────────┘
-         │                           │
-         └───────────┬───────────────┘
-                     │
-              ┌──────▼──────┐
-              │   Redis     │
-              │  (Cache)    │
-              └─────────────┘
+```mermaid
+graph TB
+    %% Frontend
+    FE[Frontend<br/>React + TypeScript<br/>:3000]
+    
+    %% Backend Services
+    US[User Service<br/>Spring Boot<br/>:8080]
+    BS[Board Service<br/>Go + Gin<br/>:8000]
+    
+    %% Databases
+    UDB[(User DB<br/>PostgreSQL)]
+    BDB[(Board DB<br/>PostgreSQL)]
+    REDIS[(Redis<br/>Cache)]
+    
+    %% Connections
+    FE -->|HTTP API| US
+    FE -->|HTTP API| BS
+    US -.->|JWT Auth| BS
+    
+    US --> UDB
+    BS --> BDB
+    US --> REDIS
+    BS --> REDIS
+    
+    %% Styling
+    classDef frontend fill:#61dafb,stroke:#333,stroke-width:2px,color:#000
+    classDef backend fill:#10b981,stroke:#333,stroke-width:2px,color:#fff
+    classDef database fill:#3b82f6,stroke:#333,stroke-width:2px,color:#fff
+    
+    class FE frontend
+    class US,BS backend
+    class UDB,BDB,REDIS database
+
 ```
 
 **핵심 설계 원칙**:
@@ -160,6 +207,11 @@ CD (CodeDeploy): Deploy to EC2 Prod
 Health Check → Success/Rollback
 ```
 
+**Frontend 전용 워크플로우**:
+- 빌드: Vite를 통한 최적화된 번들링
+- 테스트: TypeScript 타입 검사 + ESLint
+- 배포: Nginx를 통한 정적 파일 서빙
+
 **워크플로우 위치**: `.github/workflows/`
 - CI: `ci-{env}-{service}.yml`
 - CD: `cd-{env}-{service}.yml`
@@ -171,6 +223,8 @@ Health Check → Success/Rollback
 ### 개발 가이드
 
 ### 서비스별 문서
+- **Frontend**
+
 - **User Service**:
 
 - **Board Service**:
