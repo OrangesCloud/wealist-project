@@ -165,15 +165,6 @@ graph TB
     BS --> BDB
     US --> REDIS
     BS --> REDIS
-    
-    %% Styling
-    classDef frontend fill:#61dafb,stroke:#333,stroke-width:2px,color:#000
-    classDef backend fill:#10b981,stroke:#333,stroke-width:2px,color:#fff
-    classDef database fill:#3b82f6,stroke:#333,stroke-width:2px,color:#fff
-    
-    class FE frontend
-    class US,BS backend
-    class UDB,BDB,REDIS database
 
 ```
 
