@@ -9,9 +9,9 @@
 ### AWS Infrastructure Overview
 본 프로젝트의 AWS 인프라는 Terraform으로 관리되며, 별도 리포지토리에서 Infrastructure as Code로 관리됩니다.
 
-**🔗 Infrastructure Repository**: [wealist-terraform-prod](https://github.com/OrangesCloud/wealist-terraform-prod.git)
+**🔗 Infrastructure Repository**:* [wealist-terraform-prod](https://github.com/OrangesCloud/wealist-terraform-prod.git)
 
-**📋 상세 아키텍처 문서**: [ARCHITECTURE.md](https://github.com/OrangesCloud/wealist-terraform-prod/blob/main/ARCHITECTURE.md)
+**📋 상세 아키텍처 문서**:* [ARCHITECTURE.md](https://github.com/OrangesCloud/wealist-terraform-prod/blob/main/ARCHITECTURE.md)
 
 ![AWS Architecture Diagram](.docs/images/wealist_prod_aws_architecture.png)
 
