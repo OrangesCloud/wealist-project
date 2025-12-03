@@ -1,0 +1,48 @@
+> Task :clean
+
+> Task :compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :processResources
+> Task :classes
+
+> Task :compileTestJava
+Note: /Users/groom/Desktop/migration/wealist-project/user-service/src/test/java/OrangeCloud/UserRepo/service/S3ServiceTest.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :processTestResources
+> Task :testClasses
+
+> Task :test
+
+UserProfileLifecycleIntegrationTest > 캐시 동작 확인: 프로필 생성 시 캐시 무효화 FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:180
+        Caused by: org.springframework.beans.factory.support.BeanDefinitionOverrideException at DefaultListableBeanFactory.java:1256
+
+UserProfileLifecycleIntegrationTest > 기본 프로필 삭제 시도 시 예외 발생 FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+UserProfileLifecycleIntegrationTest > 기본 프로필이 없을 때 프로필 업데이트 시 예외 발생 FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+UserProfileLifecycleIntegrationTest > 전체 프로필 라이프사이클 테스트: 생성 → 가입 → 조회(fallback) → 수정(lazy creation) → 조회(workspace-specific) → 삭제 → 조회(fallback) FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+4 tests completed, 4 failed
+
+> Task :test FAILED
+
+[Incubating] Problems report is available at: file:///Users/groom/Desktop/migration/wealist-project/user-service/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':test'.
+> There were failing tests. See the report at: file:///Users/groom/Desktop/migration/wealist-project/user-service/build/reports/tests/test/index.html
+
+* Try:
+> Run with --scan to get full insights.
+
+BUILD FAILED in 8s
+6 actionable tasks: 6 executed

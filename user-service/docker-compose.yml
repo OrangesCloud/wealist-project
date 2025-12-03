@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: wealist-postgres
+    hostname: postgres
+
+    environment:
+      # PostgreSQL 기본 설정
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      POSTGRES_DB: postgres  # 추가: 기본 데이터베이스 명시
+      
+      # 초기화 스크립트에서 사용할 환경변수들
+      USER_DB_NAME: ${USER_DB_NAME}
+      USER_DB_USER: ${USER_DB_USER}  
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD}
+      BOARD_DB_NAME: ${BOARD_DB_NAME}
+      BOARD_DB_USER: ${BOARD_DB_USER}
+      BOARD_DB_PASSWORD: ${BOARD_DB_PASSWORD}
+      
+      # PostgreSQL 설정
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=en-US"
+      PGDATA: /var/lib/postgresql/data/pgdata
+
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./createdb.sh:/docker-entrypoint-initdb.d/createdb.sh:ro
+
+    networks:
+      - wealist-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    restart: unless-stopped
+    # user: postgres  # 이 줄 제거 또는 주석처리
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.4"
+          memory: 384M
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+
+volumes:
+  postgres-data:
+
+networks:
+  wealist-net:
+    driver: bridge

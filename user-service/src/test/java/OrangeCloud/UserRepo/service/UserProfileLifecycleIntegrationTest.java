@@ -1,5 +1,8 @@
 package OrangeCloud.UserRepo.service;
 
+import OrangeCloud.UserRepo.TestApplication;
+import OrangeCloud.UserRepo.UserRepoApplication;
+import OrangeCloud.UserRepo.config.DataInitializer;
 import OrangeCloud.UserRepo.dto.userprofile.UpdateProfileRequest;
 import OrangeCloud.UserRepo.dto.userprofile.UserProfileResponse;
 import OrangeCloud.UserRepo.entity.User;
@@ -14,11 +17,15 @@ import OrangeCloud.UserRepo.repository.WorkspaceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
@@ -42,7 +49,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 
  * Requirements: 1.1, 2.1, 3.1, 3.2
  */
-@SpringBootTest
+// @SpringBootTest(classes = TestApplication.class)
+@SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
 @Import(OrangeCloud.UserRepo.config.TestRedisConfig.class)
 @Transactional

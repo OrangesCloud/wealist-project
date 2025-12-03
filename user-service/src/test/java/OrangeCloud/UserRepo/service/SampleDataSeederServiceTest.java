@@ -1,5 +1,6 @@
 package OrangeCloud.UserRepo.service;
 
+import OrangeCloud.UserRepo.TestApplication;
 import OrangeCloud.UserRepo.client.BoardServiceClient;
 import OrangeCloud.UserRepo.client.CreateBoardRequest;
 import OrangeCloud.UserRepo.client.CreateProjectRequest;
@@ -18,7 +19,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+// import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.junit4.SpringRunner;
 
+// import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -33,7 +41,9 @@ import static org.mockito.Mockito.*;
 /**
  * Unit tests for SampleDataSeederService
  */
+// @SpringBootTest(classes = TestApplication.class)
 @ExtendWith(MockitoExtension.class)
+@ActiveProfiles("test")
 class SampleDataSeederServiceTest {
 
     @Mock
