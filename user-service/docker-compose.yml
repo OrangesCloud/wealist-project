@@ -1,58 +1,129 @@
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: wealist-postgres
-    hostname: postgres
+  # postgres:
+  #   image: postgres:17-alpine
+  #   container_name: wealist-postgres
+  #   hostname: postgres
 
+  #   environment:
+  #     # PostgreSQL 기본 설정
+  #     POSTGRES_USER: ${POSTGRES_SUPERUSER}
+  #     POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+  #     POSTGRES_DB: postgres  # 추가: 기본 데이터베이스 명시
+      
+  #     # 초기화 스크립트에서 사용할 환경변수들
+  #     USER_DB_NAME: ${USER_DB_NAME}
+  #     USER_DB_USER: ${USER_DB_USER}  
+  #     USER_DB_PASSWORD: ${USER_DB_PASSWORD}
+  #     BOARD_DB_NAME: ${BOARD_DB_NAME}
+  #     BOARD_DB_USER: ${BOARD_DB_USER}
+  #     BOARD_DB_PASSWORD: ${BOARD_DB_PASSWORD}
+      
+  #     # PostgreSQL 설정
+  #     POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=en-US"
+  #     PGDATA: /var/lib/postgresql/data/pgdata
+
+  #   ports:
+  #     - "${POSTGRES_HOST_PORT:-5432}:5432"
+
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #     - ./createdb.sh:/docker-entrypoint-initdb.d/createdb.sh:ro
+
+  #   networks:
+  #     - wealist-net
+
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 10s
+
+  #   restart: unless-stopped
+
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: "0.4"
+  #         memory: 384M
+  #       reservations:
+  #         cpus: "0.2"
+  #         memory: 256M
+
+  user-service:
+    env_file:
+      - ./.env
+    image: user-service:latest
+    container_name: wealist-user-service
+    hostname: user-service
+    
     environment:
-      # PostgreSQL 기본 설정
-      POSTGRES_USER: ${POSTGRES_SUPERUSER}
-      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
-      POSTGRES_DB: postgres  # 추가: 기본 데이터베이스 명시
       
-      # 초기화 스크립트에서 사용할 환경변수들
-      USER_DB_NAME: ${USER_DB_NAME}
-      USER_DB_USER: ${USER_DB_USER}  
-      USER_DB_PASSWORD: ${USER_DB_PASSWORD}
-      BOARD_DB_NAME: ${BOARD_DB_NAME}
-      BOARD_DB_USER: ${BOARD_DB_USER}
-      BOARD_DB_PASSWORD: ${BOARD_DB_PASSWORD}
+      # JWT 설정
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRATION_MS: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:-3600000}
+      JWT_REFRESH_TOKEN_EXPIRATION_MS: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:-604800000}
       
-      # PostgreSQL 설정
-      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=en-US"
-      PGDATA: /var/lib/postgresql/data/pgdata
+      # AWS S3 설정
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      
+      # OAuth2 설정
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      OAUTH2_CLIENT_REDIRECT_URI: ${OAUTH2_CLIENT_REDIRECT_URI:-http://localhost:8080/login/oauth2/code/google}
+      OAUTH2_REDIRECT_URL_ENV: ${OAUTH2_REDIRECT_URL_ENV:-http://localhost:3000/oauth/callback}
+      
+      # Redis 설정 (선택적)
+      SPRING_REDIS_HOST: ${REDIS_HOST:-redis}
+      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # 기타 설정
+      APP_NAME: ${APP_NAME:-wealist-user}
+      USER_SERVICE_PORT: ${USER_SERVICE_PORT:-8080}
+      BOARD_SERVICE_URL: ${BOARD_SERVICE_URL:-http://board-service:8081}
+      SAMPLE_DATA_ENABLED: ${SAMPLE_DATA_ENABLED:-false}
+      
+      # Spring 프로파일
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+    
 
     ports:
-      - "${POSTGRES_HOST_PORT:-5432}:5432"
-
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./createdb.sh:/docker-entrypoint-initdb.d/createdb.sh:ro
+      - "${USER_SERVICE_HOST_PORT:-8080}:8080"
 
     networks:
       - wealist-net
 
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
     restart: unless-stopped
-    # user: postgres  # 이 줄 제거 또는 주석처리
 
     deploy:
       resources:
         limits:
-          cpus: "0.4"
-          memory: 384M
+          cpus: "0.5"
+          memory: 512M
         reservations:
-          cpus: "0.2"
+          cpus: "0.25"
           memory: 256M
 
+    # 파일 업로드용 볼륨 (선택적)
+    volumes:
+      - user-upload-data:/app/upload
+
 volumes:
-  postgres-data:
+  # postgres-data:
+  user-upload-data:
 
 networks:
   wealist-net:

@@ -3,6 +3,7 @@ package OrangeCloud.UserRepo.repository;
 import OrangeCloud.UserRepo.entity.User;
 import OrangeCloud.UserRepo.entity.UserProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
@@ -11,6 +12,7 @@ import java.util.UUID;
 /**
  * UserProfile 엔티티에 대한 데이터 접근 계층 (DAO)
  */
+@Repository
 public interface UserProfileRepository extends JpaRepository<UserProfile, UUID> {
     /**
      * User ID를 기반으로 UserProfile을 조회합니다.

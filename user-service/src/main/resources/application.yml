@@ -16,35 +16,7 @@ spring:
     default-property-inclusion: non_null
     mapper:
       accept-case-insensitive-enums: true
-  datasource:
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 75
-      minimum-idle: 10
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-
-  jpa:
-    hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-      # ⚠️ TEMPORARY: Changed to 'update' to create missing attachments table
-      # TODO: Revert to 'validate' after table is created
-    show-sql: ${JPA_SHOW_SQL:false}
-    properties:
-      hibernate:
-        format_sql: ${JPA_FORMAT_SQL:false}
-    database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
-    sql:
-      init:
-        mode: always
-    defer-datasource-initialization: true
-
-  file:
-    upload-dir: /app/upload
+  
 
   data:
     redis:

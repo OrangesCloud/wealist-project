@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.UUID;
 /**
  * Attachment 엔티티에 대한 데이터 접근 계층 (DAO)
  */
+@Repository
 public interface AttachmentRepository extends JpaRepository<Attachment, UUID> {
 
     /**

@@ -2,6 +2,8 @@ package OrangeCloud.UserRepo;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.data.web.config.EnableSpringDataWebSupport;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -12,8 +14,11 @@ import static org.springframework.data.web.config.EnableSpringDataWebSupport.Pag
 
 @SpringBootApplication(exclude = {
     DataSourceAutoConfiguration.class,  // 조건부로 DB 설정하기 위해 제외
-    HibernateJpaAutoConfiguration.class
+    HibernateJpaAutoConfiguration.class,
+	RedisAutoConfiguration.class,
+    RedisRepositoriesAutoConfiguration.class
 })
+
 // @EnableJpaRepositories(basePackages = "OrangeCloud.UserRepo.repository")
 @EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO)
 @EnableScheduling
